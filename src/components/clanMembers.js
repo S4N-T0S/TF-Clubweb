@@ -234,7 +234,7 @@ const ogClanMembers = [
       discord: "epicmode",
       embarkId: "EpicMode#3936",
       type: "server",
-      pruby: true
+      pruby: false
     },
   
     // Non Server Members
