@@ -80,7 +80,8 @@ const OGClanTracker = () => {
 
   const fetchLeaderboardData = async () => {
     try {
-      const response = await fetch('https://api.the-finals-leaderboard.com/v1/leaderboard/s5/crossplay');
+      const timestamp = new Date().getTime();
+      const response = await fetch('https://api.the-finals-leaderboard.com/v1/leaderboard/s5/crossplay?nocache=' + timestamp);
       if (!response.ok) throw new Error('Failed to fetch leaderboard data');
       const responseData = await response.json();
       
