@@ -239,57 +239,49 @@ const ogClanMembers = [
   
     // Non Server Members
     {
-      name: "MAS",
       embarkId: "MAS#0686",
       type: "regular",
       pruby: true
     },
     {
-      name: "Kdohi",
       embarkId: "Kdohi#6229",
       type: "regular",
       pruby: true
     },
     {
-      name: "Quickzz",
       embarkId: "Quickzz#6228",
       type: "regular",
       pruby: true
     },
     {
-      name: "Sislover",
       embarkId: "Sislover#1628",
       type: "regular",
       pruby: false
     },
     {
-      name: "CUDDLEBEAR",
       embarkId: "CUDDLEBEAR#4706",
       type: "regular",
       pruby: false
     },
     {
-      name: "Neo",
       embarkId: "Neo#9269",
       type: "regular",
       pruby: false
     },
     {
-      name: "dany",
       embarkId: "dany#1324",
       type: "regular",
       pruby: true
     },
     {
-      name: "Botel",
       embarkId: "Botel#2308",
       type: "regular",
       pruby: false
     },
     {
-      name: "highcat6607",
+      discord: "highcat6607",
       embarkId: "Madrif#7737",
-      type: "regular",
+      type: "server",
       pruby: false
     }
   ];
