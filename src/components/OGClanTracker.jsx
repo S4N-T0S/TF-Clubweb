@@ -389,6 +389,9 @@ const OGClanTracker = () => {
                     })}
                 </tbody>
               </table>
+              <div className="mt-4 text-sm text-gray-400 space-y-1">
+                <p>Total Members: {totalMembers}/50</p>
+              </div>
             </div>
           ) : view === 'clans' ? (
             <div className="overflow-x-auto">
