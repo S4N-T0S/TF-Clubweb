@@ -230,6 +230,12 @@ const ogClanMembers = [
       type: "server",
       pruby: true
     },
+    {
+      discord: "epicmode",
+      embarkId: "EpicMode#3936",
+      type: "server",
+      pruby: true
+    },
   
     // Non Server Members
     {
@@ -277,6 +283,12 @@ const ogClanMembers = [
     {
       name: "Botel",
       embarkId: "Botel#2308",
+      type: "regular",
+      pruby: false
+    },
+    {
+      name: "highcat6607",
+      embarkId: "Madrif#7737",
       type: "regular",
       pruby: false
     }
