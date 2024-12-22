@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader2, Check, X, Users, Trophy, Diamond, StarsIcon, StarHalf, Stars, Lightbulb } from 'lucide-react';
+import { Loader2, Check, X, Users, Trophy, Diamond, StarsIcon, StarHalf, Stars, Lightbulb, RefreshCw } from 'lucide-react';
 import ogClanMembers from './clanMembers';
 
 const Hexagon = ({ className }) => (
@@ -39,26 +39,25 @@ const LeagueDisplay = ({ league, score, rank }) => {
   const displayLeague = (league || 'Unranked');
   
   return (
-  <td className="px-4 py-2 text-center">
-    <div className="flex items-center justify-center gap-2">
-      <Hexagon className={leagueStyle} />
-      <div className="flex flex-col text-center">
-        <span className="text-sm font-medium">{displayLeague}</span>
-        <span className="text-xs text-gray-400">{score.toLocaleString()}</span>
+    <td className="px-4 py-2 text-center">
+      <div className="flex items-center justify-center gap-2">
+        <Hexagon className={leagueStyle} />
+        <div className="flex flex-col text-center">
+          <span className="text-sm font-medium text-gray-200">{displayLeague}</span>
+          <span className="text-xs text-gray-400">{score.toLocaleString()}</span>
+        </div>
       </div>
-    </div>
-  </td>
-);
-
+    </td>
+  );
 };
 
 const PriorRubyDisplay = ({ isPriorRuby }) => {
   if (isPriorRuby) {
     return (
-        <div className="flex justify-center items-center">
-          <Check className="w-4 h-4 text-green-400 opacity-50" />
-        </div>
-      );
+      <div className="flex justify-center items-center">
+        <Check className="w-4 h-4 text-green-400 opacity-50" />
+      </div>
+    );
   }
   return <span className="text-gray-500">💀</span>;
 };
@@ -71,6 +70,7 @@ const OGClanTracker = () => {
   const [topClans, setTopClans] = useState([]);
   const [view, setView] = useState('members');
   const [unknownMembers, setUnknownMembers] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const totalMembers = ogClanMembers.length;
 
@@ -79,6 +79,7 @@ const OGClanTracker = () => {
   }, []);
 
   const fetchLeaderboardData = async () => {
+    setIsRefreshing(true);
     try {
       const timestamp = new Date().getTime();
       const response = await fetch('https://api.the-finals-leaderboard.com/v1/leaderboard/s5/crossplay?nocache=' + timestamp);
@@ -158,6 +159,8 @@ const OGClanTracker = () => {
       console.error('Error details:', err);
       setError(err.message);
       setLoading(false);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -194,7 +197,7 @@ const OGClanTracker = () => {
     <div className="min-h-screen bg-gray-900 p-4">
       <div className="max-w-4xl mx-auto">
         <div className="bg-gray-800 rounded-lg shadow-xl p-6 mb-6">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <div>
               <h1 className="text-3xl font-bold mb-2 text-white">OG Club Dashboard</h1>
               <p className={`text-xl font-semibold ${isTopClan ? 'text-green-400' : 'text-red-400'}`}>
@@ -206,28 +209,37 @@ const OGClanTracker = () => {
                 </p>
               )}
             </div>
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full sm:w-auto">
               <button
                 onClick={() => setView('members')}
-                className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 ${
                   view === 'members' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
+                } w-full sm:w-auto`}
               >
                 <Users className="w-4 h-4" />
                 Members
               </button>
               <button
                 onClick={() => setView('clans')}
-                className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 ${
                   view === 'clans' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
+                } w-full sm:w-auto`}
               >
                 <Trophy className="w-4 h-4" />
                 Top Clubs
+              </button>
+              <button
+                onClick={fetchLeaderboardData}
+                disabled={isRefreshing}
+                className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 
+                  bg-gray-700 text-gray-300 hover:bg-gray-600 w-full sm:w-auto
+                  ${isRefreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               </button>
             </div>
           </div>
@@ -295,13 +307,11 @@ const OGClanTracker = () => {
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-2 text-gray-300">
-                            <LeagueDisplay 
-                              league={member.league} 
-                              score={member.rankScore} 
-                              rank={member.rank}
-                            />
-                          </td>
+                          <LeagueDisplay 
+                            league={member.league} 
+                            score={member.rankScore} 
+                            rank={member.rank}
+                          />
                           <td className="px-4 py-2 text-center">
                             <PriorRubyDisplay isPriorRuby={clanMemberInfo?.pruby} />
                           </td>
