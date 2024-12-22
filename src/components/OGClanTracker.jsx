@@ -240,7 +240,7 @@ const OGClanTracker = () => {
                     <th className="px-4 py-2 text-left text-gray-300">Rank</th>
                     <th className="px-4 py-2 text-left text-gray-300">Player</th>
                     <th className="group relative px-4 py-2 text-left text-gray-300">
-                      DL
+                      DL?
                       <div className="absolute hidden group-hover:block bg-gray-800 text-white p-2 rounded shadow-lg mt-1 left-0 z-10">
                         Discord Linked
                       </div>
