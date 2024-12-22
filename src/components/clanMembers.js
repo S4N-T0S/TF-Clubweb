@@ -135,12 +135,6 @@ const ogClanMembers = [
       pruby: false
     },
     {
-      discord: "blank42",
-      embarkId: "blank#6170",
-      type: "server",
-      pruby: false
-    },
-    {
       discord: "mtene",
       embarkId: "i_drive#6983",
       type: "server",
