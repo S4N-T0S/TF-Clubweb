@@ -1,8 +1,8 @@
 import { Hexagon } from './icons/Hexagon';
 import { getLeagueStyle } from '../utils/styles';
 
-export const LeagueDisplay = ({ league, score, rank }) => {
-  const leagueStyle = getLeagueStyle(league, rank);
+export const LeagueDisplay = ({ league, score, rank, leagueNumber }) => {
+  const leagueStyle = getLeagueStyle(league, rank, leagueNumber);
   const displayLeague = (league || 'Unranked');
   
   return (
