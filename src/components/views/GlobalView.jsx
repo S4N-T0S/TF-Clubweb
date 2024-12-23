@@ -1,7 +1,8 @@
-import { ChevronUp, ChevronDown, Search } from 'lucide-react'; // Added Search import
+import { ChevronUp, ChevronDown, Search } from 'lucide-react';
 import { usePagination } from '../../hooks/usePagination';
 import { SearchBar } from '../SearchBar';
 import { LeagueDisplay } from '../LeagueDisplay';
+import { useEffect } from 'react';
 
 const RankChangeDisplay = ({ change }) => {
   if (!change || change === 0) return null;
@@ -58,7 +59,7 @@ const Pagination = ({
   </div>
 );
 
-export const GlobalView = ({ globalLeaderboard, onPlayerSearch }) => { // Added onPlayerSearch prop
+export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: initialSearchQuery, setSearchQuery: setGlobalSearchQuery }) => {
   const {
     searchQuery,
     setSearchQuery,
@@ -70,6 +71,14 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch }) => { // Added 
     handlePageChange,
     filteredItems
   } = usePagination(globalLeaderboard, 50);
+
+  // Update local search when global search changes
+  useEffect(() => {
+    if (initialSearchQuery) {
+      setSearchQuery(initialSearchQuery);
+      setGlobalSearchQuery(''); // Clear the global search after applying it
+    }
+  }, [initialSearchQuery]);
 
   return (
     <div className="overflow-x-auto">

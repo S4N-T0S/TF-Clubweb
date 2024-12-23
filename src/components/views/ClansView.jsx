@@ -1,4 +1,4 @@
-export const ClansView = ({ topClans }) => {
+export const ClansView = ({ topClans, onClanClick }) => {
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
@@ -21,7 +21,14 @@ export const ClansView = ({ topClans }) => {
               }`}
             >
               <td className="px-4 py-2 text-gray-300">#{index + 1}</td>
-              <td className="px-4 py-2 text-gray-300">{clan.tag}</td>
+              <td className="px-4 py-2">
+                <span 
+                  className="text-gray-300 hover:text-blue-400 cursor-pointer"
+                  onClick={() => onClanClick(clan.tag)}
+                >
+                  [{clan.tag}]
+                </span>
+              </td>
               <td className="px-4 py-2 text-gray-300">{clan.memberCount}</td>
               <td className="px-4 py-2 text-gray-300">{clan.totalScore.toLocaleString()}</td>
             </tr>

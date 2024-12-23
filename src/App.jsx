@@ -6,8 +6,8 @@ import { GlobalView } from './components/views/GlobalView';
 import { ErrorDisplay } from './components/ErrorDisplay';
 import { LoadingDisplay } from './components/LoadingDisplay';
 import { DashboardHeader } from './components/DashboardHeader';
-import PlayerSearchModal from './components/PlayerSearchModal';
 import Toast from './components/Toast';
+import PlayerSearchModal from './components/PlayerSearchModal';
 import ogClanMembers from './data/clanMembers';
 
 const App = () => {
@@ -16,6 +16,7 @@ const App = () => {
     isOpen: false, 
     initialSearch: '' 
   });
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   
   const {
     clanMembers,
@@ -30,6 +31,11 @@ const App = () => {
     toastMessage,
     setToastMessage
   } = useLeaderboard();
+
+  const handleClanClick = (clanTag) => {
+    setGlobalSearchQuery(`[${clanTag}]`);
+    setView('global');
+  };
 
   if (error) return <ErrorDisplay error={error} onRetry={refreshData} />;
   if (loading) return <LoadingDisplay />;
@@ -61,11 +67,18 @@ const App = () => {
               onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
             />
           )}
-          {view === 'clans' && <ClansView topClans={topClans} />}
+          {view === 'clans' && (
+            <ClansView 
+              topClans={topClans} 
+              onClanClick={handleClanClick}
+            />
+          )}
           {view === 'global' && (
             <GlobalView 
               globalLeaderboard={globalLeaderboard} 
               onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
+              searchQuery={globalSearchQuery}
+              setSearchQuery={setGlobalSearchQuery}
             />
           )}
         </div>
