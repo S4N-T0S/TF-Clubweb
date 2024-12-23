@@ -38,8 +38,10 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
     }
   }, [initialSearch]);
 
-  const handleSearch = async (query = searchQuery) => {
-    if (!validateEmbarkId(query)) {
+  const handleSearch = async (queryOverride) => {
+    const queryToUse = queryOverride || searchQuery;
+    
+    if (!validateEmbarkId(queryToUse)) {
       setError('Please enter a valid Embark ID (must include # followed by 4 numbers)');
       return;
     }
@@ -49,7 +51,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
     setHasSearched(true);
 
     try {
-      const searchResults = await searchPlayerHistory(query.trim(), cachedS5Data);
+      const searchResults = await searchPlayerHistory(queryToUse.trim(), cachedS5Data);
       setResults(searchResults);
     } catch (err) {
       setError('Failed to search player history');
@@ -103,7 +105,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
               />
             </div>
             <button
-              onClick={handleSearch}
+              onClick={() => handleSearch()}
               disabled={isSearching}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
