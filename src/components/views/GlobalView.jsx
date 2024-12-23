@@ -1,4 +1,4 @@
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, Search } from 'lucide-react'; // Added Search import
 import { usePagination } from '../../hooks/usePagination';
 import { SearchBar } from '../SearchBar';
 import { LeagueDisplay } from '../LeagueDisplay';
@@ -58,7 +58,7 @@ const Pagination = ({
   </div>
 );
 
-export const GlobalView = ({ globalLeaderboard }) => {
+export const GlobalView = ({ globalLeaderboard, onPlayerSearch }) => { // Added onPlayerSearch prop
   const {
     searchQuery,
     setSearchQuery,
@@ -90,7 +90,15 @@ export const GlobalView = ({ globalLeaderboard }) => {
               <td className="px-4 py-2">
                 <RankChangeDisplay change={player.change} />
               </td>
-              <td className="px-4 py-2 text-gray-300">{player.displayName}</td>
+              <td className="px-4 py-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-300">{player.displayName}</span>
+                  <Search 
+                    className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer" 
+                    onClick={() => onPlayerSearch(player.name)}
+                  />
+                </div>
+              </td>
               <LeagueDisplay 
                 league={player.league} 
                 score={player.rankScore} 

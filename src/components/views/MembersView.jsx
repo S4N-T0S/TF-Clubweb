@@ -1,4 +1,4 @@
-import { Check, X } from 'lucide-react';
+import { Check, X, Search } from 'lucide-react'; // Added Search import
 import { LeagueDisplay } from '../LeagueDisplay';
 import ogClanMembers from '../../data/clanMembers';
 
@@ -13,7 +13,7 @@ const PriorRubyDisplay = ({ isPriorRuby }) => {
   return <span className="text-gray-500">💀</span>;
 };
 
-const MemberRow = ({ member }) => {
+const MemberRow = ({ member, onSearchClick }) => { // Added onSearchClick prop
   const clanMemberInfo = ogClanMembers.find(m => 
     m.embarkId.toLowerCase() === member.name.toLowerCase() ||
     (m.discord && m.discord.toLowerCase() === member.discord?.toLowerCase())
@@ -30,8 +30,16 @@ const MemberRow = ({ member }) => {
       <td className="px-4 py-2 text-gray-300">
         {member.notInLeaderboard ? '-' : `#${member.rank}`}
       </td>
-      <td className={`px-4 py-2 ${member.notInLeaderboard ? 'text-red-400' : 'text-gray-300'}`}>
-        {member.name}
+      <td className="px-4 py-2">
+        <div className="flex items-center gap-2">
+          <span className={member.notInLeaderboard ? 'text-red-400' : 'text-gray-300'}>
+            {member.name}
+          </span>
+          <Search 
+            className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer" 
+            onClick={() => onSearchClick(member.name)}
+          />
+        </div>
       </td>
       <td className="px-4 py-2 text-gray-300">
         <div className="group relative">
@@ -62,7 +70,7 @@ const MemberRow = ({ member }) => {
   );
 };
 
-export const MembersView = ({ clanMembers, totalMembers }) => {
+export const MembersView = ({ clanMembers, totalMembers, onPlayerSearch }) => { // Added onPlayerSearch prop
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
@@ -89,7 +97,11 @@ export const MembersView = ({ clanMembers, totalMembers }) => {
           {clanMembers
             .sort((a, b) => b.rankScore - a.rankScore)
             .map((member) => (
-              <MemberRow key={member.name} member={member} />
+              <MemberRow 
+                key={member.name} 
+                member={member} 
+                onSearchClick={onPlayerSearch}
+              />
             ))}
         </tbody>
       </table>

@@ -1,19 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // Added useEffect
 import { Search, X, AlertTriangle } from 'lucide-react';
 import { validateEmbarkId } from '../utils/validateEmbarkId';
 import { searchPlayerHistory } from '../services/historicalDataService';
 import { Hexagon } from './icons/Hexagon';
 import { getLeagueStyle } from '../utils/styles';
 
-const PlayerSearchModal = ({ isOpen, onClose }) => {
+const PlayerSearchModal = ({ isOpen, onClose, initialSearch }) => { // Added initialSearch prop
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState('');
   const [results, setResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  const handleSearch = async () => {
-    if (!validateEmbarkId(searchQuery)) {
+  // Add effect to handle initialSearch
+  useEffect(() => {
+    if (initialSearch) {
+      setSearchQuery(initialSearch);
+      handleSearch(initialSearch);
+    }
+  }, [initialSearch]);
+
+  const handleSearch = async (query = searchQuery) => {
+    if (!validateEmbarkId(query)) {
       setError('Please enter a valid Embark ID (must include # followed by 4 numbers)');
       return;
     }
@@ -23,7 +31,7 @@ const PlayerSearchModal = ({ isOpen, onClose }) => {
     setHasSearched(true);
 
     try {
-      const searchResults = await searchPlayerHistory(searchQuery.trim());
+      const searchResults = await searchPlayerHistory(query.trim());
       setResults(searchResults);
     } catch (err) {
       setError('Failed to search player history');
