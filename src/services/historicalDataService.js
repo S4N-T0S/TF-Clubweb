@@ -60,7 +60,7 @@ const processResults = (results, seasonConfig, searchType, originalEmbarkId) => 
 
     return {
       season: seasonConfig.label,
-      rank: showRank ? result.rank : undefined,
+      rank: result.rank,
       league: result.league,
       score: seasonConfig.hasRankScore ? result[seasonConfig.scoreKey] : undefined,
       name: result.name || '',
@@ -149,7 +149,7 @@ export const searchPlayerHistory = async (embarkId) => {
   ]);
 
   // Sort results by season
-  const seasonOrder = ['Season 5', 'Season 4', 'Season 3', 'Season 2', 'Season 1', 'Open Beta'];
+  const seasonOrder = ['Open Beta', 'Season 1', 'Season 2', 'Season 3', 'Season 4', 'Season 5'];
   return Array.from(allResults.values()).sort((a, b) => 
     seasonOrder.indexOf(a.season) - seasonOrder.indexOf(b.season)
   );

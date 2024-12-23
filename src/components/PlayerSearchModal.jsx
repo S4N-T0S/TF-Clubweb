@@ -1,5 +1,3 @@
-// PlayerSearchModal.jsx
-
 import { useState } from 'react';
 import { Search, X, AlertTriangle } from 'lucide-react';
 import { validateEmbarkId } from '../utils/validateEmbarkId';
@@ -116,9 +114,19 @@ const PlayerSearchModal = ({ isOpen, onClose }) => {
                 <div className="flex justify-between items-start mb-2">
                   <span className="text-blue-400 font-medium">{result.season}</span>
                   {result.rank && (
-                    <span className={`text-gray-300 ${result.isTop500 ? 'border-2 border-red-500 rounded px-2' : ''}`}>
-                      Rank #{result.rank}
-                    </span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`text-gray-300 ${result.isTop500 ? 'border-2 border-red-500 rounded px-2' : ''}`}>
+                        Rank #{result.rank}
+                      </span>
+                      {!result.name && (
+                        <div className="flex items-center gap-1">
+                          <AlertTriangle className="w-4 h-4 text-red-500" />
+                          <span className="text-xs text-red-400">
+                            Platform-specific leaderboard rank
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
 
