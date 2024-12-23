@@ -26,7 +26,7 @@ export const processLeaderboardData = (rawData) => {
       memberCount: data.members
     }))
     .sort((a, b) => b.totalScore - a.totalScore)
-    .slice(0, 20);
+    .slice(0, 15);
 
   const ogMembersInLeaderboard = rawData.filter(player => 
     player?.clubTag === 'OG'
