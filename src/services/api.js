@@ -1,4 +1,4 @@
-import { leagueNumberToName } from "../utils/leagueNumbertoName";
+import { leagueNumberToName } from "../utils/lNumberToName";
 
 export const fetchLeaderboardData = async () => {
   try {
