@@ -248,8 +248,9 @@ const ogClanMembers = [
       pruby: true
     },
     {
+      discord: "lifeless_life",
       embarkId: "Sislover#1628",
-      type: "regular",
+      type: "server",
       pruby: false
     },
     {
