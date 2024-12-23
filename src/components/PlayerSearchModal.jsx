@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'; // Added useEffect
+import { useState, useEffect } from 'react';
 import { Search, X, AlertTriangle } from 'lucide-react';
 import { validateEmbarkId } from '../utils/validateEmbarkId';
 import { searchPlayerHistory } from '../services/historicalDataService';
 import { Hexagon } from './icons/Hexagon';
 import { getLeagueStyle } from '../utils/styles';
 
-const PlayerSearchModal = ({ isOpen, onClose, initialSearch }) => { // Added initialSearch prop
+const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState('');
   const [results, setResults] = useState([]);
@@ -31,7 +31,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch }) => { // Added ini
     setHasSearched(true);
 
     try {
-      const searchResults = await searchPlayerHistory(query.trim());
+      const searchResults = await searchPlayerHistory(query.trim(), cachedS5Data);
       setResults(searchResults);
     } catch (err) {
       setError('Failed to search player history');

@@ -73,7 +73,7 @@ const processResults = (results, seasonConfig, searchType, originalEmbarkId) => 
   });
 };
 
-export const searchPlayerHistory = async (embarkId) => {
+export const searchPlayerHistory = async (embarkId, cachedS5Data = null) => {
   const allResults = new Map();
   const platformNames = {
     steam: new Set(),
@@ -81,8 +81,8 @@ export const searchPlayerHistory = async (embarkId) => {
     xbox: new Set()
   };
 
-  // Get current season data
-  const currentSeasonData = await fetchLeaderboardData();
+  // Get current season data - use cached data if available
+  const currentSeasonData = cachedS5Data ? { data: cachedS5Data } : await fetchLeaderboardData();
   const currentConfig = { label: 'Season 5', hasRankScore: true, scoreKey: 'rankScore' };
 
   // First pass: Search by Embark ID and collect ALL platform names

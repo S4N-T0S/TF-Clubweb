@@ -88,6 +88,7 @@ const App = () => {
         isOpen={searchModalState.isOpen}
         onClose={() => setSearchModalState({ isOpen: false, initialSearch: '' })}
         initialSearch={searchModalState.initialSearch}
+        cachedS5Data={globalLeaderboard} // Pass the cached data
       />
     </div>
   );
