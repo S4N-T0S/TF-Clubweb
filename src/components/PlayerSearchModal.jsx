@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Search, X, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Search, AlertTriangle } from 'lucide-react';
 import { validateEmbarkId } from '../utils/validateEmbarkId';
 import { searchPlayerHistory } from '../services/historicalDataService';
 import { Hexagon } from './icons/Hexagon';
@@ -11,6 +11,24 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
   const [results, setResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const modalRef = useRef(null);
+
+  // Handle click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (modalRef.current && !modalRef.current.contains(event.target)) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen, onClose]);
 
   // Add effect to handle initialSearch
   useEffect(() => {
@@ -58,13 +76,12 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-white">Extreme Player History Search</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
-            <X className="w-6 h-6" />
-          </button>
-        </div>
+      <div 
+        ref={modalRef} 
+        className="bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto
+          scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500"
+      >
+        <h2 className="text-xl font-bold text-white mb-4">Extreme Player History Search</h2>
 
         <div className="mb-4 p-4 bg-gray-700 rounded-lg text-gray-300">
           <p>This tool searches for players across Open Beta and Seasons 1-5. When you enter an Embark ID, it will find any associated Steam, Xbox, or PSN usernames from these records and show all results linked to those accounts.</p>
@@ -104,80 +121,78 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
           )}
         </div>
 
-        {hasSearched && !error && results.length === 0 && !isSearching && (
-          <div className="p-4 bg-gray-700 rounded-lg text-gray-300 text-center">
-            No results found for this Embark ID
-          </div>
-        )}
+        <div className="space-y-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
+          {hasSearched && !error && results.length === 0 && !isSearching && (
+            <div className="p-4 bg-gray-700 rounded-lg text-gray-300 text-center">
+              No results found for this Embark ID
+            </div>
+          )}
 
-        {results.length > 0 && (
-          <div className="space-y-4">
-            {results.map((result, index) => (
-              <div 
-                key={`${result.season}-${index}`}
-                className={`p-4 bg-gray-700 rounded-lg ${
-                  result.foundViaSteamName ? 'border-2 border-yellow-500' : ''
-                }`}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-blue-400 font-medium">{result.season}</span>
-                  {result.rank && (
-                    <div className="flex flex-col items-end gap-1">
-                      <span className={`text-gray-300 ${result.isTop500 ? 'border-2 border-red-500 rounded px-2' : ''}`}>
-                        Rank #{result.rank}
-                      </span>
-                      {!result.name && (
-                        <div className="flex items-center gap-1">
-                          <AlertTriangle className="w-4 h-4 text-red-500" />
-                          <span className="text-xs text-red-400">
-                            Platform-specific leaderboard rank
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  {result.name && (
-                    <p className="text-white">Embark ID: {result.name}</p>
-                  )}
-                  {result.steamName && (
-                    <div className="flex items-center gap-2">
-                      <p className="text-gray-300">Steam: {result.steamName}</p>
-                      {result.foundViaSteamName && (
-                        <div className="relative group">
-                          <AlertTriangle className="w-4 h-4 text-yellow-400" />
-                          <div className="absolute hidden group-hover:block bg-gray-900 text-white px-2 py-1 rounded -mt-8 ml-4">
-                            Steam names are not unique, this could be a different user.
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {result.psnName && (
-                    <p className="text-gray-300">PSN: {result.psnName}</p>
-                  )}
-                  {result.xboxName && (
-                    <p className="text-gray-300">Xbox: {result.xboxName}</p>
-                  )}
-                  
-                  <div className="mt-2 pt-2 border-t border-gray-600 flex items-center gap-2">
-                    <Hexagon className={getLeagueStyle(result.league, result.rank)} />
-                    <div className="flex flex-col">
-                      <span className="text-gray-200">{result.league}</span>
-                      {result.score && (
-                        <span className="text-sm text-gray-400">
-                          {result.score.toLocaleString()} points
+          {results.map((result, index) => (
+            <div 
+              key={`${result.season}-${index}`}
+              className={`p-4 bg-gray-700 rounded-lg ${
+                result.foundViaSteamName ? 'border-2 border-yellow-500' : ''
+              }`}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <span className="text-blue-400 font-medium">{result.season}</span>
+                {result.rank && (
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`text-gray-300 ${result.isTop500 ? 'border-2 border-red-500 rounded px-2' : ''}`}>
+                      Rank #{result.rank}
+                    </span>
+                    {!result.name && (
+                      <div className="flex items-center gap-1">
+                        <AlertTriangle className="w-4 h-4 text-red-500" />
+                        <span className="text-xs text-red-400">
+                          Platform-specific leaderboard rank
                         </span>
-                      )}
-                    </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                {result.name && (
+                  <p className="text-white">Embark ID: {result.name}</p>
+                )}
+                {result.steamName && (
+                  <div className="flex items-center gap-2">
+                    <p className="text-gray-300">Steam: {result.steamName}</p>
+                    {result.foundViaSteamName && (
+                      <div className="relative group">
+                        <AlertTriangle className="w-4 h-4 text-yellow-400" />
+                        <div className="absolute hidden group-hover:block bg-gray-900 text-white px-2 py-1 rounded -mt-8 ml-4">
+                          Steam names are not unique, this could be a different user.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {result.psnName && (
+                  <p className="text-gray-300">PSN: {result.psnName}</p>
+                )}
+                {result.xboxName && (
+                  <p className="text-gray-300">Xbox: {result.xboxName}</p>
+                )}
+                
+                <div className="mt-2 pt-2 border-t border-gray-600 flex items-center gap-2">
+                  <Hexagon className={getLeagueStyle(result.league, result.rank)} />
+                  <div className="flex flex-col">
+                    <span className="text-gray-200">{result.league}</span>
+                    {result.score && (
+                      <span className="text-sm text-gray-400">
+                        {result.score.toLocaleString()} points
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

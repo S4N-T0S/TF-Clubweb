@@ -41,7 +41,7 @@ const App = () => {
   if (loading) return <LoadingDisplay />;
 
   return (
-    <div className="min-h-screen bg-gray-900 p-4">
+    <div className="min-h-screen bg-gray-900 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
       {toastMessage && (
         <Toast 
           message={toastMessage.message}
@@ -49,7 +49,7 @@ const App = () => {
           onClose={() => setToastMessage(null)}
         />
       )}
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto p-4">
         <div className="bg-gray-800 rounded-lg shadow-xl p-6 mb-6">
           <DashboardHeader
             isTopClan={isTopClan}
@@ -60,27 +60,29 @@ const App = () => {
             isRefreshing={isRefreshing}
           />
 
-          {view === 'members' && (
-            <MembersView 
-              clanMembers={clanMembers} 
-              totalMembers={ogClanMembers.length} 
-              onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
-            />
-          )}
-          {view === 'clans' && (
-            <ClansView 
-              topClans={topClans} 
-              onClanClick={handleClanClick}
-            />
-          )}
-          {view === 'global' && (
-            <GlobalView 
-              globalLeaderboard={globalLeaderboard} 
-              onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
-              searchQuery={globalSearchQuery}
-              setSearchQuery={setGlobalSearchQuery}
-            />
-          )}
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
+            {view === 'members' && (
+              <MembersView 
+                clanMembers={clanMembers} 
+                totalMembers={ogClanMembers.length} 
+                onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
+              />
+            )}
+            {view === 'clans' && (
+              <ClansView 
+                topClans={topClans} 
+                onClanClick={handleClanClick}
+              />
+            )}
+            {view === 'global' && (
+              <GlobalView 
+                globalLeaderboard={globalLeaderboard} 
+                onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
+                searchQuery={globalSearchQuery}
+                setSearchQuery={setGlobalSearchQuery}
+              />
+            )}
+          </div>
         </div>
       </div>
       
@@ -88,7 +90,7 @@ const App = () => {
         isOpen={searchModalState.isOpen}
         onClose={() => setSearchModalState({ isOpen: false, initialSearch: '' })}
         initialSearch={searchModalState.initialSearch}
-        cachedS5Data={globalLeaderboard} // Pass the cached data
+        cachedS5Data={globalLeaderboard}
       />
     </div>
   );
