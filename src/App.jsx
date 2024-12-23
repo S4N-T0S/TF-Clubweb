@@ -37,7 +37,7 @@ const App = () => {
           onClose={() => setToastMessage(null)}
         />
       )}
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <div className="bg-gray-800 rounded-lg shadow-xl p-6 mb-6">
           <DashboardHeader
             isTopClan={isTopClan}
