@@ -23,7 +23,7 @@ const PlayerSearchModal = ({ isOpen, onClose }) => {
     setHasSearched(true);
 
     try {
-      const searchResults = await searchPlayerHistory(searchQuery);
+      const searchResults = await searchPlayerHistory(searchQuery.trim());
       setResults(searchResults);
     } catch (err) {
       setError('Failed to search player history');

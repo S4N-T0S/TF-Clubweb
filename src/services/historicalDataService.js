@@ -18,7 +18,7 @@ const findPlayerInSeason = (season, searchQuery, searchType = 'embarkId') => {
   
   return data.filter(player => {
     if (searchType === 'embarkId') {
-      return player.name === searchQuery;
+      return player.name?.toLowerCase() === searchQuery.toLowerCase();
     }
     if (searchType === 'steam') {
       return player.steamName === searchQuery;
@@ -36,7 +36,7 @@ const findPlayerInSeason = (season, searchQuery, searchType = 'embarkId') => {
 const findPlayerInCurrentSeason = (data, searchQuery, searchType = 'embarkId') => {
   return data.filter(player => {
     if (searchType === 'embarkId') {
-      return player.name === searchQuery;
+      return player.name?.toLowerCase() === searchQuery.toLowerCase();
     }
     if (searchType === 'steam') {
       return player.steamName === searchQuery;
@@ -53,7 +53,7 @@ const findPlayerInCurrentSeason = (data, searchQuery, searchType = 'embarkId') =
 
 const processResults = (results, seasonConfig, searchType, originalEmbarkId) => {
   return results.map(result => {
-    const isOriginalEmbarkId = result.name === originalEmbarkId;
+    const isOriginalEmbarkId = result.name?.toLowerCase() === originalEmbarkId.toLowerCase();
     const showRank = searchType === 'embarkId' || 
                     searchType === 'steam' || 
                     (result.name && isOriginalEmbarkId);
@@ -67,7 +67,7 @@ const processResults = (results, seasonConfig, searchType, originalEmbarkId) => 
       steamName: result.steamName || '',
       psnName: result.psnName || '',
       xboxName: result.xboxName || '',
-      foundViaSteamName: searchType === 'steam' && (!result.name || result.name !== originalEmbarkId),
+      foundViaSteamName: searchType === 'steam' && (!result.name || result.name.toLowerCase() !== originalEmbarkId.toLowerCase()),
       isTop500: showRank && (result.rank <= 500) && ['Season 1', 'Season 2', 'Open Beta'].includes(seasonConfig.label)
     };
   });
