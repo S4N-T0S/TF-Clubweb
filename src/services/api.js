@@ -4,12 +4,6 @@ const CACHE_KEY = 'leaderboard_cache';
 const AUTH_TOKEN = 'not-secret';
 const isDev = process.env.NODE_ENV === 'development' || process.env.npm_lifecycle_event === 'dev';
 
-const debug = (label, data) => {
-  console.group(`Debug: ${label}`);
-  console.log(data);
-  console.groupEnd();
-};
-
 const fetchEmbarkDataDirectly = async () => {
   const response = await fetch('/api/leaderboard/s5', {
     headers: {
@@ -84,10 +78,7 @@ const logDebugInfo = (source, info) => {
 
 export const fetchLeaderboardData = async () => {
   try {
-    debug('Starting fetchLeaderboardData', { isDev });
-    
     const cachedData = getCachedData();
-    debug('Local cache status', cachedData);
 
     if (cachedData && !cachedData.isStale) {
       if (cachedData.source === 'kv-cache-fallback') {
@@ -109,21 +100,15 @@ export const fetchLeaderboardData = async () => {
       };
     }
 
-    const startTime = Date.now();
-    let rawData;
-    let source;
-    let timestamp;
-    let remainingTtl;
+    let rawData, source, timestamp, remainingTtl;
 
     if (isDev) {
-      debug('Dev mode: fetching directly from Embark');
       try {
         rawData = await fetchEmbarkDataDirectly();
         source = 'embark-direct';
         timestamp = Date.now();
         remainingTtl = 600;
       } catch (error) {
-        debug('Dev mode: Embark fetch failed', error);
         if (cachedData) {
           return {
             data: transformData(cachedData.data),
@@ -140,14 +125,10 @@ export const fetchLeaderboardData = async () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: AUTH_TOKEN })
       });
-
-      debug('API Response', { status: response.status, ok: response.ok });
       
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       
       const result = await response.json();
-      debug('API Result', result);
-
       rawData = result.data;
       source = result.source;
       timestamp = result.timestamp;
@@ -157,11 +138,9 @@ export const fetchLeaderboardData = async () => {
     }
 
     if (!rawData) {
-      debug('No raw data received', { source, timestamp });
       throw new Error('No data received from API');
     }
 
-    debug('Processing raw data', { length: rawData.length });
     const transformedData = transformData(rawData);
     
     if (source !== 'client-cache') {
@@ -176,11 +155,8 @@ export const fetchLeaderboardData = async () => {
     };
 
   } catch (error) {
-    debug('Error in fetchLeaderboardData', { error, message: error.message, stack: error.stack });
-    
     const cachedData = getCachedData();
     if (cachedData) {
-      debug('Using emergency cache', cachedData);
       return {
         data: transformData(cachedData.data),
         source: 'client-cache-emergency',
