@@ -25,7 +25,7 @@ export async function onRequestPost({ params, request, env }) {
 
     if (isStale || !cachedData) {
       try {
-        const targetUrl = `https://id.embssark.games/the-finals/leaderboards/${targetPath}`; // intentional fail
+        const targetUrl = `https://id.embark.games/the-finals/leaderboards/${targetPath}`; // intentional fail
         const response = await fetch(targetUrl, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
