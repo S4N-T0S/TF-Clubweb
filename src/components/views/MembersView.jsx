@@ -84,7 +84,7 @@ export const MembersView = ({ clanMembers, totalMembers, onPlayerSearch }) => { 
                 Discord Linked?
               </div>
             </th>
-            <th className="px-4 py-2 text-left text-gray-300">League & Score</th>
+            <th className="px-4 py-2 text-center text-gray-300">League & Score</th>
             <th className="group relative px-4 py-2 text-center text-gray-300">
               PR?
               <div className="absolute hidden group-hover:block bg-gray-800 text-white p-2 rounded shadow-lg mt-1 right-0 z-10">

@@ -55,7 +55,7 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
             <th className="px-4 py-2 text-left text-gray-300">Rank</th>
             <th className="px-4 py-2 text-left text-gray-300">Change</th>
             <th className="px-4 py-2 text-left text-gray-300">Player</th>
-            <th className="px-4 py-2 text-left text-gray-300">League & Score</th>
+            <th className="px-4 py-2 text-center text-gray-300">League & Score</th>
           </tr>
         </thead>
         <tbody>
