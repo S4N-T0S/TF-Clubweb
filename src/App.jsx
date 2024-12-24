@@ -30,28 +30,27 @@ const App = () => {
     refreshData,
     toastMessage,
     setToastMessage,
-    source,
-    timestamp,
-    remainingTtl
+    lastUpdateTime,
+    dataSource
   } = useLeaderboard();
 
   useEffect(() => {
-    if (source === 'kv-cache-fallback') {
+    if (dataSource === 'kv-cache-fallback') {
       setToastMessage({
-        message: 'Using outdated data - API temporarily unavailable',
+        message: 'Using cached data - API temporarily unavailable',
         type: 'error',
-        timestamp,
-        ttl: remainingTtl
+        timestamp: lastUpdateTime,
+        ttl: 300 // Set to 5 minutes for fallback
       });
-    } else if (source === 'client-cache-fallback') {
+    } else if (dataSource === 'client-cache-fallback') {
       setToastMessage({
         message: 'Using locally cached outdated data',
         type: 'error',
-        timestamp,
-        ttl: remainingTtl
+        timestamp: lastUpdateTime,
+        ttl: 300 // Set to 5 minutes for fallback
       });
     }
-  }, [source, timestamp, remainingTtl, setToastMessage]);
+  }, [dataSource, lastUpdateTime, setToastMessage]);
 
   const handleClanClick = (clanTag) => {
     setGlobalSearchQuery(`[${clanTag}]`);
