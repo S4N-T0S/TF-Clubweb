@@ -72,13 +72,17 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
     filteredItems
   } = usePagination(globalLeaderboard, 50);
 
-  // Update local search when global search changes
   useEffect(() => {
     if (initialSearchQuery) {
       setSearchQuery(initialSearchQuery);
       setGlobalSearchQuery(''); // Clear the global search after applying it
     }
   }, [initialSearchQuery]);
+
+  const handleClanClick = (clubTag) => {
+    setSearchQuery('');
+    setGlobalSearchQuery(`[${clubTag}]`);
+  };
 
   return (
     <div className="overflow-x-auto">
@@ -101,7 +105,19 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
               </td>
               <td className="px-4 py-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-300">{player.displayName}</span>
+                  {player.clubTag ? (
+                    <span className="text-gray-300">
+                      <span 
+                        className="text-gray-300 hover:text-blue-400 cursor-pointer"
+                        onClick={() => handleClanClick(player.clubTag)}
+                      >
+                        [{player.clubTag}]
+                      </span>
+                      {` ${player.name}`}
+                    </span>
+                  ) : (
+                    <span className="text-gray-300">{player.name}</span>
+                  )}
                   <Search 
                     className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer" 
                     onClick={() => onPlayerSearch(player.name)}
