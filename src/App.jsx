@@ -30,27 +30,28 @@ const App = () => {
     refreshData,
     toastMessage,
     setToastMessage,
-    lastUpdateTime,
-    dataSource
+    dataSource,
+    timestamp,
+    remainingTtl
   } = useLeaderboard();
 
   useEffect(() => {
-    if (dataSource === 'kv-cache-fallback') {
+    if (['kv-cache-fallback', 'client-cache-fallback', 'client-cache-emergency'].includes(dataSource)) {
       setToastMessage({
         message: 'Using cached data - API temporarily unavailable',
         type: 'error',
-        timestamp: lastUpdateTime,
-        ttl: 300 // Set to 5 minutes for fallback
+        timestamp: timestamp,
+        ttl: remainingTtl
       });
-    } else if (dataSource === 'client-cache-fallback') {
+    } else if (isRefreshing && ['kv-cache', 'client-cache'].includes(dataSource)) {
       setToastMessage({
-        message: 'Using locally cached outdated data',
+        message: 'Using cached data while refreshing',
         type: 'error',
-        timestamp: lastUpdateTime,
-        ttl: 300 // Set to 5 minutes for fallback
+        timestamp: timestamp,
+        ttl: remainingTtl
       });
     }
-  }, [dataSource, lastUpdateTime, setToastMessage]);
+  }, [dataSource, timestamp, remainingTtl, isRefreshing, setToastMessage]);
 
   const handleClanClick = (clanTag) => {
     setGlobalSearchQuery(`[${clanTag}]`);
