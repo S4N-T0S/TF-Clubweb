@@ -212,7 +212,8 @@ const ogClanMembers = [
       pruby: false
     },
     {
-      embarkId: "Neo#9269",
+      discord: ".nosamu",
+      embarkId: "SharkeezZ#4965",
       pruby: false
     },
     {
