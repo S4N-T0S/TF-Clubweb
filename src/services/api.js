@@ -108,7 +108,7 @@ export const fetchLeaderboardData = async () => {
         rawData = await fetchEmbarkDataDirectly();
         source = 'embark-direct';
         timestamp = Date.now();
-        remainingTtl = 600; // 10 minutes
+        remainingTtl = 600;
       } catch (error) {
         if (cachedData) {
           Toast({ 
@@ -119,7 +119,7 @@ export const fetchLeaderboardData = async () => {
             data: transformData(cachedData.data),
             source: 'client-cache-fallback',
             timestamp: cachedData.timestamp,
-            remainingTtl: 300 // 5 minutes fallback TTL
+            remainingTtl: 300
           };
         }
         throw error;
@@ -136,15 +136,24 @@ export const fetchLeaderboardData = async () => {
       });
 
       if (!response.ok) {
+        if (cachedData) {
+          Toast({ 
+            message: 'API error. Using cached data.',
+            type: 'error'
+          });
+          return {
+            data: transformData(cachedData.data),
+            source: 'client-cache-fallback',
+            timestamp: cachedData.timestamp,
+            remainingTtl: 300
+          };
+        }
         throw new Error(`Worker returned ${response.status}`);
       }
 
       const result = await response.json();
       
-      if (result.error) {
-        throw new Error(result.error);
-      }
-
+      // Handle fallback response from worker
       if (result.source === 'kv-cache-fallback') {
         Toast({ 
           message: 'Embark API is currently unavailable. Using cached data.',
@@ -155,9 +164,13 @@ export const fetchLeaderboardData = async () => {
       rawData = result.data;
       source = result.source;
       timestamp = result.timestamp;
-      remainingTtl = result.remainingTtl;
+      remainingTtl = result.remainingTtl || 300; // Fallback TTL if not provided
       
       logDebugInfo(result.source, result.debugInfo);
+    }
+    
+    if (!rawData) {
+      throw new Error('No data received from API');
     }
     
     const transformedData = transformData(rawData);
@@ -171,6 +184,22 @@ export const fetchLeaderboardData = async () => {
     };
   } catch (error) {
     logDebugInfo('Error', { error: error.message, stack: error.stack });
+    
+    // Last resort - check for cached data
+    const cachedData = getCachedData();
+    if (cachedData) {
+      Toast({ 
+        message: 'Error fetching data. Using cached data.',
+        type: 'error'
+      });
+      return {
+        data: transformData(cachedData.data),
+        source: 'client-cache-emergency',
+        timestamp: cachedData.timestamp,
+        remainingTtl: 300
+      };
+    }
+    
     throw new Error('Failed to fetch leaderboard data');
   }
 };
