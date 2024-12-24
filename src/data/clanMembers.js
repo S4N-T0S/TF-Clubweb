@@ -279,6 +279,12 @@ const ogClanMembers = [
       embarkId: "Madrif#7737",
       type: "server",
       pruby: false
+    },
+    {
+      discord: "punished_weatlycore47",
+      embarkId: "weatlycore47#7517",
+      type: "server",
+      pruby: false
     }
   ];
   

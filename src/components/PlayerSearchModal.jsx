@@ -3,7 +3,7 @@ import { Search, AlertTriangle } from 'lucide-react';
 import { validateEmbarkId } from '../utils/validateEmbarkId';
 import { searchPlayerHistory } from '../services/historicalDataService';
 import { Hexagon } from './icons/Hexagon';
-import { getLeagueStyle } from '../utils/styles';
+import { getLeagueInfo } from '../utils/leagueUtils';
 
 const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -130,13 +130,13 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
             </div>
           )}
 
-          {results.map((result, index) => (
-            <div 
-              key={`${result.season}-${index}`}
-              className={`p-4 bg-gray-700 rounded-lg ${
-                result.foundViaSteamName ? 'border-2 border-yellow-500' : ''
-              }`}
-            >
+{results.map((result, index) => (
+    <div 
+      key={`${result.season}-${index}`}
+      className={`p-4 bg-gray-700 rounded-lg ${
+        result.foundViaSteamName ? 'border-2 border-yellow-500' : ''
+      }`}
+    >
               <div className="flex justify-between items-start mb-2">
                 <span className="text-blue-400 font-medium">{result.season}</span>
                 {result.rank && (
@@ -181,7 +181,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
                 )}
                 
                 <div className="mt-2 pt-2 border-t border-gray-600 flex items-center gap-2">
-                  <Hexagon className={getLeagueStyle(result.league, result.rank)} />
+                <Hexagon className={getLeagueInfo(null, result.league).style} />
                   <div className="flex flex-col">
                     <span className="text-gray-200">{result.league}</span>
                     {result.score && (

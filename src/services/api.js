@@ -1,4 +1,4 @@
-import { leagueNumberToName } from "../utils/lNumberToName";
+import { getLeagueInfo } from "../utils/leagueUtils";
 
 export const fetchLeaderboardData = async () => {
   try {
@@ -26,7 +26,7 @@ export const fetchLeaderboardData = async () => {
       xboxName: entry[8] || null,
       clubTag: entry[12] || null,
       leagueNumber: entry[4],
-      league: leagueNumberToName(entry[4]),
+      league: getLeagueInfo(entry[4]).name,
       rankScore: entry[5]
     }));
 
