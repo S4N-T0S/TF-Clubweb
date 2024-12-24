@@ -254,8 +254,9 @@ const ogClanMembers = [
       pruby: false
     },
     {
-      embarkId: "CUDDLEBEAR#4706",
-      type: "regular",
+      discord: "julzr",
+      embarkId: "Julz#8685",
+      type: "server",
       pruby: false
     },
     {
