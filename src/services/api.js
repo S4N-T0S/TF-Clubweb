@@ -1,4 +1,5 @@
 import { getLeagueInfo } from "../utils/leagueUtils";
+import Toast from '../components/Toast';
 
 const CACHE_KEY = 'leaderboard_cache';
 const AUTH_TOKEN = 'not-secret';
@@ -29,17 +30,21 @@ const getCachedData = () => {
 
   try {
     const { data, timestamp, expiresAt } = JSON.parse(cached);
+    const now = Date.now();
     
-    if (Date.now() < expiresAt) {
+    if (now < expiresAt) {
       return {
         data,
         timestamp,
-        remainingTtl: Math.floor((expiresAt - Date.now()) / 1000)
+        remainingTtl: Math.floor((expiresAt - now) / 1000)
       };
     }
     
-    localStorage.removeItem(CACHE_KEY);
-    return null;
+    return {
+      data,
+      timestamp,
+      isStale: true
+    };
   } catch {
     localStorage.removeItem(CACHE_KEY);
     return null;
@@ -59,7 +64,8 @@ const logDebugInfo = (source, info) => {
     clientCache: 'color: #4CAF50; font-weight: bold',
     kvCache: 'color: #2196F3; font-weight: bold',
     embark: 'color: #FF9800; font-weight: bold',
-    error: 'color: #f44336; font-weight: bold'
+    error: 'color: #f44336; font-weight: bold',
+    'kv-cache-fallback': 'color: #9C27B0; font-weight: bold'
   };
 
   console.group('Leaderboard Data Fetch');
@@ -81,7 +87,7 @@ const logDebugInfo = (source, info) => {
 export const fetchLeaderboardData = async () => {
   try {
     const cachedData = getCachedData();
-    if (cachedData) {
+    if (cachedData && !cachedData.isStale) {
       logDebugInfo('Client-Cache', { ttlRemaining: cachedData.remainingTtl });
       return {
         data: transformData(cachedData.data),
@@ -98,10 +104,26 @@ export const fetchLeaderboardData = async () => {
     let remainingTtl;
 
     if (isDev) {
-      rawData = await fetchEmbarkDataDirectly();
-      source = 'embark-direct';
-      timestamp = Date.now();
-      remainingTtl = 600; // 10 minutes
+      try {
+        rawData = await fetchEmbarkDataDirectly();
+        source = 'embark-direct';
+        timestamp = Date.now();
+        remainingTtl = 600; // 10 minutes
+      } catch (error) {
+        if (cachedData) {
+          Toast({ 
+            message: 'Embark API is currently unavailable. Using cached data.',
+            type: 'error'
+          });
+          return {
+            data: transformData(cachedData.data),
+            source: 'client-cache-fallback',
+            timestamp: cachedData.timestamp,
+            remainingTtl: 300 // 5 minutes fallback TTL
+          };
+        }
+        throw error;
+      }
     } else {
       const response = await fetch('/api/leaderboard/s5', {
         method: 'POST',
@@ -121,6 +143,13 @@ export const fetchLeaderboardData = async () => {
       
       if (result.error) {
         throw new Error(result.error);
+      }
+
+      if (result.source === 'kv-cache-fallback') {
+        Toast({ 
+          message: 'Embark API is currently unavailable. Using cached data.',
+          type: 'error'
+        });
       }
 
       rawData = result.data;
