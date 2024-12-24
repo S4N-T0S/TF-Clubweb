@@ -1,9 +1,14 @@
 import { getLeagueInfo } from "../utils/leagueUtils";
-import Toast from '../components/Toast';
 
 const CACHE_KEY = 'leaderboard_cache';
 const AUTH_TOKEN = 'not-secret';
 const isDev = process.env.NODE_ENV === 'development' || process.env.npm_lifecycle_event === 'dev';
+
+const debug = (label, data) => {
+  console.group(`Debug: ${label}`);
+  console.log(data);
+  console.groupEnd();
+};
 
 const fetchEmbarkDataDirectly = async () => {
   const response = await fetch('/api/leaderboard/s5', {
@@ -69,24 +74,18 @@ const logDebugInfo = (source, info) => {
   };
 
   console.group('Leaderboard Data Fetch');
-  console.log(`%cSource: ${source}`, styles[source.toLowerCase().replace('-', '')]);
-  
-  if (info.ttlRemaining) {
-    console.log(`TTL Remaining: ${info.ttlRemaining}s`);
-  }
-  if (info.responseTime) {
-    console.log(`Response Time: ${info.responseTime}ms`);
-  }
-  if (info.error) {
-    console.error('Error:', info.error);
-    console.error('Stack:', info.stack);
-  }
+  console.log(`%cSource: ${source}`, styles[source.toLowerCase().replace('-', '')] || '');
+  console.log('Info:', info);
   console.groupEnd();
 };
 
 export const fetchLeaderboardData = async () => {
   try {
+    debug('Starting fetchLeaderboardData', { isDev });
+    
     const cachedData = getCachedData();
+    debug('Local cache status', cachedData);
+
     if (cachedData && !cachedData.isStale) {
       logDebugInfo('Client-Cache', { ttlRemaining: cachedData.remainingTtl });
       return {
@@ -104,17 +103,15 @@ export const fetchLeaderboardData = async () => {
     let remainingTtl;
 
     if (isDev) {
+      debug('Dev mode: fetching directly from Embark');
       try {
         rawData = await fetchEmbarkDataDirectly();
         source = 'embark-direct';
         timestamp = Date.now();
         remainingTtl = 600;
       } catch (error) {
+        debug('Dev mode: Embark fetch failed', error);
         if (cachedData) {
-          Toast({ 
-            message: 'Embark API is currently unavailable. Using cached data.',
-            type: 'error'
-          });
           return {
             data: transformData(cachedData.data),
             source: 'client-cache-fallback',
@@ -127,54 +124,37 @@ export const fetchLeaderboardData = async () => {
     } else {
       const response = await fetch('/api/leaderboard/s5', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          token: AUTH_TOKEN
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: AUTH_TOKEN })
       });
 
-      if (!response.ok) {
-        if (cachedData) {
-          Toast({ 
-            message: 'API error. Using cached data.',
-            type: 'error'
-          });
-          return {
-            data: transformData(cachedData.data),
-            source: 'client-cache-fallback',
-            timestamp: cachedData.timestamp,
-            remainingTtl: 300
-          };
-        }
-        throw new Error(`Worker returned ${response.status}`);
-      }
-
-      const result = await response.json();
+      debug('API Response', { status: response.status, ok: response.ok });
       
-      // Handle fallback response from worker
-      if (result.source === 'kv-cache-fallback') {
-        Toast({ 
-          message: 'Embark API is currently unavailable. Using cached data.',
-          type: 'error'
-        });
-      }
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      
+      const result = await response.json();
+      debug('API Result', result);
 
+      // Process data even if there's an error flag
       rawData = result.data;
       source = result.source;
       timestamp = result.timestamp;
-      remainingTtl = result.remainingTtl || 300; // Fallback TTL if not provided
+      remainingTtl = result.remainingTtl || 300;
       
       logDebugInfo(result.source, result.debugInfo);
     }
-    
+
     if (!rawData) {
+      debug('No raw data received', { source, timestamp });
       throw new Error('No data received from API');
     }
-    
+
+    debug('Processing raw data', { length: rawData.length });
     const transformedData = transformData(rawData);
-    setCacheData(rawData, timestamp, remainingTtl);
+    
+    if (source !== 'client-cache') {
+      setCacheData(rawData, timestamp, remainingTtl);
+    }
 
     return {
       data: transformedData,
@@ -182,16 +162,13 @@ export const fetchLeaderboardData = async () => {
       timestamp,
       remainingTtl
     };
+
   } catch (error) {
-    logDebugInfo('Error', { error: error.message, stack: error.stack });
+    debug('Error in fetchLeaderboardData', { error, message: error.message, stack: error.stack });
     
-    // Last resort - check for cached data
     const cachedData = getCachedData();
     if (cachedData) {
-      Toast({ 
-        message: 'Error fetching data. Using cached data.',
-        type: 'error'
-      });
+      debug('Using emergency cache', cachedData);
       return {
         data: transformData(cachedData.data),
         source: 'client-cache-emergency',
@@ -200,7 +177,7 @@ export const fetchLeaderboardData = async () => {
       };
     }
     
-    throw new Error('Failed to fetch leaderboard data');
+    throw error;
   }
 };
 
