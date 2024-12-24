@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-export const usePagination = (items, itemsPerPage) => {
+export const usePagination = (items, itemsPerPage, searchField = 'displayName') => {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -9,7 +9,9 @@ export const usePagination = (items, itemsPerPage) => {
   }, [searchQuery]);
 
   const filteredItems = items.filter(item =>
-    item.displayName.toLowerCase().includes(searchQuery.toLowerCase())
+    searchField === 'displayName' 
+      ? item.displayName?.toLowerCase().includes(searchQuery.toLowerCase())
+      : item.tag.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);

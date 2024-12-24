@@ -1,6 +1,33 @@
+import { usePagination } from '../../hooks/usePagination';
+import { SearchBar } from '../SearchBar';
+import { Pagination } from '../Pagination';
+
 export const ClansView = ({ topClans, onClanClick }) => {
+  // Pre-process clans to add original rank
+  const rankedClans = topClans.map((clan, index) => ({
+    ...clan,
+    originalRank: index + 1
+  }));
+
+  const {
+    searchQuery,
+    setSearchQuery,
+    currentItems,
+    currentPage,
+    totalPages,
+    startIndex,
+    endIndex,
+    handlePageChange,
+    filteredItems
+  } = usePagination(rankedClans, 15, 'tag');
+
   return (
     <div className="overflow-x-auto">
+      <SearchBar 
+        value={searchQuery} 
+        onChange={setSearchQuery} 
+        placeholder="Search through clubs..."
+      />
       <table className="w-full">
         <thead>
           <tr className="bg-gray-700">
@@ -11,7 +38,7 @@ export const ClansView = ({ topClans, onClanClick }) => {
           </tr>
         </thead>
         <tbody>
-          {topClans.map((clan, index) => (
+          {currentItems.map((clan) => (
             <tr 
               key={clan.tag}
               className={`border-t border-gray-700 ${
@@ -20,7 +47,7 @@ export const ClansView = ({ topClans, onClanClick }) => {
                   : 'hover:bg-gray-700'
               }`}
             >
-              <td className="px-4 py-2 text-gray-300">#{index + 1}</td>
+              <td className="px-4 py-2 text-gray-300">#{clan.originalRank}</td>
               <td className="px-4 py-2">
                 <span 
                   className="text-gray-300 hover:text-blue-400 cursor-pointer"
@@ -35,6 +62,14 @@ export const ClansView = ({ topClans, onClanClick }) => {
           ))}
         </tbody>
       </table>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        startIndex={startIndex}
+        endIndex={endIndex}
+        totalItems={filteredItems.length}
+        onPageChange={handlePageChange}
+      />
     </div>
   );
 };
