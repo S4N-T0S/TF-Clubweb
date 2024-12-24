@@ -1,6 +1,4 @@
-// functions/api/leaderboard/[[path]].js
 export async function onRequestGet({ params }) {
-    // Construct the target URL using the path parameter
     const targetPath = params.path?.join('/') || '';
     const targetUrl = `https://id.embark.games/the-finals/leaderboards/${targetPath}`;
     

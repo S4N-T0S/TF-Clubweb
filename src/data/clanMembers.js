@@ -1,7 +1,4 @@
-// ogClanMembers.js
-
 const ogClanMembers = [
-    // Server Members
     {
       discord: "tsa.gov",
       embarkId: "00#0000",
@@ -192,8 +189,6 @@ const ogClanMembers = [
       embarkId: "EpicMode#3936",
       pruby: false
     },
-  
-    // Non Server Members
     {
       embarkId: "MAS#0686",
       pruby: true
