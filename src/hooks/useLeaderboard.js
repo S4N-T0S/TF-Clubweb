@@ -15,6 +15,7 @@ export const useLeaderboard = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [lastUpdateTime, setLastUpdateTime] = useState(null);
+  const [dataSource, setDataSource] = useState(null);
 
   const hasDataChanged = (oldData, newData) => {
     const oldTopScores = oldData.globalLeaderboard.slice(0, 5000).map(p => p.rankScore);
@@ -33,13 +34,14 @@ export const useLeaderboard = () => {
       const hasChanged = !isInitialLoad && hasDataChanged(data, processedData);
       
       setData(processedData);
+      setDataSource(rawData.source);
       setError(null);
       
       if (!isInitialLoad) {
         setToastMessage({
           message: hasChanged
             ? "Leaderboard updated" 
-            : "No leaderboard updates yet",
+            : `No updates yet (${rawData.source})`,
           type: hasChanged ? 'success' : 'info'
         });
       }
@@ -68,6 +70,7 @@ export const useLeaderboard = () => {
     refreshData,
     toastMessage,
     setToastMessage,
-    lastUpdateTime
+    lastUpdateTime,
+    dataSource
   };
 };
