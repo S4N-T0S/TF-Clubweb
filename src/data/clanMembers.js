@@ -240,7 +240,7 @@ const ogClanMembers = [
     },
     {
       embarkId: "Caljim#1480",
-      pruby: false
+      pruby: true
     }
   ];
   
