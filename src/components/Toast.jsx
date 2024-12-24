@@ -15,6 +15,11 @@ const formatTimestamp = (timestamp) => {
   return date.toLocaleDateString();
 };
 
+const formatTtl = (ttl) => {
+  const minutes = Math.ceil(ttl / 60);
+  return minutes <= 1 ? '1 minute' : `${minutes} minutes`;
+};
+
 const Toast = ({ message, type, onClose, timestamp, ttl }) => {
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -23,6 +28,10 @@ const Toast = ({ message, type, onClose, timestamp, ttl }) => {
 
     return () => clearTimeout(timer);
   }, [onClose]);
+
+  const isFallback = message?.toLowerCase().includes('using') && 
+    message?.toLowerCase().includes('data') &&
+    (message?.toLowerCase().includes('cached') || message?.toLowerCase().includes('outdated'));
 
   return (
     <div className="fixed top-4 right-4 z-50 animate-fade-in">
@@ -43,8 +52,8 @@ const Toast = ({ message, type, onClose, timestamp, ttl }) => {
           {timestamp && (
             <p className="text-white/80 text-sm">Last updated: {formatTimestamp(timestamp)}</p>
           )}
-          {ttl && (
-            <p className="text-white/80 text-sm">Retrying in {Math.ceil(ttl / 60)} minutes</p>
+          {isFallback && ttl && (
+            <p className="text-white/80 text-sm">Retrying in {formatTtl(ttl)}</p>
           )}
         </div>
       </div>
