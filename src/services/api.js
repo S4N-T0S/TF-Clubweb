@@ -2,6 +2,26 @@ import { getLeagueInfo } from "../utils/leagueUtils";
 
 const CACHE_KEY = 'leaderboard_cache';
 const AUTH_TOKEN = 'not-secret';
+const isDev = process.env.NODE_ENV === 'development' || process.env.npm_lifecycle_event === 'dev';
+
+const fetchEmbarkDataDirectly = async () => {
+  const response = await fetch('/api/leaderboard/s5', {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.5',
+    },
+  });
+
+  const html = await response.text();
+  const match = html.match(/<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/);
+  
+  if (!match) {
+    throw new Error('Failed to find data in response');
+  }
+
+  return JSON.parse(match[1]).props.pageProps.entries;
+};
 
 const getCachedData = () => {
   const cached = localStorage.getItem(CACHE_KEY);
@@ -72,36 +92,53 @@ export const fetchLeaderboardData = async () => {
     }
 
     const startTime = Date.now();
-    const response = await fetch('/api/leaderboard/s5', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        token: AUTH_TOKEN
-      })
-    });
+    let rawData;
+    let source;
+    let timestamp;
+    let remainingTtl;
 
-    if (!response.ok) {
-      throw new Error(`Worker returned ${response.status}`);
+    if (isDev) {
+      rawData = await fetchEmbarkDataDirectly();
+      source = 'embark-direct';
+      timestamp = Date.now();
+      remainingTtl = 600; // 10 minutes
+    } else {
+      const response = await fetch('/api/leaderboard/s5', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token: AUTH_TOKEN
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Worker returned ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      rawData = result.data;
+      source = result.source;
+      timestamp = result.timestamp;
+      remainingTtl = result.remainingTtl;
+      
+      logDebugInfo(result.source, result.debugInfo);
     }
-
-    const result = await response.json();
     
-    if (result.error) {
-      throw new Error(result.error);
-    }
-
-    logDebugInfo(result.source, result.debugInfo);
-    
-    const transformedData = transformData(result.data);
-    setCacheData(result.data, result.timestamp, result.remainingTtl);
+    const transformedData = transformData(rawData);
+    setCacheData(rawData, timestamp, remainingTtl);
 
     return {
       data: transformedData,
-      source: result.source,
-      timestamp: result.timestamp,
-      remainingTtl: result.remainingTtl
+      source,
+      timestamp,
+      remainingTtl
     };
   } catch (error) {
     logDebugInfo('Error', { error: error.message, stack: error.stack });
