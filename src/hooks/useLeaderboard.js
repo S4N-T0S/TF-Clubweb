@@ -29,23 +29,23 @@ export const useLeaderboard = () => {
   };
 
   const refreshData = async (isInitialLoad = false) => {
-    console.log('Starting refresh', { isInitialLoad });
+    //console.log('Starting refresh', { isInitialLoad });
     setIsRefreshing(true);
     
     try {
       const rawData = await fetchLeaderboardData();
-      console.log('Received data from API:', rawData);
+      //console.log('Received data from API:', rawData);
       
       if (!rawData?.data) {
-        console.error('Invalid data received:', rawData);
+        //console.error('Invalid data received:', rawData);
         throw new Error('Invalid data received from API');
       }
 
       const processedData = processLeaderboardData(rawData.data);
-      console.log('Processed data:', { 
+      /*console.log('Processed data:', { 
         globalLeaderboardLength: processedData.globalLeaderboard.length,
         source: rawData.source 
-      });
+      });*/
 
       const hasChanged = !isInitialLoad && hasDataChanged(data, processedData);
       

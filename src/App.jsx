@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLeaderboard } from './hooks/useLeaderboard';
 import { MembersView } from './components/views/MembersView';
 import { ClansView } from './components/views/ClansView';
@@ -29,8 +29,29 @@ const App = () => {
     isRefreshing,
     refreshData,
     toastMessage,
-    setToastMessage
+    setToastMessage,
+    source,
+    timestamp,
+    remainingTtl
   } = useLeaderboard();
+
+  useEffect(() => {
+    if (source === 'kv-cache-fallback') {
+      setToastMessage({
+        message: 'Using outdated data - API temporarily unavailable',
+        type: 'error',
+        timestamp,
+        ttl: remainingTtl
+      });
+    } else if (source === 'client-cache-fallback') {
+      setToastMessage({
+        message: 'Using locally cached outdated data',
+        type: 'error',
+        timestamp,
+        ttl: remainingTtl
+      });
+    }
+  }, [source, timestamp, remainingTtl, setToastMessage]);
 
   const handleClanClick = (clanTag) => {
     setGlobalSearchQuery(`[${clanTag}]`);
@@ -47,6 +68,8 @@ const App = () => {
           message={toastMessage.message}
           type={toastMessage.type}
           onClose={() => setToastMessage(null)}
+          timestamp={toastMessage.timestamp}
+          ttl={toastMessage.ttl}
         />
       )}
       <div className="max-w-7xl mx-auto p-4">

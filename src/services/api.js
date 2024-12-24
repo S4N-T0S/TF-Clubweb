@@ -34,21 +34,23 @@ const getCachedData = () => {
   if (!cached) return null;
 
   try {
-    const { data, timestamp, expiresAt } = JSON.parse(cached);
+    const { data, timestamp, expiresAt, source } = JSON.parse(cached);
     const now = Date.now();
     
     if (now < expiresAt) {
       return {
         data,
         timestamp,
-        remainingTtl: Math.floor((expiresAt - now) / 1000)
+        remainingTtl: Math.floor((expiresAt - now) / 1000),
+        source
       };
     }
     
     return {
       data,
       timestamp,
-      isStale: true
+      isStale: true,
+      source
     };
   } catch {
     localStorage.removeItem(CACHE_KEY);
@@ -56,11 +58,12 @@ const getCachedData = () => {
   }
 };
 
-const setCacheData = (data, timestamp, remainingTtl) => {
+const setCacheData = (data, timestamp, remainingTtl, source) => {
   localStorage.setItem(CACHE_KEY, JSON.stringify({
     data,
     timestamp,
-    expiresAt: Date.now() + (remainingTtl * 1000)
+    expiresAt: Date.now() + (remainingTtl * 1000),
+    source
   }));
 };
 
@@ -87,6 +90,16 @@ export const fetchLeaderboardData = async () => {
     debug('Local cache status', cachedData);
 
     if (cachedData && !cachedData.isStale) {
+      if (cachedData.source === 'kv-cache-fallback') {
+        logDebugInfo('Client-Cache-Fallback', { ttlRemaining: cachedData.remainingTtl });
+        return {
+          data: transformData(cachedData.data),
+          source: 'client-cache-fallback',
+          timestamp: cachedData.timestamp,
+          remainingTtl: cachedData.remainingTtl
+        };
+      }
+      
       logDebugInfo('Client-Cache', { ttlRemaining: cachedData.remainingTtl });
       return {
         data: transformData(cachedData.data),
@@ -135,7 +148,6 @@ export const fetchLeaderboardData = async () => {
       const result = await response.json();
       debug('API Result', result);
 
-      // Process data even if there's an error flag
       rawData = result.data;
       source = result.source;
       timestamp = result.timestamp;
@@ -153,7 +165,7 @@ export const fetchLeaderboardData = async () => {
     const transformedData = transformData(rawData);
     
     if (source !== 'client-cache') {
-      setCacheData(rawData, timestamp, remainingTtl);
+      setCacheData(rawData, timestamp, remainingTtl, source);
     }
 
     return {
