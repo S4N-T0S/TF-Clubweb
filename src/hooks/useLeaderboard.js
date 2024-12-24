@@ -29,8 +29,13 @@ export const useLeaderboard = () => {
     setIsRefreshing(true);
     try {
       const rawData = await fetchLeaderboardData();
-      const processedData = processLeaderboardData(rawData.data);
       
+      // Don't process if data is missing
+      if (!rawData?.data) {
+        throw new Error('Invalid data received from API');
+      }
+
+      const processedData = processLeaderboardData(rawData.data);
       const hasChanged = !isInitialLoad && hasDataChanged(data, processedData);
       
       setData(processedData);
@@ -38,12 +43,17 @@ export const useLeaderboard = () => {
       setError(null);
       
       if (!isInitialLoad) {
-        setToastMessage({
-          message: hasChanged
-            ? "Leaderboard updated" 
-            : `No updates yet (${rawData.source})`,
-          type: hasChanged ? 'success' : 'info'
-        });
+        if (rawData.source.includes('fallback')) {
+          setToastMessage({
+            message: "Using cached data - API temporarily unavailable",
+            type: 'error'
+          });
+        } else {
+          setToastMessage({
+            message: hasChanged ? "Leaderboard updated" : `No updates yet (${rawData.source})`,
+            type: hasChanged ? 'success' : 'info'
+          });
+        }
       }
       
       if (hasChanged || isInitialLoad) {
@@ -51,7 +61,7 @@ export const useLeaderboard = () => {
       }
     } catch (err) {
       console.error('Error details:', err);
-      setError(err.message);
+      setError('Failed to load leaderboard data. Please try again later.');
     } finally {
       setLoading(false);
       setIsRefreshing(false);
