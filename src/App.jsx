@@ -83,31 +83,27 @@ const App = () => {
             isRefreshing={isRefreshing}
           />
 
-          <div className="table-container">
-            <div className="table-scroll-wrapper">
-              {view === 'members' && (
-                <MembersView 
-                  clanMembers={clanMembers} 
-                  totalMembers={ogClanMembers.length} 
-                  onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
-                />
-              )}
-              {view === 'clans' && (
-                <ClansView 
-                  topClans={topClans} 
-                  onClanClick={handleClanClick}
-                />
-              )}
-              {view === 'global' && (
-                <GlobalView 
-                  globalLeaderboard={globalLeaderboard} 
-                  onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
-                  searchQuery={globalSearchQuery}
-                  setSearchQuery={setGlobalSearchQuery}
-                />
-              )}
-            </div>
-          </div>
+            {view === 'members' && (
+              <MembersView 
+                clanMembers={clanMembers} 
+                totalMembers={ogClanMembers.length} 
+                onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
+              />
+            )}
+            {view === 'clans' && (
+              <ClansView 
+                topClans={topClans} 
+                onClanClick={handleClanClick}
+              />
+            )}
+            {view === 'global' && (
+             <GlobalView 
+                globalLeaderboard={globalLeaderboard} 
+                onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
+                searchQuery={globalSearchQuery}
+                setSearchQuery={setGlobalSearchQuery}
+              />
+            )}
         </div>
       </div>
       

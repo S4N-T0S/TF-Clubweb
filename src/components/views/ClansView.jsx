@@ -29,13 +29,14 @@ export const ClansView = ({ topClans, onClanClick }) => {
   );
 
   return (
-    <div className="overflow-x-auto">
+    <div>
       <SearchBar 
         value={searchQuery} 
         onChange={setSearchQuery} 
         placeholder="Search through clubs..."
       />
-      <table className="w-full">
+      <div className="table-container">
+      <table className="w-full min-w-[640px]">
         <thead>
           <tr className="bg-gray-700">
             <th className="px-4 py-2 text-left text-gray-300">Rank</th>
@@ -69,6 +70,7 @@ export const ClansView = ({ topClans, onClanClick }) => {
           ))}
         </tbody>
       </table>
+      </div>
       <Pagination
         currentPage={currentPage}
         totalPages={totalPages}

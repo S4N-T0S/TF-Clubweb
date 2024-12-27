@@ -58,14 +58,13 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
   };
 
   return (
-    <div className="overflow-x-auto">
+    <div>
       <SearchBar 
         value={searchQuery} 
         onChange={setSearchQuery} 
         searchInputRef={searchInputRef}
       />
-      <div className="relative overflow-x-auto sm:overflow-x-visible">
-        <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-gray-900 to-transparent pointer-events-none sm:hidden" />
+      <div className="table-container">
         <table className="w-full min-w-[640px]">
         <thead>
           <tr className="bg-gray-700">

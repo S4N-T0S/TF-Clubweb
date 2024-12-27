@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Apply custom scrollbar to the entire document */
 html {
   @apply scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800;
 }
@@ -11,26 +10,14 @@ html:hover {
   @apply scrollbar-thumb-gray-500;
 }
 
-/* Ensure the body takes up full height for proper scrolling */
 body {
   @apply min-h-screen bg-gray-900;
 }
 
-/* Horizontal scrollbar styling */
 .scrollbar-thin::-webkit-scrollbar:horizontal {
   height: 8px;
 }
 
-/* Remove shadow from table container */
 .table-container {
-  @apply overflow-x-auto relative shadow-none;
-}
-
-/* Custom styles for table wrapper */
-.table-scroll-wrapper {
   @apply overflow-x-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800;
-}
-
-.table-scroll-wrapper:hover {
-  @apply scrollbar-thumb-gray-500;
 }
