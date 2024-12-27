@@ -241,7 +241,7 @@ const ogClanMembers = [
     {
       discord: "zixtey",
       embarkId: "Zixtey#8262",
-      pruby: true
+      pruby: false
     }
   ];
   

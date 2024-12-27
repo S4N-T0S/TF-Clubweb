@@ -4,21 +4,33 @@ import { AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 const formatTimestamp = (timestamp) => {
   const date = new Date(timestamp);
   const minutes = Math.floor((Date.now() - date) / 1000 / 60);
-  
+
   if (minutes < 60) {
-    return `${minutes} minutes ago`;
+    return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
   }
+
   const hours = Math.floor(minutes / 60);
   if (hours < 24) {
-    return `${hours} hours ago`;
+    return `${hours} hour${hours === 1 ? '' : 's'} ago`;
   }
-  return date.toLocaleDateString();
+
+  const days = Math.floor(hours / 24);
+  if (days < 7) {
+    return `${days} day${days === 1 ? '' : 's'} ago`;
+  }
+
+  return date.toLocaleDateString(); // For dates older than a week
 };
 
 const formatTtl = (ttl) => {
+  if (ttl <= 0) {
+    return 'now';
+  }
+
   const minutes = Math.ceil(ttl / 60);
-  return minutes <= 1 ? '1 minute' : `${minutes} minutes`;
+  return minutes === 1 ? 'in 1 minute' : `in ${minutes} minutes`;
 };
+
 
 const Toast = ({ message, type, onClose, timestamp, ttl }) => {
   useEffect(() => {
@@ -28,10 +40,6 @@ const Toast = ({ message, type, onClose, timestamp, ttl }) => {
 
     return () => clearTimeout(timer);
   }, [onClose]);
-
-  const isFallback = message?.toLowerCase().includes('using') && 
-    message?.toLowerCase().includes('data') &&
-    (message?.toLowerCase().includes('cached') || message?.toLowerCase().includes('outdated'));
 
   return (
     <div className="fixed top-4 right-4 z-50 animate-fade-in">
@@ -50,10 +58,10 @@ const Toast = ({ message, type, onClose, timestamp, ttl }) => {
         <div className="flex flex-col">
           <p className="text-white font-medium">{message}</p>
           {timestamp && (
-            <p className="text-white/80 text-sm">Last updated: {formatTimestamp(timestamp)}</p>
+            <p className="text-white/80 text-sm">Last updated {formatTimestamp(timestamp)}</p>
           )}
-          {isFallback && ttl && (
-            <p className="text-white/80 text-sm">Retrying in {formatTtl(ttl)}</p>
+          {ttl && (
+            <p className="text-white/80 text-sm">Update should be available {formatTtl(ttl)}</p>
           )}
         </div>
       </div>

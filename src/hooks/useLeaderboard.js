@@ -29,43 +29,29 @@ export const useLeaderboard = () => {
   };
 
   const refreshData = async (isInitialLoad = false) => {
-    //console.log('Starting refresh', { isInitialLoad });
     setIsRefreshing(true);
     
     try {
       const rawData = await fetchLeaderboardData();
-      //console.log('Received data from API:', rawData);
       
       if (!rawData?.data) {
-        //console.error('Invalid data received:', rawData);
         throw new Error('Invalid data received from API');
       }
 
       const processedData = processLeaderboardData(rawData.data);
-      /*console.log('Processed data:', { 
-        globalLeaderboardLength: processedData.globalLeaderboard.length,
-        source: rawData.source 
-      });*/
-
       const hasChanged = !isInitialLoad && hasDataChanged(data, processedData);
       
       setData(processedData);
       setDataSource(rawData.source);
       setError(null);
       
-      if (!isInitialLoad) {
-        if (rawData.source.includes('fallback')) {
-          setToastMessage({
-            message: "Using cached data - API temporarily unavailable",
-            type: 'error'
-          });
-        } else {
-          setToastMessage({
-            message: hasChanged ? "Leaderboard updated" : `No updates yet (${rawData.source})`,
-            type: hasChanged ? 'success' : 'info'
-          });
-        }
-      }
+      const baseMessage = `Data source: ${rawData.source}`;
+      setToastMessage({
+        message: baseMessage,
+        type: rawData.source.includes('fallback') ? 'error' : 'info',
+        timestamp: rawData.timestamp,
+        ttl: rawData.remainingTtl
+      });
       
       if (hasChanged || isInitialLoad) {
         setLastUpdateTime(new Date());
