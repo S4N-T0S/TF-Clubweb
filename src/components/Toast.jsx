@@ -5,6 +5,8 @@ const formatTimestamp = (timestamp) => {
   const date = new Date(timestamp);
   const minutes = Math.floor((Date.now() - date) / 1000 / 60);
 
+  if (minutes == 0) return 'now';
+
   if (minutes < 60) {
     return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
   }
