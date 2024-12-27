@@ -45,10 +45,14 @@ export const useLeaderboard = () => {
       setDataSource(rawData.source);
       setError(null);
       
-      const baseMessage = `Data source: ${rawData.source}`;
+      const isUsingFallback = rawData.source.includes('fallback');
+      const message = isUsingFallback 
+        ? 'Unable to retrieve new data, using cached data' 
+        : `Data source: ${rawData.source}`;
+
       setToastMessage({
-        message: baseMessage,
-        type: rawData.source.includes('fallback') ? 'error' : 'info',
+        message,
+        type: isUsingFallback ? 'error' : 'info',
         timestamp: rawData.timestamp,
         ttl: rawData.remainingTtl
       });
