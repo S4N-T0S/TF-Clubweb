@@ -4,6 +4,7 @@ import { validateEmbarkId } from '../utils/validateEmbarkId';
 import { searchPlayerHistory } from '../services/historicalDataService';
 import { Hexagon } from './icons/Hexagon';
 import { getLeagueInfo } from '../utils/leagueUtils';
+import { useMobileDetect } from '../hooks/useMobileDetect';
 
 const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -13,6 +14,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
   const [hasSearched, setHasSearched] = useState(false);
   const modalRef = useRef(null);
   const inputRef = useRef(null);
+  const isMobile = useMobileDetect();
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -23,13 +25,15 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
 
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
-      inputRef.current?.focus();
+      if (inputRef.current && !isMobile) {
+        inputRef.current.focus();
+      }
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isMobile]);
 
   useEffect(() => {
     if (initialSearch) {
