@@ -6,6 +6,7 @@ import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
 import { useEffect, useRef } from 'react';
+import { useMobileDetect } from '../../hooks/useMobileDetect';
 
 const RankChangeDisplay = ({ change }) => {
   if (!change || change === 0) return null;
@@ -25,6 +26,7 @@ const RankChangeDisplay = ({ change }) => {
 
 export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: initialSearchQuery, setSearchQuery: setGlobalSearchQuery }) => {
   const searchInputRef = useRef(null);
+  const isMobile = useMobileDetect();
 
   const {
     searchQuery,
@@ -47,15 +49,19 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
     if (initialSearchQuery) {
       setSearchQuery(initialSearchQuery);
       setGlobalSearchQuery('');
-    } else if (searchInputRef.current) {
-      searchInputRef.current.focus();
     }
-  }, [initialSearchQuery, searchInputRef]);
+  }, [initialSearchQuery, setGlobalSearchQuery]);
 
   const handleClanClick = (clubTag) => {
     setSearchQuery('');
     setGlobalSearchQuery(`[${clubTag}]`);
   };
+
+  useEffect(() => {
+    if (!initialSearchQuery && searchInputRef.current && !isMobile) {
+      searchInputRef.current.focus();
+    }
+  }, [isMobile]);
 
   return (
     <div>
