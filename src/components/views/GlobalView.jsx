@@ -3,7 +3,9 @@ import { usePagination } from '../../hooks/usePagination';
 import { SearchBar } from '../SearchBar';
 import { LeagueDisplay } from '../LeagueDisplay';
 import { Pagination } from '../Pagination';
-import { useEffect } from 'react';
+import { BackToTop } from '../BackToTop';
+import { useSwipe } from '../../hooks/useSwipe';
+import { useEffect, useRef } from 'react';
 
 const RankChangeDisplay = ({ change }) => {
   if (!change || change === 0) return null;
@@ -22,6 +24,8 @@ const RankChangeDisplay = ({ change }) => {
 };
 
 export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: initialSearchQuery, setSearchQuery: setGlobalSearchQuery }) => {
+  const searchInputRef = useRef(null);
+
   const {
     searchQuery,
     setSearchQuery,
@@ -34,12 +38,19 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
     filteredItems
   } = usePagination(globalLeaderboard, 50);
 
+  useSwipe(
+    () => currentPage < totalPages && handlePageChange(currentPage + 1),
+    () => currentPage > 1 && handlePageChange(currentPage - 1)
+  );
+
   useEffect(() => {
     if (initialSearchQuery) {
       setSearchQuery(initialSearchQuery);
-      setGlobalSearchQuery(''); // Clear the global search after applying it
+      setGlobalSearchQuery('');
+    } else if (searchInputRef.current) {
+      searchInputRef.current.focus();
     }
-  }, [initialSearchQuery]);
+  }, [initialSearchQuery, searchInputRef]);
 
   const handleClanClick = (clubTag) => {
     setSearchQuery('');
@@ -48,8 +59,14 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
 
   return (
     <div className="overflow-x-auto">
-      <SearchBar value={searchQuery} onChange={setSearchQuery} />
-      <table className="w-full">
+      <SearchBar 
+        value={searchQuery} 
+        onChange={setSearchQuery} 
+        searchInputRef={searchInputRef}
+      />
+      <div className="relative overflow-x-auto sm:overflow-x-visible">
+        <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-gray-900 to-transparent pointer-events-none sm:hidden" />
+        <table className="w-full min-w-[640px]">
         <thead>
           <tr className="bg-gray-700">
             <th className="px-4 py-2 text-left text-gray-300">Rank</th>
@@ -94,7 +111,8 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
             </tr>
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
       <Pagination
         currentPage={currentPage}
         totalPages={totalPages}
@@ -103,6 +121,7 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
         totalItems={filteredItems.length}
         onPageChange={handlePageChange}
       />
+      <BackToTop />
     </div>
   );
 };

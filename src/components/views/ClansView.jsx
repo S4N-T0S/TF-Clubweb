@@ -1,6 +1,8 @@
 import { usePagination } from '../../hooks/usePagination';
 import { SearchBar } from '../SearchBar';
 import { Pagination } from '../Pagination';
+import { BackToTop } from '../BackToTop';
+import { useSwipe } from '../../hooks/useSwipe';
 
 export const ClansView = ({ topClans, onClanClick }) => {
   // Pre-process clans to add original rank
@@ -20,6 +22,11 @@ export const ClansView = ({ topClans, onClanClick }) => {
     handlePageChange,
     filteredItems
   } = usePagination(rankedClans, 15, 'tag');
+
+  useSwipe(
+    () => currentPage < totalPages && handlePageChange(currentPage + 1),
+    () => currentPage > 1 && handlePageChange(currentPage - 1)
+  );
 
   return (
     <div className="overflow-x-auto">
@@ -70,6 +77,7 @@ export const ClansView = ({ topClans, onClanClick }) => {
         totalItems={filteredItems.length}
         onPageChange={handlePageChange}
       />
+      <BackToTop />
     </div>
   );
 };

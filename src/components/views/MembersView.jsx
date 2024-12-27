@@ -1,5 +1,7 @@
-import { Check, X, Search } from 'lucide-react'; // Added Search import
+import { Check, X, Search } from 'lucide-react';
 import { LeagueDisplay } from '../LeagueDisplay';
+import { BackToTop } from '../BackToTop';
+import { useSwipe } from '../../hooks/useSwipe';
 import ogClanMembers from '../../data/clanMembers';
 
 const PriorRubyDisplay = ({ isPriorRuby }) => {
@@ -70,10 +72,17 @@ const MemberRow = ({ member, onSearchClick }) => { // Added onSearchClick prop
   );
 };
 
-export const MembersView = ({ clanMembers, totalMembers, onPlayerSearch }) => { // Added onPlayerSearch prop
+export const MembersView = ({ clanMembers, totalMembers, onPlayerSearch }) => {
+  useSwipe(
+    () => window.scrollBy({ left: 100, behavior: 'smooth' }),
+    () => window.scrollBy({ left: -100, behavior: 'smooth' })
+  );
+
   return (
     <div className="overflow-x-auto">
-      <table className="w-full">
+      <div className="relative overflow-x-auto sm:overflow-x-visible">
+        <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-gray-900 to-transparent pointer-events-none sm:hidden" />
+        <table className="w-full min-w-[640px]">
         <thead>
           <tr className="bg-gray-700">
             <th className="px-4 py-2 text-left text-gray-300">Rank</th>
@@ -104,10 +113,12 @@ export const MembersView = ({ clanMembers, totalMembers, onPlayerSearch }) => { 
               />
             ))}
         </tbody>
-      </table>
+        </table>
+      </div>
       <div className="mt-4 text-sm text-gray-400">
         <p>Total Members: {totalMembers}/50</p>
       </div>
+      <BackToTop />
     </div>
   );
 };

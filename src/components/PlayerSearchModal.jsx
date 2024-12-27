@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, AlertTriangle } from 'lucide-react';
+import { Search, AlertTriangle, X } from 'lucide-react';
 import { validateEmbarkId } from '../utils/validateEmbarkId';
 import { searchPlayerHistory } from '../services/historicalDataService';
 import { Hexagon } from './icons/Hexagon';
@@ -12,8 +12,8 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const modalRef = useRef(null);
+  const inputRef = useRef(null);
 
-  // Handle click outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (modalRef.current && !modalRef.current.contains(event.target)) {
@@ -23,6 +23,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
 
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
+      inputRef.current?.focus();
     }
 
     return () => {
@@ -30,7 +31,6 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
     };
   }, [isOpen, onClose]);
 
-  // Add effect to handle initialSearch
   useEffect(() => {
     if (initialSearch) {
       setSearchQuery(initialSearch);
@@ -80,10 +80,18 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div 
         ref={modalRef} 
-        className="bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto
+        className="bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4
           scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500"
       >
-        <h2 className="text-xl font-bold text-white mb-4">Extreme Player History Search</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-white">Player History Search</h2>
+          <button 
+            onClick={onClose}
+            className="sm:hidden p-2 hover:bg-gray-700 rounded-lg"
+          >
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
 
         <div className="mb-4 p-4 bg-gray-700 rounded-lg text-gray-300">
           <p>This tool searches for players across Open Beta and Seasons 1-5. When you enter an Embark ID, it will find any associated Steam, Xbox, or PSN usernames from these records and show all results linked to those accounts.</p>
@@ -93,6 +101,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
           <div className="flex gap-2">
             <div className="flex-1">
               <input
+                ref={inputRef}
                 type="text"
                 value={searchQuery}
                 onChange={handleInputChange}
@@ -123,20 +132,20 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
           )}
         </div>
 
-        <div className="space-y-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
+        <div className="space-y-4">
           {hasSearched && !error && results.length === 0 && !isSearching && (
             <div className="p-4 bg-gray-700 rounded-lg text-gray-300 text-center">
               No results found for this Embark ID
             </div>
           )}
 
-{results.map((result, index) => (
-    <div 
-      key={`${result.season}-${index}`}
-      className={`p-4 bg-gray-700 rounded-lg ${
-        result.foundViaSteamName ? 'border-2 border-yellow-500' : ''
-      }`}
-    >
+          {results.map((result, index) => (
+            <div 
+              key={`${result.season}-${index}`}
+              className={`p-4 bg-gray-700 rounded-lg ${
+                result.foundViaSteamName ? 'border-2 border-yellow-500' : ''
+              }`}
+            >
               <div className="flex justify-between items-start mb-2">
                 <span className="text-blue-400 font-medium">{result.season}</span>
                 {result.rank && (
@@ -181,7 +190,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
                 )}
                 
                 <div className="mt-2 pt-2 border-t border-gray-600 flex items-center gap-2">
-                <Hexagon className={getLeagueInfo(null, result.league).style} />
+                  <Hexagon className={getLeagueInfo(null, result.league).style} />
                   <div className="flex flex-col">
                     <span className="text-gray-200">{result.league}</span>
                     {result.score && (

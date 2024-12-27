@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { AlertCircle, CheckCircle2, Clock } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, X } from 'lucide-react';
 
 const formatTimestamp = (timestamp) => {
   const date = new Date(timestamp);
@@ -19,18 +19,14 @@ const formatTimestamp = (timestamp) => {
     return `${days} day${days === 1 ? '' : 's'} ago`;
   }
 
-  return date.toLocaleDateString(); // For dates older than a week
+  return date.toLocaleDateString();
 };
 
 const formatTtl = (ttl) => {
-  if (ttl <= 0) {
-    return 'now';
-  }
-
+  if (ttl <= 0) return 'now';
   const minutes = Math.ceil(ttl / 60);
   return minutes === 1 ? 'in 1 minute' : `in ${minutes} minutes`;
 };
-
 
 const Toast = ({ message, type, onClose, timestamp, ttl }) => {
   useEffect(() => {
@@ -42,28 +38,36 @@ const Toast = ({ message, type, onClose, timestamp, ttl }) => {
   }, [onClose]);
 
   return (
-    <div className="fixed top-4 right-4 z-50 animate-fade-in">
-      <div className={`rounded-lg shadow-lg p-4 flex items-center gap-2 ${
+    <div className="fixed top-4 right-4 z-50 animate-fade-in max-w-[90vw] sm:max-w-md">
+      <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 ${
         type === 'success' ? 'bg-green-600' : 
         type === 'error' ? 'bg-red-600' :
         'bg-blue-600'
       }`}>
         {type === 'success' ? (
-          <CheckCircle2 className="w-5 h-5 text-white" />
+          <CheckCircle2 className="w-5 h-5 text-white shrink-0" />
         ) : type === 'error' ? (
-          <AlertCircle className="w-5 h-5 text-white" />
+          <AlertCircle className="w-5 h-5 text-white shrink-0" />
         ) : (
-          <Clock className="w-5 h-5 text-white" />
+          <Clock className="w-5 h-5 text-white shrink-0" />
         )}
-        <div className="flex flex-col">
-          <p className="text-white font-medium">{message}</p>
+        
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-medium break-words">{message}</p>
           {timestamp && (
             <p className="text-white/80 text-sm">Last updated {formatTimestamp(timestamp)}</p>
           )}
           {ttl && (
-            <p className="text-white/80 text-sm">Update should be available {formatTtl(ttl)}</p>
+            <p className="text-white/80 text-sm">Update available {formatTtl(ttl)}</p>
           )}
         </div>
+
+        <button 
+          onClick={onClose}
+          className="sm:hidden text-white/80 hover:text-white rounded-full hover:bg-white/10 shrink-0"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
     </div>
   );
