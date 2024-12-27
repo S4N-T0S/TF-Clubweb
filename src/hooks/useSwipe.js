@@ -3,11 +3,21 @@ import { useState, useEffect } from 'react';
 export const useSwipe = (onSwipeLeft, onSwipeRight) => {
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
+  const [isHorizontalScroll, setIsHorizontalScroll] = useState(false);
 
   const minSwipeDistance = 50;
 
   useEffect(() => {
     const onTouchStart = (e) => {
+      const target = e.target;
+      const scrollableParent = findScrollableParent(target);
+      
+      if (scrollableParent && scrollableParent.scrollWidth > scrollableParent.clientWidth) {
+        setIsHorizontalScroll(true);
+      } else {
+        setIsHorizontalScroll(false);
+      }
+
       setTouchEnd(null);
       setTouchStart(e.targetTouches[0].clientX);
     };
@@ -17,7 +27,7 @@ export const useSwipe = (onSwipeLeft, onSwipeRight) => {
     };
 
     const onTouchEnd = () => {
-      if (!touchStart || !touchEnd) return;
+      if (!touchStart || !touchEnd || isHorizontalScroll) return;
       
       const distance = touchStart - touchEnd;
       const isLeftSwipe = distance > minSwipeDistance;
@@ -25,6 +35,16 @@ export const useSwipe = (onSwipeLeft, onSwipeRight) => {
       
       if (isLeftSwipe && onSwipeLeft) onSwipeLeft();
       if (isRightSwipe && onSwipeRight) onSwipeRight();
+    };
+
+    const findScrollableParent = (element) => {
+      while (element) {
+        if (element.scrollWidth > element.clientWidth) {
+          return element;
+        }
+        element = element.parentElement;
+      }
+      return null;
     };
 
     document.addEventListener('touchstart', onTouchStart);
@@ -36,5 +56,5 @@ export const useSwipe = (onSwipeLeft, onSwipeRight) => {
       document.removeEventListener('touchmove', onTouchMove);
       document.removeEventListener('touchend', onTouchEnd);
     };
-  }, [onSwipeLeft, onSwipeRight, touchStart, touchEnd]);
+  }, [onSwipeLeft, onSwipeRight, touchStart, touchEnd, isHorizontalScroll]);
 };
