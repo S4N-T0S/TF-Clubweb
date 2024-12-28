@@ -8,9 +8,8 @@ export default defineConfig({
   server: {
     proxy: isDev ? {
       '/api/leaderboard': {
-        target: 'https://id.embark.games/the-finals/leaderboards',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/leaderboard/, '')
+        target: 'http://127.0.0.1:8787',  // Wrangler dev server
+        changeOrigin: true
       }
     } : undefined
   }

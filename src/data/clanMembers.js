@@ -31,7 +31,7 @@ const ogClanMembers = [
     },
     {
       discord: "crack_whqre",
-      embarkId: "Player#6491",
+      embarkId: "CRⱯCKYY#4311",
       pruby: true
     },
     {
