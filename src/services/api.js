@@ -47,7 +47,8 @@ const logDebugInfo = (source, info) => {
     kvCache: 'color: #2196F3; font-weight: bold',
     embark: 'color: #FF9800; font-weight: bold',
     error: 'color: #f44336; font-weight: bold',
-    'kv-cache-fallback': 'color: #9C27B0; font-weight: bold'
+    'kv-cache-fallback': 'color: #9C27B0; font-weight: bold',
+    'kv-cache-locked': 'color: #9C27B0; font-weight: bold'
   };
 
   console.group('Leaderboard Data Fetch');
@@ -61,11 +62,11 @@ export const fetchLeaderboardData = async () => {
     const cachedData = getCachedData();
 
     if (cachedData && !cachedData.isStale) {
-      if (cachedData.source === 'kv-cache-fallback') {
-        logDebugInfo('Client-Cache-Fallback', { ttlRemaining: cachedData.remainingTtl });
+      if (cachedData.source === 'kv-cache-fallback' || cachedData.source === 'kv-cache-locked') {
+        logDebugInfo('Client-Cache-Fallback-Locked', { ttlRemaining: cachedData.remainingTtl });
         return {
           data: transformData(cachedData.data),
-          source: 'client-cache-fallback',
+          source: 'client-cache-fallback-locked',
           timestamp: cachedData.timestamp,
           remainingTtl: cachedData.remainingTtl
         };
@@ -80,7 +81,7 @@ export const fetchLeaderboardData = async () => {
       };
     }
 
-    const response = await fetch('/leaderboard', {
+    const response = await fetch('https://ogclub-lb.qhgk96y9s7.workers.dev', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: AUTH_TOKEN })
@@ -96,9 +97,9 @@ export const fetchLeaderboardData = async () => {
 
     const transformedData = transformData(result.data);
     
-    // Handle kv-cache-fallback source specifically
-    if (result.source === 'kv-cache-fallback') {
-      logDebugInfo('KV-Cache-Fallback', result.debugInfo);
+    // Handle kv-cache-fallback/locked source specifically
+    if (result.source === 'kv-cache-fallback' || result.source === 'kv-cache-locked') {
+      logDebugInfo(result.source, result.debugInfo);
       // Store with a shorter TTL for fallback data
       setCacheData(result.data, result.timestamp, 300, result.source);
     } else {
