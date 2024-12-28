@@ -82,7 +82,7 @@ export default {
     }
 
     if (request.method === 'POST') {
-      return onRequestPost({request, env, origin });
+      return onRequestPost({ request, env, origin });
     }
 
     return new Response('Method not allowed', { 
@@ -319,7 +319,7 @@ export async function onScheduled(event, env, ctx) {
 }
 
 // Modified onRequestPost to use shared logic
-export async function onRequestPost({request, env, origin }) {
+export async function onRequestPost({ request, env, origin }) {
   try {
     const body = await request.json();
     if (!body || body.token !== AUTH_TOKEN) {
