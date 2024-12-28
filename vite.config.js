@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: isDev ? {
-      '/api/leaderboard': {
+      '/leaderboard': {
         target: 'http://127.0.0.1:8787',  // Wrangler dev server
         changeOrigin: true
       }

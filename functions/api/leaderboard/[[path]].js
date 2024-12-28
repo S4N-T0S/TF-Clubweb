@@ -1,25 +1,53 @@
 import { createClient } from '@libsql/client/web';
 
-const CACHE_DURATION = 10 * 60; // 10 minutes in seconds
+const CACHE_DURATION = 10 * 60;
 const AUTH_TOKEN = 'not-secret';
 const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000; // 1 second
+const RETRY_DELAY = 1000;
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+const ALLOWED_ORIGINS = [
+  'https://ogclub.pages.dev',
+  'https://preview.ogclub.pages.dev',
+  'http://localhost:8787',
+  'http://localhost:5173'
+];
+
+const isDev = () => {
+  try {
+    return process.env.NODE_ENV === 'development';
+  } catch {
+    return false;
+  }
+};
+
+const logger = {
+  log: (...args) => isDev() && console.log(...args),
+  error: (...args) => isDev() && console.error(...args),
+  group: (...args) => isDev() && console.group(...args),
+  groupEnd: () => isDev() && console.groupEnd()
+};
+
+const corsHeaders = (origin) => ({
+  'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Max-Age': '86400',
-};
+});
 
 // Handle OPTIONS requests for CORS
 function handleOptions(request) {
-  if (request.headers.get('Origin') !== null &&
+  const origin = request.headers.get('Origin');
+  
+  if (!ALLOWED_ORIGINS.includes(origin)) {
+    return new Response(null, { status: 403 });
+  }
+
+  if (origin !== null &&
       request.headers.get('Access-Control-Request-Method') !== null &&
       request.headers.get('Access-Control-Request-Headers') !== null) {
     // Handle CORS preflight request
     return new Response(null, {
-      headers: corsHeaders
+      headers: corsHeaders(origin)
     });
   }
   // Handle standard OPTIONS request
@@ -39,6 +67,12 @@ export default {
 
   // Handle HTTP requests
   async fetch(request, env, ctx) {
+    const origin = request.headers.get('Origin');
+    
+    if (!ALLOWED_ORIGINS.includes(origin)) {
+      return new Response('Forbidden', { status: 403 });
+    }
+
     if (request.method === 'OPTIONS') {
       return handleOptions(request);
     }
@@ -47,19 +81,14 @@ export default {
       await onScheduled('1', env, '1');
     }
 
-    // Extract path parameters
-    const url = new URL(request.url);
-    const pathSegments = url.pathname.split('/').filter(segment => segment);
-    const params = { path: pathSegments.slice(2) }; // Remove 'api' and 'leaderboard' from path
-
     if (request.method === 'POST') {
-      return onRequestPost({ params, request, env });
+      return onRequestPost({request, env, origin });
     }
 
     return new Response('Method not allowed', { 
       status: 405,
       headers: {
-        ...corsHeaders,
+        ...corsHeaders(origin),
         'Allow': 'POST, OPTIONS'
       }
     });
@@ -127,8 +156,8 @@ async function updatePlayerStats(db, players) {
     // Execute all queries in a single batch
     await db.batch([...statsUpdates, ...historyInserts]);
   } catch (error) {
-    console.error('Failed to update database:', error);
-    console.error('Error details:', {
+    logger.error('Failed to update database:', error);
+    logger.error('Error details:', {
       message: error.message,
       cause: error.cause,
       stack: error.stack
@@ -189,7 +218,7 @@ async function processLeaderboardUpdate(env, isScheduledTask = false) {
 
     // If cache exists and isn't stale, return cached data
     if (cachedData && !isStale) {
-      console.log('Using fresh cache data');
+      logger.log('Using fresh cache data');
       return {
         data: cachedData,
         source: 'kv-cache',
@@ -197,23 +226,23 @@ async function processLeaderboardUpdate(env, isScheduledTask = false) {
         cacheDuration: CACHE_DURATION,
         remainingTtl: CACHE_DURATION - age,
         responseTime: Date.now() - startTime,
-        debugInfo: {
+        debugInfo: isDev() ? {
           dataSource: 'KV Cache',
           age: Math.round(age),
           responseTime: Date.now() - startTime
-        }
+        } : undefined
       };
     }
 
     // Skip database updates if no cache exists and it's a scheduled task
     if (!cachedData && isScheduledTask) {
-      console.log('No KV cache found. Skipping scheduled update process.');
+      logger.log('No KV cache found. Skipping scheduled update process.');
       return {
         error: 'No cached data available',
-        debugInfo: {
+        debugInfo: isDev() ? {
           dataSource: 'Skipped - No Cache',
           responseTime: Date.now() - startTime
-        }
+        } : undefined
       };
     }
 
@@ -249,14 +278,14 @@ async function processLeaderboardUpdate(env, isScheduledTask = false) {
       
       if (playersToUpdate.length > 0) {
         await withRetry(() => updatePlayerStats(db, playersToUpdate));
-        console.log('Successfully updated Turso database with rank changes and new entries');
+        logger.log('Successfully updated Turso database with rank changes and new entries');
       }
       
-      debugInfo = {
+      debugInfo = isDev() ? {
         dataSource: 'Embark API + DB Update',
         changesDetected: playersToUpdate.length,
         responseTime: Date.now() - startTime
-      };
+      } : undefined;
     }
 
     // Always update KV cache with new data
@@ -275,7 +304,7 @@ async function processLeaderboardUpdate(env, isScheduledTask = false) {
     };
     
   } catch (error) {
-    console.error('Update process failed:', error);
+    logger.error('Update process failed:', error);
     throw error;
   }
 }
@@ -285,12 +314,12 @@ export async function onScheduled(event, env, ctx) {
   try {
     await processLeaderboardUpdate(env, true);
   } catch (error) {
-    console.error('Scheduled task failed:', error);
+    logger.error('Scheduled task failed:', error);
   }
 }
 
 // Modified onRequestPost to use shared logic
-export async function onRequestPost({ params, request, env }) {
+export async function onRequestPost({request, env, origin }) {
   try {
     const body = await request.json();
     if (!body || body.token !== AUTH_TOKEN) {
@@ -314,17 +343,15 @@ export async function onRequestPost({ params, request, env }) {
           remainingTtl: 0,
           responseTime: Date.now() - startTime,
           error: error.message,
-          debugInfo: {
+          debugInfo: isDev() ? {
             dataSource: 'KV Cache Fallback',
             error: error.message,
             responseTime: Date.now() - startTime
-          }
+          } : undefined
         }), {
           headers: {
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type'
+            ...corsHeaders(origin)
           }
         });
       }
@@ -334,9 +361,7 @@ export async function onRequestPost({ params, request, env }) {
     return new Response(JSON.stringify(result), {
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        ...corsHeaders(origin),
         'Cache-Control': `max-age=${CACHE_DURATION}`
       }
     });
@@ -345,16 +370,16 @@ export async function onRequestPost({ params, request, env }) {
     return new Response(JSON.stringify({ 
       error: 'Failed to fetch data',
       details: error.message,
-      debugInfo: {
+      debugInfo: isDev() ? {
         dataSource: 'Error',
         error: error.message,
         kvStatus: env?.pv_current_leaderboard ? 'available' : 'not configured'
-      }
+      } : undefined
     }), {
       status: 500,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+        ...corsHeaders(origin),
       },
     });
   }

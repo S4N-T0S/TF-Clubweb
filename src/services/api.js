@@ -80,7 +80,7 @@ export const fetchLeaderboardData = async () => {
       };
     }
 
-    const response = await fetch('/api/leaderboard/s5', {
+    const response = await fetch('/leaderboard', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: AUTH_TOKEN })
