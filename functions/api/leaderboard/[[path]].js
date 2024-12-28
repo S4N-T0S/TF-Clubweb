@@ -1,5 +1,5 @@
 import { createClient } from '@libsql/client/web';
-//test
+
 const CACHE_DURATION = 10 * 60; // 10 minutes in seconds
 const AUTH_TOKEN = 'not-secret';
 const MAX_RETRIES = 3;
@@ -41,6 +41,10 @@ export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') {
       return handleOptions(request);
+    }
+
+    if (request.method === 'GET') {
+      await onScheduled('1', env, '1');
     }
 
     // Extract path parameters
@@ -100,10 +104,10 @@ async function updatePlayerStats(db, players) {
           ON CONFLICT (player_id)
           DO UPDATE SET last_known_rank = ?, last_updated = ?`,
     args: [
-      player.id,
-      player.rankScore,
+      String(player.name),
+      parseInt(player.rankScore),
       timestamp,
-      player.rankScore,
+      parseInt(player.rankScore),
       timestamp
     ]
   }));
@@ -112,52 +116,108 @@ async function updatePlayerStats(db, players) {
   const historyInserts = players.map(player => ({
     sql: `INSERT INTO rank_history (player_id, rank_score, recorded_at)
           VALUES (?, ?, ?)`,
-    args: [player.id, player.rankScore, timestamp]
+    args: [
+      String(player.name),
+      parseInt(player.rankScore),
+      timestamp
+    ]
   }));
 
   try {
+    // Execute all queries in a single batch
     await db.batch([...statsUpdates, ...historyInserts]);
   } catch (error) {
     console.error('Failed to update database:', error);
+    console.error('Error details:', {
+      message: error.message,
+      cause: error.cause,
+      stack: error.stack
+    });
     throw error;
   }
 }
 
 async function detectRankChanges(currentData, cachedData) {
-  if (!cachedData) return currentData;
+  if (!cachedData) return [];
 
   const cachedRanks = new Map(
-    cachedData.map(player => [player.name, player.rankScore])
+    cachedData.map(player => [player.name, parseInt(player.rankScore)])
   );
 
-  return currentData.filter(player => {
+  const playersToUpdate = currentData.filter(player => {
     const cachedRank = cachedRanks.get(player.name);
-    return !cachedRank || cachedRank !== player.rankScore;
+    const currentRank = parseInt(player.rankScore);
+    
+    // Track if either:
+    // 1. Player is new to the leaderboard (cachedRank === undefined)
+    // 2. Player's rank has changed
+    return cachedRank === undefined || currentRank !== cachedRank;
   });
+
+  return playersToUpdate;
 }
 
 async function transformLeaderboardData(entries) {
   return entries.map(entry => ({
-    rank: entry[1],
-    change: entry[2],
-    name: entry[3] || 'Unknown#0000',
-    steamName: entry[6] || null,
-    psnName: entry[7] || null,
-    xboxName: entry[8] || null,
-    clubTag: entry[12] || null,
-    leagueNumber: entry[4],
-    rankScore: entry[5]
+    rank: parseInt(entry[1]),
+    change: parseInt(entry[2]),
+    name: String(entry[3] || 'Unknown#0000'),
+    steamName: entry[6] ? String(entry[6]) : null,
+    psnName: entry[7] ? String(entry[7]) : null,
+    xboxName: entry[8] ? String(entry[8]) : null,
+    clubTag: entry[12] ? String(entry[12]) : null,
+    leagueNumber: parseInt(entry[4]),
+    rankScore: parseInt(entry[5])
   }));
 }
 
-export async function onScheduled(event, env, ctx) {
+// Shared function to handle rank updates and KV management
+async function processLeaderboardUpdate(env, isScheduledTask = false) {
+  const startTime = Date.now();
+  let debugInfo = {};
+  
   try {
-    const db = await connectToTurso(env);
-    
-    // Fetch current leaderboard data from KV
+    // Get existing KV data
     const cachedData = await env.pv_current_leaderboard.get('leaderboard_data', { type: 'json' });
+    const cacheTimestamp = await env.pv_current_leaderboard.get('leaderboard_timestamp');
     
-    // Fetch new data from the API
+    // Calculate cache age and check if it's stale
+    const now = Date.now();
+    const timestamp = cacheTimestamp ? parseInt(cacheTimestamp) : null;
+    const age = timestamp ? (now - timestamp) / 1000 : Infinity;
+    const isStale = age >= CACHE_DURATION;
+
+    // If cache exists and isn't stale, return cached data
+    if (cachedData && !isStale) {
+      console.log('Using fresh cache data');
+      return {
+        data: cachedData,
+        source: 'kv-cache',
+        timestamp,
+        cacheDuration: CACHE_DURATION,
+        remainingTtl: CACHE_DURATION - age,
+        responseTime: Date.now() - startTime,
+        debugInfo: {
+          dataSource: 'KV Cache',
+          age: Math.round(age),
+          responseTime: Date.now() - startTime
+        }
+      };
+    }
+
+    // Skip database updates if no cache exists and it's a scheduled task
+    if (!cachedData && isScheduledTask) {
+      console.log('No KV cache found. Skipping scheduled update process.');
+      return {
+        error: 'No cached data available',
+        debugInfo: {
+          dataSource: 'Skipped - No Cache',
+          responseTime: Date.now() - startTime
+        }
+      };
+    }
+
+    // Fetch new data from Embark
     const response = await fetch('https://id.embark.games/the-finals/leaderboards/s5', {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -179,137 +239,99 @@ export async function onScheduled(event, env, ctx) {
 
     const jsonData = JSON.parse(match[1]);
     const currentData = await transformLeaderboardData(jsonData.props.pageProps.entries);
-    
-    // Detect rank changes
-    const changedPlayers = await detectRankChanges(currentData, cachedData);
-    
-    if (changedPlayers.length > 0) {
-      // Update database with new ranks
-      await withRetry(() => updatePlayerStats(db, changedPlayers));
+
+    // Only process database updates if we have cached data to compare against
+    if (cachedData) {
+      const db = await connectToTurso(env);
+      const playersToUpdate = await detectRankChanges(currentData, cachedData);
+      
+      console.log(`Detected ${playersToUpdate.length} players to update (rank changes + new entries)`);
+      
+      if (playersToUpdate.length > 0) {
+        await withRetry(() => updatePlayerStats(db, playersToUpdate));
+        console.log('Successfully updated Turso database with rank changes and new entries');
+      }
+      
+      debugInfo = {
+        dataSource: 'Embark API + DB Update',
+        changesDetected: playersToUpdate.length,
+        responseTime: Date.now() - startTime
+      };
     }
 
-    // Update KV cache
+    // Always update KV cache with new data
+    const newTimestamp = Date.now();
     await env.pv_current_leaderboard.put('leaderboard_data', JSON.stringify(currentData));
-    await env.pv_current_leaderboard.put('leaderboard_timestamp', Date.now().toString());
+    await env.pv_current_leaderboard.put('leaderboard_timestamp', newTimestamp.toString());
     
+    return {
+      data: currentData,
+      source: 'embark',
+      timestamp: newTimestamp,
+      cacheDuration: CACHE_DURATION,
+      remainingTtl: CACHE_DURATION,
+      responseTime: Date.now() - startTime,
+      debugInfo
+    };
+    
+  } catch (error) {
+    console.error('Update process failed:', error);
+    throw error;
+  }
+}
+
+// Modified onScheduled to use shared logic
+export async function onScheduled(event, env, ctx) {
+  try {
+    await processLeaderboardUpdate(env, true);
   } catch (error) {
     console.error('Scheduled task failed:', error);
   }
 }
 
+// Modified onRequestPost to use shared logic
 export async function onRequestPost({ params, request, env }) {
   try {
-    const startTime = Date.now();
     const body = await request.json();
     if (!body || body.token !== AUTH_TOKEN) {
       return new Response('Unauthorized', { status: 403 });
     }
 
-    let cachedData = null;
-    let cacheTimestamp = null;
-    
-    if (env?.pv_current_leaderboard) {
-      cachedData = await env.pv_current_leaderboard.get('leaderboard_data', { type: 'json' });
-      cacheTimestamp = await env.pv_current_leaderboard.get('leaderboard_timestamp');
-    }
-
-    const now = Date.now();
-    const timestamp = cacheTimestamp ? parseInt(cacheTimestamp) : null;
-    const age = timestamp ? (now - timestamp) / 1000 : Infinity;
-    const isStale = age >= CACHE_DURATION;
-
-    if (isStale || !cachedData) {
-      try {
-        const response = await fetch('https://id.embark.games/the-finals/leaderboards/s5', {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`API request failed with status ${response.status}`);
-        }
-
-        const html = await response.text();
-        const match = html.match(/<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/);
-        
-        if (!match) {
-          throw new Error('Failed to find data in response');
-        }
-
-        const jsonData = JSON.parse(match[1]);
-        const currentData = await transformLeaderboardData(jsonData.props.pageProps.entries);
-        
-        // Update KV cache
-        await env.pv_current_leaderboard.put('leaderboard_data', JSON.stringify(currentData));
-        const newTimestamp = Date.now();
-        await env.pv_current_leaderboard.put('leaderboard_timestamp', newTimestamp.toString());
-
+    let result;
+    try {
+      result = await processLeaderboardUpdate(env, false);
+    } catch (error) {
+      // If the update process fails, try to use stale cache as fallback
+      const cachedData = await env.pv_current_leaderboard.get('leaderboard_data', { type: 'json' });
+      const cacheTimestamp = await env.pv_current_leaderboard.get('leaderboard_timestamp');
+      
+      if (cachedData) {
         return new Response(JSON.stringify({
-          data: currentData,
-          source: 'embark',
-          timestamp: newTimestamp,
+          data: cachedData,
+          source: 'kv-cache-fallback',
+          timestamp: parseInt(cacheTimestamp),
           cacheDuration: CACHE_DURATION,
-          remainingTtl: CACHE_DURATION,
+          remainingTtl: 0,
           responseTime: Date.now() - startTime,
+          error: error.message,
           debugInfo: {
-            dataSource: 'Embark API',
-            responseTime: Date.now() - startTime,
-            kvStatus: env?.pv_current_leaderboard ? 'available' : 'not configured'
+            dataSource: 'KV Cache Fallback',
+            error: error.message,
+            responseTime: Date.now() - startTime
           }
         }), {
           headers: {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-            'Cache-Control': `max-age=${CACHE_DURATION}`
+            'Access-Control-Allow-Headers': 'Content-Type'
           }
         });
-      } catch (error) {
-        if (cachedData) {
-          // Fallback to stale KV cache if API request fails
-          return new Response(JSON.stringify({
-            data: cachedData,
-            source: 'kv-cache-fallback',
-            timestamp,
-            cacheDuration: CACHE_DURATION,
-            remainingTtl: 0,
-            responseTime: Date.now() - startTime,
-            error: error.message,
-            debugInfo: {
-              dataSource: 'KV Cache Fallback',
-              error: error.message,
-              responseTime: Date.now() - startTime
-            }
-          }), {
-            headers: {
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-              'Access-Control-Allow-Methods': 'POST, OPTIONS',
-              'Access-Control-Allow-Headers': 'Content-Type'
-            }
-          });
-        }
-        throw error;
       }
+      throw error;
     }
 
-    return new Response(JSON.stringify({
-      data: cachedData,
-      source: 'kv-cache',
-      timestamp,
-      cacheDuration: CACHE_DURATION,
-      remainingTtl: Math.max(0, CACHE_DURATION - age),
-      responseTime: Date.now() - startTime,
-      debugInfo: {
-        dataSource: 'KV Cache',
-        age: Math.round(age),
-        responseTime: Date.now() - startTime
-      }
-    }), {
+    return new Response(JSON.stringify(result), {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
@@ -318,6 +340,7 @@ export async function onRequestPost({ params, request, env }) {
         'Cache-Control': `max-age=${CACHE_DURATION}`
       }
     });
+    
   } catch (error) {
     return new Response(JSON.stringify({ 
       error: 'Failed to fetch data',
