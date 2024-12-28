@@ -317,7 +317,7 @@ export async function onScheduled(event, env, ctx) {
     logger.error('Scheduled task failed:', error);
   }
 }
-
+//cloudflare is messing it up
 // Modified onRequestPost to use shared logic
 export async function onRequestPost({ request, env, origin }) {
   try {
