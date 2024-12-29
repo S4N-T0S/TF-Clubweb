@@ -3,7 +3,7 @@ import S2Data from '../data/S2/S2-merged.json';
 import S3Data from '../data/S3/S3-crossplay.json';
 import S4Data from '../data/S4/S4-crossplay.json';
 import OBData from '../data/Betas/OB-crossplay.json';
-import { fetchLeaderboardData } from './api';
+import { fetchLeaderboardData } from './lb-api';
 
 const SEASONS = {
   S1: { data: S1Data, label: 'Season 1', hasRankScore: true, scoreKey: 'fame' },

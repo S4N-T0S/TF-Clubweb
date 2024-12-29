@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchLeaderboardData } from '../services/api';
+import { fetchLeaderboardData } from '../services/lb-api';
 import { processLeaderboardData } from '../utils/dataProcessing';
 
 export const useLeaderboard = () => {

@@ -2,6 +2,8 @@ import { getLeagueInfo } from "../utils/leagueUtils";
 
 const CACHE_KEY = 'leaderboard_cache';
 const AUTH_TOKEN = 'not-secret';
+const isDev = process.env.NODE_ENV === 'development' || process.env.npm_lifecycle_event === 'dev';
+const API_URL = isDev ? 'http://localhost:8787' : 'https://ogclub-lb.qhgk96y9s7.workers.dev';
 
 const getCachedData = () => {
   const cached = localStorage.getItem(CACHE_KEY);
@@ -41,19 +43,23 @@ const setCacheData = (data, timestamp, remainingTtl, source) => {
   }));
 };
 
-const logDebugInfo = (source, info) => {
+const logDataSource = (source, info) => {
   const styles = {
     clientCache: 'color: #4CAF50; font-weight: bold',
     kvCache: 'color: #2196F3; font-weight: bold',
-    embark: 'color: #FF9800; font-weight: bold',
-    error: 'color: #f44336; font-weight: bold',
     'kv-cache-fallback': 'color: #9C27B0; font-weight: bold',
-    'kv-cache-locked': 'color: #9C27B0; font-weight: bold'
+    'client-cache-emergency': 'color: #f44336; font-weight: bold'
   };
+
+  const now = Date.now();
+  const age = info.timestamp ? Math.floor((now - info.timestamp) / 1000) : 'N/A';
 
   console.group('Leaderboard Data Fetch');
   console.log(`%cSource: ${source}`, styles[source.toLowerCase().replace('-', '')] || '');
-  console.log('Info:', info);
+  console.log('Timestamp:', new Date(info.timestamp).toLocaleString());
+  console.log('Cache Age:', `${age}s`);
+  console.log('TTL Remaining:', `${info.remainingTtl}s`);
+  console.log('Response Time:', `${info.responseTime}ms`);
   console.groupEnd();
 };
 
@@ -62,17 +68,25 @@ export const fetchLeaderboardData = async () => {
     const cachedData = getCachedData();
 
     if (cachedData && !cachedData.isStale) {
-      if (cachedData.source === 'kv-cache-fallback' || cachedData.source === 'kv-cache-locked') {
-        logDebugInfo('Client-Cache-Fallback-Locked', { ttlRemaining: cachedData.remainingTtl });
+      if (cachedData.source === 'kv-cache-fallback') {
+        logDataSource('Client-Cache-Fallback', {
+          timestamp: cachedData.timestamp,
+          remainingTtl: cachedData.remainingTtl,
+          responseTime: 0
+        });
         return {
           data: transformData(cachedData.data),
-          source: 'client-cache-fallback-locked',
+          source: 'client-cache-fallback',
           timestamp: cachedData.timestamp,
           remainingTtl: cachedData.remainingTtl
         };
       }
       
-      logDebugInfo('Client-Cache', { ttlRemaining: cachedData.remainingTtl });
+      logDataSource('Client-Cache', {
+        timestamp: cachedData.timestamp,
+        remainingTtl: cachedData.remainingTtl,
+        responseTime: 0
+      });
       return {
         data: transformData(cachedData.data),
         source: 'client-cache',
@@ -81,7 +95,8 @@ export const fetchLeaderboardData = async () => {
       };
     }
 
-    const response = await fetch('https://ogclub-lb.qhgk96y9s7.workers.dev', {
+    const startTime = Date.now();
+    const response = await fetch(`${API_URL}/leaderboard`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: AUTH_TOKEN })
@@ -90,6 +105,7 @@ export const fetchLeaderboardData = async () => {
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     
     const result = await response.json();
+    const responseTime = Date.now() - startTime;
     
     if (!result.data) {
       throw new Error('No data received from API');
@@ -97,31 +113,39 @@ export const fetchLeaderboardData = async () => {
 
     const transformedData = transformData(result.data);
     
-    // Handle kv-cache-fallback/locked source specifically
-    if (result.source === 'kv-cache-fallback' || result.source === 'kv-cache-locked') {
-      logDebugInfo(result.source, result.debugInfo);
-      // Store with a shorter TTL for fallback data
-      setCacheData(result.data, result.timestamp, 300, result.source);
-    } else {
-      logDebugInfo(result.source, result.debugInfo);
-      setCacheData(result.data, result.timestamp, result.remainingTtl || 300, result.source);
-    }
+    logDataSource(result.source, {
+      timestamp: result.timestamp,
+      remainingTtl: result.remainingTtl,
+      responseTime
+    });
+
+    setCacheData(
+      result.data, 
+      result.timestamp, 
+      result.remainingTtl || 120, 
+      result.source
+    );
 
     return {
       data: transformedData,
       source: result.source,
       timestamp: result.timestamp,
-      remainingTtl: result.remainingTtl || 300
+      remainingTtl: result.remainingTtl || 120
     };
 
   } catch (error) {
     const cachedData = getCachedData();
     if (cachedData) {
+      logDataSource('Client-Cache-Emergency', {
+        timestamp: cachedData.timestamp,
+        remainingTtl: 120,
+        responseTime: 0
+      });
       return {
         data: transformData(cachedData.data),
         source: 'client-cache-emergency',
         timestamp: cachedData.timestamp,
-        remainingTtl: 300
+        remainingTtl: 120
       };
     }
     
