@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useLeaderboard } from './hooks/useLeaderboard';
 import { MembersView } from './components/views/MembersView';
 import { ClansView } from './components/views/ClansView';
@@ -30,28 +30,7 @@ const App = () => {
     refreshData,
     toastMessage,
     setToastMessage,
-    dataSource,
-    timestamp,
-    remainingTtl
   } = useLeaderboard();
-
-  useEffect(() => {
-    if (['kv-cache-fallback', 'client-cache-fallback', 'client-cache-emergency'].includes(dataSource)) {
-      setToastMessage({
-        message: 'Using cached data - API temporarily unavailable',
-        type: 'error',
-        timestamp: timestamp,
-        ttl: remainingTtl
-      });
-    } else if (isRefreshing && ['kv-cache', 'client-cache'].includes(dataSource)) {
-      setToastMessage({
-        message: 'Using cached data while refreshing',
-        type: 'error',
-        timestamp: timestamp,
-        ttl: remainingTtl
-      });
-    }
-  }, [dataSource, timestamp, remainingTtl, isRefreshing, setToastMessage]);
 
   const handleClanClick = (clanTag) => {
     setGlobalSearchQuery(`[${clanTag}]`);
