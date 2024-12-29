@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Brush } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Brush, Label} from 'recharts';
 import { fetchPlayerGraphData } from '../services/gp-api';
 
 const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
@@ -24,7 +24,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isOpen, playerId]);
+  }, [isOpen, onClose, playerId]);
 
   const loadData = async () => {
     setLoading(true);
@@ -123,6 +123,41 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     );
   };
 
+  const getReferenceLines = () => {
+    const ranks = [
+      { label: 'Bronze 4', y: 0, color: '#b45309' },
+      { label: 'Bronze 3', y: 2500, color: '#b45309' },
+      { label: 'Bronze 2', y: 5000, color: '#b45309' },
+      { label: 'Bronze 1', y: 7500, color: '#b45309' },
+      { label: 'Silver 4', y: 10000, color: '#d1d5db' },
+      { label: 'Silver 3', y: 12500, color: '#d1d5db' },
+      { label: 'Silver 2', y: 15000, color: '#d1d5db' },
+      { label: 'Silver 1', y: 17500, color: '#d1d5db' },
+      { label: 'Gold 4', y: 20000, color: '#facc15' },
+      { label: 'Gold 3', y: 22500, color: '#facc15' },
+      { label: 'Gold 2', y: 25000, color: '#facc15' },
+      { label: 'Gold 1', y: 27500, color: '#facc15' },
+      { label: 'Platinum 4', y: 30000, color: '#67e8f9' },
+      { label: 'Platinum 3', y: 32500, color: '#67e8f9' },
+      { label: 'Platinum 2', y: 35000, color: '#67e8f9' },
+      { label: 'Platinum 1', y: 37500, color: '#67e8f9' },
+      { label: 'Diamond 4', y: 40000, color: '#60a5fa' },
+      { label: 'Diamond 3', y: 42500, color: '#60a5fa' },
+      { label: 'Diamond 2', y: 45000, color: '#60a5fa' },
+      { label: 'Diamond 1', y: 47500, color: '#60a5fa' }
+    ];
+  
+    return ranks.map((rank) => (
+      <ReferenceLine
+        key={rank.label}
+        y={rank.y}
+        stroke={rank.color}
+        strokeDasharray="2 2"
+        label={<Label value={rank.label} fill={rank.color} />}
+      />
+    ));
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -135,7 +170,10 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
               {data && `Data from ${new Date(data[0].timestamp).toLocaleDateString()} to ${new Date(data[data.length - 1].timestamp).toLocaleDateString()}`}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg">
+          <button 
+            onClick={onClose}
+            className="sm:hidden p-2 hover:bg-gray-700 rounded-lg"
+          >
             <X className="w-5 h-5 text-gray-400" />
           </button>
         </div>
@@ -167,13 +205,16 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Line
-                  type="stepAfter"
+                  type="monotone"
                   dataKey="rankScore"
                   dot={<CustomDot />}
-                  shape={<CustomLine />}
-                  strokeWidth={0}
+                  //shape={<CustomLine />}
+                  stroke="#9ca3af"
+                  strokeWidth={2}
                   connectNulls
+                  fill="#9ca3af"
                 />
+                {getReferenceLines()}
                 <Brush
                   dataKey="timestamp"
                   height={30}
