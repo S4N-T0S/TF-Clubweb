@@ -7,6 +7,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [brushRange, setBrushRange] = useState(null);
   const modalRef = useRef(null);
 
   const ranks = [
@@ -58,13 +59,41 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
         setError('No data available for this player');
         return;
       }
-      setData(result.data);
+      // Parse timestamps and create a display value with time
+      const parsedData = result.data.map(item => ({
+        ...item,
+        rawTimestamp: item.timestamp,
+        timestamp: new Date(item.timestamp).getTime(),
+        displayTime: new Date(item.timestamp).toLocaleString([], {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        })
+      }));
+      setData(parsedData);
     } catch (err) {
       setError('Failed to load player history');
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (data && data.length > 0) {
+      const endIndex = data.length - 1;
+      const endTime = data[endIndex].timestamp;
+      const sevenDaysAgo = endTime - (7 * 24 * 60 * 60 * 1000);
+
+      const startIndex = Math.max(
+        0,
+        data.findIndex(point => point.timestamp >= sevenDaysAgo)
+      );
+
+      setBrushRange({ startIndex, endIndex });
+    }
+  }, [data]);
 
   const getDynamicYAxisDomain = (dataMin, dataMax) => {
     const DIAMOND_1_THRESHOLD = 47500;
@@ -105,11 +134,48 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     return value.toLocaleString();
   };
 
+  const formatBrushTick = (timestamp) => {
+    return new Date(timestamp).toLocaleDateString([], {
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const CustomBrushTick = (props) => {
+    const { x, y, payload } = props;
+    const timeStr = payload.value;
+    // Split the date and time for better layout
+    const [date, time] = timeStr.split(',');
+    
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text
+          x={0}
+          y={0}
+          dy={16}
+          textAnchor="middle"
+          fill="#4a5568"
+          fontSize={10}
+        >
+          {date}
+        </text>
+      </g>
+    );
+  };
+
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-gray-900 border border-gray-800 p-3 rounded shadow-lg">
-          <p className="text-gray-400 text-sm">{new Date(label).toLocaleString()}</p>
+          <p className="text-gray-400 text-sm">
+            {new Date(label).toLocaleString([], {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: false
+            })}
+          </p>
           <p className="text-white font-medium">
             Score: {formatYAxis(payload[0].value)}
           </p>
@@ -165,8 +231,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div ref={modalRef} className="bg-[#1a1f2e] rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-hidden">
-        <div className="flex justify-between items-center mb-6">
+      <div ref={modalRef} className="bg-[#1a1f2e] rounded-lg p-6 w-full max-w-6xl max-h-[90vh] overflow-hidden">
+        <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-xl font-bold text-white">{playerId} - Rank History</h2>
             <p className="text-sm text-gray-400 mt-1">
@@ -180,8 +246,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
             <X className="w-5 h-5 text-gray-400" />
           </button>
         </div>
-
-        <div className="h-[500px]">
+  
+        <div className="h-[500px] w-full">
           {loading ? (
             <div className="flex items-center justify-center h-full text-gray-400">Loading...</div>
           ) : error ? (
@@ -190,7 +256,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={data}
-                margin={{ top: 20, right: 30, left: 60, bottom: 20 }}
+                margin={{ top: 20, right: 120, left: 60, bottom: 20 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a3042" />
                 <XAxis 
@@ -220,12 +286,17 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
                   fill="#9ca3af"
                 />
                 {getReferenceLines()}
-                <Brush
-                  dataKey="timestamp"
-                  height={30}
-                  stroke="#4a5568"
-                  fill="#1a1f2e"
-                />
+                {brushRange && (
+                  <Brush
+                    dataKey="displayTime"
+                    height={40}
+                    stroke="#4a5568"
+                    fill="#1a1f2e"
+                    startIndex={brushRange.startIndex}
+                    endIndex={brushRange.endIndex}
+                    tick={<CustomBrushTick />}
+                  />
+                )}
               </LineChart>
             </ResponsiveContainer>
           )}
