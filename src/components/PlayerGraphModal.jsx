@@ -82,6 +82,39 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     return { min: viewMin, max: endTime };
   };
 
+  const interpolateDataPoints = (rawData) => {
+    if (!rawData || rawData.length < 2) return rawData;
+    
+    const interpolatedData = [];
+    const TEN_MINUTES = 10 * 60 * 1000; // 10 minutes in milliseconds
+    
+    for (let i = 0; i < rawData.length - 1; i++) {
+      const currentPoint = rawData[i];
+      const nextPoint = rawData[i + 1];
+      
+      // Add the current point
+      interpolatedData.push(currentPoint);
+      
+      // Calculate time difference
+      const timeDiff = nextPoint.timestamp - currentPoint.timestamp;
+      
+      // If gap is more than 10 minutes, add interpolated points
+      if (timeDiff > TEN_MINUTES) {
+        // Add point just before the change (using current score)
+        interpolatedData.push({
+          ...currentPoint,
+          timestamp: new Date(nextPoint.timestamp - TEN_MINUTES),
+          isInterpolated: true
+        });
+      }
+    }
+    
+    // Add the last point
+    interpolatedData.push(rawData[rawData.length - 1]);
+    
+    return interpolatedData;
+  };
+
   const loadData = async () => {
     setLoading(true);
     setError(null);
@@ -95,8 +128,11 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
         ...item,
         timestamp: new Date(item.timestamp)
       }));
-      setData(parsedData);
-      const window = calculateViewWindow(parsedData);
+      
+      // Interpolate the data points
+      const interpolatedData = interpolateDataPoints(parsedData);
+      setData(interpolatedData);
+      const window = calculateViewWindow(interpolatedData);
       setViewWindow(window);
     } catch (err) {
       setError('Failed to load player history');
@@ -134,7 +170,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
 
   const getDynamicYAxisDomain = (dataMin, dataMax) => {
     const DIAMOND_1_THRESHOLD = 47500;
-    const BUFFER_ABOVE_MAX = 2500;
+    const BUFFER_ABOVE_MAX = 1000;
 
     const minRankThreshold = ranks.reduce((prev, curr) => {
       return (curr.y <= dataMin && curr.y > prev) ? curr.y : prev;
@@ -184,13 +220,6 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           }
         }
       }));
-  };
-
-  const getSegmentColor = (ctx) => {
-    if (!ctx.p0 || !ctx.p1) return '#FFFFFF';
-    const curr = ctx.p0.parsed.y;
-    const next = ctx.p1.parsed.y;
-    return next > curr ? '#10B981' : next < curr ? '#EF4444' : '#FFFFFF';
   };
 
   const chartOptions = data ? {
@@ -263,7 +292,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       tooltip: {
         backgroundColor: '#1f2937',
         titleColor: '#9ca3af',
-        bodyColor: '#ffffff',
+        bodyColor: '#FAF9F6',
         titleFont: {
           size: 12
         },
@@ -293,13 +322,44 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     labels: data.map(d => d.timestamp),
     datasets: [{
       label: 'Rank Score',
-      data: data.map(d => d.rankScore),
+      data: data.map(d => ({
+        x: d.timestamp,
+        y: d.rankScore,
+        raw: d // Include the full data point for interpolation checking
+      })),
       segment: {
-        borderColor: ctx => getSegmentColor(ctx)
+        borderColor: ctx => {
+          // First verify we have valid context points
+          if (!ctx.p0?.raw || !ctx.p1?.raw) return '#FAF9F6';
+          
+          // Check for interpolated points
+          if (ctx.p0.raw.isInterpolated || ctx.p1.raw.isInterpolated) {
+            return '#FAF9F6';
+          }
+          
+          const curr = ctx.p0.parsed.y;
+          const next = ctx.p1.parsed.y;
+          return next > curr ? '#10B981' : next < curr ? '#EF4444' : '#FAF9F6';
+        },
+        borderWidth: ctx => {
+          // First verify we have valid context points
+          if (!ctx.p0?.raw || !ctx.p1?.raw) return 2;
+
+          const curr = ctx.p0.parsed.y;
+          const next = ctx.p1.parsed.y;
+          const isInterpolated = ctx.p0.raw.isInterpolated || ctx.p1.raw.isInterpolated;
+          const isEqual = curr === next;
+          
+          // Check for interpolated points
+          if (isInterpolated || isEqual) {
+            return 1.5;
+          }
+          return 2;
+        }
       },
-      pointBackgroundColor: '#FFFFFF',
-      pointRadius: 3,
-      tension: 0.1
+      pointBackgroundColor: ctx => ctx.raw?.isInterpolated ? 'transparent' : '#FAF9F6',
+      pointRadius: ctx => ctx.raw?.isInterpolated ? 0 : 3,
+      tension: 0  // Set tension to 0 for all lines to make them straight
     }]
   } : null;
 
