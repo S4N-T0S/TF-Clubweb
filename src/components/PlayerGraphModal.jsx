@@ -29,19 +29,14 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
   const loadData = async () => {
     setLoading(true);
     setError(null);
-    
     try {
       const result = await fetchPlayerGraphData(playerId);
-      console.log('Raw data:', result.data); // Debug log
-      
       if (!result.data || result.data.length === 0) {
         setError('No data available for this player');
         return;
       }
-      
       setData(result.data);
     } catch (err) {
-      console.error('Load data error:', err);
       setError('Failed to load player history');
     } finally {
       setLoading(false);
@@ -74,18 +69,58 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     return null;
   };
 
-  const CustomDot = (props) => {
-    const { cx, cy, payload, index } = props;
-    if (!cx || !cy || !props.data) return null;
-  
-    let color = '#FFFFFF';
-    if (index < props.data.length - 1) {
-      const nextScore = props.data[index + 1].rankScore;
-      color = nextScore > payload.rankScore ? '#10B981' :
-              nextScore < payload.rankScore ? '#EF4444' : '#FFFFFF';
-    }
-  
-    return <circle cx={cx} cy={cy} r={3} fill={color} />;
+  const getSegmentColor = (current, next) => {
+    if (!next) return '#FFFFFF';
+    return next.rankScore > current.rankScore ? '#10B981' : 
+           next.rankScore < current.rankScore ? '#EF4444' : '#FFFFFF';
+  };
+
+  const CustomDot = ({ cx, cy, payload, index }) => {
+    const nextEntry = data[index + 1];
+    const color = getSegmentColor(payload, nextEntry);
+    
+    return (
+      <circle 
+        cx={cx} 
+        cy={cy} 
+        r={3} 
+        fill={color}
+        key={`dot-${index}`}
+      />
+    );
+  };
+
+  const CustomLine = ({ points }) => {
+    return (
+      <>
+        {points.map((point, index) => {
+          if (index === points.length - 1) return null;
+          const nextPoint = points[index + 1];
+          const color = getSegmentColor(point.payload, nextPoint.payload);
+          
+          return (
+            <g key={`segment-${index}`}>
+              <line
+                x1={point.x}
+                y1={point.y}
+                x2={nextPoint.x}
+                y2={point.y}
+                stroke={color}
+                strokeWidth={2}
+              />
+              <line
+                x1={nextPoint.x}
+                y1={point.y}
+                x2={nextPoint.x}
+                y2={nextPoint.y}
+                stroke={color}
+                strokeWidth={2}
+              />
+            </g>
+          );
+        })}
+      </>
+    );
   };
 
   if (!isOpen) return null;
@@ -113,40 +148,39 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-  data={data}
-  margin={{ top: 20, right: 30, left: 60, bottom: 20 }}
->
-  <CartesianGrid strokeDasharray="3 3" stroke="#2a3042" />
-  <XAxis 
-    dataKey="timestamp"
-    stroke="#4a5568"
-    tick={{ fill: '#4a5568', fontSize: 12 }}
-  />
-<YAxis
-  dataKey="rankScore"
-  domain={[dataMin => Math.floor(dataMin * 0.95), dataMax => Math.ceil(dataMax * 1.05)]}
-  tickFormatter={formatYAxis}
-  stroke="#4a5568"
-  tick={{ fill: '#4a5568', fontSize: 12 }}
-/>
-
-  <Tooltip content={<CustomTooltip />} />
-  <Line
-  type="step"
-  dataKey="rankScore"
-  stroke="#FFFFFF"
-  strokeWidth={1.5}
-  dot={{ fill: '#FFFFFF', r: 3 }}
-  connectNulls
-  stepSize={2}
-/>
-  <Brush
-    dataKey="timestamp"
-    height={30}
-    stroke="#4a5568"
-    fill="#1a1f2e"
-  />
-</LineChart>
+                data={data}
+                margin={{ top: 20, right: 30, left: 60, bottom: 20 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#2a3042" />
+                <XAxis 
+                  dataKey="timestamp"
+                  stroke="#4a5568"
+                  tick={{ fill: '#4a5568', fontSize: 12 }}
+                  tickFormatter={formatXAxis}
+                />
+                <YAxis
+                  dataKey="rankScore"
+                  domain={[dataMin => Math.floor(dataMin * 0.95), dataMax => Math.ceil(dataMax * 1.05)]}
+                  tickFormatter={formatYAxis}
+                  stroke="#4a5568"
+                  tick={{ fill: '#4a5568', fontSize: 12 }}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Line
+                  type="stepAfter"
+                  dataKey="rankScore"
+                  dot={<CustomDot />}
+                  shape={<CustomLine />}
+                  strokeWidth={0}
+                  connectNulls
+                />
+                <Brush
+                  dataKey="timestamp"
+                  height={30}
+                  stroke="#4a5568"
+                  fill="#1a1f2e"
+                />
+              </LineChart>
             </ResponsiveContainer>
           )}
         </div>
