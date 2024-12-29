@@ -1,12 +1,13 @@
-import { ChevronUp, ChevronDown, Search } from 'lucide-react';
+import { ChevronUp, ChevronDown, Search, LineChart } from 'lucide-react';
 import { usePagination } from '../../hooks/usePagination';
 import { SearchBar } from '../SearchBar';
 import { LeagueDisplay } from '../LeagueDisplay';
 import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMobileDetect } from '../../hooks/useMobileDetect';
+import PlayerGraphModal from '../PlayerGraphModal';
 
 const RankChangeDisplay = ({ change }) => {
   if (!change || change === 0) return null;
@@ -27,6 +28,7 @@ const RankChangeDisplay = ({ change }) => {
 export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: initialSearchQuery, setSearchQuery: setGlobalSearchQuery }) => {
   const searchInputRef = useRef(null);
   const isMobile = useMobileDetect();
+  const [graphModal, setGraphModal] = useState({ isOpen: false, playerId: null });
 
   const {
     searchQuery,
@@ -78,6 +80,7 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
             <th className="px-4 py-2 text-left text-gray-300">Change</th>
             <th className="px-4 py-2 text-left text-gray-300">Player</th>
             <th className="px-4 py-2 text-center text-gray-300">League & Score</th>
+            <th className="px-4 py-2 text-center text-gray-300">Graph</th>
           </tr>
         </thead>
         <tbody>
@@ -113,6 +116,12 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
                 score={player.rankScore} 
                 rank={player.rank}
               />
+              <td className="px-4 py-2 text-center">
+                <LineChart
+                  className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer mx-auto"
+                  onClick={() => setGraphModal({ isOpen: true, playerId: player.name })}
+                />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -127,6 +136,12 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
         onPageChange={handlePageChange}
       />
       <BackToTop />
+      
+      <PlayerGraphModal
+        isOpen={graphModal.isOpen}
+        onClose={() => setGraphModal({ isOpen: false, playerId: null })}
+        playerId={graphModal.playerId}
+      />
     </div>
   );
 };

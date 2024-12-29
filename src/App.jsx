@@ -11,7 +11,7 @@ import PlayerSearchModal from './components/PlayerSearchModal';
 import ogClanMembers from './data/clanMembers';
 
 const App = () => {
-  const [view, setView] = useState('members');
+  const [view, setView] = useState('global');  // Changed from 'members' to 'global'
   const [searchModalState, setSearchModalState] = useState({ 
     isOpen: false, 
     initialSearch: '' 

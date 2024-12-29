@@ -31,7 +31,7 @@ export const DashboardHeader = ({
             active={view === 'members'}
             onClick={() => setView('members')}
             icon={<Users className="w-4 h-4" />}
-            text="Members"
+            text="OG Members"
           />
           <ViewButton
             active={view === 'clans'}
