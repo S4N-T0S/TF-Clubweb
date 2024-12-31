@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLeaderboard } from './hooks/useLeaderboard';
 import { MembersView } from './components/views/MembersView';
 import { ClansView } from './components/views/ClansView';
@@ -10,8 +10,20 @@ import Toast from './components/Toast';
 import PlayerSearchModal from './components/PlayerSearchModal';
 import ogClanMembers from './data/clanMembers';
 
+// Cookie helper functions
+const getCookie = (name) => {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? match[2] : null;
+};
+
+const setTabCookie = (tab) => {
+  // Set cookie with 1 week expiration
+  const oneWeek = 7 * 24 * 60 * 60;
+  document.cookie = `dashboard_tab=${tab}; max-age=${oneWeek}; path=/; SameSite=Strict`;
+};
+
 const App = () => {
-  const [view, setView] = useState('global');  // Changed from 'members' to 'global'
+  const [view, setView] = useState(() => getCookie('dashboard_tab') || 'global');
   const [searchModalState, setSearchModalState] = useState({ 
     isOpen: false, 
     initialSearch: '' 
@@ -31,6 +43,11 @@ const App = () => {
     toastMessage,
     setToastMessage,
   } = useLeaderboard();
+
+  // Update cookie whenever view changes
+  useEffect(() => {
+    setTabCookie(view);
+  }, [view]);
 
   const handleClanClick = (clanTag) => {
     setGlobalSearchQuery(`[${clanTag}]`);
