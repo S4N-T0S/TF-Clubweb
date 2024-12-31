@@ -130,11 +130,6 @@ const ogClanMembers = [
       pruby: false
     },
     {
-      discord: "d1zzer_",
-      embarkId: "Dizzer#1198",
-      pruby: false
-    },
-    {
       discord: "live",
       embarkId: "livetolove#8992",
       pruby: false
