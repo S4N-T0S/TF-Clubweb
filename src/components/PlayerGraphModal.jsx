@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { X } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -30,7 +30,8 @@ ChartJS.register(
   zoomPlugin
 );
 
-const ranks = [
+// Move constants outside component to prevent recreation on each render
+const RANKS = [
   { label: 'Bronze 4', y: 0, color: '#b45309' },
   { label: 'Bronze 3', y: 2500, color: '#b45309' },
   { label: 'Bronze 2', y: 5000, color: '#b45309' },
@@ -59,6 +60,10 @@ const TIME_RANGES = {
   'MAX': Infinity
 };
 
+// Constants for time intervals
+const MINUTES_15 = 15 * 60 * 1000;
+const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+
 const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -67,9 +72,23 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
   const [viewWindow, setViewWindow] = useState(null);
   const modalRef = useRef(null);
   const chartRef = useRef(null);
+  const dataCache = useRef(null);
 
-  const calculateViewWindow = (data, range) => {
-    if (!data || data.length === 0) return null;
+  // Reset state when modal is opened with new player
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedTimeRange('24H');
+      if (dataCache.current?.playerId !== playerId) {
+        dataCache.current = null;
+        setData(null);
+        setError(null);
+        setViewWindow(null);
+      }
+    }
+  }, [isOpen, playerId]);
+
+  const calculateViewWindow = useCallback((data, range) => {
+    if (!data?.length) return null;
 
     const now = new Date();
     const endTime = now;
@@ -81,14 +100,12 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     
     const viewMin = new Date(now - timeRangeMs);
     return { min: viewMin, max: endTime };
-  };
+  }, []);
 
-  const interpolateDataPoints = (rawData) => {
-    if (!rawData || rawData.length < 2) return rawData;
+  const interpolateDataPoints = useCallback((rawData) => {
+    if (!rawData?.length || rawData.length < 2) return rawData;
     
     const interpolatedData = [];
-    const TEN_MINUTES = 15 * 60 * 1000; // 15 minutes in milliseconds
-    const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
     const now = new Date();
     const sevenDaysAgo = new Date(now - SEVEN_DAYS);
     
@@ -103,7 +120,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       // Add point just before the first real data point
       interpolatedData.push({
         ...rawData[0],
-        timestamp: new Date(rawData[0].timestamp - TEN_MINUTES),
+        timestamp: new Date(rawData[0].timestamp - MINUTES_15),
         isExtrapolated: true
       });
     }
@@ -117,10 +134,10 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       
       const timeDiff = nextPoint.timestamp - currentPoint.timestamp;
       
-      if (timeDiff > TEN_MINUTES) {
+      if (timeDiff > MINUTES_15) {
         interpolatedData.push({
           ...currentPoint,
-          timestamp: new Date(nextPoint.timestamp - TEN_MINUTES),
+          timestamp: new Date(nextPoint.timestamp - MINUTES_15),
           isInterpolated: true
         });
       }
@@ -131,7 +148,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     const lastPoint = rawData[rawData.length - 1];
     const timeToNow = now - lastPoint.timestamp;
     
-    if (timeToNow > TEN_MINUTES) {
+    if (timeToNow > MINUTES_15) {
       interpolatedData.push({
         ...lastPoint,
         timestamp: new Date(now),
@@ -140,97 +157,49 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     }
     
     return interpolatedData;
-  };
+  }, []);
 
-  const loadData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await fetchPlayerGraphData(playerId);
-      if (!result.data || result.data.length === 0) {
-        setError('No data available for this player');
-        return;
-      }
-      
-      // Add check for single data point
-      if (result.data.length === 1) {
-        setError('Not enough data points to display graph');
-        return;
-      }
-  
-      const parsedData = result.data.map(item => ({
-        ...item,
-        timestamp: new Date(item.timestamp)
-      }));
-      
-      const interpolatedData = interpolateDataPoints(parsedData);
-      setData(interpolatedData);
-      const window = calculateViewWindow(interpolatedData, selectedTimeRange);
-      setViewWindow(window);
-    } catch (err) {
-      setError('Failed to load player history');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (modalRef.current && !modalRef.current.contains(event.target)) {
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      loadData();
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen, onClose, playerId]);
-
-  useEffect(() => {
-    if (data) {
-      const window = calculateViewWindow(data, selectedTimeRange);
-      setViewWindow(window);
-      if (chartRef.current) {
-        chartRef.current.resetZoom();
-      }
-    }
-  }, [selectedTimeRange, data]);
-
-  const getDynamicYAxisDomain = (dataMin, dataMax, data, timeWindow) => {
-    if (!data || data.length === 0) return [0, 50000];
+  const getDynamicYAxisDomain = useCallback((dataMin, dataMax, data, timeWindow, customTimeRange = null) => {
+    if (!data?.length) return [0, 50000];
     
-    const now = new Date();
-    const windowStart = new Date(now - TIME_RANGES[timeWindow]);
-    const visibleData = timeWindow === 'MAX' 
-      ? data 
-      : data.filter(d => d.timestamp >= windowStart);
+    let visibleData;
+    if (customTimeRange) {
+      // For zoom/pan operations, use the custom time range
+      visibleData = data.filter(d => 
+        d.timestamp >= customTimeRange.min && 
+        d.timestamp <= customTimeRange.max
+      );
+    } else {
+      // For predefined time windows (24H, 7D, MAX)
+      const now = new Date();
+      const windowStart = new Date(now - TIME_RANGES[timeWindow]);
+      visibleData = timeWindow === 'MAX' 
+        ? data 
+        : data.filter(d => d.timestamp >= windowStart);
+    }
   
-    if (visibleData.length === 0) return [0, 50000];
+    if (!visibleData.length) return [0, 50000];
   
     const minScore = Math.min(...visibleData.map(d => d.rankScore));
     const maxScore = Math.max(...visibleData.map(d => d.rankScore));
     
-    // Add padding of 1% to min and max
     const padding = Math.round((maxScore - minScore) * 0.01);
     return [Math.max(0, minScore - padding), maxScore + padding];
-  };
+  }, []);
 
-  const getRankAnnotations = () => {
+
+  const getRankAnnotations = useCallback((customTimeRange = null) => {
     if (!data) return [];
     
     const [minDomain, maxDomain] = getDynamicYAxisDomain(
       Math.min(...data.map(d => d.rankScore)),
       Math.max(...data.map(d => d.rankScore)),
       data,
-      selectedTimeRange
+      selectedTimeRange,
+      customTimeRange
     );
     
-    return ranks
+    return RANKS
       .filter(rank => rank.y >= minDomain && rank.y <= maxDomain)
       .map(rank => ({
         type: 'line',
@@ -252,9 +221,86 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           }
         }
       }));
-  };
+  }, [data, getDynamicYAxisDomain, selectedTimeRange]);
 
-  const chartOptions = data ? {
+  const loadData = useCallback(async () => {
+    // If we have cached data for this player and it's less than 5 minutes old, use it
+    const CACHE_DURATION = 5 * 60 * 1000;
+    if (
+      dataCache.current?.playerId === playerId && 
+      Date.now() - dataCache.current.timestamp < CACHE_DURATION
+    ) {
+      setData(dataCache.current.data);
+      const window = calculateViewWindow(dataCache.current.data, selectedTimeRange);
+      setViewWindow(window);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await fetchPlayerGraphData(playerId);
+      if (!result.data?.length) {
+        setError('No data available for this player');
+        return;
+      }
+      
+      if (result.data.length === 1) {
+        setError('Not enough data points to display graph');
+        return;
+      }
+  
+      const parsedData = result.data.map(item => ({
+        ...item,
+        timestamp: new Date(item.timestamp)
+      }));
+      
+      const interpolatedData = interpolateDataPoints(parsedData);
+      
+      // Cache the data
+      dataCache.current = {
+        playerId,
+        data: interpolatedData,
+        timestamp: Date.now()
+      };
+      
+      setData(interpolatedData);
+      const window = calculateViewWindow(interpolatedData, selectedTimeRange);
+      setViewWindow(window);
+    } catch (error) {
+      setError(`Failed to load player history: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [playerId, calculateViewWindow, interpolateDataPoints, selectedTimeRange]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (modalRef.current && !modalRef.current.contains(event.target)) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      loadData();
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen, onClose, loadData]);
+
+  // Separate effect for handling time range changes
+  useEffect(() => {
+    if (data) {
+      const window = calculateViewWindow(data, selectedTimeRange);
+      setViewWindow(window);
+      chartRef.current?.resetZoom();
+    }
+  }, [selectedTimeRange, data, calculateViewWindow]);
+
+  const chartOptions = useMemo(() => data ? {
     responsive: true,
     maintainAspectRatio: false,
     animation: false,
@@ -290,6 +336,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
         max: viewWindow?.max
       },
       y: {
+        // The min/max will be updated dynamically during zoom/pan
         min: data.length > 0 ? getDynamicYAxisDomain(
           Math.min(...data.map(d => d.rankScore)),
           Math.max(...data.map(d => d.rankScore)),
@@ -316,7 +363,29 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
         pan: {
           enabled: true,
           mode: 'x',
-          modifierKey: null
+          modifierKey: null,
+          onPan: function(ctx) {
+            // Get the current view window after panning
+            const timeRange = {
+              min: ctx.chart.scales.x.min,
+              max: ctx.chart.scales.x.max
+            };
+            
+            // Update Y axis bounds
+            const [newMin, newMax] = getDynamicYAxisDomain(
+              Math.min(...data.map(d => d.rankScore)),
+              Math.max(...data.map(d => d.rankScore)),
+              data,
+              selectedTimeRange,
+              timeRange
+            );
+            
+            ctx.chart.options.scales.y.min = newMin;
+            ctx.chart.options.scales.y.max = newMax;
+            
+            // Update rank annotations
+            ctx.chart.options.plugins.annotation.annotations = getRankAnnotations(timeRange);
+          }
         },
         zoom: {
           wheel: {
@@ -326,6 +395,28 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
             enabled: true
           },
           mode: 'x',
+          onZoom: function(ctx) {
+            // Get the current view window after zooming
+            const timeRange = {
+              min: ctx.chart.scales.x.min,
+              max: ctx.chart.scales.x.max
+            };
+            
+            // Update Y axis bounds
+            const [newMin, newMax] = getDynamicYAxisDomain(
+              Math.min(...data.map(d => d.rankScore)),
+              Math.max(...data.map(d => d.rankScore)),
+              data,
+              selectedTimeRange,
+              timeRange
+            );
+            
+            ctx.chart.options.scales.y.min = newMin;
+            ctx.chart.options.scales.y.max = newMax;
+            
+            // Update rank annotations
+            ctx.chart.options.plugins.annotation.annotations = getRankAnnotations(timeRange);
+          }
         },
       },
       annotation: {
@@ -366,9 +457,9 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
         }
       }
     }
-  } : null;
+  } : null, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, selectedTimeRange]);
 
-  const chartData = data ? {
+  const chartData = useMemo(() => data ? {
     labels: data.map(d => d.timestamp),
     datasets: [{
       label: `${playerId}`,
@@ -432,7 +523,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       },
       tension: 0
     }]
-  } : null;
+  } : null, [data, playerId]);
 
   if (!isOpen) return null;
 
