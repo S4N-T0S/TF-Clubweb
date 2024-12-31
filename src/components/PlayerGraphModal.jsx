@@ -371,18 +371,19 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
         yMin: rank.y,
         yMax: rank.y,
         borderColor: rank.color,
-        borderWidth: 1,
+        borderWidth: 1.5,
         borderDash: [2, 2],
         label: {
           content: rank.label,
           display: true,
-          position: 'right',
+          position: 'center',
           color: rank.color,
           font: {
             size: 11
           },
           padding: {
-            left: 10
+            left: 8,
+            right: 8
           }
         }
       }));
@@ -659,7 +660,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           color: '#ffffff',
           boxWidth: 15,
           padding: 15,
-          usePointStyle: false
+          usePointStyle: true
         }
       }
     }
@@ -668,7 +669,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
   const chartData = useMemo(() => data ? {
     labels: data.map(d => d.timestamp),
     datasets: [{
-      label: `${playerId}`,
+      label: ` ${playerId}`,
       data: data.map(d => ({
           x: d.timestamp,
           y: d.rankScore,
