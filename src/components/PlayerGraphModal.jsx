@@ -54,6 +54,41 @@ const RANKS = [
   { label: 'Diamond 1', y: 47500, color: '#60a5fa' }
 ];
 
+const getRankFromScore = (score) => {
+  for (let i = RANKS.length - 1; i >= 0; i--) {
+    if (score >= RANKS[i].y) {
+      return RANKS[i];
+    }
+  }
+  return RANKS[0];
+};
+
+const getOrCreateTooltip = (chart) => {
+  let tooltipEl = chart.canvas.parentNode.querySelector('div.rank-tooltip');
+
+  if (!tooltipEl) {
+    tooltipEl = document.createElement('div');
+    tooltipEl.className = 'rank-tooltip';
+    tooltipEl.style.background = '#1f2937';
+    tooltipEl.style.borderRadius = '3px';
+    tooltipEl.style.color = '#FAF9F6';
+    tooltipEl.style.opacity = 1;
+    tooltipEl.style.pointerEvents = 'none';
+    tooltipEl.style.position = 'absolute';
+    tooltipEl.style.transform = 'translate(-50%, 0)';
+    tooltipEl.style.transition = 'all .1s ease';
+    tooltipEl.style.padding = '12px';
+
+    const table = document.createElement('table');
+    table.style.margin = '0px';
+
+    tooltipEl.appendChild(table);
+    chart.canvas.parentNode.appendChild(tooltipEl);
+  }
+
+  return tooltipEl;
+};
+
 const TIME_RANGES = {
   '24H': 24 * 60 * 60 * 1000,
   '7D': 7 * 24 * 60 * 60 * 1000,
@@ -87,6 +122,101 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       }
     }
   }, [isOpen, playerId]);
+
+  const externalTooltipHandler = useCallback((context) => {
+    const { chart, tooltip } = context;
+    const tooltipEl = getOrCreateTooltip(chart);
+
+    if (tooltip.opacity === 0) {
+      tooltipEl.style.opacity = 0;
+      return;
+    }
+
+    // Set Text
+    if (tooltip.body) {
+      const titleLines = tooltip.title || [];
+      const bodyLines = tooltip.body.map(b => b.lines);
+      const score = parseInt(bodyLines[0][0].split(': ')[1].replace(/,/g, ''));
+      const rank = getRankFromScore(score);
+
+      const tableRoot = tooltipEl.querySelector('table');
+
+      // Clear previous tooltip content
+      while (tableRoot.firstChild) {
+        tableRoot.firstChild.remove();
+      }
+
+      // Add title
+      const headerRow = document.createElement('tr');
+      headerRow.style.borderWidth = 0;
+      const headerCell = document.createElement('th');
+      headerCell.style.borderWidth = 0;
+      headerCell.style.color = '#9ca3af';
+      headerCell.style.fontSize = '12px';
+      const headerText = document.createTextNode(titleLines[0]);
+      headerCell.appendChild(headerText);
+      headerRow.appendChild(headerCell);
+      tableRoot.appendChild(headerRow);
+
+      // Add score with hexagon
+      const scoreRow = document.createElement('tr');
+      scoreRow.style.borderWidth = 0;
+      const scoreCell = document.createElement('td');
+      scoreCell.style.borderWidth = 0;
+      scoreCell.style.fontSize = '14px';
+      scoreCell.style.fontWeight = 'bold';
+      scoreCell.style.paddingTop = '4px';
+      
+      // Create hexagon SVG
+      const hexagonSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      hexagonSvg.setAttribute('viewBox', '0 0 24 24');
+      hexagonSvg.style.width = '14px';
+      hexagonSvg.style.height = '14px';
+      hexagonSvg.style.display = 'inline-block';
+      hexagonSvg.style.verticalAlign = 'middle';
+      hexagonSvg.style.marginRight = '8px';
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', 'M12 2L22 8.5V15.5L12 22L2 15.5V8.5L12 2Z');
+      path.setAttribute('fill', rank.color);
+
+      scoreCell.appendChild(document.createTextNode(`Score: ${score.toLocaleString()}`));
+      scoreRow.appendChild(scoreCell);
+      tableRoot.appendChild(scoreRow);
+
+      // Add rank
+      const rankRow = document.createElement('tr');
+      rankRow.style.borderWidth = 0;
+      const rankCell = document.createElement('td');
+      rankCell.style.borderWidth = 0;
+      rankCell.style.fontSize = '14px';
+      rankCell.style.fontWeight = 'bold';
+      rankCell.style.paddingTop = '4px';
+      rankCell.style.position = 'relative'; // Ensure parent container is relative
+          
+      const rankText = document.createTextNode(`Rank: ${rank.label}`);
+      hexagonSvg.appendChild(path);
+          
+      // Adjust hexagonSvg to be at the bottom-right of the tooltip box
+      hexagonSvg.style.position = 'absolute';
+      hexagonSvg.style.bottom = '4';
+      hexagonSvg.style.right = '0';
+          
+      rankCell.appendChild(rankText);
+      rankCell.appendChild(hexagonSvg);
+      rankRow.appendChild(rankCell);
+      tableRoot.appendChild(rankRow);
+    }
+
+    const { offsetLeft: positionX, offsetTop: positionY } = chart.canvas;
+
+    // Display, position, and set styles for tooltip
+    tooltipEl.style.opacity = 1;
+    tooltipEl.style.left = positionX + tooltip.caretX + 'px';
+    tooltipEl.style.top = positionY + tooltip.caretY + 'px';
+    tooltipEl.style.font = tooltip.options.bodyFont.string;
+    tooltipEl.style.boxShadow = '0 2px 12px 0 rgba(0,0,0,0.4)';
+  }, []);
 
   const calculateViewWindow = useCallback((data, range) => {
     if (!data?.length) return null;
@@ -184,7 +314,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     const minScore = Math.min(...visibleData.map(d => d.rankScore));
     const maxScore = Math.max(...visibleData.map(d => d.rankScore));
     
-    const padding = Math.round((maxScore - minScore) * 0.01);
+    const padding = Math.round((maxScore - minScore) * 0.10);
     return [Math.max(0, minScore - padding), maxScore + padding];
   }, []);
 
@@ -431,30 +561,9 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
         annotations: getRankAnnotations()
       },
       tooltip: {
-        backgroundColor: '#1f2937',
-        titleColor: '#9ca3af',
-        bodyColor: '#FAF9F6',
-        titleFont: {
-          size: 12
-        },
-        bodyFont: {
-          size: 14,
-          weight: 'bold'
-        },
-        padding: 12,
-        callbacks: {
-          title: contexts => {
-            const date = new Date(contexts[0].parsed.x);
-            return date.toLocaleString([], {
-              day: 'numeric',
-              month: 'short',
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: false
-            });
-          },
-          label: context => `Score: ${context.parsed.y.toLocaleString()}`
-        }
+        enabled: false,
+        external: externalTooltipHandler,
+        position: 'nearest'
       },
       legend: {
         labels: {
@@ -465,7 +574,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
         }
       }
     }
-  } : null, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, selectedTimeRange]);
+  } : null, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, selectedTimeRange, externalTooltipHandler]);
 
   const chartData = useMemo(() => data ? {
     labels: data.map(d => d.timestamp),
