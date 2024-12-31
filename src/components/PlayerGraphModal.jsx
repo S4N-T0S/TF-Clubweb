@@ -53,32 +53,33 @@ const ranks = [
   { label: 'Diamond 1', y: 47500, color: '#60a5fa' }
 ];
 
+const TIME_RANGES = {
+  '24H': 24 * 60 * 60 * 1000,
+  '7D': 7 * 24 * 60 * 60 * 1000,
+  'MAX': Infinity
+};
+
 const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedTimeRange, setSelectedTimeRange] = useState('24H');
   const [viewWindow, setViewWindow] = useState(null);
   const modalRef = useRef(null);
   const chartRef = useRef(null);
 
-  const calculateViewWindow = (data) => {
+  const calculateViewWindow = (data, range) => {
     if (!data || data.length === 0) return null;
 
-    const endTime = data[data.length - 1].timestamp;
-    const startTime = data[0].timestamp;
-    const timeRange = endTime - startTime;
-    const oneDayMs = 24 * 60 * 60 * 1000;
-    const sevenDaysMs = 7 * oneDayMs;
-
-    let viewMin;
-    if (timeRange <= oneDayMs) {
-      viewMin = startTime;
-    } else if (timeRange <= sevenDaysMs) {
-      viewMin = new Date(endTime - oneDayMs);
-    } else {
-      viewMin = new Date(endTime - sevenDaysMs);
+    const now = new Date();
+    const endTime = now;
+    const timeRangeMs = TIME_RANGES[range];
+    
+    if (range === 'MAX') {
+      return { min: data[0].timestamp, max: now };
     }
-
+    
+    const viewMin = new Date(now - timeRangeMs);
     return { min: viewMin, max: endTime };
   };
 
@@ -87,20 +88,36 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     
     const interpolatedData = [];
     const TEN_MINUTES = 15 * 60 * 1000; // 15 minutes in milliseconds
+    const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+    const now = new Date();
+    const sevenDaysAgo = new Date(now - SEVEN_DAYS);
     
+    // Add extrapolation point at 7 days ago if first data point is more recent
+    if (rawData[0].timestamp > sevenDaysAgo) {
+      interpolatedData.push({
+        ...rawData[0],
+        timestamp: sevenDaysAgo,
+        isExtrapolated: true
+      });
+      
+      // Add point just before the first real data point
+      interpolatedData.push({
+        ...rawData[0],
+        timestamp: new Date(rawData[0].timestamp - TEN_MINUTES),
+        isExtrapolated: true
+      });
+    }
+    
+    // Original interpolation logic
     for (let i = 0; i < rawData.length - 1; i++) {
       const currentPoint = rawData[i];
       const nextPoint = rawData[i + 1];
       
-      // Add the current point
       interpolatedData.push(currentPoint);
       
-      // Calculate time difference
       const timeDiff = nextPoint.timestamp - currentPoint.timestamp;
       
-      // If gap is more than 10 minutes, add interpolated points
       if (timeDiff > TEN_MINUTES) {
-        // Add point just before the change (using current score)
         interpolatedData.push({
           ...currentPoint,
           timestamp: new Date(nextPoint.timestamp - TEN_MINUTES),
@@ -109,8 +126,18 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       }
     }
     
-    // Add the last point
     interpolatedData.push(rawData[rawData.length - 1]);
+    
+    const lastPoint = rawData[rawData.length - 1];
+    const timeToNow = now - lastPoint.timestamp;
+    
+    if (timeToNow > TEN_MINUTES) {
+      interpolatedData.push({
+        ...lastPoint,
+        timestamp: new Date(now),
+        isInterpolated: true
+      });
+    }
     
     return interpolatedData;
   };
@@ -124,15 +151,21 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
         setError('No data available for this player');
         return;
       }
+      
+      // Add check for single data point
+      if (result.data.length === 1) {
+        setError('Not enough data points to display graph');
+        return;
+      }
+  
       const parsedData = result.data.map(item => ({
         ...item,
         timestamp: new Date(item.timestamp)
       }));
       
-      // Interpolate the data points
       const interpolatedData = interpolateDataPoints(parsedData);
       setData(interpolatedData);
-      const window = calculateViewWindow(interpolatedData);
+      const window = calculateViewWindow(interpolatedData, selectedTimeRange);
       setViewWindow(window);
     } catch (err) {
       setError('Failed to load player history');
@@ -158,45 +191,44 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     };
   }, [isOpen, onClose, playerId]);
 
-  const resetZoom = () => {
+  useEffect(() => {
     if (data) {
-      const window = calculateViewWindow(data);
+      const window = calculateViewWindow(data, selectedTimeRange);
       setViewWindow(window);
+      if (chartRef.current) {
+        chartRef.current.resetZoom();
+      }
     }
-    if (chartRef.current) {
-      chartRef.current.resetZoom();
-    }
-  };
+  }, [selectedTimeRange, data]);
 
-  const getDynamicYAxisDomain = (dataMin, dataMax) => {
-    const DIAMOND_1_THRESHOLD = 47500;
-    const BUFFER_ABOVE_MAX = 1000;
-
-    const minRankThreshold = ranks.reduce((prev, curr) => {
-      return (curr.y <= dataMin && curr.y > prev) ? curr.y : prev;
-    }, 0);
-
-    let maxYValue;
-    if (dataMax > DIAMOND_1_THRESHOLD) {
-      maxYValue = dataMax + BUFFER_ABOVE_MAX;
-    } else {
-      maxYValue = ranks.reduce((prev, curr) => {
-        return (curr.y >= dataMax && curr.y < prev) ? curr.y : prev;
-      }, DIAMOND_1_THRESHOLD);
-    }
-
-    const ranksArray = ranks.map(rank => rank.y);
-    const lowerIndex = Math.max(0, ranksArray.indexOf(minRankThreshold));
+  const getDynamicYAxisDomain = (dataMin, dataMax, data, timeWindow) => {
+    if (!data || data.length === 0) return [0, 50000];
     
-    return [ranksArray[lowerIndex], maxYValue];
+    const now = new Date();
+    const windowStart = new Date(now - TIME_RANGES[timeWindow]);
+    const visibleData = timeWindow === 'MAX' 
+      ? data 
+      : data.filter(d => d.timestamp >= windowStart);
+  
+    if (visibleData.length === 0) return [0, 50000];
+  
+    const minScore = Math.min(...visibleData.map(d => d.rankScore));
+    const maxScore = Math.max(...visibleData.map(d => d.rankScore));
+    
+    // Add padding of 1% to min and max
+    const padding = Math.round((maxScore - minScore) * 0.01);
+    return [Math.max(0, minScore - padding), maxScore + padding];
   };
 
   const getRankAnnotations = () => {
     if (!data) return [];
     
-    const minScore = Math.min(...data.map(d => d.rankScore));
-    const maxScore = Math.max(...data.map(d => d.rankScore));
-    const [minDomain, maxDomain] = getDynamicYAxisDomain(minScore, maxScore);
+    const [minDomain, maxDomain] = getDynamicYAxisDomain(
+      Math.min(...data.map(d => d.rankScore)),
+      Math.max(...data.map(d => d.rankScore)),
+      data,
+      selectedTimeRange
+    );
     
     return ranks
       .filter(rank => rank.y >= minDomain && rank.y <= maxDomain)
@@ -230,30 +262,46 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       x: {
         type: 'time',
         time: {
-          unit: 'hour',
           displayFormats: {
-            hour: 'HH:mm'
+            millisecond: 'dd MMM HH:mm',
+            second: 'dd MMM HH:mm',
+            minute: 'dd MMM HH:mm',
+            hour: 'dd MMM HH:mm',
+            day: 'dd MMM',
+            week: 'dd MMM',
+            month: 'MMM yyyy',
+            quarter: 'MMM yyyy',
+            year: 'yyyy'
           }
         },
         grid: {
           color: '#2a3042'
         },
         ticks: {
-          color: '#4a5568'
+          color: '#4a5568',
+          maxRotation: 45,
+          minRotation: 45,
+          autoSkip: true,
+          maxTicksLimit: 20,
+          padding: 8,
+          align: 'end'
         },
         min: viewWindow?.min,
-        max: viewWindow?.max,
-        bounds: 'data'
+        max: viewWindow?.max
       },
       y: {
-        min: getDynamicYAxisDomain(
+        min: data.length > 0 ? getDynamicYAxisDomain(
           Math.min(...data.map(d => d.rankScore)),
-          Math.max(...data.map(d => d.rankScore))
-        )[0],
-        max: getDynamicYAxisDomain(
+          Math.max(...data.map(d => d.rankScore)),
+          data,
+          selectedTimeRange
+        )[0] : 0,
+        max: data.length > 0 ? getDynamicYAxisDomain(
           Math.min(...data.map(d => d.rankScore)),
-          Math.max(...data.map(d => d.rankScore))
-        )[1],
+          Math.max(...data.map(d => d.rankScore)),
+          data,
+          selectedTimeRange
+        )[1] : 50000,
         grid: {
           color: '#2a3042'
         },
@@ -267,7 +315,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       zoom: {
         pan: {
           enabled: true,
-          mode: 'x'
+          mode: 'x',
+          modifierKey: null
         },
         zoom: {
           wheel: {
@@ -278,13 +327,6 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           },
           mode: 'x',
         },
-        limits: {
-          x: {
-            minRange: 1000 * 60 * 60,
-            min: data[0]?.timestamp,
-            max: data[data.length - 1]?.timestamp
-          }
-        }
       },
       annotation: {
         annotations: getRankAnnotations()
@@ -305,14 +347,22 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           title: contexts => {
             const date = new Date(contexts[0].parsed.x);
             return date.toLocaleString([], {
-              month: 'short',
               day: 'numeric',
+              month: 'short',
               hour: '2-digit',
               minute: '2-digit',
               hour12: false
             });
           },
           label: context => `Score: ${context.parsed.y.toLocaleString()}`
+        }
+      },
+      legend: {
+        labels: {
+          color: '#ffffff',
+          boxWidth: 15,
+          padding: 15,
+          usePointStyle: false
         }
       }
     }
@@ -321,16 +371,20 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
   const chartData = data ? {
     labels: data.map(d => d.timestamp),
     datasets: [{
-      label: 'Rank Score',
+      label: `${playerId}`,
       data: data.map(d => ({
         x: d.timestamp,
         y: d.rankScore,
-        raw: d // Include the full data point for interpolation checking
+        raw: d
       })),
       segment: {
         borderColor: ctx => {
-          // First verify we have valid context points
           if (!ctx.p0?.raw || !ctx.p1?.raw) return '#FAF9F6';
+          
+          // Check for extrapolated points
+          if (ctx.p0.raw.isExtrapolated || ctx.p1.raw.isExtrapolated) {
+            return '#FAF9F6';
+          }
           
           // Check for interpolated points
           if (ctx.p0.raw.isInterpolated || ctx.p1.raw.isInterpolated) {
@@ -342,24 +396,41 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           return next > curr ? '#10B981' : next < curr ? '#EF4444' : '#FAF9F6';
         },
         borderWidth: ctx => {
-          // First verify we have valid context points
           if (!ctx.p0?.raw || !ctx.p1?.raw) return 2;
-
+  
           const curr = ctx.p0.parsed.y;
           const next = ctx.p1.parsed.y;
+          const isExtrapolated = ctx.p0.raw.isExtrapolated || ctx.p1.raw.isExtrapolated;
           const isInterpolated = ctx.p0.raw.isInterpolated || ctx.p1.raw.isInterpolated;
           const isEqual = curr === next;
           
-          // Check for interpolated points
+          if (isExtrapolated) {
+            return 1;  // Thinner line for extrapolated data
+          }
+          
           if (isInterpolated || isEqual) {
             return 1.5;
           }
           return 2;
+        },
+        borderDash: ctx => {
+          if (!ctx.p0?.raw || !ctx.p1?.raw) return undefined;
+          return (ctx.p0.raw.isExtrapolated || ctx.p1.raw.isExtrapolated) ? [5, 5] : undefined;
         }
       },
-      pointBackgroundColor: ctx => ctx.raw?.isInterpolated ? 'transparent' : '#FAF9F6',
-      pointRadius: ctx => ctx.raw?.isInterpolated ? 0 : 3,
-      tension: 0  // Set tension to 0 for all lines to make them straight
+      borderColor: '#FAF9F6',
+      backgroundColor: '#FAF9F6',
+      pointBackgroundColor: ctx => {
+        if (ctx.raw?.isExtrapolated) return 'transparent';
+        if (ctx.raw?.isInterpolated) return 'transparent';
+        return '#FAF9F6';
+      },
+      pointRadius: ctx => {
+        if (ctx.raw?.isExtrapolated) return 0;
+        if (ctx.raw?.isInterpolated) return 0;
+        return 3;
+      },
+      tension: 0
     }]
   } : null;
 
@@ -373,17 +444,26 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
             <h2 className="text-xl font-bold text-white">{playerId} - Rank History</h2>
             {data && (
               <p className="text-sm text-gray-400 mt-1">
-                Data from {data[0].timestamp.toLocaleDateString()} to {data[data.length - 1].timestamp.toLocaleDateString()}
+                Data from {data[0].timestamp.toLocaleDateString()} to {new Date().toLocaleDateString()}
               </p>
             )}
           </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={resetZoom}
-              className="px-3 py-1 text-sm text-gray-300 hover:bg-gray-700 rounded-lg"
-            >
-              Reset Zoom
-            </button>
+          <div className="flex gap-2 items-center">
+            <div className="flex gap-2 bg-gray-800 rounded-lg p-1">
+              {Object.keys(TIME_RANGES).map((range) => (
+                <button
+                  key={range}
+                  onClick={() => setSelectedTimeRange(range)}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    selectedTimeRange === range
+                      ? 'bg-gray-600 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  {range}
+                </button>
+              ))}
+            </div>
             <button 
               onClick={onClose}
               className="sm:hidden p-2 hover:bg-gray-700 rounded-lg"
@@ -393,7 +473,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           </div>
         </div>
   
-        <div className="h-[500px] w-full">
+        <div className="h-[600px] w-full">
           {loading ? (
             <div className="flex items-center justify-center h-full text-gray-400">Loading...</div>
           ) : error ? (
