@@ -309,11 +309,45 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
         : data.filter(d => d.timestamp >= windowStart);
     }
   
-    if (!visibleData.length) return [0, 50000];
+    // If no data points in visible range, use the last known score before the visible range
+    if (!visibleData.length) {
+      let lastKnownScore;
+      const rangeStart = customTimeRange?.min || (timeWindow === 'MAX' ? data[0].timestamp : new Date(new Date() - TIME_RANGES[timeWindow]));
+      
+      // Find the last score before the visible range
+      for (let i = data.length - 1; i >= 0; i--) {
+        if (data[i].timestamp <= rangeStart) {
+          lastKnownScore = data[i].rankScore;
+          break;
+        }
+      }
+      
+      // If no previous score found, use the first available score
+      if (lastKnownScore === undefined) {
+        lastKnownScore = data[0].rankScore;
+      }
   
+      // Create a buffer of 10% above and below the last known score
+      const buffer = Math.round(lastKnownScore * 0.1);
+      return [
+        Math.max(0, lastKnownScore - buffer),
+        lastKnownScore + buffer
+      ];
+    }
+    
+    // If min and max are the same (single point or all same values)
     const minScore = Math.min(...visibleData.map(d => d.rankScore));
     const maxScore = Math.max(...visibleData.map(d => d.rankScore));
     
+    if (minScore === maxScore) {
+      const buffer = Math.round(minScore * 0.1);
+      return [
+        Math.max(0, minScore - buffer),
+        maxScore + buffer
+      ];
+    }
+    
+    // Normal case with multiple different points
     const padding = Math.round((maxScore - minScore) * 0.10);
     return [Math.max(0, minScore - padding), maxScore + padding];
   }, []);
@@ -431,6 +465,48 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     }
   }, [selectedTimeRange, data, calculateViewWindow]);
 
+  const calculateYAxisTicks = useCallback((min, max) => {
+    const range = max - min;
+    const targetTicks = 20; // Aim for 20 ticks to ensure we get at least 15
+    
+    // Calculate initial step size
+    let step = range / targetTicks;
+    
+    // Round step to a nice number while preserving tick density
+    const magnitude = Math.pow(10, Math.floor(Math.log10(step)));
+    let normalized = step / magnitude;
+    
+    // Find the closest nice number while maintaining target tick count
+    if (normalized <= 1) normalized = 1;
+    else if (normalized <= 2) normalized = 2;
+    else if (normalized <= 2.5) normalized = 2.5;
+    else if (normalized <= 5) normalized = 5;
+    else normalized = 10;
+    
+    step = normalized * magnitude;
+    
+    // Generate tick values
+    const ticks = [];
+    // Start slightly below min to ensure we get enough ticks
+    let tick = Math.floor(min / step) * step;
+    
+    // Generate extra ticks to ensure we hit our target
+    while (tick <= max + step) { // Add a small buffer
+      if (tick >= min - step) { // Include one tick below min
+        ticks.push(tick);
+      }
+      tick += step;
+    }
+    
+    // If we still don't have enough ticks, reduce the step size
+    if (ticks.length < 15) {
+      // Recursively try with a smaller target step size
+      return calculateYAxisTicks(min, max, targetTicks + 5);
+    }
+    
+    return ticks;
+  }, []);
+
   const chartOptions = useMemo(() => data ? {
     responsive: true,
     maintainAspectRatio: false,
@@ -455,19 +531,18 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           color: '#2a3042'
         },
         ticks: {
-          color: '#4a5568',
-          maxRotation: 45,
-          minRotation: 45,
+          color: '#cecfd3',
+          maxRotation: 69,
+          minRotation: 69,
           autoSkip: true,
           maxTicksLimit: 20,
-          padding: 8,
+          padding: 4,
           align: 'end'
         },
         min: viewWindow?.min,
         max: viewWindow?.max
       },
       y: {
-        // The min/max will be updated dynamically during zoom/pan
         min: data.length > 0 ? getDynamicYAxisDomain(
           Math.min(...data.map(d => d.rankScore)),
           Math.max(...data.map(d => d.rankScore)),
@@ -484,8 +559,14 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           color: '#2a3042'
         },
         ticks: {
-          color: '#4a5568',
-          callback: value => value.toLocaleString()
+          color: '#cecfd3',
+          callback: value => value.toLocaleString(),
+          // Generate rounded ticks based on the current min/max values
+          afterBuildTicks: (axis) => {
+            axis.ticks = calculateYAxisTicks(axis.min, axis.max).map(value => ({
+              value: value
+            }));
+          }
         }
       }
     },
@@ -495,7 +576,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           x: {
             min: new Date(data[0].timestamp - TWO_HOURS),
             max: new Date(data[data.length - 1].timestamp + TWO_HOURS),
-            minRange: 5 * 60 * 60 * 1000 // Minimum 5 hour range
+            minRange: 5 * 60 * 60 * 1000
           }
         },
         pan: {
@@ -503,13 +584,11 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           mode: 'x',
           modifierKey: null,
           onPan: function(ctx) {
-            // Get the current view window after panning
             const timeRange = {
               min: ctx.chart.scales.x.min,
               max: ctx.chart.scales.x.max
             };
             
-            // Update Y axis bounds
             const [newMin, newMax] = getDynamicYAxisDomain(
               Math.min(...data.map(d => d.rankScore)),
               Math.max(...data.map(d => d.rankScore)),
@@ -521,7 +600,13 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
             ctx.chart.options.scales.y.min = newMin;
             ctx.chart.options.scales.y.max = newMax;
             
-            // Update rank annotations
+            // Force recalculation of Y-axis ticks
+            ctx.chart.options.scales.y.ticks.afterBuildTicks = (axis) => {
+              axis.ticks = calculateYAxisTicks(newMin, newMax).map(value => ({
+                value: value
+              }));
+            };
+            
             ctx.chart.options.plugins.annotation.annotations = getRankAnnotations(timeRange);
           }
         },
@@ -534,13 +619,11 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           },
           mode: 'x',
           onZoom: function(ctx) {
-            // Get the current view window after zooming
             const timeRange = {
               min: ctx.chart.scales.x.min,
               max: ctx.chart.scales.x.max
             };
             
-            // Update Y axis bounds
             const [newMin, newMax] = getDynamicYAxisDomain(
               Math.min(...data.map(d => d.rankScore)),
               Math.max(...data.map(d => d.rankScore)),
@@ -552,7 +635,13 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
             ctx.chart.options.scales.y.min = newMin;
             ctx.chart.options.scales.y.max = newMax;
             
-            // Update rank annotations
+            // Force recalculation of Y-axis ticks
+            ctx.chart.options.scales.y.ticks.afterBuildTicks = (axis) => {
+              axis.ticks = calculateYAxisTicks(newMin, newMax).map(value => ({
+                value: value
+              }));
+            };
+            
             ctx.chart.options.plugins.annotation.annotations = getRankAnnotations(timeRange);
           }
         },
@@ -574,7 +663,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
         }
       }
     }
-  } : null, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, selectedTimeRange, externalTooltipHandler]);
+  } : null, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, selectedTimeRange, externalTooltipHandler, calculateYAxisTicks]);
 
   const chartData = useMemo(() => data ? {
     labels: data.map(d => d.timestamp),
