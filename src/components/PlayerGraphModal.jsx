@@ -697,37 +697,40 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
   
           const curr = ctx.p0.parsed.y;
           const next = ctx.p1.parsed.y;
-          const isExtrapolated = ctx.p0.raw.isExtrapolated || ctx.p1.raw.isExtrapolated;
-          const isInterpolated = ctx.p0.raw.isInterpolated || ctx.p1.raw.isInterpolated;
+          const isExtrapolated = ctx.p0.raw.raw.isExtrapolated || ctx.p1.raw.raw.isExtrapolated;
+          const isInterpolated = ctx.p0.raw.raw.isInterpolated || ctx.p1.raw.raw.isInterpolated;
           const isEqual = curr === next;
           
           if (isExtrapolated) {
-            return 1;  // Thinner line for extrapolated data
+            return 2;  // Thinner line for extrapolated data
           }
           
           if (isInterpolated || isEqual) {
-            return 1.5;
+            return 2;
           }
           return 2;
         },
         borderDash: ctx => {
-          if (!ctx.p0?.raw || !ctx.p1?.raw) return undefined;
-          return (ctx.p0.raw.isExtrapolated || ctx.p1.raw.isExtrapolated) ? [5, 5] : undefined;
+          if (!ctx.p0?.raw.raw || !ctx.p1?.raw.raw) return undefined;
+          return (ctx.p0.raw.raw.isExtrapolated || ctx.p1.raw.raw.isExtrapolated) ? [5, 5] : undefined;
         }
       },
-      borderColor: '#FAF9F6',
-      backgroundColor: '#FAF9F6',
       pointBackgroundColor: ctx => {
-        if (ctx.raw?.isExtrapolated) return 'transparent';
-        if (ctx.raw?.isInterpolated) return 'transparent';
+        if (ctx.raw.raw?.isExtrapolated) return '#7d7c7b';
+        if (ctx.raw.raw?.isInterpolated) return '#7d7c7b';
+        return '#FAF9F6';
+      },
+      pointBorderColor: ctx => {
+        if (ctx.raw.raw?.isExtrapolated) return '#8a8988';
+        if (ctx.raw.raw?.isInterpolated) return '#8a8988';
         return '#FAF9F6';
       },
       pointRadius: ctx => {
-        if (ctx.raw?.isExtrapolated) return 0;
-        if (ctx.raw?.isInterpolated) return 0;
+        if (ctx.raw.raw?.isExtrapolated) return 3;
+        if (ctx.raw.raw?.isInterpolated) return 3;
         return 3;
       },
-      tension: 0
+      tension: 0.01
     }]
   } : null, [data, playerId]);
 
