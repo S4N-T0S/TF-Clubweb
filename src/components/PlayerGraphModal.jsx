@@ -86,7 +86,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     if (!rawData || rawData.length < 2) return rawData;
     
     const interpolatedData = [];
-    const TEN_MINUTES = 10 * 60 * 1000; // 10 minutes in milliseconds
+    const TEN_MINUTES = 15 * 60 * 1000; // 15 minutes in milliseconds
     
     for (let i = 0; i < rawData.length - 1; i++) {
       const currentPoint = rawData[i];
