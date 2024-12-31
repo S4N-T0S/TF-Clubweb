@@ -63,6 +63,7 @@ const TIME_RANGES = {
 // Constants for time intervals
 const MINUTES_15 = 15 * 60 * 1000;
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+const TWO_HOURS = 2 * 60 * 60 * 1000;
 
 const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
   const [data, setData] = useState(null);
@@ -360,6 +361,13 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     },
     plugins: {
       zoom: {
+        limits: {
+          x: {
+            min: new Date(data[0].timestamp - TWO_HOURS),
+            max: new Date(data[data.length - 1].timestamp + TWO_HOURS),
+            minRange: 5 * 60 * 60 * 1000 // Minimum 5 hour range
+          }
+        },
         pan: {
           enabled: true,
           mode: 'x',
@@ -389,7 +397,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
         },
         zoom: {
           wheel: {
-            enabled: true,
+            enabled: true
           },
           pinch: {
             enabled: true
@@ -464,9 +472,9 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     datasets: [{
       label: `${playerId}`,
       data: data.map(d => ({
-        x: d.timestamp,
-        y: d.rankScore,
-        raw: d
+          x: d.timestamp,
+          y: d.rankScore,
+          raw: d
       })),
       segment: {
         borderColor: ctx => {
