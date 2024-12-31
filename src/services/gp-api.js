@@ -1,5 +1,5 @@
 const isDev = process.env.NODE_ENV === 'development' || process.env.npm_lifecycle_event === 'dev';
-const API_URL = isDev ? 'http://localhost:8787' : 'https://ogclub-lb.qhgk96y9s7.workers.dev';
+const API_URL = isDev ? 'http://localhost:8787' : 'https://ogclub-x.qhgk96y9s7.workers.dev';
 const AUTH_TOKEN = 'not-secret';
 
 export const fetchPlayerGraphData = async (playerId) => {
