@@ -10,6 +10,10 @@ import Toast from './components/Toast';
 import PlayerSearchModal from './components/PlayerSearchModal';
 import ogClanMembers from './data/clanMembers';
 
+if (window.location.hostname.includes('pages.dev')) {
+  window.location.replace('https://ogclub.s4nt0s.eu');
+}
+
 // Cookie helper functions
 const getCookie = (name) => {
   const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
