@@ -511,7 +511,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
   const chartOptions = useMemo(() => data ? {
     responsive: true,
     maintainAspectRatio: false,
-    animation: false,
+    animation: true,
     scales: {
       x: {
         type: 'time',
