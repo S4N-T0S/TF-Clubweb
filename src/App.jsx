@@ -10,10 +10,6 @@ import Toast from './components/Toast';
 import PlayerSearchModal from './components/PlayerSearchModal';
 import ogClanMembers from './data/clanMembers';
 
-if (window.location.hostname.includes('pages.dev')) {
-  window.location.replace('https://ogclub.s4nt0s.eu');
-}
-
 // Cookie helper functions
 const getCookie = (name) => {
   const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
@@ -27,6 +23,14 @@ const setTabCookie = (tab) => {
 };
 
 const App = () => {
+  // Early return if on pages.dev domain
+  useEffect(() => {
+    if (window.location.hostname.includes('pages.dev')) {
+      window.location.replace('https://ogclub.s4nt0s.eu');
+      return;
+    }
+  }, []);
+
   const [view, setView] = useState(() => getCookie('dashboard_tab') || 'global');
   const [searchModalState, setSearchModalState] = useState({ 
     isOpen: false, 
@@ -57,6 +61,11 @@ const App = () => {
     setGlobalSearchQuery(`[${clanTag}]`);
     setView('global');
   };
+
+  // If we're on pages.dev, return null to prevent rendering
+  if (typeof window !== 'undefined' && window.location.hostname.includes('pages.dev')) {
+    return null;
+  }
 
   if (error) return <ErrorDisplay error={error} onRetry={refreshData} />;
   if (loading) return <LoadingDisplay />;
