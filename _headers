@@ -1,0 +1,17 @@
+# Force HTTPS
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+
+# Specify canonical domain
+Link: https://ogclub.s4nt0s.eu; rel="canonical"
+
+# Security headers
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: strict-origin-when-cross-origin
+
+# Content Security Policy
+Content-Security-Policy: default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; font-src 'self' data: https:; frame-ancestors 'none';
+
+# Permissions Policy
+Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
