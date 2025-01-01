@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import PropTypes from 'prop-types';
 import { X } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -63,29 +64,33 @@ const getRankFromScore = (score) => {
   return RANKS[0];
 };
 
+const createTooltip = (chart) => {
+  const tooltipEl = document.createElement('div');
+  tooltipEl.className = 'rank-tooltip';
+  tooltipEl.style.background = '#1f2937';
+  tooltipEl.style.borderRadius = '3px';
+  tooltipEl.style.color = '#FAF9F6';
+  tooltipEl.style.opacity = 1;
+  tooltipEl.style.pointerEvents = 'none';
+  tooltipEl.style.position = 'absolute';
+  tooltipEl.style.transform = 'translate(-50%, 0)';
+  tooltipEl.style.transition = 'all .1s ease';
+  tooltipEl.style.padding = '12px';
+
+  const table = document.createElement('table');
+  table.style.margin = '0px';
+
+  tooltipEl.appendChild(table);
+  chart.canvas.parentNode.appendChild(tooltipEl);
+  
+  return tooltipEl;
+};
+
 const getOrCreateTooltip = (chart) => {
   let tooltipEl = chart.canvas.parentNode.querySelector('div.rank-tooltip');
-
   if (!tooltipEl) {
-    tooltipEl = document.createElement('div');
-    tooltipEl.className = 'rank-tooltip';
-    tooltipEl.style.background = '#1f2937';
-    tooltipEl.style.borderRadius = '3px';
-    tooltipEl.style.color = '#FAF9F6';
-    tooltipEl.style.opacity = 1;
-    tooltipEl.style.pointerEvents = 'none';
-    tooltipEl.style.position = 'absolute';
-    tooltipEl.style.transform = 'translate(-50%, 0)';
-    tooltipEl.style.transition = 'all .1s ease';
-    tooltipEl.style.padding = '12px';
-
-    const table = document.createElement('table');
-    table.style.margin = '0px';
-
-    tooltipEl.appendChild(table);
-    chart.canvas.parentNode.appendChild(tooltipEl);
+    tooltipEl = createTooltip(chart);
   }
-
   return tooltipEl;
 };
 
@@ -95,10 +100,11 @@ const TIME_RANGES = {
   'MAX': Infinity
 };
 
-// Constants for time intervals
+// Constants for time intervals - moved outside component
 const MINUTES_15 = 15 * 60 * 1000;
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 const TWO_HOURS = 2 * 60 * 60 * 1000;
+const CACHE_DURATION = 5 * 60 * 1000; // cache for reopenning modal
 
 const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
   const [data, setData] = useState(null);
@@ -390,8 +396,6 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
   }, [data, getDynamicYAxisDomain, selectedTimeRange]);
 
   const loadData = useCallback(async () => {
-    // If we have cached data for this player and it's less than 5 minutes old, use it
-    const CACHE_DURATION = 5 * 60 * 1000;
     if (
       dataCache.current?.playerId === playerId && 
       Date.now() - dataCache.current.timestamp < CACHE_DURATION
@@ -511,7 +515,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
   const chartOptions = useMemo(() => data ? {
     responsive: true,
     maintainAspectRatio: false,
-    animation: true,
+    animation: false,
     scales: {
       x: {
         type: 'time',
@@ -786,6 +790,12 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       </div>
     </div>
   );
+};
+
+PlayerGraphModal.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  playerId: PropTypes.string.isRequired
 };
 
 export default PlayerGraphModal;
