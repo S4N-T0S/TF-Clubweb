@@ -1,4 +1,4 @@
-const API_URL = 'https://ogclub-x.qhgk96y9s7.workers.dev';
+const API_URL = 'https://api.ogclub.s4nt0s.eu';
 const AUTH_TOKEN = 'not-secret';
 
 export const fetchPlayerGraphData = async (playerId) => {
