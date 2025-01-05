@@ -180,14 +180,17 @@ const ogClanMembers = [
       pruby: false
     },
     {
+      discord: ".mwn",
       embarkId: "MAS#0686",
       pruby: true
     },
     {
+      discord: "kdohi",
       embarkId: "Kdohi#6229",
       pruby: true
     },
     {
+      discord: "quickzz97",
       embarkId: "Quickzz#6228",
       pruby: true
     },
