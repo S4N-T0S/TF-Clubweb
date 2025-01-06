@@ -240,6 +240,11 @@ const ogClanMembers = [
       discord: "borgotty",
       embarkId: "Cyborg#2042",
       pruby: true
+    },
+    {
+      discord: "danchasin",
+      embarkId: "NIKE#0650",
+      pruby: true
     }
   ];
   
