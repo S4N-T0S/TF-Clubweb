@@ -141,7 +141,7 @@ const ogClanMembers = [
     },
     {
       discord: "erikponti",
-      embarkId: "ErikPonti#3259",
+      embarkId: "ErikPonti-TTV#2426",
       pruby: false
     },
     {
@@ -215,11 +215,6 @@ const ogClanMembers = [
     },
     {
       embarkId: "Botel#2308",
-      pruby: false
-    },
-    {
-      discord: "highcat6607",
-      embarkId: "Madrif#7737",
       pruby: false
     },
     {
