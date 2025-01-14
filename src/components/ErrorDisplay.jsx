@@ -1,3 +1,5 @@
+import { ErrorDisplayProps } from '../types/propTypes';
+
 export const ErrorDisplay = ({ error, onRetry }) => (
   <div className="min-h-screen flex items-center justify-center bg-gray-900">
     <div className="text-center p-8 bg-gray-800 rounded-lg shadow-xl">
@@ -11,3 +13,5 @@ export const ErrorDisplay = ({ error, onRetry }) => (
     </div>
   </div>
 );
+
+ErrorDisplay.propTypes = ErrorDisplayProps;

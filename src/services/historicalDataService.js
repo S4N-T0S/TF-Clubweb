@@ -100,7 +100,7 @@ export const searchPlayerHistory = async (embarkId, cachedS5Data = null) => {
   });
 
   // Historical seasons
-  for (const [seasonKey, seasonConfig] of Object.entries(SEASONS)) {
+  for (const [, seasonConfig] of Object.entries(SEASONS)) {
     const embarkResults = findPlayerInSeason(seasonConfig, embarkId, 'embarkId');
     
     embarkResults.forEach(result => {
@@ -130,7 +130,7 @@ export const searchPlayerHistory = async (embarkId, cachedS5Data = null) => {
 
     // Search historical seasons
     for (const name of names) {
-      for (const [seasonKey, seasonConfig] of Object.entries(SEASONS)) {
+      for (const [, seasonConfig] of Object.entries(SEASONS)) {
         const results = findPlayerInSeason(seasonConfig, name, type);
         results.forEach(result => {
           const resultKey = `${seasonConfig.label}-${result.name}-${result.steamName}-${result.psnName}-${result.xboxName}`;

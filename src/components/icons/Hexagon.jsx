@@ -1,4 +1,6 @@
-export const Hexagon = ({ className }) => (
+import { HexagonProps } from "../../types/propTypes";
+
+export const Hexagon = ({ className }) => ( // we pass className to customize the color of the Hexagon
   <svg 
     viewBox="0 0 24 24" 
     className={`w-5 h-5 ${className}`}
@@ -9,3 +11,5 @@ export const Hexagon = ({ className }) => (
     />
   </svg>
 );
+
+Hexagon.propTypes = HexagonProps;

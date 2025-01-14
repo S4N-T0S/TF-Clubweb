@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { AlertCircle, CheckCircle2, Clock, X, Loader2 } from 'lucide-react';
+import { ToastProps } from '../types/propTypes';
 
 const MAX_ACCEPTABLE_AGE = 30 * 60; // 30 minutes in seconds
 
@@ -102,4 +103,5 @@ const Toast = ({ message, type, onClose, timestamp, ttl }) => {
   );
 };
 
+Toast.propTypes = ToastProps;
 export default Toast;

@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import PropTypes from 'prop-types';
 import { X } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -17,6 +16,7 @@ import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import 'chartjs-adapter-date-fns';
 import { fetchPlayerGraphData } from '../services/gp-api';
+import { PlayerGraphModalProps } from '../types/propTypes';
 
 ChartJS.register(
   CategoryScale,
@@ -792,10 +792,6 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
   );
 };
 
-PlayerGraphModal.propTypes = {
-  isOpen: PropTypes.bool.isRequired,
-  onClose: PropTypes.func.isRequired,
-  playerId: PropTypes.string.isRequired
-};
+PlayerGraphModal.propTypes = PlayerGraphModalProps;
 
 export default PlayerGraphModal;

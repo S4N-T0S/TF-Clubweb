@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Users, Trophy, StarsIcon, RefreshCw, Search } from 'lucide-react';
 import PlayerSearchModal from './PlayerSearchModal';
+import { DashboardHeaderProps, ViewButtonProps } from '../types/propTypes';
 
 export const DashboardHeader = ({ 
   isTopClan, 
@@ -85,3 +86,6 @@ const ViewButton = ({ active, onClick, icon, text }) => (
     {text}
   </button>
 );
+
+DashboardHeader.propTypes = DashboardHeaderProps;
+ViewButton.propTypes = ViewButtonProps;

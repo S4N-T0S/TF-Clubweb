@@ -4,7 +4,7 @@ import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
 import { useState } from 'react';
 import PlayerGraphModal from '../PlayerGraphModal';
-import PropTypes from 'prop-types';
+import { MembersViewProps, PriorRubyDisplayProps, MemberRowProps } from '../../types/propTypes';
 
 const PriorRubyDisplay = ({ isPriorRuby }) => {
   if (isPriorRuby) {
@@ -17,20 +17,7 @@ const PriorRubyDisplay = ({ isPriorRuby }) => {
   return <span className="text-gray-500">💀</span>;
 };
 
-PriorRubyDisplay.propTypes = {
-  isPriorRuby: PropTypes.bool
-};
-
-// Define member shape for reuse
-const memberShape = PropTypes.shape({
-  name: PropTypes.string.isRequired,
-  notInLeaderboard: PropTypes.bool,
-  rank: PropTypes.number,
-  discord: PropTypes.string,
-  league: PropTypes.string,
-  rankScore: PropTypes.number,
-});
-
+// Updated to accept clanMembersData prop which contains the data
 const MemberRow = ({ member, onSearchClick, onGraphClick, clanMembersData }) => {
   const clanMemberInfo = clanMembersData?.find(m => 
     m.embarkId.toLowerCase() === member.name.toLowerCase() ||
@@ -96,17 +83,7 @@ const MemberRow = ({ member, onSearchClick, onGraphClick, clanMembersData }) => 
   );
 };
 
-MemberRow.propTypes = {
-  member: memberShape.isRequired,
-  onSearchClick: PropTypes.func.isRequired,
-  onGraphClick: PropTypes.func.isRequired,
-  clanMembersData: PropTypes.arrayOf(PropTypes.shape({
-    embarkId: PropTypes.string.isRequired,
-    discord: PropTypes.string,
-    pruby: PropTypes.bool
-  }))
-};
-
+// Updated to accept clanMembersData prop
 export const MembersView = ({ clanMembers, totalMembers, onPlayerSearch, clanMembersData }) => {
   const [graphModal, setGraphModal] = useState({ isOpen: false, playerId: null });
   
@@ -148,7 +125,7 @@ export const MembersView = ({ clanMembers, totalMembers, onPlayerSearch, clanMem
                   member={member} 
                   onSearchClick={onPlayerSearch}
                   onGraphClick={(playerId) => setGraphModal({ isOpen: true, playerId })}
-                  clanMembersData={clanMembersData}
+                  clanMembersData={clanMembersData} // Pass the new club members data to the MemberRow component
                 />
               ))}
           </tbody>
@@ -170,13 +147,6 @@ export const MembersView = ({ clanMembers, totalMembers, onPlayerSearch, clanMem
   );
 };
 
-MembersView.propTypes = {
-  clanMembers: PropTypes.arrayOf(memberShape).isRequired,
-  totalMembers: PropTypes.number.isRequired,
-  onPlayerSearch: PropTypes.func.isRequired,
-  clanMembersData: PropTypes.arrayOf(PropTypes.shape({
-    embarkId: PropTypes.string.isRequired,
-    discord: PropTypes.string,
-    pruby: PropTypes.bool
-  }))
-};
+MemberRow.propTypes = MemberRowProps;
+MembersView.propTypes = MembersViewProps;
+PriorRubyDisplay.propTypes = PriorRubyDisplayProps;

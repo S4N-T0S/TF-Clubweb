@@ -1,3 +1,5 @@
+import { PaginationProps } from '../types/propTypes';
+
 export const Pagination = ({ 
   currentPage, 
   totalPages, 
@@ -65,3 +67,5 @@ export const Pagination = ({
     </div>
   );
 };
+
+Pagination.propTypes =  PaginationProps;

@@ -1,4 +1,5 @@
 import { Search } from 'lucide-react';
+import { SearchBarProps } from '../types/propTypes';
 
 export const SearchBar = ({ 
   value, 
@@ -20,3 +21,5 @@ export const SearchBar = ({
     />
   </div>
 );
+
+SearchBar.propTypes = SearchBarProps;

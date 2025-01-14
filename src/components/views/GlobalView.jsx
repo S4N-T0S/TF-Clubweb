@@ -8,6 +8,7 @@ import { useSwipe } from '../../hooks/useSwipe';
 import { useEffect, useRef, useState } from 'react';
 import { useMobileDetect } from '../../hooks/useMobileDetect';
 import PlayerGraphModal from '../PlayerGraphModal';
+import { GlobalViewProps, RankChangeDisplayProps } from '../../types/propTypes';
 
 const RankChangeDisplay = ({ change }) => {
   if (!change || change === 0) return null;
@@ -52,7 +53,7 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
       setSearchQuery(initialSearchQuery);
       setGlobalSearchQuery('');
     }
-  }, [initialSearchQuery, setGlobalSearchQuery]);
+  }, [initialSearchQuery, setSearchQuery, setGlobalSearchQuery]);
 
   const handleClanClick = (clubTag) => {
     setSearchQuery('');
@@ -63,7 +64,7 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
     if (!initialSearchQuery && searchInputRef.current && !isMobile) {
       searchInputRef.current.focus();
     }
-  }, [isMobile]);
+  }, [initialSearchQuery, isMobile]);
 
   return (
     <div>
@@ -147,3 +148,6 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
     </div>
   );
 };
+
+GlobalView.propTypes = GlobalViewProps;
+RankChangeDisplay.propTypes = RankChangeDisplayProps;

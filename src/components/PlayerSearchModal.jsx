@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, AlertTriangle, X } from 'lucide-react';
 import { validateEmbarkId } from '../utils/validateEmbarkId';
 import { searchPlayerHistory } from '../services/historicalDataService';
 import { Hexagon } from './icons/Hexagon';
 import { getLeagueInfo } from '../utils/leagueUtils';
 import { useMobileDetect } from '../hooks/useMobileDetect';
+import { PlayerSearchModalProps } from '../types/propTypes';
 
 const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -15,6 +16,28 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
   const modalRef = useRef(null);
   const inputRef = useRef(null);
   const isMobile = useMobileDetect();
+
+  const handleSearch = useCallback(async (queryOverride) => {
+    const queryToUse = queryOverride?.trim();
+    
+    if (!validateEmbarkId(queryToUse)) {
+      setError('Please enter a valid Embark ID (must include # followed by 4 numbers)');
+      return;
+    }
+
+    setError('');
+    setIsSearching(true);
+    setHasSearched(true);
+
+    try {
+      const searchResults = await searchPlayerHistory(queryToUse, cachedS5Data);
+      setResults(searchResults);
+    } catch {
+      setError('Failed to search player history');
+    } finally {
+      setIsSearching(false);
+    }
+  }, [cachedS5Data]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -40,29 +63,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
       setSearchQuery(initialSearch);
       handleSearch(initialSearch);
     }
-  }, [initialSearch]);
-
-  const handleSearch = async (queryOverride) => {
-    const queryToUse = queryOverride || searchQuery;
-    
-    if (!validateEmbarkId(queryToUse)) {
-      setError('Please enter a valid Embark ID (must include # followed by 4 numbers)');
-      return;
-    }
-
-    setError('');
-    setIsSearching(true);
-    setHasSearched(true);
-
-    try {
-      const searchResults = await searchPlayerHistory(queryToUse.trim(), cachedS5Data);
-      setResults(searchResults);
-    } catch (err) {
-      setError('Failed to search player history');
-    } finally {
-      setIsSearching(false);
-    }
-  };
+  }, [initialSearch, handleSearch]);
 
   const handleInputChange = (e) => {
     const value = e.target.value;
@@ -74,7 +75,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
-      handleSearch();
+      handleSearch(searchQuery);
     }
   };
 
@@ -118,7 +119,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
               />
             </div>
             <button
-              onClick={() => handleSearch()}
+              onClick={() => handleSearch(searchQuery)}
               disabled={isSearching}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
@@ -212,5 +213,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
     </div>
   );
 };
+
+PlayerSearchModal.propTypes = PlayerSearchModalProps;
 
 export default PlayerSearchModal;

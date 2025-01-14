@@ -2,7 +2,7 @@ import { getLeagueInfo } from "../utils/leagueUtils";
 
 const CACHE_KEY = 'leaderboard_cache';
 const AUTH_TOKEN = 'not-secret';
-const isDev = process.env.NODE_ENV === 'development' || process.env.npm_lifecycle_event === 'dev';
+const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
 const API_URL = isDev ? 'http://localhost:8787' : 'https://api.ogclub.s4nt0s.eu';
 
 const getCachedData = () => {

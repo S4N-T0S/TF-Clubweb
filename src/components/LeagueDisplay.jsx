@@ -1,7 +1,8 @@
 import { Hexagon } from './icons/Hexagon';
 import { getLeagueInfo } from '../utils/leagueUtils';
+import { LeagueDisplayProps } from '../types/propTypes';
 
-export const LeagueDisplay = ({ league, score, rank, leagueNumber }) => {
+export const LeagueDisplay = ({ league, score, leagueNumber }) => {
   const { style } = getLeagueInfo(leagueNumber, league);
   const displayLeague = (league || 'Unranked');
   
@@ -17,3 +18,5 @@ export const LeagueDisplay = ({ league, score, rank, leagueNumber }) => {
     </td>
   );
 };
+
+LeagueDisplay.propTypes = LeagueDisplayProps;

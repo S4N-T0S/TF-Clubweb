@@ -3,6 +3,7 @@ import { SearchBar } from '../SearchBar';
 import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
+import { ClansViewProps } from '../../types/propTypes';
 
 export const ClansView = ({ topClans, onClanClick }) => {
   // Pre-process clans to add original rank
@@ -83,3 +84,5 @@ export const ClansView = ({ topClans, onClanClick }) => {
     </div>
   );
 };
+
+ClansView.propTypes = ClansViewProps;
