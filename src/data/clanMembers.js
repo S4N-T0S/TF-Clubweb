@@ -61,7 +61,7 @@ const ogClanMembers = [
     },
     {
       discord: "aurash.c",
-      embarkId: "aurash#4890",
+      embarkId: "hemorrhoids#4437",
       pruby: true
     },
     {
@@ -142,11 +142,6 @@ const ogClanMembers = [
     {
       discord: "erikponti",
       embarkId: "ErikPonti-TTV#2426",
-      pruby: false
-    },
-    {
-      discord: "funk1573",
-      embarkId: "funkzer0#5832",
       pruby: false
     },
     {
