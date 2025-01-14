@@ -137,11 +137,13 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
       />
       <BackToTop />
       
-      <PlayerGraphModal
-        isOpen={graphModal.isOpen}
-        onClose={() => setGraphModal({ isOpen: false, playerId: null })}
-        playerId={graphModal.playerId}
-      />
+      {graphModal?.playerId && (
+        <PlayerGraphModal
+          isOpen={graphModal.isOpen}
+          onClose={() => setGraphModal({ isOpen: false, playerId: null })}
+          playerId={graphModal.playerId}
+        />
+      )}
     </div>
   );
 };

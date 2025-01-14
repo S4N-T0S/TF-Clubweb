@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchLeaderboardData } from '../services/lb-api';
 import { processLeaderboardData } from '../utils/dataProcessing';
 
 const MAX_ACCEPTABLE_AGE = 30 * 60; // 30 minutes in seconds
 
-export const useLeaderboard = () => {
+export const useLeaderboard = (clanMembersData) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState({
@@ -17,8 +17,10 @@ export const useLeaderboard = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [lastUpdateTime, setLastUpdateTime] = useState(null);
+  const initialLoadDone = useRef(false);
+  const lastGlobalLeaderboard = useRef([]);
 
-  const hasDataChanged = (oldData, newData) => {
+  const hasDataChanged = useCallback((oldData, newData) => {
     if (!oldData.globalLeaderboard.length || !newData.globalLeaderboard.length) {
       return true;
     }
@@ -27,14 +29,14 @@ export const useLeaderboard = () => {
     if (oldTopScores.some((score, i) => score !== newTopScores[i])) return true;
     
     return oldData.isTopClan !== newData.isTopClan;
-  };
+  }, []);
 
-  const getDataAge = (timestamp) => {
+  const getDataAge = useCallback((timestamp) => {
     if (!timestamp) return Infinity;
     return Math.floor((Date.now() - timestamp) / 1000);
-  };
+  }, []);
 
-  const getToastConfig = (source, isRefreshing, timestamp, ttl) => {
+  const getToastConfig = useCallback((source, isRefreshing, timestamp, ttl) => {
     if (isRefreshing) {
       return {
         message: 'Refreshing leaderboard data...',
@@ -79,9 +81,9 @@ export const useLeaderboard = () => {
           ttl
         };
     }
-  };
+  }, [getDataAge]);
 
-  const refreshData = async (isInitialLoad = false) => {
+  const refreshData = useCallback(async (isInitialLoad = false) => {
     setIsRefreshing(true);
     setToastMessage(getToastConfig(null, true));
     
@@ -92,7 +94,8 @@ export const useLeaderboard = () => {
         throw new Error('Invalid data received from API');
       }
 
-      const processedData = processLeaderboardData(rawData.data);
+      lastGlobalLeaderboard.current = rawData.data;
+      const processedData = processLeaderboardData(rawData.data, clanMembersData || []);
       const hasChanged = !isInitialLoad && hasDataChanged(data, processedData);
       
       setData(processedData);
@@ -119,11 +122,23 @@ export const useLeaderboard = () => {
       setLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [clanMembersData, data, getToastConfig, hasDataChanged]);
 
+  // Initial load
   useEffect(() => {
-    refreshData(true);
-  }, []);
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      refreshData(true);
+    }
+  }, [refreshData]);
+
+  // Update processed data when clan members data arrives
+  useEffect(() => {
+    if (initialLoadDone.current && clanMembersData?.length > 0 && lastGlobalLeaderboard.current.length > 0) {
+      const processedData = processLeaderboardData(lastGlobalLeaderboard.current, clanMembersData);
+      setData(processedData);
+    }
+  }, [clanMembersData]);
 
   return {
     ...data,

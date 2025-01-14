@@ -1,6 +1,4 @@
-import ogClanMembers from '../data/clanMembers';
-
-export const processLeaderboardData = (rawData) => {
+export const processLeaderboardData = (rawData, clanMembers) => {
   // Process global leaderboard data
   const globalLeaderboard = rawData.map(player => ({
     ...player,
@@ -32,12 +30,12 @@ export const processLeaderboardData = (rawData) => {
     player?.clubTag === 'OG'
   );
 
-  const { matchedMembers, unknownMembers, matchedClanMembers } = processOGMembers(ogMembersInLeaderboard);
-  const unrankedMembers = getUnrankedMembers(matchedClanMembers);
-  const clanMembers = [...matchedMembers, ...unrankedMembers];
+  const { matchedMembers, unknownMembers, matchedClanMembers } = processOGMembers(ogMembersInLeaderboard, clanMembers);
+  const unrankedMembers = getUnrankedMembers(matchedClanMembers, clanMembers);
+  const finalClanMembers = [...matchedMembers, ...unrankedMembers];
 
   return {
-    clanMembers,
+    clanMembers: finalClanMembers,
     isTopClan: topClans[0]?.tag === 'OG',
     topClans,
     unknownMembers,
@@ -45,12 +43,12 @@ export const processLeaderboardData = (rawData) => {
   };
 };
 
-const processOGMembers = (ogMembersInLeaderboard) => {
+const processOGMembers = (ogMembersInLeaderboard, clanMembers) => {
   const matchedClanMembers = new Set();
   const unknownMembers = [];
 
   const matchedMembers = ogMembersInLeaderboard.map(apiMember => {
-    const clanMember = ogClanMembers.find(member => 
+    const clanMember = clanMembers.find(member => 
       member.embarkId.toLowerCase() === apiMember.name.toLowerCase()
     );
 
@@ -69,8 +67,8 @@ const processOGMembers = (ogMembersInLeaderboard) => {
   return { matchedMembers, unknownMembers, matchedClanMembers };
 };
 
-const getUnrankedMembers = (matchedClanMembers) => {
-  return ogClanMembers
+const getUnrankedMembers = (matchedClanMembers, clanMembers) => {
+  return clanMembers
     .filter(member => !matchedClanMembers.has(member.embarkId))
     .map(member => ({
       name: member.embarkId,

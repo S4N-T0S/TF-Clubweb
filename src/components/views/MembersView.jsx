@@ -2,9 +2,9 @@ import { Check, X, Search, LineChart } from 'lucide-react';
 import { LeagueDisplay } from '../LeagueDisplay';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
-import ogClanMembers from '../../data/clanMembers';
 import { useState } from 'react';
 import PlayerGraphModal from '../PlayerGraphModal';
+import PropTypes from 'prop-types';
 
 const PriorRubyDisplay = ({ isPriorRuby }) => {
   if (isPriorRuby) {
@@ -17,8 +17,22 @@ const PriorRubyDisplay = ({ isPriorRuby }) => {
   return <span className="text-gray-500">💀</span>;
 };
 
-const MemberRow = ({ member, onSearchClick, onGraphClick }) => {
-  const clanMemberInfo = ogClanMembers.find(m => 
+PriorRubyDisplay.propTypes = {
+  isPriorRuby: PropTypes.bool
+};
+
+// Define member shape for reuse
+const memberShape = PropTypes.shape({
+  name: PropTypes.string.isRequired,
+  notInLeaderboard: PropTypes.bool,
+  rank: PropTypes.number,
+  discord: PropTypes.string,
+  league: PropTypes.string,
+  rankScore: PropTypes.number,
+});
+
+const MemberRow = ({ member, onSearchClick, onGraphClick, clanMembersData }) => {
+  const clanMemberInfo = clanMembersData?.find(m => 
     m.embarkId.toLowerCase() === member.name.toLowerCase() ||
     (m.discord && m.discord.toLowerCase() === member.discord?.toLowerCase())
   );
@@ -82,7 +96,18 @@ const MemberRow = ({ member, onSearchClick, onGraphClick }) => {
   );
 };
 
-export const MembersView = ({ clanMembers, totalMembers, onPlayerSearch }) => {
+MemberRow.propTypes = {
+  member: memberShape.isRequired,
+  onSearchClick: PropTypes.func.isRequired,
+  onGraphClick: PropTypes.func.isRequired,
+  clanMembersData: PropTypes.arrayOf(PropTypes.shape({
+    embarkId: PropTypes.string.isRequired,
+    discord: PropTypes.string,
+    pruby: PropTypes.bool
+  }))
+};
+
+export const MembersView = ({ clanMembers, totalMembers, onPlayerSearch, clanMembersData }) => {
   const [graphModal, setGraphModal] = useState({ isOpen: false, playerId: null });
   
   useSwipe(
@@ -123,6 +148,7 @@ export const MembersView = ({ clanMembers, totalMembers, onPlayerSearch }) => {
                   member={member} 
                   onSearchClick={onPlayerSearch}
                   onGraphClick={(playerId) => setGraphModal({ isOpen: true, playerId })}
+                  clanMembersData={clanMembersData}
                 />
               ))}
           </tbody>
@@ -133,11 +159,24 @@ export const MembersView = ({ clanMembers, totalMembers, onPlayerSearch }) => {
       </div>
       <BackToTop />
       
-      <PlayerGraphModal
-        isOpen={graphModal.isOpen}
-        onClose={() => setGraphModal({ isOpen: false, playerId: null })}
-        playerId={graphModal.playerId}
-      />
+      {graphModal?.playerId && (
+        <PlayerGraphModal
+          isOpen={graphModal.isOpen}
+          onClose={() => setGraphModal({ isOpen: false, playerId: null })}
+          playerId={graphModal.playerId}
+        />
+      )}
     </div>
   );
+};
+
+MembersView.propTypes = {
+  clanMembers: PropTypes.arrayOf(memberShape).isRequired,
+  totalMembers: PropTypes.number.isRequired,
+  onPlayerSearch: PropTypes.func.isRequired,
+  clanMembersData: PropTypes.arrayOf(PropTypes.shape({
+    embarkId: PropTypes.string.isRequired,
+    discord: PropTypes.string,
+    pruby: PropTypes.bool
+  }))
 };

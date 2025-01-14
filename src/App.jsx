@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLeaderboard } from './hooks/useLeaderboard';
 import { MembersView } from './components/views/MembersView';
 import { ClansView } from './components/views/ClansView';
@@ -8,7 +8,7 @@ import { LoadingDisplay } from './components/LoadingDisplay';
 import { DashboardHeader } from './components/DashboardHeader';
 import Toast from './components/Toast';
 import PlayerSearchModal from './components/PlayerSearchModal';
-import ogClanMembers from './data/clanMembers';
+import { fetchClanMembers } from './services/mb-api';
 
 // Cookie helper functions
 const getCookie = (name) => {
@@ -37,6 +37,8 @@ const App = () => {
     initialSearch: '' 
   });
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [clanMembersData, setClanMembersData] = useState([]);
+  const [clanMembersLoading, setClanMembersLoading] = useState(true);
   
   const {
     clanMembers,
@@ -50,7 +52,28 @@ const App = () => {
     refreshData,
     toastMessage,
     setToastMessage,
-  } = useLeaderboard();
+  } = useLeaderboard(clanMembersData);
+
+  // Load clan members data once on page load
+  const toastMessageRef = useRef(setToastMessage);
+  useEffect(() => {
+    const loadClanMembers = async () => {
+      try {
+        const members = await fetchClanMembers();
+        setClanMembersData(members);
+      } catch (error) {
+        console.error('Failed to load clan members:', error);
+        toastMessageRef.current({
+          message: 'Failed to load clan members data',
+          type: 'error'
+        });
+      } finally {
+        setClanMembersLoading(false);
+      }
+    };
+
+    loadClanMembers();
+  }, []);
 
   // Update cookie whenever view changes
   useEffect(() => {
@@ -68,7 +91,7 @@ const App = () => {
   }
 
   if (error) return <ErrorDisplay error={error} onRetry={refreshData} />;
-  if (loading) return <LoadingDisplay />;
+  if (loading || clanMembersLoading) return <LoadingDisplay />;
 
   return (
     <div className="min-h-screen bg-gray-900 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
@@ -92,27 +115,28 @@ const App = () => {
             isRefreshing={isRefreshing}
           />
 
-            {view === 'members' && (
-              <MembersView 
-                clanMembers={clanMembers} 
-                totalMembers={ogClanMembers.length} 
-                onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
-              />
-            )}
-            {view === 'clans' && (
-              <ClansView 
-                topClans={topClans} 
-                onClanClick={handleClanClick}
-              />
-            )}
-            {view === 'global' && (
-             <GlobalView 
-                globalLeaderboard={globalLeaderboard} 
-                onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
-                searchQuery={globalSearchQuery}
-                setSearchQuery={setGlobalSearchQuery}
-              />
-            )}
+          {view === 'members' && (
+            <MembersView 
+              clanMembers={clanMembers} 
+              totalMembers={clanMembersData.length} 
+              onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
+              clanMembersData={clanMembersData} // Pass clan members data to members view
+            />
+          )}
+          {view === 'clans' && (
+            <ClansView 
+              topClans={topClans} 
+              onClanClick={handleClanClick}
+            />
+          )}
+          {view === 'global' && (
+            <GlobalView 
+              globalLeaderboard={globalLeaderboard} 
+              onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
+              searchQuery={globalSearchQuery}
+              setSearchQuery={setGlobalSearchQuery}
+            />
+          )}
         </div>
       </div>
       
