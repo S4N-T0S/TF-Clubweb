@@ -226,13 +226,13 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
 
   const calculateViewWindow = useCallback((data, range) => {
     if (!data?.length) return null;
-
+  
     const now = new Date();
-    const endTime = now;
+    const endTime = new Date(now + TWO_HOURS);
     const timeRangeMs = TIME_RANGES[range];
     
     if (range === 'MAX') {
-      return { min: data[0].timestamp, max: now };
+      return { min: data[0].timestamp, max: endTime };
     }
     
     const viewMin = new Date(now - timeRangeMs);
@@ -359,6 +359,69 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
   }, []);
 
 
+  const getHighlightedPeriodAnnotation = useCallback((customTimeRange = null) => {
+    if (!data?.length) return null;
+
+    // RS Adjustment Period 1 S5
+    const startTime = new Date('2025-01-14T14:45:00');
+    const endTime = new Date('2025-01-14T16:30:00');
+    
+    // Only show the highlight if it's within the visible range
+    const min = customTimeRange?.min || viewWindow?.min;
+    const max = customTimeRange?.max || viewWindow?.max;
+    
+    if (!min || !max || 
+        (endTime < min) || 
+        (startTime > max)) {
+      return null;
+    }
+
+    // Find if there are any data points within the extended period
+    const hasDataPoints = data.some(point => {
+      const timestamp = point.timestamp;
+      return timestamp >= startTime && timestamp <= endTime;
+    });
+    
+    // Don't show the highlight if there are no nearby data points
+    if (!hasDataPoints) {
+      return null;
+    }
+
+    // Calculate the width of the highlighted period in the current view
+    const totalViewDuration = max - min;
+    const highlightDuration = endTime - startTime;
+    const highlightWidthRatio = highlightDuration / totalViewDuration;
+
+    // Show label if the highlighted period takes up more than 10% of the visible area
+    const showLabel = highlightWidthRatio > 0.1;
+
+    return {
+      type: 'box',
+      xMin: startTime,
+      xMax: endTime,
+      backgroundColor: 'rgba(255, 193, 7, 0.1)',
+      borderColor: 'rgba(255, 193, 7, 0.5)',
+      borderWidth: 0,
+      drawTime: 'beforeDatasetsDraw',
+      label: {
+        content: 'RS Adjustments',
+        display: showLabel,
+        position: {
+          x: 'center',  // Center the label horizontally in the box
+          y: 'start'    // Place at the top of the box
+        },
+        color: '#FFC107',
+        font: {
+          size: 11
+        },
+        padding: {
+          top: 4,
+          bottom: 4
+        }
+      }
+    };
+  }, [data, viewWindow?.max, viewWindow?.min]);
+
   const getRankAnnotations = useCallback((customTimeRange = null) => {
     if (!data) return [];
     
@@ -370,7 +433,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       customTimeRange
     );
     
-    return RANKS
+    const annotations = RANKS
       .filter(rank => rank.y >= minDomain && rank.y <= maxDomain)
       .map(rank => ({
         type: 'line',
@@ -393,7 +456,15 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           }
         }
       }));
-  }, [data, getDynamicYAxisDomain, selectedTimeRange]);
+
+    // Add the highlighted period annotation if it exists
+    const highlightAnnotation = getHighlightedPeriodAnnotation(customTimeRange);
+    if (highlightAnnotation) {
+      annotations.push(highlightAnnotation);
+    }
+
+    return annotations;
+  }, [data, getDynamicYAxisDomain, selectedTimeRange, getHighlightedPeriodAnnotation]);
 
   const loadData = useCallback(async () => {
     if (
@@ -589,11 +660,11 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           mode: 'x',
           modifierKey: null,
           onPan: function(ctx) {
-            const timeRange = {
+            let timeRange = {
               min: ctx.chart.scales.x.min,
               max: ctx.chart.scales.x.max
             };
-            
+
             const [newMin, newMax] = getDynamicYAxisDomain(
               Math.min(...data.map(d => d.rankScore)),
               Math.max(...data.map(d => d.rankScore)),
@@ -624,11 +695,11 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           },
           mode: 'x',
           onZoom: function(ctx) {
-            const timeRange = {
+            let timeRange = {
               min: ctx.chart.scales.x.min,
               max: ctx.chart.scales.x.max
             };
-            
+
             const [newMin, newMax] = getDynamicYAxisDomain(
               Math.min(...data.map(d => d.rankScore)),
               Math.max(...data.map(d => d.rankScore)),
