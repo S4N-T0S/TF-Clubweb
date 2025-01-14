@@ -144,7 +144,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       const bodyLines = tooltip.body.map(b => b.lines);
       const score = parseInt(bodyLines[0][0].split(': ')[1].replace(/,/g, ''));
       const rank = getRankFromScore(score);
-
+      const dataPoint = tooltip.dataPoints[0].raw.raw;
+      
       const tableRoot = tooltipEl.querySelector('table');
 
       // Clear previous tooltip content
@@ -187,6 +188,22 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       path.setAttribute('fill', rank.color);
 
       scoreCell.appendChild(document.createTextNode(`Score: ${score.toLocaleString()}`));
+      
+      // Add score change if this is a real data point
+      if (!dataPoint.isInterpolated && !dataPoint.isExtrapolated) {
+        const dataIndex = data.findIndex(d => d.timestamp.getTime() === dataPoint.timestamp.getTime());
+        if (dataIndex > 0) {
+          const previousScore = data[dataIndex - 1].rankScore;
+          const scoreChange = score - previousScore;
+          const scoreChangeText = document.createElement('span');
+          scoreChangeText.style.marginLeft = '8px';
+          scoreChangeText.style.fontSize = '12px';
+          scoreChangeText.style.color = scoreChange > 0 ? '#10B981' : scoreChange < 0 ? '#EF4444' : '#9ca3af';
+          scoreChangeText.textContent = `(${scoreChange > 0 ? '+' : ''}${scoreChange.toLocaleString()})`;
+          scoreCell.appendChild(scoreChangeText);
+        }
+      }
+      
       scoreRow.appendChild(scoreCell);
       tableRoot.appendChild(scoreRow);
 
@@ -222,7 +239,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     tooltipEl.style.top = positionY + tooltip.caretY + 'px';
     tooltipEl.style.font = tooltip.options.bodyFont.string;
     tooltipEl.style.boxShadow = '0 2px 12px 0 rgba(0,0,0,0.4)';
-  }, []);
+  }, [data]);
 
   const calculateViewWindow = useCallback((data, range) => {
     if (!data?.length) return null;
