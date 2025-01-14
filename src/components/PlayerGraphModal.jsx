@@ -165,7 +165,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       headerRow.appendChild(headerCell);
       tableRoot.appendChild(headerRow);
 
-      // Add score with hexagon
+      // Add score
       const scoreRow = document.createElement('tr');
       scoreRow.style.borderWidth = 0;
       const scoreCell = document.createElement('td');
@@ -174,40 +174,28 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       scoreCell.style.fontWeight = 'bold';
       scoreCell.style.paddingTop = '4px';
       
-      // Create hexagon SVG
-      const hexagonSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      hexagonSvg.setAttribute('viewBox', '0 0 24 24');
-      hexagonSvg.style.width = '14px';
-      hexagonSvg.style.height = '14px';
-      hexagonSvg.style.display = 'inline-block';
-      hexagonSvg.style.verticalAlign = 'middle';
-      hexagonSvg.style.marginRight = '8px';
-
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', 'M12 2L22 8.5V15.5L12 22L2 15.5V8.5L12 2Z');
-      path.setAttribute('fill', rank.color);
-
-      scoreCell.appendChild(document.createTextNode(`Score: ${score.toLocaleString()}`));
+      const scoreContainer = document.createElement('div');
+      scoreContainer.appendChild(document.createTextNode(`Score: ${score.toLocaleString()}`));
       
-      // Add score change if this is a real data point
       if (!dataPoint.isInterpolated && !dataPoint.isExtrapolated) {
         const dataIndex = data.findIndex(d => d.timestamp.getTime() === dataPoint.timestamp.getTime());
         if (dataIndex > 0) {
           const previousScore = data[dataIndex - 1].rankScore;
           const scoreChange = score - previousScore;
           const scoreChangeText = document.createElement('span');
-          scoreChangeText.style.marginLeft = '8px';
+          scoreChangeText.style.marginLeft = '4px';
           scoreChangeText.style.fontSize = '12px';
           scoreChangeText.style.color = scoreChange > 0 ? '#10B981' : scoreChange < 0 ? '#EF4444' : '#9ca3af';
           scoreChangeText.textContent = `(${scoreChange > 0 ? '+' : ''}${scoreChange.toLocaleString()})`;
-          scoreCell.appendChild(scoreChangeText);
+          scoreContainer.appendChild(scoreChangeText);
         }
       }
       
+      scoreCell.appendChild(scoreContainer);
       scoreRow.appendChild(scoreCell);
       tableRoot.appendChild(scoreRow);
 
-      // Add rank
+      // Add rank label
       const rankRow = document.createElement('tr');
       rankRow.style.borderWidth = 0;
       const rankCell = document.createElement('td');
@@ -215,18 +203,66 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       rankCell.style.fontSize = '14px';
       rankCell.style.fontWeight = 'bold';
       rankCell.style.paddingTop = '4px';
-      rankCell.style.position = 'relative'; // Ensure parent container is relative
+      
+      // Create rank container for flex layout
+      const rankContainer = document.createElement('div');
+      rankContainer.style.display = 'flex';
+      rankContainer.style.alignItems = 'center';
+      rankContainer.style.gap = '6px';
+      
+      // Add rank change arrow if needed
+      if (!dataPoint.isInterpolated && !dataPoint.isExtrapolated) {
+        const dataIndex = data.findIndex(d => d.timestamp.getTime() === dataPoint.timestamp.getTime());
+        if (dataIndex > 0) {
+          const previousScore = data[dataIndex - 1].rankScore;
+          const previousRank = getRankFromScore(previousScore);
+          const rankIndex = RANKS.findIndex(r => r.label === rank.label);
+          const previousRankIndex = RANKS.findIndex(r => r.label === previousRank.label);
           
-      const rankText = document.createTextNode(`Rank: ${rank.label}`);
-      hexagonSvg.appendChild(path);
-          
-      // Adjust hexagonSvg to be at the bottom-right of the tooltip box
-      hexagonSvg.style.position = 'absolute';
-      hexagonSvg.style.bottom = '4';
-      hexagonSvg.style.right = '0';
-          
-      rankCell.appendChild(rankText);
-      rankCell.appendChild(hexagonSvg);
+          if (rankIndex !== previousRankIndex) {
+            const isRankUp = rankIndex > previousRankIndex;
+            const arrowSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            arrowSvg.setAttribute('width', '14');
+            arrowSvg.setAttribute('height', '14');
+            arrowSvg.setAttribute('viewBox', '0 0 24 24');
+            arrowSvg.setAttribute('fill', 'none');
+            arrowSvg.setAttribute('stroke', isRankUp ? '#10B981' : '#EF4444');
+            arrowSvg.setAttribute('stroke-width', '2');
+            arrowSvg.setAttribute('stroke-linecap', 'round');
+            arrowSvg.setAttribute('stroke-linejoin', 'round');
+            arrowSvg.style.display = 'block';
+            arrowSvg.style.flexShrink = '0';
+            arrowSvg.style.marginTop = '0';
+            arrowSvg.style.marginBottom = '0';
+            
+            arrowSvg.innerHTML = isRankUp
+              ? '<path d="M12 19V5M5 12l7-7 7 7"/>'
+              : '<path d="M12 5v14M5 12l7 7 7-7"/>';
+            
+            rankContainer.appendChild(arrowSvg);
+          }
+        }
+      }
+
+      // Rank label
+      rankContainer.appendChild(document.createTextNode(rank.label));
+      
+      // Hexagon
+      const hexagonSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      hexagonSvg.setAttribute('width', '14');
+      hexagonSvg.setAttribute('height', '14');
+      hexagonSvg.setAttribute('viewBox', '0 0 24 24');
+      hexagonSvg.style.marginLeft = '0';
+      hexagonSvg.style.flexShrink = '0';
+      hexagonSvg.style.display = 'block';
+      
+      const hexPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      hexPath.setAttribute('d', 'M12 2L22 8.5V15.5L12 22L2 15.5V8.5L12 2Z');
+      hexPath.setAttribute('fill', rank.color);
+      hexagonSvg.appendChild(hexPath);
+      rankContainer.appendChild(hexagonSvg);
+      
+      rankCell.appendChild(rankContainer);
       rankRow.appendChild(rankCell);
       tableRoot.appendChild(rankRow);
     }
