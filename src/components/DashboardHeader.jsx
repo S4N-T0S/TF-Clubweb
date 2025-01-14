@@ -20,9 +20,9 @@ export const DashboardHeader = ({
           <p className={`text-xl font-semibold ${isTopClan ? 'text-green-400' : 'text-red-400'}`}>
             {isTopClan ? 'OG is on top! 🏆' : 'OG is not on top :('}
           </p>
-          {unknownMembers.length > 0 && (
+          {view === 'members' && unknownMembers.length > 0 && (
             <p className="text-yellow-400 text-sm mt-2">
-              {unknownMembers.length} member(s) in top 10k not found in clanMembers.js
+              {unknownMembers.length} member(s) in top 10k not found in clublist.
             </p>
           )}
         </div>
