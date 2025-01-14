@@ -411,12 +411,12 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     try {
       const result = await fetchPlayerGraphData(playerId);
       if (!result.data?.length) {
-        setError('No data available for this player');
+        setError('No data available for this player, they may have recently changed their embarkId.');
         return;
       }
       
       if (result.data.length === 1) {
-        setError('Not enough data points to display graph');
+        setError('Not enough data points to display graph, player has probably recently changed their embarkId.');
         return;
       }
   
