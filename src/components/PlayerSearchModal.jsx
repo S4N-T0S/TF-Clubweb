@@ -196,7 +196,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
           </div>
 
           <div className="mb-4 p-4 bg-gray-700 rounded-lg text-gray-300">
-            <p>This tool searches for players across Open Beta and Seasons 1-5. When you enter an Embark ID, it will find any associated Steam, Xbox, or PSN usernames from these records and show all results linked to those accounts.</p>
+            <p className="text-sm">This tool searches the leaderboards for Open Beta and Seasons 1-5 using an Embark ID. It identifies any linked Steam, Xbox, or PSN usernames from these records and performs additional searches on those accounts to uncover more associated records. All linked accounts and results are displayed. Note: The autofill feature only works for players in the top 10k, but you can manually enter an Embark ID for inactive players.</p>
           </div>
 
           <div className="relative mb-4">
