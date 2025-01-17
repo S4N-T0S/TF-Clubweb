@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, AlertTriangle, X } from 'lucide-react';
 import { searchPlayerHistory } from '../services/historicalDataService';
 import { Hexagon } from './icons/Hexagon';
@@ -11,7 +11,8 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
     query: '',
     results: [],
     isSearching: false,
-    error: ''
+    error: '',
+    suggestions: []
   });
   
   const modalRef = useRef(null);
@@ -20,14 +21,16 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
 
   // Simple Embark ID validation
   const isValidEmbarkId = (id) => /^.+#\d{4}$/.test(id);
+  const isPartialEmbarkId = (id) => id.length >= 1;
 
-  const handleSearch = async (queryOverride) => {
-    const query = (queryOverride || searchState.query).trim();
+  const handleSearch = useCallback(async (queryInput) => {
+    const query = (queryInput || searchState.query).trim();
     
     if (!isValidEmbarkId(query)) {
       setSearchState(prev => ({
         ...prev,
-        error: 'Please enter a valid Embark ID (must include # followed by 4 numbers)'
+        error: 'Please enter a valid Embark ID (must include # followed by 4 numbers)',
+        isSearching: false
       }));
       return;
     }
@@ -36,6 +39,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
       ...prev,
       isSearching: true,
       error: '',
+      suggestions: []
     }));
 
     try {
@@ -43,7 +47,8 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
       setSearchState(prev => ({
         ...prev,
         results,
-        isSearching: false
+        isSearching: false,
+        query
       }));
     } catch {
       setSearchState(prev => ({
@@ -52,17 +57,64 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
         isSearching: false
       }));
     }
-  };
+  }, [cachedS5Data]);
 
-  // Reset search state when modal closes
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setSearchState({
       query: '',
       results: [],
       isSearching: false,
-      error: ''
+      error: '',
+      suggestions: []
     });
     onClose();
+  }, [onClose]);
+
+  const updateSuggestions = useCallback((query) => {
+    if (!cachedS5Data || !isPartialEmbarkId(query)) {
+      setSearchState(prev => ({ ...prev, suggestions: [] }));
+      return;
+    }
+  
+    const lowercaseQuery = query.toLowerCase();
+    const matchingPlayers = cachedS5Data
+      .filter(player => 
+        player.name && player.name.toLowerCase().includes(lowercaseQuery)
+      )
+      .slice(0, 5)
+      .map(player => ({
+        ...player,
+        displayRank: player.league || 'Unknown'
+      }));
+  
+    setSearchState(prev => ({
+      ...prev,
+      suggestions: matchingPlayers
+    }));
+  }, [cachedS5Data]);
+
+  const handleInputChange = (e) => {
+    const newQuery = e.target.value;
+    setSearchState(prev => ({ 
+      ...prev, 
+      query: newQuery,
+      error: ''
+    }));
+    updateSuggestions(newQuery);
+  };
+
+  const handleSuggestionClick = (suggestion) => {
+    handleSearch(suggestion.name);
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      if (searchState.suggestions.length > 0) {
+        handleSearch(searchState.suggestions[0].name);
+      } else {
+        handleSearch(searchState.query);
+      }
+    }
   };
 
   useEffect(() => {
@@ -75,10 +127,11 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
         query: '',
         results: [],
         isSearching: false,
-        error: ''
+        error: '',
+        suggestions: []
       });
     }
-  }, [isOpen, initialSearch]);
+  }, [isOpen, initialSearch, handleSearch]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -89,13 +142,26 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
 
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
-      if (inputRef.current && !isMobile) {
-        inputRef.current.focus();
+      if (initialSearch) {
+        setSearchState(prev => ({ ...prev, query: initialSearch }));
+        handleSearch(initialSearch);
+      } else {
+        setSearchState(prev => ({
+          ...prev,
+          query: '',
+          results: [],
+          isSearching: false,
+          error: '',
+          suggestions: []
+        }));
+        // Clear any previous results but keep the component ready for new input
+        if (inputRef.current && !isMobile) {
+          inputRef.current.focus();
+        }
       }
     }
-
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, isMobile]);
+  }, [isOpen, initialSearch, handleSearch, isMobile, handleClose]);
 
   if (!isOpen) return null;
 
@@ -120,38 +186,51 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
           <p>This tool searches for players across Open Beta and Seasons 1-5. When you enter an Embark ID, it will find any associated Steam, Xbox, or PSN usernames from these records and show all results linked to those accounts.</p>
         </div>
 
-        <div className="flex gap-2 mb-6">
-          <input
-            ref={inputRef}
-            type="text"
-            value={searchState.query}
-            onChange={(e) => setSearchState(prev => ({ 
-              ...prev, 
-              query: e.target.value,
-              error: isValidEmbarkId(e.target.value) ? '' : prev.error
-            }))}
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="Enter Embark ID (e.g. 00#0000)"
-            className={`flex-1 px-4 py-2 bg-gray-700 border rounded-lg text-white
-              ${searchState.error ? 'border-red-500' : 'border-gray-600 focus:border-blue-500'}`}
-          />
-          <button
-            onClick={() => handleSearch()}
-            disabled={searchState.isSearching}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50
-              flex items-center justify-center"
-          >
-            <Search className={`w-5 h-5 ${searchState.isSearching ? 'animate-spin' : ''}`} />
-          </button>
+        <div className="relative">
+          <div className="flex gap-2">
+            <input
+              ref={inputRef}
+              type="text"
+              value={searchState.query}
+              onChange={handleInputChange}
+              onKeyPress={handleKeyPress}
+              placeholder="Enter Embark ID (e.g. 00#0000)"
+              className={`flex-1 px-4 py-2 bg-gray-700 border rounded-lg text-white
+                ${searchState.error ? 'border-red-500' : 'border-gray-600 focus:border-blue-500'}`}
+            />
+            <button
+              onClick={() => handleSearch(searchState.query)}
+              disabled={searchState.isSearching}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50
+                flex items-center justify-center"
+            >
+              <Search className={`w-5 h-5 ${searchState.isSearching ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+
+          {searchState.suggestions.length > 0 && (
+            <div className="absolute z-10 w-full bg-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto mt-1">
+              {searchState.suggestions.map((suggestion, index) => (
+                <button
+                  key={`${suggestion.name}-${index}`}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-600 flex justify-between items-center"
+                >
+                <span className="text-white">{suggestion.name}</span>
+                <span className="text-gray-300">{suggestion.displayRank}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {searchState.error && (
-          <div className="p-3 mb-4 bg-red-900 bg-opacity-20 border border-red-700 rounded-lg text-red-400">
+          <div className="mt-4 p-3 bg-red-900 bg-opacity-20 border border-red-700 rounded-lg text-red-400">
             {searchState.error}
           </div>
         )}
 
-        <div className="grid gap-4">
+        <div className="mt-6 grid gap-4">
           {searchState.results.length === 0 && !searchState.error && !searchState.isSearching && (
             <div className="p-4 bg-gray-700 rounded-lg text-gray-300 text-center">
               No results found
@@ -192,7 +271,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
                       <div className="relative group">
                         <AlertTriangle className="w-4 h-4 text-yellow-400" />
                         <span className="absolute hidden group-hover:block bg-gray-900 text-white px-2 py-1 rounded -mt-8 ml-4">
-                        Steam names are not unique, this could be a different user.
+                          Steam names are not unique, this could be a different user.
                         </span>
                       </div>
                     )}
