@@ -114,6 +114,7 @@ const App = () => {
             setView={setView}
             onRefresh={() => refreshData(false)}
             isRefreshing={isRefreshing}
+            onOpenSearch={() => setSearchModalState({ isOpen: true, initialSearch: '' })}
           />
 
           {view === 'members' && (
