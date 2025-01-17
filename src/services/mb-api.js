@@ -2,7 +2,7 @@
 const DEFAULT_OPTIONS = {
   url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT9bH84oHf5vPtElxeJyS4n4oHDPe7cm-_zYkFF0aX4ELf2rq37X6G6QEmrRvmnD16Afb7anaB2AVzC/pub?output=csv',
   retryCount: 1,
-  retryDelay: 500
+  retryDelay: 50
 };
 
 async function fetchWithRetry(options = {}) {
