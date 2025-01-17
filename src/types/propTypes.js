@@ -126,8 +126,19 @@ export const HexagonProps = {
   className: PropTypes.string
 };
 
+export const ComparePlayerSearchProps = {
+  onSelect: PropTypes.func.isRequired,
+  mainPlayerId: PropTypes.string.isRequired,
+  globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)).isRequired,
+  onClose: PropTypes.func.isRequired,
+  comparisonData: PropTypes.instanceOf(Map).isRequired
+};
+
 export const PlayerGraphModalProps = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
-  playerId: PropTypes.string.isRequired
+  playerId: PropTypes.string.isRequired,
+  isClubView: PropTypes.bool,
+  globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)),
+  onSwitchToGlobal: PropTypes.func
 };

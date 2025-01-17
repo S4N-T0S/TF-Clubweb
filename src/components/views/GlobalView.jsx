@@ -5,7 +5,7 @@ import { LeagueDisplay } from '../LeagueDisplay';
 import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMobileDetect } from '../../hooks/useMobileDetect';
 import PlayerGraphModal from '../PlayerGraphModal';
 import { GlobalViewProps, RankChangeDisplayProps } from '../../types/propTypes';
@@ -26,10 +26,16 @@ const RankChangeDisplay = ({ change }) => {
   );
 };
 
-export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: initialSearchQuery, setSearchQuery: setGlobalSearchQuery }) => {
+export const GlobalView = ({ 
+  globalLeaderboard, 
+  onPlayerSearch, 
+  searchQuery: initialSearchQuery, 
+  setSearchQuery: setGlobalSearchQuery,
+  graphModal,
+  setGraphModal 
+}) => {
   const searchInputRef = useRef(null);
   const isMobile = useMobileDetect();
-  const [graphModal, setGraphModal] = useState({ isOpen: false, playerId: null });
 
   const {
     searchQuery,
@@ -143,6 +149,8 @@ export const GlobalView = ({ globalLeaderboard, onPlayerSearch, searchQuery: ini
           isOpen={graphModal.isOpen}
           onClose={() => setGraphModal({ isOpen: false, playerId: null })}
           playerId={graphModal.playerId}
+          isClubView={false}
+          globalLeaderboard={globalLeaderboard}
         />
       )}
     </div>

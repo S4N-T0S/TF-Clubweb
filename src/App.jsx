@@ -39,6 +39,7 @@ const App = () => {
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [clanMembersData, setClanMembersData] = useState([]);
   const [clanMembersLoading, setClanMembersLoading] = useState(true);
+  const [graphModal, setGraphModal] = useState({ isOpen: false, playerId: null });
   
   const {
     clanMembers,
@@ -121,6 +122,9 @@ const App = () => {
               totalMembers={clanMembersData.length} 
               onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
               clanMembersData={clanMembersData} // Pass clan members data to members view
+              setView={setView}
+              graphModal={graphModal}
+              setGraphModal={setGraphModal}
             />
           )}
           {view === 'clans' && (
@@ -135,6 +139,8 @@ const App = () => {
               onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
               searchQuery={globalSearchQuery}
               setSearchQuery={setGlobalSearchQuery}
+              graphModal={graphModal}
+              setGraphModal={setGraphModal}
             />
           )}
         </div>

@@ -2,7 +2,6 @@ import { Check, X, Search, LineChart } from 'lucide-react';
 import { LeagueDisplay } from '../LeagueDisplay';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
-import { useState } from 'react';
 import PlayerGraphModal from '../PlayerGraphModal';
 import { MembersViewProps, PriorRubyDisplayProps, MemberRowProps } from '../../types/propTypes';
 
@@ -84,13 +83,27 @@ const MemberRow = ({ member, onSearchClick, onGraphClick, clanMembersData }) => 
 };
 
 // Updated to accept clanMembersData prop
-export const MembersView = ({ clanMembers, totalMembers, onPlayerSearch, clanMembersData }) => {
-  const [graphModal, setGraphModal] = useState({ isOpen: false, playerId: null });
+export const MembersView = ({ 
+  clanMembers,
+  totalMembers,
+  onPlayerSearch,
+  clanMembersData,
+  setView,
+  graphModal,
+  setGraphModal 
+}) => {
+  const validMembers = clanMembers.filter(member => !member.notInLeaderboard); // for graphing
   
   useSwipe(
     () => window.scrollBy({ left: 100, behavior: 'smooth' }),
     () => window.scrollBy({ left: -100, behavior: 'smooth' })
   );
+
+  const handleSwitchToGlobal = (playerId) => {
+    // Keep modal open and switch view
+    setGraphModal({ isOpen: true, playerId });
+    setView('global');
+  };
 
   return (
     <div>
@@ -141,6 +154,9 @@ export const MembersView = ({ clanMembers, totalMembers, onPlayerSearch, clanMem
           isOpen={graphModal.isOpen}
           onClose={() => setGraphModal({ isOpen: false, playerId: null })}
           playerId={graphModal.playerId}
+          isClubView={true}
+          globalLeaderboard={validMembers}
+          onSwitchToGlobal={() => handleSwitchToGlobal(graphModal.playerId)}
         />
       )}
     </div>

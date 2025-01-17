@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { X } from 'lucide-react';
+import { X, Plus, Search } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -16,7 +16,7 @@ import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import 'chartjs-adapter-date-fns';
 import { fetchPlayerGraphData } from '../services/gp-api';
-import { PlayerGraphModalProps } from '../types/propTypes';
+import { PlayerGraphModalProps, ComparePlayerSearchProps } from '../types/propTypes';
 
 ChartJS.register(
   CategoryScale,
@@ -100,25 +100,96 @@ const TIME_RANGES = {
   'MAX': Infinity
 };
 
+const COMPARISON_COLORS = [
+  'rgba(255, 159, 64, 0.8)',  // Orange
+  'rgba(75, 192, 192, 0.8)',  // Teal
+  'rgba(153, 102, 255, 0.8)', // Purple
+  'rgba(255, 99, 132, 0.8)',  // Pink
+  'rgba(54, 162, 235, 0.8)'   // Blue
+];
+
 // Constants for time intervals - moved outside component
 const MINUTES_15 = 15 * 60 * 1000;
 const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 const TWO_HOURS = 2 * 60 * 60 * 1000;
 const CACHE_DURATION = 5 * 60 * 1000; // cache for reopenning modal
+const MAX_COMPARISONS = 5;
 
-const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
+const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClose, comparisonData }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredPlayers, setFilteredPlayers] = useState([]);
+
+  useEffect(() => {
+    const filtered = globalLeaderboard
+      .filter(player => 
+        player.name !== mainPlayerId && 
+        !Array.from(comparisonData.keys()).includes(player.name) &&
+        (player.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+         (player.clubTag && `[${player.clubTag}]`.toLowerCase().includes(searchTerm.toLowerCase())))
+      )
+      .slice(0, 50);
+    setFilteredPlayers(filtered);
+  }, [searchTerm, mainPlayerId, globalLeaderboard, comparisonData]);
+
+  return (
+    <div className="absolute right-0 top-12 w-96 bg-gray-800 rounded-lg shadow-lg p-4 z-50">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold text-white">Add Player to Compare</h3>
+        <button onClick={onClose} className="text-gray-400 hover:text-white">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+      
+      <div className="relative mb-4">
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search players..."
+          className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+          autoFocus
+        />
+        <Search className="absolute right-3 top-2.5 h-5 w-5 text-gray-400" />
+      </div>
+
+      <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
+        {filteredPlayers.map((player) => (
+          <div
+            key={player.name}
+            className="flex items-center justify-between p-2 hover:bg-gray-700 rounded-lg cursor-pointer"
+            onClick={() => onSelect(player)}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400">#{player.rank}</span>
+              <span className="text-white">
+                {player.clubTag ? `[${player.clubTag}] ` : ''}{player.name}
+              </span>
+            </div>
+            <Plus className="w-5 h-5 text-gray-400 hover:text-white" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globalLeaderboard = [], onSwitchToGlobal }) => {
   const [data, setData] = useState(null);
+  const [comparisonData, setComparisonData] = useState(new Map());
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedTimeRange, setSelectedTimeRange] = useState('24H');
   const [viewWindow, setViewWindow] = useState(null);
+  const [showCompareSearch, setShowCompareSearch] = useState(false);
   const modalRef = useRef(null);
   const chartRef = useRef(null);
   const dataCache = useRef(null);
+  const [showCompareHint, setShowCompareHint] = useState(true);
 
   // Reset state when modal is opened with new player
   useEffect(() => {
     if (isOpen) {
+      setShowCompareHint(true);
       setSelectedTimeRange('24H');
       if (dataCache.current?.playerId !== playerId) {
         dataCache.current = null;
@@ -129,31 +200,60 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     }
   }, [isOpen, playerId]);
 
+  // Temporary hint shown when comparison feature has been added
+  useEffect(() => {
+    if (showCompareHint) {
+      const timer = setTimeout(() => {
+        setShowCompareHint(false);
+      }, 4000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [showCompareHint]);
+
   const externalTooltipHandler = useCallback((context) => {
     const { chart, tooltip } = context;
     const tooltipEl = getOrCreateTooltip(chart);
-
+  
     if (tooltip.opacity === 0) {
       tooltipEl.style.opacity = 0;
       return;
     }
-
+  
     // Set Text
     if (tooltip.body) {
       const titleLines = tooltip.title || [];
       const bodyLines = tooltip.body.map(b => b.lines);
       const score = parseInt(bodyLines[0][0].split(': ')[1].replace(/,/g, ''));
       const rank = getRankFromScore(score);
+      const datasetIndex = tooltip.dataPoints[0].datasetIndex;
       const dataPoint = tooltip.dataPoints[0].raw.raw;
       
       const tableRoot = tooltipEl.querySelector('table');
-
+  
       // Clear previous tooltip content
       while (tableRoot.firstChild) {
         tableRoot.firstChild.remove();
       }
-
-      // Add title
+  
+      // Add player name if in comparison mode (more than one dataset)
+      if (chart.data.datasets.length > 1) {
+        const playerNameRow = document.createElement('tr');
+        playerNameRow.style.borderWidth = 0;
+        const playerNameCell = document.createElement('th');
+        playerNameCell.style.borderWidth = 0;
+        playerNameCell.style.color = '#ffffff';
+        playerNameCell.style.fontSize = '14px';
+        playerNameCell.style.fontWeight = 'bold';
+        playerNameCell.style.paddingTop = '-20px';
+        const playerName = chart.data.datasets[datasetIndex].label.trim();
+        const playerText = document.createTextNode(playerName);
+        playerNameCell.appendChild(playerText);
+        playerNameRow.appendChild(playerNameCell);
+        tableRoot.appendChild(playerNameRow);
+      }
+  
+      // Add title (timestamp)
       const headerRow = document.createElement('tr');
       headerRow.style.borderWidth = 0;
       const headerCell = document.createElement('th');
@@ -164,7 +264,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       headerCell.appendChild(headerText);
       headerRow.appendChild(headerCell);
       tableRoot.appendChild(headerRow);
-
+  
       // Add score
       const scoreRow = document.createElement('tr');
       scoreRow.style.borderWidth = 0;
@@ -178,9 +278,12 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       scoreContainer.appendChild(document.createTextNode(`Score: ${score.toLocaleString()}`));
       
       if (!dataPoint.isInterpolated && !dataPoint.isExtrapolated) {
-        const dataIndex = data.findIndex(d => d.timestamp.getTime() === dataPoint.timestamp.getTime());
+        // Get the correct dataset based on the datasetIndex
+        const dataset = datasetIndex === 0 ? data : Array.from(comparisonData.values())[datasetIndex - 1].data;
+        const dataIndex = dataset.findIndex(d => d.timestamp.getTime() === dataPoint.timestamp.getTime());
+        
         if (dataIndex > 0) {
-          const previousScore = data[dataIndex - 1].rankScore;
+          const previousScore = dataset[dataIndex - 1].rankScore;
           const scoreChange = score - previousScore;
           const scoreChangeText = document.createElement('span');
           scoreChangeText.style.marginLeft = '4px';
@@ -194,7 +297,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       scoreCell.appendChild(scoreContainer);
       scoreRow.appendChild(scoreCell);
       tableRoot.appendChild(scoreRow);
-
+  
       // Add rank label
       const rankRow = document.createElement('tr');
       rankRow.style.borderWidth = 0;
@@ -212,9 +315,12 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       
       // Add rank change arrow if needed
       if (!dataPoint.isInterpolated && !dataPoint.isExtrapolated) {
-        const dataIndex = data.findIndex(d => d.timestamp.getTime() === dataPoint.timestamp.getTime());
+        // Get the correct dataset based on the datasetIndex
+        const dataset = datasetIndex === 0 ? data : Array.from(comparisonData.values())[datasetIndex - 1].data;
+        const dataIndex = dataset.findIndex(d => d.timestamp.getTime() === dataPoint.timestamp.getTime());
+        
         if (dataIndex > 0) {
-          const previousScore = data[dataIndex - 1].rankScore;
+          const previousScore = dataset[dataIndex - 1].rankScore;
           const previousRank = getRankFromScore(previousScore);
           const rankIndex = RANKS.findIndex(r => r.label === rank.label);
           const previousRankIndex = RANKS.findIndex(r => r.label === previousRank.label);
@@ -243,7 +349,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
           }
         }
       }
-
+  
       // Rank label
       rankContainer.appendChild(document.createTextNode(rank.label));
       
@@ -266,16 +372,16 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       rankRow.appendChild(rankCell);
       tableRoot.appendChild(rankRow);
     }
-
+  
     const { offsetLeft: positionX, offsetTop: positionY } = chart.canvas;
-
+  
     // Display, position, and set styles for tooltip
     tooltipEl.style.opacity = 1;
     tooltipEl.style.left = positionX + tooltip.caretX + 'px';
     tooltipEl.style.top = positionY + tooltip.caretY + 'px';
     tooltipEl.style.font = tooltip.options.bodyFont.string;
     tooltipEl.style.boxShadow = '0 2px 12px 0 rgba(0,0,0,0.4)';
-  }, [data]);
+  }, [data, comparisonData]);
 
   const calculateViewWindow = useCallback((data, range) => {
     if (!data?.length) return null;
@@ -349,41 +455,129 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     return interpolatedData;
   }, []);
 
+  // Now we can define loadComparisonData after interpolateDataPoints
+  const loadComparisonData = useCallback(async (comparePlayerId) => {
+    try {
+      const result = await fetchPlayerGraphData(comparePlayerId);
+      if (!result.data?.length) return null;
+      
+      const parsedData = result.data.map(item => ({
+        ...item,
+        timestamp: new Date(item.timestamp)
+      }));
+      
+      const interpolatedData = interpolateDataPoints(parsedData);
+      return interpolatedData;
+    } catch (error) {
+      console.error(`Failed to load comparison data for ${comparePlayerId}:`, error);
+      return null;
+    }
+  }, [interpolateDataPoints]);
+
+  const handleAddComparison = useCallback(async (player) => {
+    if (comparisonData.size >= MAX_COMPARISONS) {
+      return;
+    }
+    const newData = await loadComparisonData(player.name);
+    if (newData) {
+      setComparisonData(prev => {
+        const colorIndex = prev.size;
+        return new Map(prev).set(player.name, {
+          data: newData,
+          color: COMPARISON_COLORS[colorIndex]
+        });
+      });
+    }
+    setShowCompareSearch(false);
+  }, [loadComparisonData, comparisonData]);
+
+  const removeComparison = useCallback((playerId) => {
+    setComparisonData(prev => {
+      const next = new Map(prev);
+      next.delete(playerId);
+      return next;
+    });
+  }, []);
+
   const getDynamicYAxisDomain = useCallback((dataMin, dataMax, data, timeWindow, customTimeRange = null) => {
     if (!data?.length) return [0, 50000];
     
-    let visibleData;
-    if (customTimeRange) {
-      // For zoom/pan operations, use the custom time range
-      visibleData = data.filter(d => 
-        d.timestamp >= customTimeRange.min && 
-        d.timestamp <= customTimeRange.max
-      );
-    } else {
-      // For predefined time windows (24H, 7D, MAX)
-      const now = new Date();
-      const windowStart = new Date(now - TIME_RANGES[timeWindow]);
-      visibleData = timeWindow === 'MAX' 
-        ? data 
-        : data.filter(d => d.timestamp >= windowStart);
-    }
+    // Helper function to filter data points within time range and find nearest points
+    const getVisibleAndNearestData = (dataset) => {
+      if (customTimeRange) {
+        // Get points within the range for zoom/pan operation
+        const visiblePoints = dataset.filter(d => 
+          d.timestamp >= customTimeRange.min && 
+          d.timestamp <= customTimeRange.max
+        );
   
-    // If no data points in visible range, use the last known score before the visible range
-    if (!visibleData.length) {
+        // If no points in range, find nearest points before and after
+        if (visiblePoints.length === 0) {
+          const lastPointBefore = dataset.reduce((nearest, point) => {
+            if (point.timestamp < customTimeRange.min && 
+                (!nearest || point.timestamp > nearest.timestamp)) {
+              return point;
+            }
+            return nearest;
+          }, null);
+  
+          const firstPointAfter = dataset.reduce((nearest, point) => {
+            if (point.timestamp > customTimeRange.max && 
+                (!nearest || point.timestamp < nearest.timestamp)) {
+              return point;
+            }
+            return nearest;
+          }, null);
+  
+          return [lastPointBefore, firstPointAfter].filter(Boolean);
+        }
+  
+        return visiblePoints;
+      } else {
+        // For predefined time windows (24H, 7D, MAX)
+        const now = new Date();
+        const windowStart = new Date(now - TIME_RANGES[timeWindow]);
+        return timeWindow === 'MAX' 
+          ? dataset 
+          : dataset.filter(d => d.timestamp >= windowStart);
+      }
+    };
+  
+    // Get visible data points for main player
+    let visibleData = getVisibleAndNearestData(data);
+    
+    // Get visible data points for comparison players
+    const comparisonVisibleData = Array.from(comparisonData.values())
+      .flatMap(({ data: compareData }) => getVisibleAndNearestData(compareData));
+    
+    // Combine all visible data points
+    const allVisibleData = [...visibleData, ...comparisonVisibleData];
+    
+    // If no data points in visible range
+    if (!allVisibleData.length) {
       let lastKnownScore;
-      const rangeStart = customTimeRange?.min || (timeWindow === 'MAX' ? data[0].timestamp : new Date(new Date() - TIME_RANGES[timeWindow]));
+      const rangeStart = customTimeRange?.min || 
+        (timeWindow === 'MAX' ? data[0].timestamp : new Date(new Date() - TIME_RANGES[timeWindow]));
       
-      // Find the last score before the visible range
-      for (let i = data.length - 1; i >= 0; i--) {
-        if (data[i].timestamp <= rangeStart) {
-          lastKnownScore = data[i].rankScore;
-          break;
+      // Find the last score before the visible range across all datasets
+      const allDatasets = [data, ...Array.from(comparisonData.values()).map(c => c.data)];
+      for (const dataset of allDatasets) {
+        for (let i = dataset.length - 1; i >= 0; i--) {
+          if (dataset[i].timestamp <= rangeStart) {
+            if (!lastKnownScore || dataset[i].rankScore > lastKnownScore) {
+              lastKnownScore = dataset[i].rankScore;
+            }
+            break;
+          }
         }
       }
       
       // If no previous score found, use the first available score
       if (lastKnownScore === undefined) {
-        lastKnownScore = data[0].rankScore;
+        lastKnownScore = Math.max(
+          data[0].rankScore,
+          ...Array.from(comparisonData.values()).map(c => c.data[0].rankScore)
+        );
       }
   
       // Create a buffer of 10% above and below the last known score
@@ -394,10 +588,11 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
       ];
     }
     
-    // If min and max are the same (single point or all same values)
-    const minScore = Math.min(...visibleData.map(d => d.rankScore));
-    const maxScore = Math.max(...visibleData.map(d => d.rankScore));
+    // Calculate min and max across all visible data points
+    const minScore = Math.min(...allVisibleData.map(d => d.rankScore));
+    const maxScore = Math.max(...allVisibleData.map(d => d.rankScore));
     
+    // If min and max are the same
     if (minScore === maxScore) {
       const buffer = Math.round(minScore * 0.1);
       return [
@@ -409,7 +604,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
     // Normal case with multiple different points
     const padding = Math.round((maxScore - minScore) * 0.10);
     return [Math.max(0, minScore - padding), maxScore + padding];
-  }, []);
+  }, [comparisonData]);
 
 
   const getHighlightedPeriodAnnotation = useCallback((customTimeRange = null) => {
@@ -428,26 +623,39 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
         (startTime > max)) {
       return null;
     }
-
-    // Find if there are any data points within the extended period
-    const hasDataPoints = data.some(point => {
-      const timestamp = point.timestamp;
-      return timestamp >= startTime && timestamp <= endTime;
-    });
+  
+    // Check for data points in both main dataset and comparison datasets
+    const hasDataPoints = (() => {
+      // Check main dataset if it exists
+      if (data?.some(point => {
+        const timestamp = point.timestamp;
+        return timestamp >= startTime && timestamp <= endTime;
+      })) {
+        return true;
+      }
+  
+      // Check comparison datasets
+      return Array.from(comparisonData.values()).some(({ data: compareData }) => 
+        compareData.some(point => {
+          const timestamp = point.timestamp;
+          return timestamp >= startTime && timestamp <= endTime;
+        })
+      );
+    })();
     
-    // Don't show the highlight if there are no nearby data points
+    // Don't show the highlight if there are no nearby data points in any dataset
     if (!hasDataPoints) {
       return null;
     }
-
+  
     // Calculate the width of the highlighted period in the current view
     const totalViewDuration = max - min;
     const highlightDuration = endTime - startTime;
     const highlightWidthRatio = highlightDuration / totalViewDuration;
-
+  
     // Show label if the highlighted period takes up more than 10% of the visible area
     const showLabel = highlightWidthRatio > 0.1;
-
+  
     return {
       type: 'box',
       xMin: startTime,
@@ -473,7 +681,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
         }
       }
     };
-  }, [data, viewWindow?.max, viewWindow?.min]);
+  }, [data, comparisonData, viewWindow?.max, viewWindow?.min]);
 
   const getRankAnnotations = useCallback((customTimeRange = null) => {
     if (!data) return [];
@@ -860,24 +1068,74 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
         return 3;
       },
       tension: 0.01
-    }]
-  } : null, [data, playerId]);
+    },
+    ...Array.from(comparisonData.entries()).map(([compareId, { data: compareData, color }]) => ({
+      label: ` ${compareId}`,
+      data: compareData.map(d => ({
+        x: d.timestamp,
+        y: d.rankScore,
+        raw: d
+      })),
+      borderColor: color,
+      backgroundColor: color,
+      pointBackgroundColor: color,
+      pointBorderColor: color,
+      pointRadius: 2,
+      borderWidth: 2,
+      tension: 0.01
+    }))]
+  } : null, [data, playerId, comparisonData]);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div ref={modalRef} className="bg-[#1a1f2e] rounded-lg p-6 w-full max-w-6xl max-h-[90vh] overflow-hidden">
+      <div ref={modalRef} className="bg-[#1a1f2e] rounded-lg p-6 w-full max-w-[80vw] max-h-[95vh] overflow-hidden">
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h2 className="text-xl font-bold text-white">{playerId} - Rank History</h2>
+            <h2 className="text-xl font-bold text-white">{playerId} - Graph</h2>
             {data && (
               <p className="text-sm text-gray-400 mt-1">
-                Data from {data[0].timestamp.toLocaleDateString()} to {new Date().toLocaleDateString()}
+                Data available from {data[0].timestamp.toLocaleDateString('en-GB')} to {new Date().toLocaleDateString('en-GB')}
               </p>
             )}
           </div>
-          <div className="flex gap-2 items-center">
+          {isClubView && (
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-blue-400">
+                      Comparing available with club members only
+                    </p>
+                    <button
+                      onClick={() => {
+                        onClose();
+                        onSwitchToGlobal(playerId);
+                      }}
+                      className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-full transition-colors"
+                    >
+                      Switch to Global View
+                    </button>
+                  </div>
+                )}
+          <div className="flex gap-2 items-center relative">
+            {comparisonData.size < MAX_COMPARISONS && (
+            <div className="relative">
+              <button 
+                onClick={() => setShowCompareSearch(true)}
+                className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative transition-all duration-200 group"
+                title="Compare with another player"
+              >
+                <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
+                {showCompareHint && (
+                  <div className="absolute -top-2 -right-2 w-5 h-5 bg-blue-500 rounded-full animate-pulse" />
+                )}
+              </button>
+              {showCompareHint && (
+                <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-gray-800 text-white text-xs py-1 px-2 rounded fade-out">
+                  Try comparing players!
+                </div>
+              )}
+            </div>
+            )}
             <div className="flex gap-2 bg-gray-800 rounded-lg p-1">
               {Object.keys(TIME_RANGES).map((range) => (
                 <button
@@ -899,10 +1157,39 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
             >
               <X className="w-5 h-5 text-gray-400" />
             </button>
+            
+            {showCompareSearch && (
+            <ComparePlayerSearch
+              onSelect={handleAddComparison}
+              mainPlayerId={playerId}
+              globalLeaderboard={globalLeaderboard}
+              comparisonData={comparisonData}
+              onClose={() => setShowCompareSearch(false)}
+            />
+          )}
           </div>
         </div>
-  
-        <div className="h-[600px] w-full">
+
+        {comparisonData.size > 0 && (
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {Array.from(comparisonData.entries()).map(([compareId, { color }]) => (
+              <div 
+                key={compareId}
+                className="flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1"
+              >
+                <span className="text-sm" style={{ color: color }}>{compareId}</span>
+                <button
+                  onClick={() => removeComparison(compareId)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="h-[calc(85vh-140px)] w-full">
           {loading ? (
             <div className="flex items-center justify-center h-full text-gray-400">Loading...</div>
           ) : error ? (
@@ -917,5 +1204,6 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId }) => {
 };
 
 PlayerGraphModal.propTypes = PlayerGraphModalProps;
+ComparePlayerSearch.propTypes = ComparePlayerSearchProps;
 
 export default PlayerGraphModal;
