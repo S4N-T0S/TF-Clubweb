@@ -18,14 +18,22 @@ export const DashboardHeader = ({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-bold mb-2 text-white">OG Club Dashboard</h1>
-          <p className={`text-xl font-semibold ${isTopClan ? 'text-green-400' : 'text-red-400'}`}>
-            {isTopClan ? 'OG is on top! 🏆' : 'OG is not on top :('}
+          {isTopClan && (
+          <p className="text-xl font-semibold text-green-400">
+            OG is on top! 🏆
           </p>
-          {view === 'members' && unknownMembers.length > 0 && (
-            <p className="text-yellow-400 text-sm mt-2">
-              {unknownMembers.length} member(s) in top 10k not found in clublist.
-            </p>
           )}
+          {view === 'members' && unknownMembers && unknownMembers.length > 0 ? (
+            unknownMembers.length < 10 ? (
+              <p className="text-yellow-400 text-sm mt-2">
+                {unknownMembers.length} member(s) in top 10k not found in clublist.
+              </p>
+            ) : unknownMembers.length > 10 ? (
+              <p className="text-red-400 text-sm mt-2">
+                Failed to load an asset, refreshing the page will likely fix this.
+              </p>
+            ) : null
+          ) : null }
         </div>
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full sm:w-auto">
           <ViewButton
