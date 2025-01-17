@@ -554,6 +554,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
     
     // Get visible data points for comparison players if their datasets are visible
     const comparisonVisibleData = Array.from(comparisonData.entries())
+      // eslint-disable-next-line no-unused-vars
       .map(([_, { data: compareData }], index) => {
         if (!chart || chart.getDatasetMeta(index + 1).visible !== false) {
           return getVisibleAndNearestData(compareData);
@@ -576,6 +577,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
         chart?.getDatasetMeta(0).visible !== false ? data : [],
         ...Array.from(comparisonData.entries())
           .filter((_, index) => chart?.getDatasetMeta(index + 1).visible !== false)
+          // eslint-disable-next-line no-unused-vars
           .map(([_, { data: compareData }]) => compareData)
       ];
   
@@ -596,6 +598,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
           chart?.getDatasetMeta(0).visible !== false ? data[0].rankScore : -Infinity,
           ...Array.from(comparisonData.entries())
             .filter((_, index) => chart?.getDatasetMeta(index + 1).visible !== false)
+            // eslint-disable-next-line no-unused-vars
             .map(([_, { data: compareData }]) => compareData[0].rankScore)
         ].filter(score => score !== -Infinity);
   

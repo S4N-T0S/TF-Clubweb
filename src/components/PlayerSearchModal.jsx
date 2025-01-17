@@ -45,7 +45,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
         results,
         isSearching: false
       }));
-    } catch (err) {
+    } catch {
       setSearchState(prev => ({
         ...prev,
         error: 'Failed to search player history',
