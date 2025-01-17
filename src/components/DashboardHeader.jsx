@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, Trophy, StarsIcon, RefreshCw, Search } from 'lucide-react';
+import { Users, Trophy, Globe, RefreshCw, FileSearch } from 'lucide-react';
 import PlayerSearchModal from './PlayerSearchModal';
 import { DashboardHeaderProps, ViewButtonProps } from '../types/propTypes';
 
@@ -51,7 +51,7 @@ export const DashboardHeader = ({
           <ViewButton
             active={view === 'global'}
             onClick={() => setView('global')}
-            icon={<StarsIcon className="w-4 h-4" />}
+            icon={<Globe className="w-4 h-4" />}
             text="Global"
           />
           <button
@@ -59,7 +59,7 @@ export const DashboardHeader = ({
             className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 
               bg-gray-700 text-gray-300 hover:bg-gray-600 w-full sm:w-auto"
           >
-            <Search className="w-4 h-4" />
+            <FileSearch className="w-4 h-4" />
           </button>
           <button
             onClick={onRefresh}

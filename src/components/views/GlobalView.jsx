@@ -1,4 +1,4 @@
-import { ChevronUp, ChevronDown, Search, LineChart } from 'lucide-react';
+import { ChevronUp, ChevronDown, UserSearch, LineChart } from 'lucide-react';
 import { usePagination } from '../../hooks/usePagination';
 import { SearchBar } from '../SearchBar';
 import { LeagueDisplay } from '../LeagueDisplay';
@@ -112,7 +112,7 @@ export const GlobalView = ({
                   ) : (
                     <span className="text-gray-300">{player.name}</span>
                   )}
-                  <Search 
+                  <UserSearch 
                     className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer" 
                     onClick={() => onPlayerSearch(player.name)}
                   />

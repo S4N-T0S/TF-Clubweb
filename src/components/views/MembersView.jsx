@@ -1,4 +1,4 @@
-import { Check, X, Search, LineChart } from 'lucide-react';
+import { Check, X, UserSearch, LineChart } from 'lucide-react';
 import { LeagueDisplay } from '../LeagueDisplay';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
@@ -39,7 +39,7 @@ const MemberRow = ({ member, onSearchClick, onGraphClick, clanMembersData }) => 
           <span className={member.notInLeaderboard ? 'text-red-400' : 'text-gray-300'}>
             {member.name}
           </span>
-          <Search 
+          <UserSearch 
             className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer" 
             onClick={() => onSearchClick(member.name)}
           />
