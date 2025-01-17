@@ -42,7 +42,7 @@ const Toast = ({ message, type, onClose, timestamp, ttl }) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose();
-    }, 4000);
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, [onClose]);

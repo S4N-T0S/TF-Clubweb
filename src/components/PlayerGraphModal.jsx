@@ -186,6 +186,19 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
   const dataCache = useRef(null);
   const [showCompareHint, setShowCompareHint] = useState(true);
 
+  // Add useEffect for managing body scroll
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   // Reset state when modal is opened with new player
   useEffect(() => {
     if (isOpen) {
