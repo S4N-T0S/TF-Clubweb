@@ -543,24 +543,42 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
       }
     };
   
-    // Get visible data points for main player
-    let visibleData = getVisibleAndNearestData(data);
+    // Get chart instance to check dataset visibility
+    const chart = chartRef.current;
     
-    // Get visible data points for comparison players
-    const comparisonVisibleData = Array.from(comparisonData.values())
-      .flatMap(({ data: compareData }) => getVisibleAndNearestData(compareData));
+    // Get visible data points for main player if dataset is visible
+    let visibleData = [];
+    if (!chart || chart.getDatasetMeta(0).visible !== false) {
+      visibleData = getVisibleAndNearestData(data);
+    }
+    
+    // Get visible data points for comparison players if their datasets are visible
+    const comparisonVisibleData = Array.from(comparisonData.entries())
+      .map(([_, { data: compareData }], index) => {
+        if (!chart || chart.getDatasetMeta(index + 1).visible !== false) {
+          return getVisibleAndNearestData(compareData);
+        }
+        return [];
+      })
+      .flat();
     
     // Combine all visible data points
     const allVisibleData = [...visibleData, ...comparisonVisibleData];
     
-    // If no data points in visible range
+    // If no visible data points in range
     if (!allVisibleData.length) {
       let lastKnownScore;
       const rangeStart = customTimeRange?.min || 
         (timeWindow === 'MAX' ? data[0].timestamp : new Date(new Date() - TIME_RANGES[timeWindow]));
       
-      // Find the last score before the visible range across all datasets
-      const allDatasets = [data, ...Array.from(comparisonData.values()).map(c => c.data)];
+      // Find the last score before the visible range across all visible datasets
+      const allDatasets = [
+        chart?.getDatasetMeta(0).visible !== false ? data : [],
+        ...Array.from(comparisonData.entries())
+          .filter((_, index) => chart?.getDatasetMeta(index + 1).visible !== false)
+          .map(([_, { data: compareData }]) => compareData)
+      ];
+  
       for (const dataset of allDatasets) {
         for (let i = dataset.length - 1; i >= 0; i--) {
           if (dataset[i].timestamp <= rangeStart) {
@@ -572,12 +590,16 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
         }
       }
       
-      // If no previous score found, use the first available score
+      // If no previous score found, use the first available score from visible datasets
       if (lastKnownScore === undefined) {
-        lastKnownScore = Math.max(
-          data[0].rankScore,
-          ...Array.from(comparisonData.values()).map(c => c.data[0].rankScore)
-        );
+        const visibleScores = [
+          chart?.getDatasetMeta(0).visible !== false ? data[0].rankScore : -Infinity,
+          ...Array.from(comparisonData.entries())
+            .filter((_, index) => chart?.getDatasetMeta(index + 1).visible !== false)
+            .map(([_, { data: compareData }]) => compareData[0].rankScore)
+        ].filter(score => score !== -Infinity);
+  
+        lastKnownScore = Math.max(...visibleScores);
       }
   
       // Create a buffer of 10% above and below the last known score
@@ -604,7 +626,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
     // Normal case with multiple different points
     const padding = Math.round((maxScore - minScore) * 0.10);
     return [Math.max(0, minScore - padding), maxScore + padding];
-  }, [comparisonData]);
+  }, [comparisonData, chartRef]);  
 
 
   const getHighlightedPeriodAnnotation = useCallback((customTimeRange = null) => {
@@ -992,6 +1014,35 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
         position: 'nearest'
       },
       legend: {
+        onClick: (evt, item, legend) => {
+          // Call the default legend click handler using the Chart import
+          const chart = chartRef.current;
+          if (!chart) return;
+          
+          // Use Chart.defaults for the default behavior
+          ChartJS.defaults.plugins.legend.onClick(evt, item, legend);
+          
+          // Wait for next tick to ensure dataset visibility is updated
+          setTimeout(() => {
+            // Recalculate Y axis domain based on visible datasets
+            const [newMin, newMax] = getDynamicYAxisDomain(
+              Math.min(...data.map(d => d.rankScore)),
+              Math.max(...data.map(d => d.rankScore)),
+              data,
+              selectedTimeRange
+            );
+            
+            // Update the chart's Y axis
+            chart.options.scales.y.min = newMin;
+            chart.options.scales.y.max = newMax;
+            
+            // Update rank annotations
+            chart.options.plugins.annotation.annotations = getRankAnnotations();
+            
+            // Update the chart
+            chart.update();
+          }, 0);
+        },
         labels: {
           color: '#ffffff',
           boxWidth: 15,
