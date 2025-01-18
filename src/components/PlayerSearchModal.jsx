@@ -185,14 +185,14 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
         className="bg-gray-800 rounded-lg p-6 w-2/3 h-[80vh] m-4 flex flex-col"
       >
         <div className="flex-shrink-0">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-white">Player History Search</h2>
+          <div className="flex items-center mb-4 relative">
             <button 
               onClick={onClose}
-              className="sm:hidden p-2 hover:bg-gray-700 rounded-lg"
+              className="sm:hidden absolute right-0 p-2 hover:bg-gray-700 rounded-lg"
             >
               <X className="w-5 h-5 text-gray-400" />
             </button>
+            <h2 className="text-xl font-bold text-white w-full text-center">Player History Search</h2>
           </div>
 
           <div className="mb-4 p-4 bg-gray-700 rounded-lg text-gray-300">
