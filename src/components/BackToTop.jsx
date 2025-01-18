@@ -1,36 +1,74 @@
 import { ArrowUp } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 export const BackToTop = () => {
   const [isVisible, setIsVisible] = useState(false);
 
-  useEffect(() => {
-    const toggleVisibility = () => {
-      if (window.pageYOffset > 300) {
+  // Cross-browser way to get scroll position
+  const getScrollPosition = () => {
+    return Math.max(
+      window.pageYOffset,
+      document.documentElement.scrollTop,
+      document.body.scrollTop
+    );
+  };
+
+  // Throttle function to limit scroll event handling
+  const throttle = (func, limit) => {
+    let inThrottle;
+    return function(...args) {
+      if (!inThrottle) {
+        func.apply(this, args);
+        inThrottle = true;
+        setTimeout(() => (inThrottle = false), limit);
+      }
+    };
+  };
+
+  const handleScroll = useCallback(
+    throttle(() => {
+      if (getScrollPosition() > 300) {
         setIsVisible(true);
       } else {
         setIsVisible(false);
       }
-    };
+    }, 100),
+    []
+  );
 
-    window.addEventListener('scroll', toggleVisibility);
-    return () => window.removeEventListener('scroll', toggleVisibility);
-  }, []);
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
 
   const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    });
+    // Try smooth scroll with fallback
+    if ('scrollBehavior' in document.documentElement.style) {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    } else {
+      // Fallback for browsers that don't support smooth scrolling
+      const scrollStep = -window.scrollY / (500 / 15); // 500ms duration
+      const scrollInterval = setInterval(() => {
+        if (window.scrollY !== 0) {
+          window.scrollBy(0, scrollStep);
+        } else {
+          clearInterval(scrollInterval);
+        }
+      }, 15);
+    }
   };
 
   return (
     <button
-      className={`fixed bottom-4 right-4 bg-blue-600 text-white p-3 rounded-full shadow-lg transition-opacity duration-200 sm:hover:bg-blue-700 z-40 ${
+      className={`fixed bottom-4 right-4 bg-blue-600 text-white p-3 rounded-full shadow-lg transition-opacity duration-200 hover:bg-blue-700 z-40 ${
         isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
       }`}
       onClick={scrollToTop}
       aria-label="Back to top"
+      style={{ visibility: isVisible ? 'visible' : 'hidden' }}
     >
       <ArrowUp className="w-6 h-6" />
     </button>
