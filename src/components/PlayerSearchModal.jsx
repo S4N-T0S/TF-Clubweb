@@ -201,16 +201,32 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
 
           <div className="relative mb-4">
             <div className="flex gap-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={searchState.query}
-                onChange={handleInputChange}
-                onKeyPress={handleKeyPress}
-                placeholder="Enter Embark ID (e.g. 00#0000)"
-                className={`flex-1 px-4 py-2 bg-gray-700 border rounded-lg text-white
-                  ${searchState.error ? 'border-red-500' : 'border-gray-600 focus:border-blue-500'}`}
-              />
+              <div className="relative flex-1">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={searchState.query}
+                  onChange={handleInputChange}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Enter Embark ID (e.g. 00#0000)"
+                  className={`w-full px-4 py-2 bg-gray-700 border rounded-lg text-white
+                    ${searchState.error ? 'border-red-500' : 'border-gray-600 focus:border-blue-500'}`}
+                />
+                {searchState.suggestions.length > 0 && (
+                  <div className="absolute z-10 w-full bg-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto mt-1">
+                    {searchState.suggestions.map((suggestion, index) => (
+                      <button
+                        key={`${suggestion.name}-${index}`}
+                        onClick={() => handleSuggestionClick(suggestion)}
+                        className="w-full px-4 py-2 text-left hover:bg-gray-600 flex justify-between items-center"
+                      >
+                        <span className="text-white">{suggestion.name}</span>
+                        <span className="text-gray-300">{suggestion.displayRank}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => handleSearch(searchState.query)}
                 disabled={searchState.isSearching}
@@ -220,21 +236,6 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
                 <Search className={`w-5 h-5 ${searchState.isSearching ? 'animate-spin' : ''}`} />
               </button>
             </div>
-
-            {searchState.suggestions.length > 0 && (
-              <div className="absolute z-10 w-full bg-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto mt-1">
-                {searchState.suggestions.map((suggestion, index) => (
-                  <button
-                    key={`${suggestion.name}-${index}`}
-                    onClick={() => handleSuggestionClick(suggestion)}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-600 flex justify-between items-center"
-                  >
-                    <span className="text-white">{suggestion.name}</span>
-                    <span className="text-gray-300">{suggestion.displayRank}</span>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {searchState.error && (
