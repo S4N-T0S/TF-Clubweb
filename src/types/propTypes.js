@@ -86,7 +86,6 @@ export const MemberRowProps = {
 export const ToastProps = {
   message: PropTypes.string.isRequired,
   type: PropTypes.oneOf(['loading', 'success', 'error', 'warning']).isRequired,
-  onClose: PropTypes.func.isRequired,
   timestamp: PropTypes.number,
   ttl: PropTypes.number
 };

@@ -1,3 +1,9 @@
+/*
+This file is highly commented because of how annoying it is to deal with, it was my first time
+working with chart.js so it's not coded in the best way possible, so I need all these comments
+to keep up with it's logic. I'm sorry for the mess.
+*/
+
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { X, Plus, Search } from 'lucide-react';
 import {
@@ -94,12 +100,6 @@ const getOrCreateTooltip = (chart) => {
   return tooltipEl;
 };
 
-const TIME_RANGES = {
-  '24H': 24 * 60 * 60 * 1000,
-  '7D': 7 * 24 * 60 * 60 * 1000,
-  'MAX': Infinity
-};
-
 const COMPARISON_COLORS = [
   'rgba(255, 159, 64, 0.8)',  // Orange
   'rgba(75, 192, 192, 0.8)',  // Teal
@@ -108,11 +108,26 @@ const COMPARISON_COLORS = [
   'rgba(54, 162, 235, 0.8)'   // Blue
 ];
 
-// Constants for time intervals - moved outside component
-const MINUTES_15 = 15 * 60 * 1000;
-const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
-const TWO_HOURS = 2 * 60 * 60 * 1000;
-const CACHE_DURATION = 5 * 60 * 1000; // cache for reopenning modal
+// Consolidate all time-related constants
+const TIME = {
+  MINUTE: 60 * 1000,
+  HOUR: 60 * 60 * 1000,
+  DAY: 24 * 60 * 60 * 1000,
+  WEEK: 7 * 24 * 60 * 60 * 1000
+};
+
+// Misc
+TIME.MINUTES_15 = 15 * TIME.MINUTE; // 15 minutes delay ~ between data points
+TIME.TWO_HOURS = 2 * TIME.HOUR; // supposed to be for view window but I think it's bugged
+TIME.SEVENTY_TWO_HOURS = 72 * TIME.HOUR; // for extrapolation visibility
+TIME.CACHE_DURATION = 5 * TIME.MINUTE;// cache for reopenning modal
+
+// Time ranges for graph view
+TIME.RANGES = {
+  '24H': TIME.DAY,
+  '7D': TIME.WEEK,
+  'MAX': Infinity
+};
 const MAX_COMPARISONS = 5;
 
 const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClose, comparisonData }) => {
@@ -224,8 +239,49 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
     }
   }, [showCompareHint]);
 
+  const getPointRadius = useCallback((ctx) => {
+    if (!ctx.chart) return 3;  // Default size if chart context is not available
+    
+    // Get the current view range in milliseconds
+    const timeRange = ctx.chart.scales.x.max - ctx.chart.scales.x.min;
+    
+    // If this is an interpolated/extrapolated point, hide it (including hover state) when zoomed out past 72 hours
+    if ((ctx.raw?.raw?.isInterpolated || ctx.raw?.raw?.isExtrapolated) && timeRange > TIME.SEVENTY_TWO_HOURS) {
+      return 0;  // This will prevent both the point and its hover state from showing
+    }
+    
+    // Set initial point size based on whether it's interpolated/extrapolated
+    const initialSize = (ctx.raw?.raw?.isInterpolated || ctx.raw?.raw?.isExtrapolated) ? 2.6 : 3;
+    
+    if (timeRange <= TIME.DAY) {
+      // Maximum size when zoomed in a lot
+      return initialSize;
+    } else if (timeRange >= TIME.WEEK) {
+      // Minimum size when zoomed out a lot
+      return initialSize - (initialSize * 2/3);  // Reduces by same proportion as regular points
+    } else {
+      // Linear interpolation between sizes based on zoom level
+      const zoomRatio = (timeRange - TIME.DAY) / (TIME.WEEK - TIME.DAY);
+      return initialSize - ((initialSize * 2/3) * zoomRatio);  // Scale down proportionally
+    }
+  }, []);
+
   const externalTooltipHandler = useCallback((context) => {
     const { chart, tooltip } = context;
+
+    // If the point is interpolated/extrapolated and should be invisible based on zoom level,
+    // don't show the tooltip
+    if (tooltip.dataPoints?.[0]?.raw?.raw) {
+      const timeRange = chart.scales.x.max - chart.scales.x.min;
+      const isHiddenPoint = (tooltip.dataPoints[0].raw.raw.isInterpolated || 
+                            tooltip.dataPoints[0].raw.raw.isExtrapolated) && 
+                            timeRange > TIME.SEVENTY_TWO_HOURS;
+      
+      if (isHiddenPoint) {
+        return;  // Exit early without showing tooltip
+      }
+    }
+
     const tooltipEl = getOrCreateTooltip(chart);
   
     if (tooltip.opacity === 0) {
@@ -400,8 +456,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
     if (!data?.length) return null;
   
     const now = new Date();
-    const endTime = new Date(now + TWO_HOURS);
-    const timeRangeMs = TIME_RANGES[range];
+    const endTime = new Date(now + TIME.TWO_HOURS);
+    const timeRangeMs = TIME.RANGES[range];
     
     if (range === 'MAX') {
       return { min: data[0].timestamp, max: endTime };
@@ -416,7 +472,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
     
     const interpolatedData = [];
     const now = new Date();
-    const sevenDaysAgo = new Date(now - SEVEN_DAYS);
+    const sevenDaysAgo = new Date(now - TIME.WEEK);
     
     // Add extrapolation point at 7 days ago if first data point is more recent
     if (rawData[0].timestamp > sevenDaysAgo) {
@@ -429,7 +485,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
       // Add point just before the first real data point
       interpolatedData.push({
         ...rawData[0],
-        timestamp: new Date(rawData[0].timestamp - MINUTES_15),
+        timestamp: new Date(rawData[0].timestamp - TIME.MINUTES_15),
         isExtrapolated: true
       });
     }
@@ -443,10 +499,10 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
       
       const timeDiff = nextPoint.timestamp - currentPoint.timestamp;
       
-      if (timeDiff > MINUTES_15) {
+      if (timeDiff > TIME.MINUTES_15) {
         interpolatedData.push({
           ...currentPoint,
-          timestamp: new Date(nextPoint.timestamp - MINUTES_15),
+          timestamp: new Date(nextPoint.timestamp - TIME.MINUTES_15),
           isInterpolated: true
         });
       }
@@ -457,7 +513,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
     const lastPoint = rawData[rawData.length - 1];
     const timeToNow = now - lastPoint.timestamp;
     
-    if (timeToNow > MINUTES_15) {
+    if (timeToNow > TIME.MINUTES_15) {
       interpolatedData.push({
         ...lastPoint,
         timestamp: new Date(now),
@@ -549,7 +605,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
       } else {
         // For predefined time windows (24H, 7D, MAX)
         const now = new Date();
-        const windowStart = new Date(now - TIME_RANGES[timeWindow]);
+        const windowStart = new Date(now - TIME.RANGES[timeWindow]);
         return timeWindow === 'MAX' 
           ? dataset 
           : dataset.filter(d => d.timestamp >= windowStart);
@@ -583,7 +639,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
     if (!allVisibleData.length) {
       let lastKnownScore;
       const rangeStart = customTimeRange?.min || 
-        (timeWindow === 'MAX' ? data[0].timestamp : new Date(new Date() - TIME_RANGES[timeWindow]));
+        (timeWindow === 'MAX' ? data[0].timestamp : new Date(new Date() - TIME.RANGES[timeWindow]));
       
       // Find the last score before the visible range across all visible datasets
       const allDatasets = [
@@ -768,7 +824,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
   const loadData = useCallback(async () => {
     if (
       dataCache.current?.playerId === playerId && 
-      Date.now() - dataCache.current.timestamp < CACHE_DURATION
+      Date.now() - dataCache.current.timestamp < TIME.CACHE_DURATION
     ) {
       setData(dataCache.current.data);
       const window = calculateViewWindow(dataCache.current.data, selectedTimeRange);
@@ -949,9 +1005,9 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
       zoom: {
         limits: {
           x: {
-            min: new Date(data[0].timestamp - TWO_HOURS),
-            max: new Date(data[data.length - 1].timestamp + TWO_HOURS),
-            minRange: 5 * 60 * 60 * 1000
+            min: new Date(data[0].timestamp - TIME.TWO_HOURS),
+            max: new Date(data[data.length - 1].timestamp + TIME.TWO_HOURS),
+            minRange: 5 * TIME.HOUR
           }
         },
         pan: {
@@ -963,6 +1019,15 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
               min: ctx.chart.scales.x.min,
               max: ctx.chart.scales.x.max
             };
+
+            // Hide tooltip if it's showing an interpolated/extrapolated point
+            const tooltipEl = ctx.chart.canvas.parentNode.querySelector('div.rank-tooltip');
+            if (tooltipEl) {
+              const currentTimeRange = timeRange.max - timeRange.min;
+              if (currentTimeRange > TIME.SEVENTY_TWO_HOURS) {
+                tooltipEl.style.opacity = 0;
+              }
+            }
 
             const [newMin, newMax] = getDynamicYAxisDomain(
               Math.min(...data.map(d => d.rankScore)),
@@ -998,6 +1063,15 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
               min: ctx.chart.scales.x.min,
               max: ctx.chart.scales.x.max
             };
+
+            // Hide tooltip if it's showing an interpolated/extrapolated point
+            const tooltipEl = ctx.chart.canvas.parentNode.querySelector('div.rank-tooltip');
+            if (tooltipEl) {
+              const currentTimeRange = timeRange.max - timeRange.min;
+              if (currentTimeRange > TIME.SEVENTY_TWO_HOURS) {
+                tooltipEl.style.opacity = 0;
+              }
+            }
 
             const [newMin, newMax] = getDynamicYAxisDomain(
               Math.min(...data.map(d => d.rankScore)),
@@ -1096,7 +1170,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
           const next = ctx.p1.parsed.y;
           return next > curr ? '#10B981' : next < curr ? '#EF4444' : '#FAF9F6';
         },
-        borderWidth: ctx => {
+        borderWidth: ctx => { // this function is currently a placeholder in case needed in future (if updated check comparedata borderwidth too)
           if (!ctx.p0?.raw || !ctx.p1?.raw) return 2;
   
           const curr = ctx.p0.parsed.y;
@@ -1106,7 +1180,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
           const isEqual = curr === next;
           
           if (isExtrapolated) {
-            return 2;  // Thinner line for extrapolated data
+            return 2;   // Thinner line for extrapolated data
           }
           
           if (isInterpolated || isEqual) {
@@ -1129,11 +1203,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
         if (ctx.raw.raw?.isInterpolated) return '#8a8988';
         return '#FAF9F6';
       },
-      pointRadius: ctx => {
-        if (ctx.raw.raw?.isExtrapolated) return 3;
-        if (ctx.raw.raw?.isInterpolated) return 3;
-        return 3;
-      },
+      pointRadius: getPointRadius,
+      pointHoverRadius: ctx => getPointRadius(ctx) * 1.5,
       tension: 0.01
     },
     ...Array.from(comparisonData.entries()).map(([compareId, { data: compareData, color }]) => ({
@@ -1147,11 +1218,12 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
       backgroundColor: color,
       pointBackgroundColor: color,
       pointBorderColor: color,
-      pointRadius: 2,
-      borderWidth: 2,
+      pointRadius: getPointRadius,
+      pointHoverRadius: ctx => getPointRadius(ctx) * 1.5,
+      borderWidth: 2, // if updated, check segment function above
       tension: 0.01
     }))]
-  } : null, [data, playerId, comparisonData]);
+  } : null, [data, playerId, comparisonData, getPointRadius]);
 
   if (!isOpen) return null;
 
@@ -1204,7 +1276,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
             </div>
             )}
             <div className="flex gap-2 bg-gray-800 rounded-lg p-1">
-              {Object.keys(TIME_RANGES).map((range) => (
+              {Object.keys(TIME.RANGES).map((range) => (
                 <button
                   key={range}
                   onClick={() => setSelectedTimeRange(range)}
