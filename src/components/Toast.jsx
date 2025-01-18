@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock, X, Loader2 } from 'lucide-react';
 import { ToastProps } from '../types/propTypes';
 
@@ -38,14 +38,24 @@ const getDataAge = (timestamp) => {
   return Math.floor((Date.now() - timestamp) / 1000);
 };
 
-const Toast = ({ message, type, onClose, timestamp, ttl }) => {
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      onClose();
-    }, 2000);
+const Toast = ({ message, type, timestamp, ttl }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const [currentMessage, setCurrentMessage] = useState(message);
 
-    return () => clearTimeout(timer);
-  }, [onClose]);
+  // Show toast whenever new message arrives
+  useEffect(() => {
+    if (message) {
+      setCurrentMessage(message);
+      setIsVisible(true);
+      
+      // Auto-hide after 2 seconds
+      const timer = setTimeout(() => {
+        setIsVisible(false);
+      }, 2500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
 
   const dataAge = getDataAge(timestamp);
   const isDataTooOld = dataAge > MAX_ACCEPTABLE_AGE;
@@ -73,8 +83,12 @@ const Toast = ({ message, type, onClose, timestamp, ttl }) => {
     }
   };
 
+  if (!currentMessage) return null;
+
   return (
-    <div className="fixed top-4 right-4 z-50 animate-fade-in max-w-[90vw] sm:max-w-md">
+    <div className={`fixed top-4 right-4 z-50 transition-opacity duration-300 ${
+      isVisible ? 'opacity-100' : 'opacity-0'
+    }`}>
       <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 ${getBgColor()}`}>
         {getIcon()}
         
@@ -82,7 +96,7 @@ const Toast = ({ message, type, onClose, timestamp, ttl }) => {
           <p className="text-white font-medium break-words">
             {isDataTooOld && type === 'warning' 
               ? 'Data is significantly outdated' 
-              : message}
+              : currentMessage}
           </p>
           {timestamp && type !== 'loading' && (
             <p className="text-white/80 text-sm">Last updated {formatTimestamp(timestamp)}</p>
@@ -93,7 +107,7 @@ const Toast = ({ message, type, onClose, timestamp, ttl }) => {
         </div>
 
         <button 
-          onClick={onClose}
+          onClick={() => setIsVisible(false)}
           className="sm:hidden text-white/80 hover:text-white rounded-full hover:bg-white/10 shrink-0"
         >
           <X className="w-5 h-5" />

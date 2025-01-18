@@ -100,7 +100,6 @@ const App = () => {
         <Toast 
           message={toastMessage.message}
           type={toastMessage.type}
-          onClose={() => setToastMessage(null)}
           timestamp={toastMessage.timestamp}
           ttl={toastMessage.ttl}
         />
