@@ -145,7 +145,7 @@ export const MembersView = ({
         </table>
       </div>
       <div className="mt-4 text-sm text-gray-400">
-        <p>Total Members: {totalMembers}/50</p>
+        <p>Total Members: {totalMembers.toLocaleString()}/{(50).toLocaleString()}</p>
       </div>
       <BackToTop />
       
