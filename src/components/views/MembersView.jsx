@@ -32,7 +32,7 @@ const MemberRow = ({ member, onSearchClick, onGraphClick, clanMembersData }) => 
       }`}
     >
       <td className="px-4 py-2 text-gray-300">
-        {member.notInLeaderboard ? '-' : `#${member.rank}`}
+        {member.notInLeaderboard ? '-' : `#${member.rank.toLocaleString()}`}
       </td>
       <td className="px-4 py-2">
         <div className="flex items-center gap-2">
@@ -64,7 +64,7 @@ const MemberRow = ({ member, onSearchClick, onGraphClick, clanMembersData }) => 
       </td>
       <LeagueDisplay 
         league={member.league} 
-        score={member.rankScore} 
+        score={member.rankScore.toLocaleString()} 
         rank={member.rank}
       />
       <td className="px-4 py-2 text-center">

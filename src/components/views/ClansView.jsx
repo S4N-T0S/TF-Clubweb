@@ -56,7 +56,7 @@ export const ClansView = ({ topClans, onClanClick }) => {
                   : 'hover:bg-gray-700'
               }`}
             >
-              <td className="px-4 py-2 text-gray-300">#{clan.originalRank}</td>
+              <td className="px-4 py-2 text-gray-300">#{clan.originalRank.toLocaleString()}</td>
               <td className="px-4 py-2">
                 <span 
                   className="text-gray-300 hover:text-blue-400 cursor-pointer"
@@ -65,7 +65,7 @@ export const ClansView = ({ topClans, onClanClick }) => {
                   [{clan.tag}]
                 </span>
               </td>
-              <td className="px-4 py-2 text-gray-300">{clan.memberCount}</td>
+              <td className="px-4 py-2 text-gray-300">{clan.memberCount.toLocaleString()}</td>
               <td className="px-4 py-2 text-gray-300">{clan.totalScore.toLocaleString()}</td>
             </tr>
           ))}

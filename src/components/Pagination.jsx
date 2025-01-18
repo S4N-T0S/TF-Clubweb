@@ -16,7 +16,7 @@ export const Pagination = ({
   return (
     <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
       <div className="text-sm text-gray-400 text-center sm:text-left">
-        Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} results
+        Showing {(startIndex + 1).toLocaleString()}-{Math.min(endIndex, totalItems).toLocaleString()} of {totalItems.toLocaleString()} results
       </div>
       <div className="flex gap-2 flex-wrap justify-center">
         <button

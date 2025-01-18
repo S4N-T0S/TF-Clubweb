@@ -303,7 +303,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
                   {result.rank && (
                     <div className="flex flex-col items-end gap-1">
                       <span className={`text-gray-300 ${result.isTop500 ? 'border-2 border-red-500 rounded px-2' : ''}`}>
-                        Rank #{result.rank}
+                        Rank #{result.rank.toLocaleString()}
                       </span>
                       {!result.name && (
                         <div className="flex items-center gap-1">

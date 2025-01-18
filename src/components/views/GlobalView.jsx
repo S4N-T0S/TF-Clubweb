@@ -16,7 +16,7 @@ const RankChangeDisplay = ({ change }) => {
   const isPositive = change > 0;
   return (
     <div className={`flex items-center gap-1 ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
-      <span className="text-sm">{Math.abs(change)}</span>
+      <span className="text-sm">{Math.abs(change).toLocaleString()}</span>
       {isPositive ? (
         <ChevronUp className="w-4 h-4" />
       ) : (
@@ -93,7 +93,7 @@ export const GlobalView = ({
         <tbody>
           {currentItems.map((player) => (
             <tr key={player.name} className="border-t border-gray-700 hover:bg-gray-700">
-              <td className="px-4 py-2 text-gray-300">#{player.rank}</td>
+              <td className="px-4 py-2 text-gray-300">#{player.rank.toLocaleString()}</td>
               <td className="px-4 py-2">
                 <RankChangeDisplay change={player.change} />
               </td>
@@ -120,7 +120,7 @@ export const GlobalView = ({
               </td>
               <LeagueDisplay 
                 league={player.league} 
-                score={player.rankScore} 
+                score={player.rankScore.toLocaleString()} 
                 rank={player.rank}
               />
               <td className="px-4 py-2 text-center">

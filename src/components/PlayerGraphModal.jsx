@@ -122,6 +122,15 @@ TIME.TWO_HOURS = 2 * TIME.HOUR; // supposed to be for view window but I think it
 TIME.SEVENTY_TWO_HOURS = 72 * TIME.HOUR; // for extrapolation visibility
 TIME.CACHE_DURATION = 5 * TIME.MINUTE;// cache for reopenning modal
 
+// Time format for tooltips and such.
+TIME.FORMAT = {
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false
+};
+
 // Time ranges for graph view
 TIME.RANGES = {
   '24H': TIME.DAY,
@@ -345,8 +354,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
       scoreCell.style.paddingTop = '4px';
       
       const scoreContainer = document.createElement('div');
-      // Use a standardized number formatting method
-      scoreContainer.appendChild(document.createTextNode(`Score: ${new Intl.NumberFormat('en-GB').format(score)}`));
+      // Use the player's locale now that the regex is updated
+      scoreContainer.appendChild(document.createTextNode(`Score: ${score.toLocaleString()}`));
       
       if (!dataPoint.isInterpolated && !dataPoint.isExtrapolated) {
         const dataset = datasetIndex === 0 ? data : Array.from(comparisonData.values())[datasetIndex - 1].data;
@@ -360,8 +369,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
           scoreChangeText.style.marginLeft = '4px';
           scoreChangeText.style.fontSize = '12px';
           scoreChangeText.style.color = scoreChange > 0 ? '#10B981' : scoreChange < 0 ? '#EF4444' : '#9ca3af';
-          // Format score change consistently
-          scoreChangeText.textContent = `(${scoreChange > 0 ? '+' : ''}${new Intl.NumberFormat('en-GB').format(scoreChange)})`;
+          // Use the player's locale now that the regex is updated
+          scoreChangeText.textContent = `(${scoreChange > 0 ? '+' : ''}${scoreChange.toLocaleString()})`;
           scoreContainer.appendChild(scoreChangeText);
         }
       }
@@ -708,16 +717,20 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
     if (!data?.length) return null;
 
     // RS Adjustment Period 1 S5
-    const startTime = new Date('2025-01-14T14:45:00');
-    const endTime = new Date('2025-01-14T16:30:00');
+    const startTime = Date.UTC(2025, 0, 14, 14, 45, 0); // 2025-01-14T14:45:00Z
+    const endTime = Date.UTC(2025, 0, 14, 16, 30, 0);   // 2025-01-14T16:30:00Z
+    
+    // Create Date objects from UTC timestamps (Time was set wrongly last time not accounting for locale timezone)
+    const startDate = new Date(startTime);
+    const endDate = new Date(endTime);
     
     // Only show the highlight if it's within the visible range
     const min = customTimeRange?.min || viewWindow?.min;
     const max = customTimeRange?.max || viewWindow?.max;
     
     if (!min || !max || 
-        (endTime < min) || 
-        (startTime > max)) {
+        (endDate < min) || 
+        (startDate > max)) {
       return null;
     }
   
@@ -726,7 +739,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
       // Check main dataset if it exists
       if (data?.some(point => {
         const timestamp = point.timestamp;
-        return timestamp >= startTime && timestamp <= endTime;
+        return timestamp >= startDate && timestamp <= endDate;
       })) {
         return true;
       }
@@ -735,7 +748,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
       return Array.from(comparisonData.values()).some(({ data: compareData }) => 
         compareData.some(point => {
           const timestamp = point.timestamp;
-          return timestamp >= startTime && timestamp <= endTime;
+          return timestamp >= startDate && timestamp <= endDate;
         })
       );
     })();
@@ -747,7 +760,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
   
     // Calculate the width of the highlighted period in the current view
     const totalViewDuration = max - min;
-    const highlightDuration = endTime - startTime;
+    const highlightDuration = endDate - startDate;
     const highlightWidthRatio = highlightDuration / totalViewDuration;
   
     // Show label if the highlighted period takes up more than 10% of the visible area
@@ -755,8 +768,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
   
     return {
       type: 'box',
-      xMin: startTime,
-      xMax: endTime,
+      xMin: startDate,
+      xMax: endDate,
       backgroundColor: 'rgba(255, 193, 7, 0.1)',
       borderColor: 'rgba(255, 193, 7, 0.5)',
       borderWidth: 0,
@@ -834,7 +847,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
       setViewWindow(window);
       return;
     }
-
+  
     setLoading(true);
     setError(null);
     try {
@@ -953,12 +966,22 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
             millisecond: 'dd MMM HH:mm',
             second: 'dd MMM HH:mm',
             minute: 'dd MMM HH:mm',
-            hour: 'dd MMM HH:mm',
+            hour: 'd MMM HH:mm',
             day: 'dd MMM',
             week: 'dd MMM',
             month: 'MMM yyyy',
             quarter: 'MMM yyyy',
             year: 'yyyy'
+          },
+          // Ensure Chart.js knows to interpret timestamps as UTC
+          parser: 'yyyy-MM-dd\'T\'HH:mm:ss.SSS\'Z\'',
+          // Display in local timezone
+          tooltipFormat: 'd MMM yyyy HH:mm',
+          unit: 'hour',
+          adapters: {
+            date: {
+              locale: Intl.DateTimeFormat().resolvedOptions().locale
+            }
           }
         },
         grid: {
@@ -971,7 +994,12 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
           autoSkip: true,
           maxTicksLimit: 20,
           padding: 4,
-          align: 'end'
+          align: 'end',
+          callback: function(value) {
+            // The value is already a timestamp in local time
+            const date = new Date(value);
+            return date.toLocaleDateString(undefined, TIME.FORMAT);
+          }
         },
         min: viewWindow?.min,
         max: viewWindow?.max
@@ -1104,7 +1132,14 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
       tooltip: {
         enabled: false,
         external: externalTooltipHandler,
-        position: 'nearest'
+        position: 'nearest',
+        callbacks: {
+          title: (tooltipItems) => {
+            // Format the timestamp in local timezone
+            const date = new Date(tooltipItems[0].raw.x);
+            return date.toLocaleString(undefined, TIME.FORMAT);
+          }
+        }
       },
       legend: {
         onClick: (evt, item, legend) => {
@@ -1238,7 +1273,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
             <h2 className="text-xl font-bold text-white">{playerId} - Graph</h2>
             {data && (
               <p className="text-sm text-gray-400 mt-1">
-                Data available from {data[0].timestamp.toLocaleDateString('en-GB')} to {new Date().toLocaleDateString('en-GB')}
+                Data available from {new Date(data[0].timestamp).toLocaleDateString(undefined, TIME.FORMAT)} to {new Date().toLocaleDateString(undefined, TIME.FORMAT)}
               </p>
             )}
           </div>
