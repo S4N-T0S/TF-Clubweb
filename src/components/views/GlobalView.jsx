@@ -120,7 +120,7 @@ export const GlobalView = ({
               </td>
               <LeagueDisplay 
                 league={player.league} 
-                score={player.rankScore.toLocaleString()} 
+                score={player.rankScore} 
                 rank={player.rank}
               />
               <td className="px-4 py-2 text-center">

@@ -64,7 +64,7 @@ const MemberRow = ({ member, onSearchClick, onGraphClick, clanMembersData }) => 
       </td>
       <LeagueDisplay 
         league={member.league} 
-        score={member.rankScore.toLocaleString()} 
+        score={member.rankScore} 
         rank={member.rank}
       />
       <td className="px-4 py-2 text-center">
