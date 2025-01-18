@@ -293,7 +293,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
     if (tooltip.body) {
       const titleLines = tooltip.title || [];
       const bodyLines = tooltip.body.map(b => b.lines);
-      const score = parseInt(bodyLines[0][0].split(': ')[1].replace(/,/g, ''));
+      // Parse the score using a locale-independent method
+      const score = parseInt(bodyLines[0][0].split(': ')[1].replace(/[^\d]/g, ''));
       const rank = getRankFromScore(score);
       const datasetIndex = tooltip.dataPoints[0].datasetIndex;
       const dataPoint = tooltip.dataPoints[0].raw.raw;
@@ -334,7 +335,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
       headerRow.appendChild(headerCell);
       tableRoot.appendChild(headerRow);
   
-      // Add score
+      // Add score with locale-independent parsing and formatting
       const scoreRow = document.createElement('tr');
       scoreRow.style.borderWidth = 0;
       const scoreCell = document.createElement('td');
@@ -344,21 +345,23 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
       scoreCell.style.paddingTop = '4px';
       
       const scoreContainer = document.createElement('div');
-      scoreContainer.appendChild(document.createTextNode(`Score: ${score.toLocaleString()}`));
+      // Use a standardized number formatting method
+      scoreContainer.appendChild(document.createTextNode(`Score: ${new Intl.NumberFormat('en-GB').format(score)}`));
       
       if (!dataPoint.isInterpolated && !dataPoint.isExtrapolated) {
-        // Get the correct dataset based on the datasetIndex
         const dataset = datasetIndex === 0 ? data : Array.from(comparisonData.values())[datasetIndex - 1].data;
         const dataIndex = dataset.findIndex(d => d.timestamp.getTime() === dataPoint.timestamp.getTime());
         
         if (dataIndex > 0) {
+          // Ensure locale-independent parsing for previous score
           const previousScore = dataset[dataIndex - 1].rankScore;
           const scoreChange = score - previousScore;
           const scoreChangeText = document.createElement('span');
           scoreChangeText.style.marginLeft = '4px';
           scoreChangeText.style.fontSize = '12px';
           scoreChangeText.style.color = scoreChange > 0 ? '#10B981' : scoreChange < 0 ? '#EF4444' : '#9ca3af';
-          scoreChangeText.textContent = `(${scoreChange > 0 ? '+' : ''}${scoreChange.toLocaleString()})`;
+          // Format score change consistently
+          scoreChangeText.textContent = `(${scoreChange > 0 ? '+' : ''}${new Intl.NumberFormat('en-GB').format(scoreChange)})`;
           scoreContainer.appendChild(scoreChangeText);
         }
       }
