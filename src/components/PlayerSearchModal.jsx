@@ -12,7 +12,8 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
     results: [],
     isSearching: false,
     error: '',
-    suggestions: []
+    suggestions: [],
+    selectedIndex: -1
   });
   
   const modalRef = useRef(null);
@@ -52,7 +53,8 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
       ...prev,
       isSearching: true,
       error: '',
-      suggestions: []
+      suggestions: [],
+      selectedIndex: -1
     }));
   
     try {
@@ -78,14 +80,15 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
       results: [],
       isSearching: false,
       error: '',
-      suggestions: []
+      suggestions: [],
+      selectedIndex: -1
     });
     onClose();
   }, [onClose]);
 
   const updateSuggestions = useCallback((query) => {
     if (!cachedS5Data || !isPartialEmbarkId(query)) {
-      setSearchState(prev => ({ ...prev, suggestions: [] }));
+      setSearchState(prev => ({ ...prev, suggestions: [], selectedIndex: -1 }));
       return;
     }
   
@@ -102,7 +105,8 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
   
     setSearchState(prev => ({
       ...prev,
-      suggestions: matchingPlayers
+      suggestions: matchingPlayers,
+      selectedIndex: -1
     }));
   }, [cachedS5Data]);
 
@@ -121,12 +125,44 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      if (searchState.suggestions.length > 0) {
-        handleSearch(searchState.suggestions[0].name);
-      } else {
+    const { suggestions, selectedIndex } = searchState;
+    
+    if (suggestions.length === 0) {
+      if (e.key === 'Enter') {
         handleSearch(searchState.query);
       }
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSearchState(prev => ({
+          ...prev,
+          selectedIndex: (prev.selectedIndex + 1) % suggestions.length
+        }));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSearchState(prev => ({
+          ...prev,
+          selectedIndex: prev.selectedIndex <= 0 
+            ? suggestions.length - 1 
+            : prev.selectedIndex - 1
+        }));
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+          handleSearch(suggestions[selectedIndex].name);
+        } else if (suggestions.length > 0) {
+          handleSearch(suggestions[0].name);
+        } else {
+          handleSearch(searchState.query);
+        }
+        break;
+      default:
+        break;
     }
   };
 
@@ -141,7 +177,8 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
         results: [],
         isSearching: false,
         error: '',
-        suggestions: []
+        suggestions: [],
+        selectedIndex: -1
       });
     }
   }, [isOpen, initialSearch, handleSearch]);
@@ -165,7 +202,8 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
           results: [],
           isSearching: false,
           error: '',
-          suggestions: []
+          suggestions: [],
+          selectedIndex: -1
         }));
         // Clear any previous results but keep the component ready for new input
         if (inputRef.current && !isMobile) {
@@ -207,7 +245,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
                   type="text"
                   value={searchState.query}
                   onChange={handleInputChange}
-                  onKeyPress={handleKeyPress}
+                  onKeyDown={handleKeyPress}
                   placeholder="Enter Embark ID (e.g. 00#0000)"
                   className={`w-full px-4 py-2 bg-gray-700 border rounded-lg text-white
                     ${searchState.error ? 'border-red-500' : 'border-gray-600 focus:border-blue-500'}`}
@@ -218,7 +256,8 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
                       <button
                         key={`${suggestion.name}-${index}`}
                         onClick={() => handleSuggestionClick(suggestion)}
-                        className="w-full px-4 py-2 text-left hover:bg-gray-600 flex justify-between items-center"
+                        className={`w-full px-4 py-2 text-left hover:bg-gray-600 flex justify-between items-center
+                          ${index === searchState.selectedIndex ? 'bg-gray-600' : ''}`}
                       >
                         <span className="text-white">{suggestion.name}</span>
                         <span className="text-gray-300">{suggestion.displayRank}</span>
@@ -247,11 +286,11 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
 
         <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
           <div className="grid grid-cols-2 gap-4">
-          {searchState.results.length === 0 && !searchState.error && !searchState.isSearching && searchState.query && (
-          <div className="col-span-2 p-4 bg-gray-700 rounded-lg text-gray-300 text-center">
-            No results found
-          </div>
-          )}
+            {searchState.results.length === 0 && !searchState.error && !searchState.isSearching && searchState.query && (
+              <div className="col-span-2 p-4 bg-gray-700 rounded-lg text-gray-300 text-center">
+                No results found
+              </div>
+            )}
 
             {searchState.results.map((result, index) => (
               <div 
@@ -281,17 +320,17 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
                 <div className="space-y-2 text-gray-300">
                   {result.name && <p>Embark ID: {result.name}</p>}
                   {result.steamName && (
-                  <div className="flex items-center gap-2">
-                    <p>Steam: {result.steamName}</p>
-                    {result.foundViaSteamName && (
-                    <div className="relative group">
-                      <AlertTriangle className="w-4 h-4 text-yellow-400 hover:cursor-help" />
-                      <span className="absolute hidden group-hover:block bg-gray-900 text-white px-2 py-1 rounded text-sm -top-10 left-1/2 -translate-x-1/2 z-50 w-48 hover:cursor-help">
-                        Steam names are not unique, this could be a different player.
-                      </span>
+                    <div className="flex items-center gap-2">
+                      <p>Steam: {result.steamName}</p>
+                      {result.foundViaSteamName && (
+                        <div className="relative group">
+                          <AlertTriangle className="w-4 h-4 text-yellow-400 hover:cursor-help" />
+                          <span className="absolute hidden group-hover:block bg-gray-900 text-white px-2 py-1 rounded text-sm -top-10 left-1/2 -translate-x-1/2 z-50 w-48 hover:cursor-help">
+                            Steam names are not unique, this could be a different player.
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    )}
-                  </div>
                   )}
                   {result.psnName && <p>PSN: {result.psnName}</p>}
                   {result.xboxName && <p>Xbox: {result.xboxName}</p>}
