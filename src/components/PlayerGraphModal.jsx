@@ -780,8 +780,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
     const maxScore = Math.max(...allVisibleData.map(d => d.rankScore));
     
     // If min and max are the same
-    if (minScore === maxScore) {
-      const buffer = Math.round(minScore * 0.1);
+    if (minScore === maxScore || (maxScore - minScore) < 10) {
+      const buffer = Math.max(10, Math.round(minScore * 0.01)); // At least 10
       return [
         Math.max(0, minScore - buffer),
         maxScore + buffer
@@ -999,46 +999,19 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
     }
   }, [selectedTimeRange, data, calculateViewWindow]);
 
-  const calculateYAxisTicks = useCallback((min, max) => {
-    const range = max - min;
-    const targetTicks = 20; // Aim for 20 ticks to ensure we get at least 15
+  // Adjusted calculateYAxisStepSize function
+  const calculateYAxisStepSize = useCallback((min, max) => {
+    const range = max - min || 1;
+    const niceSteps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+    const targetTicks = 5;
     
-    // Calculate initial step size
-    let step = range / targetTicks;
+    // Find step size that gives closest to target number of ticks
+    const stepSize = niceSteps.find(step => {
+      const numTicks = range / step;
+      return numTicks >= targetTicks && numTicks <= targetTicks * 2;
+    }) || 1;
     
-    // Round step to a nice number while preserving tick density
-    const magnitude = Math.pow(10, Math.floor(Math.log10(step)));
-    let normalized = step / magnitude;
-    
-    // Find the closest nice number while maintaining target tick count
-    if (normalized <= 1) normalized = 1;
-    else if (normalized <= 2) normalized = 2;
-    else if (normalized <= 2.5) normalized = 2.5;
-    else if (normalized <= 5) normalized = 5;
-    else normalized = 10;
-    
-    step = normalized * magnitude;
-    
-    // Generate tick values
-    const ticks = [];
-    // Start slightly below min to ensure we get enough ticks
-    let tick = Math.floor(min / step) * step;
-    
-    // Generate extra ticks to ensure we hit our target
-    while (tick <= max + step) { // Add a small buffer
-      if (tick >= min - step) { // Include one tick below min
-        ticks.push(tick);
-      }
-      tick += step;
-    }
-    
-    // If we still don't have enough ticks, reduce the step size
-    if (ticks.length < 15) {
-      // Recursively try with a smaller target step size
-      return calculateYAxisTicks(min, max, targetTicks + 5);
-    }
-    
-    return ticks;
+    return stepSize;
   }, []);
 
   const chartOptions = useMemo(() => data ? {
@@ -1109,14 +1082,23 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
         },
         ticks: {
           color: '#cecfd3',
-          callback: value => value.toLocaleString(),
-          // Generate rounded ticks based on the current min/max values
-          afterBuildTicks: (axis) => {
-            axis.ticks = calculateYAxisTicks(axis.min, axis.max).map(value => ({
-              value: value
-            }));
-          }
-        }
+          callback: value => Math.round(value).toLocaleString(),
+          stepSize: calculateYAxisStepSize(
+            data.length > 0 ? getDynamicYAxisDomain(
+              Math.min(...data.map(d => d.rankScore)),
+              Math.max(...data.map(d => d.rankScore)),
+              data,
+              selectedTimeRange
+            )[0] : 0,
+            data.length > 0 ? getDynamicYAxisDomain(
+              Math.min(...data.map(d => d.rankScore)),
+              Math.max(...data.map(d => d.rankScore)),
+              data,
+              selectedTimeRange
+            )[1] : 100000
+          ),
+          maxTicksLimit: 15, // Limiting to 15 Y axis ticks
+        },
       }
     },
     plugins: {
@@ -1158,12 +1140,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
             ctx.chart.options.scales.y.min = newMin;
             ctx.chart.options.scales.y.max = newMax;
             
-            // Force recalculation of Y-axis ticks
-            ctx.chart.options.scales.y.ticks.afterBuildTicks = (axis) => {
-              axis.ticks = calculateYAxisTicks(newMin, newMax).map(value => ({
-                value: value
-              }));
-            };
+            // Recalculate step size
+            ctx.chart.options.scales.y.ticks.stepSize = calculateYAxisStepSize(newMin, newMax);
             
             ctx.chart.options.plugins.annotation.annotations = getRankAnnotations(timeRange);
           }
@@ -1202,12 +1180,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
             ctx.chart.options.scales.y.min = newMin;
             ctx.chart.options.scales.y.max = newMax;
             
-            // Force recalculation of Y-axis ticks
-            ctx.chart.options.scales.y.ticks.afterBuildTicks = (axis) => {
-              axis.ticks = calculateYAxisTicks(newMin, newMax).map(value => ({
-                value: value
-              }));
-            };
+            // Recalculate stepSize
+            ctx.chart.options.scales.y.ticks.stepSize = calculateYAxisStepSize(newMin, newMax);
             
             ctx.chart.options.plugins.annotation.annotations = getRankAnnotations(timeRange);
           }
@@ -1266,7 +1240,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
         }
       }
     }
-  } : null, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, selectedTimeRange, externalTooltipHandler, calculateYAxisTicks]);
+  } : null, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, selectedTimeRange, externalTooltipHandler, calculateYAxisStepSize]);
 
   const chartData = useMemo(() => data ? {
     labels: data.map(d => d.timestamp),
