@@ -144,17 +144,50 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
   const [filteredPlayers, setFilteredPlayers] = useState([]);
   const searchRef = useRef(null);
 
+  // Find main player's score from leaderboard
+  const getClosestPlayers = useCallback(() => {
+    const mainPlayer = globalLeaderboard.find(p => p.name === mainPlayerId);
+    if (!mainPlayer) return [];
+  
+    const mainRank = mainPlayer.rank;
+    
+    // Get all valid players (not the main player and not already in comparison)
+    const validPlayers = globalLeaderboard.filter(player => 
+      player.name !== mainPlayerId && 
+      !Array.from(comparisonData.keys()).includes(player.name)
+    );
+    
+    // Sort all valid players by the absolute difference from main player's rank
+    const sortedByDistance = validPlayers
+      .map(player => ({
+        ...player,
+        distance: Math.abs(player.rank - mainRank)
+      }))
+      .sort((a, b) => a.distance - b.distance);
+  
+    // Take the 50 closest players
+    return sortedByDistance
+      .slice(0, 50)
+      .sort((a, b) => a.rank - b.rank); // Final sort by rank ascending
+  }, [mainPlayerId, globalLeaderboard, comparisonData]);
+
   useEffect(() => {
-    const filtered = globalLeaderboard
-      .filter(player => 
-        player.name !== mainPlayerId && 
-        !Array.from(comparisonData.keys()).includes(player.name) &&
-        (player.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-         (player.clubTag && `[${player.clubTag}]`.toLowerCase().includes(searchTerm.toLowerCase())))
-      )
-      .slice(0, 50);
-    setFilteredPlayers(filtered);
-  }, [searchTerm, mainPlayerId, globalLeaderboard, comparisonData]);
+    if (searchTerm) {
+      // If there's a search term, filter by name/club tag
+      const filtered = globalLeaderboard
+        .filter(player => 
+          player.name !== mainPlayerId && 
+          !Array.from(comparisonData.keys()).includes(player.name) &&
+          (player.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           (player.clubTag && `[${player.clubTag}]`.toLowerCase().includes(searchTerm.toLowerCase())))
+        )
+        .slice(0, 50);
+      setFilteredPlayers(filtered);
+    } else {
+      // If no search term, show closest players
+      setFilteredPlayers(getClosestPlayers());
+    }
+  }, [searchTerm, mainPlayerId, globalLeaderboard, comparisonData, getClosestPlayers]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -191,21 +224,29 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
       </div>
 
       <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
-        {filteredPlayers.map((player) => (
-          <div
-            key={player.name}
-            className="flex items-center justify-between p-2 hover:bg-gray-700 rounded-lg cursor-pointer"
-            onClick={() => onSelect(player)}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400">#{player.rank}</span>
-              <span className="text-white">
-                {player.clubTag ? `[${player.clubTag}] ` : ''}{player.name}
-              </span>
+        {filteredPlayers.map((player) => {
+          const mainPlayer = globalLeaderboard.find(p => p.name === mainPlayerId);
+          const scoreDiff = mainPlayer ? player.rankScore - mainPlayer.rankScore : 0;
+          
+          return (
+            <div
+              key={player.name}
+              className="flex items-center justify-between p-2 hover:bg-gray-700 rounded-lg cursor-pointer"
+              onClick={() => onSelect(player)}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400">#{player.rank}</span>
+                <span className="text-white">
+                  {player.clubTag ? `[${player.clubTag}] ` : ''}{player.name}
+                </span>
+                <span className={`text-xs ${scoreDiff > 0 ? 'text-green-400' : scoreDiff < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                  {scoreDiff > 0 ? '+' : ''}{scoreDiff.toLocaleString()}
+                </span>
+              </div>
+              <Plus className="w-5 h-5 text-gray-400 hover:text-white" />
             </div>
-            <Plus className="w-5 h-5 text-gray-400 hover:text-white" />
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
