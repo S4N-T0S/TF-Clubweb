@@ -142,6 +142,7 @@ const MAX_COMPARISONS = 5;
 const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClose, comparisonData }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredPlayers, setFilteredPlayers] = useState([]);
+  const searchRef = useRef(null);
 
   useEffect(() => {
     const filtered = globalLeaderboard
@@ -155,11 +156,24 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
     setFilteredPlayers(filtered);
   }, [searchTerm, mainPlayerId, globalLeaderboard, comparisonData]);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [onClose]);
+
   return (
-    <div className="absolute right-0 top-12 w-96 bg-gray-800 rounded-lg shadow-lg p-4 z-50">
+    <div ref={searchRef} className="absolute right-0 top-12 w-96 bg-gray-800 rounded-lg shadow-lg p-4 z-50">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-white">Add Player to Compare</h3>
-        <button onClick={onClose} className="text-gray-400 hover:text-white">
+        <button onClick={onClose} className="text-gray-400 hover:text-white sm:hidden">
           <X className="w-5 h-5" />
         </button>
       </div>

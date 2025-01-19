@@ -92,11 +92,10 @@ const App = () => {
     if (graph) {
       const parsed = safeParseUsernameFromUrl(graph);
       if (parsed) {
-        setView('global');
         setGraphModalState({ 
           isOpen: true, 
           playerId: parsed,
-          isClubView: false 
+          isClubView: view === 'members'
         });
       } else {
         navigate('/');
@@ -110,7 +109,7 @@ const App = () => {
         navigate('/');
       }
     }
-  }, [graph, history, navigate]);
+  }, [graph, history, navigate, view]);
 
   // Update cookie whenever view changes
   useEffect(() => {
@@ -223,6 +222,7 @@ const App = () => {
           playerId={graphModalState.playerId}
           isClubView={graphModalState.isClubView}
           globalLeaderboard={graphModalState.isClubView ? rankedClanMembers : globalLeaderboard}
+          onSwitchToGlobal={(playerId) => { setView('global'); handleGraphModalOpen(playerId, false); }}
         />
       )}
       <Outlet />
