@@ -147,6 +147,7 @@ export const PlayerGraphModalProps = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   playerId: PropTypes.string.isRequired,
+  compareIds: PropTypes.arrayOf(PropTypes.string),
   isClubView: PropTypes.bool,
   globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)),
   onSwitchToGlobal: PropTypes.func

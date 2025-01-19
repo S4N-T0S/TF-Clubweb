@@ -11,7 +11,7 @@ import Toast from './components/Toast';
 import PlayerSearchModal from './components/PlayerSearchModal';
 import PlayerGraphModal from './components/PlayerGraphModal';
 import { fetchClanMembers } from './services/mb-api';
-import { safeParseUsernameFromUrl, formatUsernameForUrl } from './utils/urlHandler';
+import { safeParseUsernameFromUrl, formatUsernameForUrl, parseMultipleUsernamesFromUrl, formatMultipleUsernamesForUrl } from './utils/urlHandler';
 
 // Cookie helper functions
 const getCookie = (name) => {
@@ -45,6 +45,7 @@ const App = () => {
   const [graphModalState, setGraphModalState] = useState({
     isOpen: false,
     playerId: null,
+    compareIds: [],
     isClubView: false
   });
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
@@ -90,11 +91,12 @@ const App = () => {
   // Handle URL parameters on mount
   useEffect(() => {
     if (graph) {
-      const parsed = safeParseUsernameFromUrl(graph);
-      if (parsed) {
+      const { main, compare } = parseMultipleUsernamesFromUrl(graph);
+      if (main) {
         setGraphModalState({ 
           isOpen: true, 
-          playerId: parsed,
+          playerId: main,
+          compareIds: compare,
           isClubView: view === 'members'
         });
       } else {
@@ -135,13 +137,19 @@ const App = () => {
   };
 
   // Handle graph modal open/close
-  const handleGraphModalOpen = (playerId, isClubView = false) => {
-    setGraphModalState({ isOpen: true, playerId, isClubView });
-    navigate(`/graph/${formatUsernameForUrl(playerId)}`);
+  const handleGraphModalOpen = (playerId, compareIds = [], isClubView = false) => {
+    setGraphModalState({ isOpen: true, playerId, compareIds, isClubView });
+    const urlString = formatMultipleUsernamesForUrl(playerId, compareIds);
+    navigate(`/graph/${urlString}`);
   };
 
   const handleGraphModalClose = () => {
-    setGraphModalState({ isOpen: false, playerId: null, isClubView: false });
+    setGraphModalState({
+      isOpen: false,
+      playerId: null,
+      compareIds: [],
+      isClubView: false
+    });
     navigate('/');
   };
 
