@@ -5,8 +5,9 @@ import { Hexagon } from './icons/Hexagon';
 import { getLeagueInfo } from '../utils/leagueUtils';
 import { useMobileDetect } from '../hooks/useMobileDetect';
 import { PlayerSearchModalProps } from '../types/propTypes';
+import { isValidEmbarkId, formatUsernameForUrl } from '../utils/urlHandler';
 
-const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => {
+const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSearch }) => {
   const [searchState, setSearchState] = useState({
     query: '',
     results: [],
@@ -19,6 +20,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
   const modalRef = useRef(null);
   const inputRef = useRef(null);
   const isMobile = useMobileDetect();
+  const initialSearchRef = useRef(false);
 
   // Add useEffect for managing body scroll
   useEffect(() => {
@@ -33,11 +35,9 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
     };
   }, [isOpen]);
 
-  // Simple Embark ID validation
-  const isValidEmbarkId = (id) => /^.+#\d{4}$/.test(id);
   const isPartialEmbarkId = (id) => id.length >= 1;
 
-  const handleSearch = useCallback(async (queryInput) => {
+  const handleSearch = useCallback(async (queryInput, skipUrlUpdate = false) => {
     const query = queryInput.trim();
     
     if (!isValidEmbarkId(query)) {
@@ -65,6 +65,12 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
         isSearching: false,
         query
       }));
+      
+      // Only update URL if not skipping and not from initial search
+      if (!skipUrlUpdate) {
+        const formattedQuery = formatUsernameForUrl(query);
+        onSearch(formattedQuery);
+      }
     } catch {
       setSearchState(prev => ({
         ...prev,
@@ -72,7 +78,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
         isSearching: false
       }));
     }
-  }, [cachedS5Data]);
+  }, [cachedS5Data, onSearch]);
 
   const handleClose = useCallback(() => {
     setSearchState({
@@ -83,6 +89,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
       suggestions: [],
       selectedIndex: -1
     });
+    initialSearchRef.current = false;
     onClose();
   }, [onClose]);
 
@@ -167,11 +174,12 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
   };
 
   useEffect(() => {
-    if (isOpen && initialSearch) {
+    if (isOpen && initialSearch && !initialSearchRef.current) {
+      initialSearchRef.current = true;
       setSearchState(prev => ({ ...prev, query: initialSearch }));
-      handleSearch(initialSearch);
+      handleSearch(initialSearch, true); // Skip URL update for initial search
     } else if (!isOpen) {
-      // Clear state when modal closes
+      initialSearchRef.current = false;
       setSearchState({
         query: '',
         results: [],
@@ -192,27 +200,12 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data }) => 
 
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
-      if (initialSearch) {
-        setSearchState(prev => ({ ...prev, query: initialSearch }));
-        handleSearch(initialSearch);
-      } else {
-        setSearchState(prev => ({
-          ...prev,
-          query: '',
-          results: [],
-          isSearching: false,
-          error: '',
-          suggestions: [],
-          selectedIndex: -1
-        }));
-        // Clear any previous results but keep the component ready for new input
-        if (inputRef.current && !isMobile) {
-          inputRef.current.focus();
-        }
+      if (!initialSearchRef.current && !initialSearch && inputRef.current && !isMobile) {
+        inputRef.current.focus();
       }
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, initialSearch, handleSearch, isMobile, handleClose]);
+  }, [isOpen, initialSearch, handleClose, isMobile]);
 
   if (!isOpen) return null;
 

@@ -104,7 +104,8 @@ export const PlayerSearchModalProps = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   initialSearch: PropTypes.string,
-  cachedS5Data: PropTypes.array
+  cachedS5Data: PropTypes.array,
+  onSearch: PropTypes.func.isRequired
 };
 
 export const PaginationProps = {

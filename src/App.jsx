@@ -1,3 +1,4 @@
+import { useParams, useNavigate, Outlet } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { useLeaderboard } from './hooks/useLeaderboard';
 import { MembersView } from './components/views/MembersView';
@@ -9,6 +10,7 @@ import { DashboardHeader } from './components/DashboardHeader';
 import Toast from './components/Toast';
 import PlayerSearchModal from './components/PlayerSearchModal';
 import { fetchClanMembers } from './services/mb-api';
+import { safeParseUsernameFromUrl, formatUsernameForUrl } from './utils/urlHandler';
 
 // Cookie helper functions
 const getCookie = (name) => {
@@ -30,6 +32,9 @@ const App = () => {
       return;
     }
   }, []);
+
+  const navigate = useNavigate();
+  const { graph, history } = useParams();
 
   const [view, setView] = useState(() => getCookie('dashboard_tab') || 'global');
   const [searchModalState, setSearchModalState] = useState({ 
@@ -76,6 +81,22 @@ const App = () => {
     loadClanMembers();
   }, []);
 
+  // Handle URL parameters on mount
+  useEffect(() => {
+    if (graph) { // Under development
+      setView('global');
+      setGraphModal({ isOpen: true, graph });
+    }
+    if (history) {
+      const parsed = safeParseUsernameFromUrl(history);
+      if (parsed) {
+        setSearchModalState({ isOpen: true, initialSearch: parsed });
+      } else {
+        navigate('/');
+      }
+    }
+  }, [graph, history, navigate]);
+
   // Update cookie whenever view changes
   useEffect(() => {
     setTabCookie(view);
@@ -84,6 +105,24 @@ const App = () => {
   const handleClanClick = (clanTag) => {
     setGlobalSearchQuery(`[${clanTag}]`);
     setView('global');
+  };
+
+  // Handle search modal open/close
+  const handleSearchModalOpen = (initialSearch = '') => {
+    setSearchModalState({ isOpen: true, initialSearch });
+    if (initialSearch) {
+      navigate(`/history/${formatUsernameForUrl(initialSearch)}`);
+    }
+  };
+
+  const handleSearchModalClose = () => {
+    setSearchModalState({ isOpen: false, initialSearch: '' });
+    navigate('/');
+  };
+
+  // Handle search submission
+  const handleSearchSubmit = (query) => {
+    navigate(`/history/${query}`);
   };
 
   // If we're on pages.dev, return null to prevent rendering
@@ -113,14 +152,14 @@ const App = () => {
             setView={setView}
             onRefresh={() => refreshData(false)}
             isRefreshing={isRefreshing}
-            onOpenSearch={() => setSearchModalState({ isOpen: true, initialSearch: '' })}
+            onOpenSearch={() => handleSearchModalOpen()}
           />
 
           {view === 'members' && (
             <MembersView 
               clanMembers={clanMembers} 
               totalMembers={clanMembersData.length} 
-              onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
+              onPlayerSearch={(name) => handleSearchModalOpen(name)}
               clanMembersData={clanMembersData} // Pass clan members data to members view
               setView={setView}
               graphModal={graphModal}
@@ -136,7 +175,7 @@ const App = () => {
           {view === 'global' && (
             <GlobalView 
               globalLeaderboard={globalLeaderboard} 
-              onPlayerSearch={(name) => setSearchModalState({ isOpen: true, initialSearch: name })}
+              onPlayerSearch={(name) => handleSearchModalOpen(name)}
               searchQuery={globalSearchQuery}
               setSearchQuery={setGlobalSearchQuery}
               graphModal={graphModal}
@@ -148,10 +187,12 @@ const App = () => {
       
       <PlayerSearchModal 
         isOpen={searchModalState.isOpen}
-        onClose={() => setSearchModalState({ isOpen: false, initialSearch: '' })}
+        onClose={handleSearchModalClose}
         initialSearch={searchModalState.initialSearch}
         cachedS5Data={globalLeaderboard}
+        onSearch={handleSearchSubmit}
       />
+      <Outlet />
     </div>
   );
 };
