@@ -50,7 +50,15 @@ export const GlobalViewProps = {
   globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)).isRequired,
   onPlayerSearch: PropTypes.func.isRequired,
   searchQuery: PropTypes.string,
-  setSearchQuery: PropTypes.func.isRequired
+  setSearchQuery: PropTypes.func.isRequired,
+  onGraphOpen: PropTypes.func.isRequired
+};
+
+export const GlobalPlayerRowProps = {
+  player: PropTypes.shape(PlayerType).isRequired,
+  onSearchClick: PropTypes.func.isRequired,
+  onClanClick: PropTypes.func.isRequired,
+  onGraphClick: PropTypes.func.isRequired
 };
 
 export const RankChangeDisplayProps = {
@@ -65,7 +73,8 @@ export const MembersViewProps = {
     embarkId: PropTypes.string.isRequired,
     discord: PropTypes.string,
     pruby: PropTypes.bool
-  }))
+  })),
+  onGraphOpen: PropTypes.func.isRequired
 };
 
 export const PriorRubyDisplayProps = {

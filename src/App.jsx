@@ -9,6 +9,7 @@ import { LoadingDisplay } from './components/LoadingDisplay';
 import { DashboardHeader } from './components/DashboardHeader';
 import Toast from './components/Toast';
 import PlayerSearchModal from './components/PlayerSearchModal';
+import PlayerGraphModal from './components/PlayerGraphModal';
 import { fetchClanMembers } from './services/mb-api';
 import { safeParseUsernameFromUrl, formatUsernameForUrl } from './utils/urlHandler';
 
@@ -41,13 +42,18 @@ const App = () => {
     isOpen: false, 
     initialSearch: '' 
   });
+  const [graphModalState, setGraphModalState] = useState({
+    isOpen: false,
+    playerId: null,
+    isClubView: false
+  });
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [clanMembersData, setClanMembersData] = useState([]);
   const [clanMembersLoading, setClanMembersLoading] = useState(true);
-  const [graphModal, setGraphModal] = useState({ isOpen: false, playerId: null });
-  
+
   const {
     clanMembers,
+    rankedClanMembers,
     isTopClan,
     topClans,
     unknownMembers,
@@ -83,9 +89,18 @@ const App = () => {
 
   // Handle URL parameters on mount
   useEffect(() => {
-    if (graph) { // Under development
-      setView('global');
-      setGraphModal({ isOpen: true, graph });
+    if (graph) {
+      const parsed = safeParseUsernameFromUrl(graph);
+      if (parsed) {
+        setView('global');
+        setGraphModalState({ 
+          isOpen: true, 
+          playerId: graph,
+          isClubView: false 
+        });
+      } else {
+        navigate('/');
+      }
     }
     if (history) {
       const parsed = safeParseUsernameFromUrl(history);
@@ -117,6 +132,17 @@ const App = () => {
 
   const handleSearchModalClose = () => {
     setSearchModalState({ isOpen: false, initialSearch: '' });
+    navigate('/');
+  };
+
+  // Handle graph modal open/close
+  const handleGraphModalOpen = (playerId, isClubView = false) => {
+    setGraphModalState({ isOpen: true, playerId, isClubView });
+    navigate(`/graph/${playerId}`);
+  };
+
+  const handleGraphModalClose = () => {
+    setGraphModalState({ isOpen: false, playerId: null, isClubView: false });
     navigate('/');
   };
 
@@ -161,9 +187,7 @@ const App = () => {
               totalMembers={clanMembersData.length} 
               onPlayerSearch={(name) => handleSearchModalOpen(name)}
               clanMembersData={clanMembersData} // Pass clan members data to members view
-              setView={setView}
-              graphModal={graphModal}
-              setGraphModal={setGraphModal}
+              onGraphOpen={(playerId) => handleGraphModalOpen(playerId, true)}
             />
           )}
           {view === 'clans' && (
@@ -178,8 +202,7 @@ const App = () => {
               onPlayerSearch={(name) => handleSearchModalOpen(name)}
               searchQuery={globalSearchQuery}
               setSearchQuery={setGlobalSearchQuery}
-              graphModal={graphModal}
-              setGraphModal={setGraphModal}
+              onGraphOpen={(playerId) => handleGraphModalOpen(playerId, false)}
             />
           )}
         </div>
@@ -192,6 +215,16 @@ const App = () => {
         cachedS5Data={globalLeaderboard}
         onSearch={handleSearchSubmit}
       />
+
+      {graphModalState.playerId && (
+        <PlayerGraphModal
+          isOpen={graphModalState.isOpen}
+          onClose={handleGraphModalClose}
+          playerId={graphModalState.playerId}
+          isClubView={graphModalState.isClubView}
+          globalLeaderboard={graphModalState.isClubView ? rankedClanMembers : globalLeaderboard}
+        />
+      )}
       <Outlet />
     </div>
   );

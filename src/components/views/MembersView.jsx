@@ -2,7 +2,6 @@ import { Check, X, UserSearch, LineChart } from 'lucide-react';
 import { LeagueDisplay } from '../LeagueDisplay';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
-import PlayerGraphModal from '../PlayerGraphModal';
 import { MembersViewProps, PriorRubyDisplayProps, MemberRowProps } from '../../types/propTypes';
 
 const PriorRubyDisplay = ({ isPriorRuby }) => {
@@ -88,22 +87,12 @@ export const MembersView = ({
   totalMembers,
   onPlayerSearch,
   clanMembersData,
-  setView,
-  graphModal,
-  setGraphModal 
+  onGraphOpen
 }) => {
-  const validMembers = clanMembers.filter(member => !member.notInLeaderboard); // for graphing
-  
   useSwipe(
     () => window.scrollBy({ left: 100, behavior: 'smooth' }),
     () => window.scrollBy({ left: -100, behavior: 'smooth' })
   );
-
-  const handleSwitchToGlobal = (playerId) => {
-    // Keep modal open and switch view
-    setGraphModal({ isOpen: true, playerId });
-    setView('global');
-  };
 
   return (
     <div>
@@ -137,7 +126,7 @@ export const MembersView = ({
                   key={member.name} 
                   member={member} 
                   onSearchClick={onPlayerSearch}
-                  onGraphClick={(playerId) => setGraphModal({ isOpen: true, playerId })}
+                  onGraphClick={onGraphOpen}
                   clanMembersData={clanMembersData} // Pass the new club members data to the MemberRow component
                 />
               ))}
@@ -148,17 +137,6 @@ export const MembersView = ({
         <p>Total Members: {totalMembers.toLocaleString()}/{(50).toLocaleString()}</p>
       </div>
       <BackToTop />
-      
-      {graphModal?.playerId && (
-        <PlayerGraphModal
-          isOpen={graphModal.isOpen}
-          onClose={() => setGraphModal({ isOpen: false, playerId: null })}
-          playerId={graphModal.playerId}
-          isClubView={true}
-          globalLeaderboard={validMembers}
-          onSwitchToGlobal={() => handleSwitchToGlobal(graphModal.playerId)}
-        />
-      )}
     </div>
   );
 };

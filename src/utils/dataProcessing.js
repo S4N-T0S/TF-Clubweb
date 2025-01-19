@@ -36,6 +36,7 @@ export const processLeaderboardData = (rawData, clanMembers) => {
 
   return {
     clanMembers: finalClanMembers,
+    rankedClanMembers: ogMembersInLeaderboard,
     isTopClan: topClans[0]?.tag === 'OG',
     topClans,
     unknownMembers,
