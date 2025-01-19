@@ -95,7 +95,7 @@ const App = () => {
         setView('global');
         setGraphModalState({ 
           isOpen: true, 
-          playerId: graph,
+          playerId: parsed,
           isClubView: false 
         });
       } else {
@@ -138,7 +138,7 @@ const App = () => {
   // Handle graph modal open/close
   const handleGraphModalOpen = (playerId, isClubView = false) => {
     setGraphModalState({ isOpen: true, playerId, isClubView });
-    navigate(`/graph/${playerId}`);
+    navigate(`/graph/${formatUsernameForUrl(playerId)}`);
   };
 
   const handleGraphModalClose = () => {
