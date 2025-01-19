@@ -278,11 +278,37 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
     };
   }, [isOpen]);
 
+  // Function to determine the appropriate default time range based on data points
+  const determineDefaultTimeRange = useCallback((data) => {
+    if (!data?.length) return '24H';
+
+    const now = new Date();
+    const last24Hours = new Date(now - TIME.DAY);
+    const last7Days = new Date(now - TIME.WEEK);
+
+    // Count data points in last 24 hours
+    const pointsIn24H = data.filter(point => 
+      !point.isInterpolated && !point.isExtrapolated && 
+      point.timestamp >= last24Hours
+    ).length;
+
+    if (pointsIn24H >= 2) return '24H';
+
+    // Count data points in last 7 days
+    const pointsIn7D = data.filter(point => 
+      !point.isInterpolated && !point.isExtrapolated && 
+      point.timestamp >= last7Days
+    ).length;
+
+    if (pointsIn7D >= 2) return '7D';
+
+    return 'MAX';
+  }, []);
+
   // Reset state when modal is opened with new player
   useEffect(() => {
     if (isOpen) {
       setShowCompareHint(true);
-      setSelectedTimeRange('24H');
       if (dataCache.current?.playerId !== playerId) {
         dataCache.current = null;
         setData(null);
@@ -898,7 +924,10 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
       Date.now() - dataCache.current.timestamp < TIME.CACHE_DURATION
     ) {
       setData(dataCache.current.data);
-      const window = calculateViewWindow(dataCache.current.data, selectedTimeRange);
+      // Set time range based on cached data
+      const defaultRange = determineDefaultTimeRange(dataCache.current.data);
+      setSelectedTimeRange(defaultRange);
+      const window = calculateViewWindow(dataCache.current.data, defaultRange);
       setViewWindow(window);
       return;
     }
@@ -932,14 +961,17 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
       };
       
       setData(interpolatedData);
-      const window = calculateViewWindow(interpolatedData, selectedTimeRange);
+      // Set time range based on loaded data
+      const defaultRange = determineDefaultTimeRange(interpolatedData);
+      setSelectedTimeRange(defaultRange);
+      const window = calculateViewWindow(interpolatedData, defaultRange);
       setViewWindow(window);
     } catch (error) {
       setError(`Failed to load player history: ${error.message}`);
     } finally {
       setLoading(false);
     }
-  }, [playerId, calculateViewWindow, interpolateDataPoints, selectedTimeRange]);
+  }, [playerId, calculateViewWindow, interpolateDataPoints, determineDefaultTimeRange]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
