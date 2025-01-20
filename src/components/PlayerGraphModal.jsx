@@ -22,6 +22,7 @@ import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import 'chartjs-adapter-date-fns';
 import { fetchPlayerGraphData } from '../services/gp-api';
+import { formatMultipleUsernamesForUrl } from '../utils/urlHandler';
 import { PlayerGraphModalProps, ComparePlayerSearchProps } from '../types/propTypes';
 
 ChartJS.register(
@@ -252,7 +253,7 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
   );
 };
 
-const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globalLeaderboard = [], onSwitchToGlobal }) => {
+const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubView = false, globalLeaderboard = [], onSwitchToGlobal }) => {
   const [data, setData] = useState(null);
   const [comparisonData, setComparisonData] = useState(new Map());
   const [error, setError] = useState(null);
@@ -264,6 +265,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
   const chartRef = useRef(null);
   const dataCache = useRef(null);
   const [showCompareHint, setShowCompareHint] = useState(true);
+  const mainPlayerId = playerId;
 
   // Add useEffect for managing body scroll
   useEffect(() => {
@@ -643,23 +645,45 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
     const newData = await loadComparisonData(player.name);
     if (newData) {
       setComparisonData(prev => {
-        const colorIndex = prev.size;
-        return new Map(prev).set(player.name, {
+        const colorIndex = prev.size; // This ensures we use colors in order
+        const next = new Map(prev).set(player.name, {
           data: newData,
-          color: COMPARISON_COLORS[colorIndex]
+          color: COMPARISON_COLORS[colorIndex] // Will start with orange (index 0)
         });
+        
+        // Update URL with new comparison
+        const currentCompares = Array.from(next.keys());
+        const urlString = formatMultipleUsernamesForUrl(playerId, currentCompares);
+        window.history.replaceState(null, '', `/graph/${urlString}`);
+        
+        return next;
       });
     }
     setShowCompareSearch(false);
-  }, [loadComparisonData, comparisonData]);
+  }, [loadComparisonData, comparisonData, playerId]);
 
   const removeComparison = useCallback((playerId) => {
     setComparisonData(prev => {
       const next = new Map(prev);
       next.delete(playerId);
+      
+      // Reassign colors to maintain order
+      const entries = Array.from(next.entries());
+      entries.forEach(([id], index) => {
+        next.set(id, {
+          ...next.get(id),
+          color: COMPARISON_COLORS[index]
+        });
+      });
+      
+      // Update URL after removal
+      const currentCompares = Array.from(next.keys());
+      const urlString = formatMultipleUsernamesForUrl(mainPlayerId, currentCompares);
+      window.history.replaceState(null, '', `/graph/${urlString}`);
+      
       return next;
     });
-  }, []);
+  }, [mainPlayerId]);
 
   const getDynamicYAxisDomain = useCallback((dataMin, dataMax, data, timeWindow, customTimeRange = null) => {
     if (!data?.length) return [0, 50000];
@@ -999,19 +1023,62 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, isClubView = false, globa
     }
   }, [selectedTimeRange, data, calculateViewWindow]);
 
+  // Get Comparisons from URL if any
+  useEffect(() => {
+    const loadInitialComparisons = async () => {
+      if (!compareIds?.length || !globalLeaderboard) return;
+      
+      // Load all comparison data first
+      const newComparisons = new Map();
+      
+      for (const [index, compareId] of compareIds.entries()) {
+        // Skip if already loaded or if reached max comparisons
+        if (newComparisons.size >= MAX_COMPARISONS) break;
+        if (comparisonData.has(compareId)) continue;
+        
+        const newData = await loadComparisonData(compareId);
+        if (newData) {
+          newComparisons.set(compareId, {
+            data: newData,
+            color: COMPARISON_COLORS[index] // Assign colors in order
+          });
+        }
+      }
+      
+      // Update state with all new comparisons at once
+      if (newComparisons.size > 0) {
+        setComparisonData(prev => {
+          const next = new Map([...prev, ...newComparisons]);
+          // Reassign colors to maintain order
+          const entries = Array.from(next.entries());
+          entries.forEach(([id], index) => {
+            next.set(id, {
+              ...next.get(id),
+              color: COMPARISON_COLORS[index]
+            });
+          });
+          return next;
+        });
+      }
+    };
+  
+    if (isOpen) {
+      loadInitialComparisons();
+    }
+  }, [isOpen, compareIds, globalLeaderboard, comparisonData, loadComparisonData]);
+
   // Adjusted calculateYAxisStepSize function
   const calculateYAxisStepSize = useCallback((min, max) => {
     const range = max - min || 1;
     const niceSteps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
     const targetTicks = 5;
     
-    // Find step size that gives closest to target number of ticks
-    const stepSize = niceSteps.find(step => {
+    // If no nice step found, use range/targetTicks rounded up to nearest nice step
+    const fallbackStep = Math.ceil(range / targetTicks);
+    return niceSteps.find(step => {
       const numTicks = range / step;
       return numTicks >= targetTicks && numTicks <= targetTicks * 2;
-    }) || 1;
-    
-    return stepSize;
+    }) || fallbackStep;
   }, []);
 
   const chartOptions = useMemo(() => data ? {

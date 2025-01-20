@@ -93,12 +93,12 @@ const App = () => {
     if (graph) {
       const { main, compare } = parseMultipleUsernamesFromUrl(graph);
       if (main) {
-        setGraphModalState({ 
-          isOpen: true, 
-          playerId: main,
-          compareIds: compare,
-          isClubView: view === 'members'
-        });
+          setGraphModalState({ 
+            isOpen: true, 
+            playerId: main,
+            compareIds: compare,
+            isClubView: view === 'members'
+          });
       } else {
         navigate('/');
       }
@@ -155,7 +155,7 @@ const App = () => {
 
   // Handle search submission
   const handleSearchSubmit = (query) => {
-    navigate(`/history/${query}`);
+    window.history.replaceState(null, '', `/history/${query}`);
   };
 
   // If we're on pages.dev, return null to prevent rendering
@@ -194,7 +194,7 @@ const App = () => {
               totalMembers={clanMembersData.length} 
               onPlayerSearch={(name) => handleSearchModalOpen(name)}
               clanMembersData={clanMembersData} // Pass clan members data to members view
-              onGraphOpen={(playerId) => handleGraphModalOpen(playerId, true)}
+              onGraphOpen={(playerId) => handleGraphModalOpen(playerId, [], true)}
             />
           )}
           {view === 'clans' && (
@@ -209,7 +209,7 @@ const App = () => {
               onPlayerSearch={(name) => handleSearchModalOpen(name)}
               searchQuery={globalSearchQuery}
               setSearchQuery={setGlobalSearchQuery}
-              onGraphOpen={(playerId) => handleGraphModalOpen(playerId, false)}
+              onGraphOpen={(playerId) => handleGraphModalOpen(playerId, [], false)}
             />
           )}
         </div>
@@ -228,9 +228,10 @@ const App = () => {
           isOpen={graphModalState.isOpen}
           onClose={handleGraphModalClose}
           playerId={graphModalState.playerId}
+          compareIds={graphModalState.compareIds}
           isClubView={graphModalState.isClubView}
           globalLeaderboard={graphModalState.isClubView ? rankedClanMembers : globalLeaderboard}
-          onSwitchToGlobal={(playerId) => { setView('global'); handleGraphModalOpen(playerId, false); }}
+          onSwitchToGlobal={(playerId) => { setView('global'); handleGraphModalOpen(playerId, [], false); }}
         />
       )}
       <Outlet />
