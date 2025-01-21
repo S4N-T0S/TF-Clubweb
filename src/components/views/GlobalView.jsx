@@ -1,4 +1,4 @@
-import { ChevronUp, ChevronDown, UserSearch, LineChart } from 'lucide-react';
+import { ChevronUp, ChevronDown, UserSearch, LineChart, } from 'lucide-react';
 import { usePagination } from '../../hooks/usePagination';
 import { SearchBar } from '../SearchBar';
 import { LeagueDisplay } from '../LeagueDisplay';
@@ -8,6 +8,8 @@ import { useSwipe } from '../../hooks/useSwipe';
 import { useEffect, useRef } from 'react';
 import { useMobileDetect } from '../../hooks/useMobileDetect';
 import { GlobalViewProps, GlobalPlayerRowProps, RankChangeDisplayProps } from '../../types/propTypes';
+import { PlatformIcons } from "../icons/Platforms";
+import { SortButton } from '../SortButton';
 
 const RankChangeDisplay = ({ change }) => {
   if (!change || change === 0) return null;
@@ -26,6 +28,8 @@ const RankChangeDisplay = ({ change }) => {
 };
 
 const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick }) => {
+  const [username, discriminator] = player.name.split('#');
+  
   return (
     <tr key={player.name} className="border-t border-gray-700 hover:bg-gray-700">
       <td className="px-4 py-2 text-gray-300">#{player.rank.toLocaleString()}</td>
@@ -33,24 +37,52 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick }) => {
         <RankChangeDisplay change={player.change} />
       </td>
       <td className="px-4 py-2">
-        <div className="flex items-center gap-2">
-          {player.clubTag ? (
-            <span className="text-gray-300">
-              <span 
-                className="text-gray-300 hover:text-blue-400 cursor-pointer"
-                onClick={() => onClanClick(player.clubTag)}
-              >
-                [{player.clubTag}]
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            {player.clubTag ? (
+              <span className="text-gray-300">
+                <span 
+                  className="bg-gray-700 px-1 py-0.5 rounded text-blue-400 hover:text-blue-300 cursor-pointer"
+                  onClick={() => onClanClick(player.clubTag)}
+                >
+                  [{player.clubTag}]
+                </span>
+                {` ${username}`}
+                <span className="text-gray-500">#{discriminator}</span>
               </span>
-              {` ${player.name}`}
-            </span>
-          ) : (
-            <span className="text-gray-300">{player.name}</span>
+            ) : (
+              <span className="text-gray-300">
+                {username}
+                <span className="text-gray-500">#{discriminator}</span>
+              </span>
+            )}
+            <UserSearch 
+              className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer" 
+              onClick={() => onSearchClick(player.name)}
+            />
+          </div>
+          {(player.steamName || player.psnName || player.xboxName) && (
+            <div className="text-xs text-gray-400 mt-1 flex items-center gap-3">
+              {player.steamName && (
+                <span className="flex items-center">
+                  <PlatformIcons.Steam />
+                  {player.steamName}
+                </span>
+              )}
+              {player.psnName && (
+                <span className="flex items-center">
+                  <PlatformIcons.PSN />
+                  {player.psnName}
+                </span>
+              )}
+              {player.xboxName && (
+                <span className="flex items-center">
+                  <PlatformIcons.Xbox />
+                  {player.xboxName}
+                </span>
+              )}
+            </div>
           )}
-          <UserSearch 
-            className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer" 
-            onClick={() => onSearchClick(player.name)}
-          />
         </div>
       </td>
       <LeagueDisplay 
@@ -87,7 +119,9 @@ export const GlobalView = ({
     startIndex,
     endIndex,
     handlePageChange,
-    filteredItems
+    filteredItems,
+    sortConfig,
+    handleSort
   } = usePagination(globalLeaderboard, 50);
 
   useSwipe(
@@ -124,10 +158,46 @@ export const GlobalView = ({
         <table className="w-full min-w-[640px]">
           <thead>
             <tr className="bg-gray-700">
-              <th className="px-4 py-2 text-left text-gray-300">Rank</th>
-              <th className="px-4 py-2 text-left text-gray-300">Change</th>
-              <th className="px-4 py-2 text-left text-gray-300">Player</th>
-              <th className="px-4 py-2 text-center text-gray-300">League & Score</th>
+              <th className="px-4 py-2 text-left text-gray-300">
+                <div className="flex items-center">
+                  Rank
+                  <SortButton
+                    field="rank"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                </div>
+              </th>
+              <th className="px-4 py-2 text-left text-gray-300">
+                <div className="flex items-center">
+                  Change
+                  <SortButton
+                    field="change"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                </div>
+              </th>
+              <th className="px-4 py-2 text-left text-gray-300">
+                <div className="flex items-center">
+                  Player
+                  <SortButton
+                    field="name"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                </div>
+              </th>
+              <th className="px-4 py-2 text-center text-gray-300">
+                <div className="flex items-center justify-center">
+                  League
+                  <SortButton
+                    field="score"
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
+                  />
+                </div>
+              </th>
               <th className="px-4 py-2 text-center text-gray-300">Graph</th>
             </tr>
           </thead>

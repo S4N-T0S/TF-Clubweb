@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, AlertTriangle, X } from 'lucide-react';
 import { searchPlayerHistory } from '../services/historicalDataService';
 import { Hexagon } from './icons/Hexagon';
+import { PlatformIcons } from './icons/Platforms';
 import { getLeagueInfo } from '../utils/leagueUtils';
 import { useMobileDetect } from '../hooks/useMobileDetect';
 import { PlayerSearchModalProps } from '../types/propTypes';
@@ -311,22 +312,42 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
                 </div>
 
                 <div className="space-y-2 text-gray-300">
-                  {result.name && <p>Embark ID: {result.name}</p>}
-                  {result.steamName && (
-                    <div className="flex items-center gap-2">
-                      <p>Steam: {result.steamName}</p>
-                      {result.foundViaSteamName && (
-                        <div className="relative group">
-                          <AlertTriangle className="w-4 h-4 text-yellow-400 hover:cursor-help" />
-                          <span className="absolute hidden group-hover:block bg-gray-900 text-white px-2 py-1 rounded text-sm -top-10 left-1/2 -translate-x-1/2 z-50 w-48 hover:cursor-help">
-                            Steam names are not unique, this could be a different player.
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {result.psnName && <p>PSN: {result.psnName}</p>}
-                  {result.xboxName && <p>Xbox: {result.xboxName}</p>}
+                  <div className="grid grid-cols-2 gap-2">
+                    {result.name && (
+                      <p className="flex items-center">
+                        <PlatformIcons.Embark />
+                        {result.name}
+                      </p>
+                    )}
+                    {result.steamName && (
+                      <div className="flex items-center gap-2">
+                        <p className="flex items-center">
+                          <PlatformIcons.Steam />
+                          {result.steamName}
+                        </p>
+                        {result.foundViaSteamName && (
+                          <div className="relative group">
+                            <AlertTriangle className="w-4 h-4 text-yellow-400 hover:cursor-help" />
+                            <span className="absolute hidden group-hover:block bg-gray-900 text-white px-2 py-1 rounded text-sm -top-10 left-1/2 -translate-x-1/2 z-50 w-48 hover:cursor-help">
+                              Steam names are not unique, this could be a different player.
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {result.psnName && (
+                      <p className="flex items-center">
+                        <PlatformIcons.PSN />
+                        {result.psnName}
+                      </p>
+                    )}
+                    {result.xboxName && (
+                      <p className="flex items-center">
+                        <PlatformIcons.Xbox />
+                        {result.xboxName}
+                      </p>
+                    )}
+                  </div>
                   
                   <div className="mt-3 pt-3 border-t border-gray-600 flex items-center gap-2">
                     <Hexagon className={getLeagueInfo(null, result.league).style} />

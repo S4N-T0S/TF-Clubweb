@@ -9,7 +9,10 @@ export const PlayerType = {
   clubTag: PropTypes.string,
   discord: PropTypes.string,
   notInLeaderboard: PropTypes.bool,
-  leagueNumber: PropTypes.number
+  leagueNumber: PropTypes.number,
+  steamName: PropTypes.string,
+  psnName: PropTypes.string,
+  xboxName: PropTypes.string
 };
 
 export const ClanType = {
@@ -17,6 +20,15 @@ export const ClanType = {
   memberCount: PropTypes.number.isRequired,
   totalScore: PropTypes.number.isRequired,
   originalRank: PropTypes.number
+};
+
+export const SortButtonProps = {
+  field: PropTypes.string.isRequired,
+  sortConfig: PropTypes.shape({
+    field: PropTypes.string,
+    direction: PropTypes.oneOf(['asc', 'desc', 'default']).isRequired
+  }).isRequired,
+  onSort: PropTypes.func.isRequired
 };
 
 export const DashboardHeaderProps = {

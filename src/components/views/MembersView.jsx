@@ -17,6 +17,7 @@ const PriorRubyDisplay = ({ isPriorRuby }) => {
 
 // Updated to accept clanMembersData prop which contains the data
 const MemberRow = ({ member, onSearchClick, onGraphClick, clanMembersData }) => {
+  const [username, discriminator] = member.name.split('#');
   const clanMemberInfo = clanMembersData?.find(m => 
     m.embarkId.toLowerCase() === member.name.toLowerCase() ||
     (m.discord && m.discord.toLowerCase() === member.discord?.toLowerCase())
@@ -36,7 +37,8 @@ const MemberRow = ({ member, onSearchClick, onGraphClick, clanMembersData }) => 
       <td className="px-4 py-2">
         <div className="flex items-center gap-2">
           <span className={member.notInLeaderboard ? 'text-red-400' : 'text-gray-300'}>
-            {member.name}
+            {`${username}`}
+            <span className={member.notInLeaderboard ? 'text-red-400' : 'text-gray-500'}>#{discriminator}</span>
           </span>
           <UserSearch 
             className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer" 
@@ -108,7 +110,7 @@ export const MembersView = ({
                   Discord Linked?
                 </div>
               </th>
-              <th className="px-4 py-2 text-center text-gray-300">League & Score</th>
+              <th className="px-4 py-2 text-center text-gray-300">League</th>
               <th className="group relative px-4 py-2 text-center text-gray-300">
                 PR?
                 <div className="absolute hidden group-hover:block bg-gray-800 text-white p-2 rounded shadow-lg mt-1 right-0 z-10">
