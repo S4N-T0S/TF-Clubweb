@@ -27,10 +27,14 @@ const formatTimestamp = (timestamp) => {
   return date.toLocaleDateString();
 };
 
-const formatTtl = (ttl) => {
-  if (ttl <= 0) return 'now';
+const formatTtl = (ttl, type) => {
+  if (ttl <= 0) return type === 'success' ? 'Up to date!' : 'Retrying...';
   const minutes = Math.ceil(ttl / 60);
-  return minutes === 1 ? 'in 1 minute' : `in ${minutes} minutes`;
+  
+  if (type === 'success') {
+    return minutes === 1 ? 'Update available 1 minute' : `Update available in ${minutes} minutes`;
+  }
+  return minutes === 1 ? 'Retrying in 1 minute' : `Retrying in ${minutes} minutes`;
 };
 
 const getDataAge = (timestamp) => {
@@ -94,7 +98,7 @@ const Toast = ({ message, type, timestamp, ttl }) => {
         
         <div className="flex-1 min-w-0">
           <p className="text-white font-medium break-words">
-            {isDataTooOld && type === 'warning' 
+            {isDataTooOld
               ? 'Data is significantly outdated' 
               : currentMessage}
           </p>
@@ -102,7 +106,7 @@ const Toast = ({ message, type, timestamp, ttl }) => {
             <p className="text-white/80 text-sm">Last updated {formatTimestamp(timestamp)}</p>
           )}
           {ttl && type !== 'loading' && (
-            <p className="text-white/80 text-sm">Update available {formatTtl(ttl)}</p>
+            <p className="text-white/80 text-sm">{formatTtl(ttl, type)}</p>
           )}
         </div>
 
