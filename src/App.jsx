@@ -26,14 +26,6 @@ const setTabCookie = (tab) => {
 };
 
 const App = () => {
-  // Early return if on pages.dev domain
-  useEffect(() => {
-    if (window.location.hostname.includes('pages.dev')) {
-      window.location.replace('https://ogclub.s4nt0s.eu');
-      return;
-    }
-  }, []);
-
   const navigate = useNavigate();
   const { graph, history } = useParams();
 
@@ -157,11 +149,6 @@ const App = () => {
   const handleSearchSubmit = (query) => {
     window.history.replaceState(null, '', `/history/${query}`);
   };
-
-  // If we're on pages.dev, return null to prevent rendering
-  if (typeof window !== 'undefined' && window.location.hostname.includes('pages.dev')) {
-    return null;
-  }
 
   if (error) return <ErrorDisplay error={error} onRetry={refreshData} />;
   if (loading || clanMembersLoading) return <LoadingDisplay />;
