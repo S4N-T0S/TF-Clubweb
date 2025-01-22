@@ -265,6 +265,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
   const chartRef = useRef(null);
   const dataCache = useRef(null);
   const [showCompareHint, setShowCompareHint] = useState(true);
+  const [showZoomHint, setShowZoomHint] = useState(true);
   const mainPlayerId = playerId;
 
   // Add useEffect for managing body scroll
@@ -330,6 +331,22 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       return () => clearTimeout(timer);
     }
   }, [showCompareHint]);
+
+  useEffect(() => {
+    if (showZoomHint) {
+      const timer = setTimeout(() => {
+        setShowZoomHint(false);
+      }, 6000); // Show for 6 seconds
+  
+      return () => clearTimeout(timer);
+    }
+  }, [showZoomHint]);
+  
+  const handleZoomPan = useCallback(() => {
+    if (showZoomHint) {
+      setShowZoomHint(false);
+    }
+  }, [showZoomHint]);
 
   const getPointRadius = useCallback((ctx) => {
     if (!ctx.chart) return 3;  // Default size if chart context is not available
@@ -1181,6 +1198,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
           enabled: true,
           mode: 'x',
           modifierKey: null,
+          onPanStart: handleZoomPan,
           onPan: function(ctx) {
             let timeRange = {
               min: ctx.chart.scales.x.min,
@@ -1221,6 +1239,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
             enabled: true
           },
           mode: 'x',
+          onZoomStart: handleZoomPan,
           onZoom: function(ctx) {
             let timeRange = {
               min: ctx.chart.scales.x.min,
@@ -1307,7 +1326,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
         }
       }
     }
-  } : null, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, selectedTimeRange, externalTooltipHandler, calculateYAxisStepSize]);
+  } : null, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, selectedTimeRange, externalTooltipHandler, calculateYAxisStepSize, handleZoomPan]);
 
   const chartData = useMemo(() => data ? {
     labels: data.map(d => d.timestamp),
@@ -1500,7 +1519,32 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
           ) : error ? (
             <div className="flex items-center justify-center h-full text-gray-400">{error}</div>
           ) : (
-            <Line ref={chartRef} data={chartData} options={chartOptions} />
+            <>
+              {showZoomHint && (
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 
+                                bg-gray-800 bg-opacity-90 text-white px-4 py-2 rounded-lg 
+                                transition-opacity duration-300 cursor-pointer z-10"
+                                onClick={() => setShowZoomHint(false)}>
+                  <div className="flex flex-col items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                              d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span>Mouse wheel to zoom</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                              d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                      </svg>
+                      <span>Click and drag to pan</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <Line ref={chartRef} data={chartData} options={chartOptions} />
+            </>
           )}
         </div>
       </div>
