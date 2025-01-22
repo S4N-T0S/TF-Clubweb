@@ -341,12 +341,12 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       return () => clearTimeout(timer);
     }
   }, [showZoomHint]);
-  
-  const handleZoomPan = useCallback(() => {
+
+  const handleZoomPanRef = useRef(() => {
     if (showZoomHint) {
       setShowZoomHint(false);
     }
-  }, [showZoomHint]);
+  });
 
   const getPointRadius = useCallback((ctx) => {
     if (!ctx.chart) return 3;  // Default size if chart context is not available
@@ -1198,7 +1198,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
           enabled: true,
           mode: 'x',
           modifierKey: null,
-          onPanStart: handleZoomPan,
+          onPanStart: handleZoomPanRef.current,
           onPan: function(ctx) {
             let timeRange = {
               min: ctx.chart.scales.x.min,
@@ -1239,7 +1239,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
             enabled: true
           },
           mode: 'x',
-          onZoomStart: handleZoomPan,
+          onZoomStart: handleZoomPanRef.current,
           onZoom: function(ctx) {
             let timeRange = {
               min: ctx.chart.scales.x.min,
@@ -1326,7 +1326,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
         }
       }
     }
-  } : null, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, selectedTimeRange, externalTooltipHandler, calculateYAxisStepSize, handleZoomPan]);
+  } : null, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, selectedTimeRange, externalTooltipHandler, calculateYAxisStepSize]);
 
   const chartData = useMemo(() => data ? {
     labels: data.map(d => d.timestamp),
