@@ -675,9 +675,14 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
   }, []);
 
   // Now we can define loadComparisonData after interpolateDataPoints
-  const loadComparisonData = useCallback(async (comparePlayerId) => {
+  const loadComparisonData = useCallback(async (compareId) => {
+    // Add a check to see if we already have this comparison's data
+    if (comparisonData.has(compareId)) {
+      return comparisonData.get(compareId).data;
+    }
+  
     try {
-      const result = await fetchPlayerGraphData(comparePlayerId);
+      const result = await fetchPlayerGraphData(compareId);
       if (!result.data?.length) return null;
       
       const parsedData = result.data.map(item => ({
@@ -685,18 +690,18 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
         timestamp: new Date(item.timestamp)
       }));
       
-      const interpolatedData = interpolateDataPoints(parsedData);
-      return interpolatedData;
+      return interpolateDataPoints(parsedData);
     } catch (error) {
-      console.error(`Failed to load comparison data for ${comparePlayerId}:`, error);
+      console.error(`Failed to load comparison data for ${compareId}:`, error);
       return null;
     }
-  }, [interpolateDataPoints]);
+  }, [comparisonData, interpolateDataPoints]);
 
   const handleAddComparison = useCallback(async (player) => {
     if (comparisonData.size >= MAX_COMPARISONS) {
       return;
     }
+    
     const newData = await loadComparisonData(player.name);
     if (newData) {
       setComparisonData(prev => {
@@ -715,7 +720,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       });
     }
     setShowCompareSearch(false);
-  }, [loadComparisonData, comparisonData, playerId]);
+  }, [loadComparisonData, comparisonData.size, playerId]);
 
   const removeComparison = useCallback((playerId) => {
     setComparisonData(prev => {
@@ -1065,18 +1070,23 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       if (!compareIds?.length || !globalLeaderboard) return;
       
       // Check if we've already loaded these exact compareIds
-      if (JSON.stringify(previousCompareIds.current) === JSON.stringify(compareIds) && 
-          initialLoadComplete.current) {
+      const currentCompareIds = Array.from(comparisonData.keys());
+      const needsLoading = compareIds.some(id => !currentCompareIds.includes(id));
+      
+      if (!needsLoading && initialLoadComplete.current) {
         return;
       }
       
-      // Load all comparison data first
+      // Only load new comparisons
       const newComparisons = new Map();
       
       for (const [index, compareId] of compareIds.entries()) {
-        // Skip if already loaded or if reached max comparisons
         if (newComparisons.size >= MAX_COMPARISONS) break;
-        if (comparisonData.has(compareId)) continue;
+        if (comparisonData.has(compareId)) {
+          // Keep existing comparison data
+          newComparisons.set(compareId, comparisonData.get(compareId));
+          continue;
+        }
         
         const newData = await loadComparisonData(compareId);
         if (newData) {
@@ -1087,7 +1097,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
         }
       }
       
-      // Update state with all new comparisons at once
+      // Only update state if we have new comparisons
       if (newComparisons.size > 0) {
         setComparisonData(prev => {
           const next = new Map([...prev, ...newComparisons]);
