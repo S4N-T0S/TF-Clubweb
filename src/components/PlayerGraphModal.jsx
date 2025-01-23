@@ -100,11 +100,11 @@ const getOrCreateTooltip = (chart) => {
 };
 
 const COMPARISON_COLORS = [
+  'rgba(54, 162, 235, 0.8)',  // Blue
   'rgba(255, 159, 64, 0.8)',  // Orange
-  'rgba(75, 192, 192, 0.8)',  // Teal
   'rgba(153, 102, 255, 0.8)', // Purple
   'rgba(255, 99, 132, 0.8)',  // Pink
-  'rgba(54, 162, 235, 0.8)'   // Blue
+  'rgba(75, 163, 53, 0.8)',   // Green
 ];
 
 // Consolidate all time-related constants
