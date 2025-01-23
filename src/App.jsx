@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Outlet } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLeaderboard } from './hooks/useLeaderboard';
 import { MembersView } from './components/views/MembersView';
 import { ClansView } from './components/views/ClansView';
@@ -80,6 +80,46 @@ const App = () => {
     loadClanMembers();
   }, []);
 
+  // Update cookie whenever view changes
+  useEffect(() => {
+    setTabCookie(view);
+  }, [view]);
+
+  const handleClanClick = (clanTag) => {
+    setGlobalSearchQuery(`[${clanTag}]`);
+    setView('global');
+  };
+
+  // Handle search modal open/close
+  const handleSearchModalClose = () => {
+    setSearchModalState({ isOpen: false, initialSearch: '' });
+    navigate('/');
+  };
+
+  const handleSearchModalOpen = (initialSearch = '') => {
+    setSearchModalState({ isOpen: true, initialSearch });
+    if (initialSearch) {
+      navigate(`/history/${formatUsernameForUrl(initialSearch)}`);
+    }
+  };
+
+  // Handle search submission
+  const handleSearchSubmit = (query) => {
+    window.history.replaceState(null, '', `/history/${query}`);
+  };
+
+  // Handle graph modal close
+  const handleGraphModalClose = useCallback(() => {
+    // Just navigate, the statechange is done by the UseEffect
+    navigate('/');
+  }, [navigate]);
+
+  // Handle graph modal open/close
+  const handleGraphModalOpen = useCallback((playerId, compareIds = []) => {
+    const urlString = formatMultipleUsernamesForUrl(playerId, compareIds);
+    navigate(`/graph/${urlString}`);
+  }, [navigate]);
+
   // Handle URL parameters on mount
   useEffect(() => {
     if (graph) {
@@ -88,7 +128,7 @@ const App = () => {
         navigate('/');
         return;
       }
-      
+  
       setGraphModalState(prev => {
         // Important: Check if we really need to update the state
         if (
@@ -108,12 +148,17 @@ const App = () => {
         };
       });
     } else {
-      // Reset modal state when no graph parameter
-      setGraphModalState({
-        isOpen: false,
-        playerId: null,
-        compareIds: [],
-        isClubView: false
+      // When no graph parameter, just close without other state changes
+      setGraphModalState(prev => {
+        if (prev.isOpen) {
+          return {
+            isOpen: false,
+            playerId: null,
+            compareIds: [],
+            isClubView: false
+          };
+        }
+        return prev; // Don't update state if modal is already closed
       });
     }
   }, [graph, navigate, view]);
@@ -129,56 +174,6 @@ const App = () => {
       }
     }
   }, [history, navigate]);
-
-  // Update cookie whenever view changes
-  useEffect(() => {
-    setTabCookie(view);
-  }, [view]);
-
-  const handleClanClick = (clanTag) => {
-    setGlobalSearchQuery(`[${clanTag}]`);
-    setView('global');
-  };
-
-  // Handle search modal open/close
-  const handleSearchModalOpen = (initialSearch = '') => {
-    setSearchModalState({ isOpen: true, initialSearch });
-    if (initialSearch) {
-      navigate(`/history/${formatUsernameForUrl(initialSearch)}`);
-    }
-  };
-
-  const handleSearchModalClose = () => {
-    setSearchModalState({ isOpen: false, initialSearch: '' });
-    navigate('/');
-  };
-
-  // Handle graph modal open/close
-  const handleGraphModalOpen = (playerId, compareIds = []) => {
-    // Only navigate if the modal isn't already open with same parameters
-    if (!graphModalState.isOpen || 
-    graphModalState.playerId !== playerId || 
-    JSON.stringify(graphModalState.compareIds) !== JSON.stringify(compareIds))
-    {
-      const urlString = formatMultipleUsernamesForUrl(playerId, compareIds);
-      navigate(`/graph/${urlString}`);
-    }
-  };
-
-  const handleGraphModalClose = () => {
-    setGraphModalState({
-      isOpen: false,
-      playerId: null,
-      compareIds: [],
-      isClubView: false
-    });
-    navigate('/');
-  };
-
-  // Handle search submission
-  const handleSearchSubmit = (query) => {
-    window.history.replaceState(null, '', `/history/${query}`);
-  };
 
   if (error) return <ErrorDisplay error={error} onRetry={refreshData} />;
   if (loading || clanMembersLoading) return <LoadingDisplay />;
