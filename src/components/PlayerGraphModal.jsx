@@ -271,14 +271,17 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
   const [selectedTimeRange, setSelectedTimeRange] = useState('24H');
   const [viewWindow, setViewWindow] = useState(null);
   const [showCompareSearch, setShowCompareSearch] = useState(false);
-  const previousCompareIds = useRef([]);
   const modalRef = useRef(null);
   const chartRef = useRef(null);
-  const dataCache = useRef(null);
-  const initialLoadComplete = useRef(false);
+
+  // Hints for new features
   const [showCompareHint, setShowCompareHint] = useState(true);
   const [showZoomHint, setShowZoomHint] = useState(true);
-  const mainPlayerId = playerId;
+
+  // Add loading ref specifically to fix multiple api requests on URL fetch
+  const isLoadingRef = useRef(false);
+  const loadedCompareIdsRef = useRef(new Set());
+  const shouldFollowUrlRef = useRef(true);
 
   // Add useEffect for managing body scroll
   useEffect(() => {
@@ -323,13 +326,9 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
   // Reset state when modal is opened with new player
   useEffect(() => {
     if (isOpen) {
-      setShowCompareHint(true);
-      if (dataCache.current?.playerId !== playerId) {
-        dataCache.current = null;
-        setData(null);
-        setError(null);
-        setViewWindow(null);
-      }
+      setData(null);
+      setError(null);
+      setViewWindow(null);
     }
   }, [isOpen, playerId]);
 
@@ -676,11 +675,6 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
 
   // Now we can define loadComparisonData after interpolateDataPoints
   const loadComparisonData = useCallback(async (compareId) => {
-    // Add a check to see if we already have this comparison's data
-    if (comparisonData.has(compareId)) {
-      return comparisonData.get(compareId).data;
-    }
-  
     try {
       const result = await fetchPlayerGraphData(compareId);
       if (!result.data?.length) return null;
@@ -695,21 +689,26 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       console.error(`Failed to load comparison data for ${compareId}:`, error);
       return null;
     }
-  }, [comparisonData, interpolateDataPoints]);
+  }, [interpolateDataPoints]);
 
   const handleAddComparison = useCallback(async (player) => {
     if (comparisonData.size >= MAX_COMPARISONS) {
       return;
     }
     
+    // Stop following URL compareIds after manual addition
+    shouldFollowUrlRef.current = false;
+    
     const newData = await loadComparisonData(player.name);
     if (newData) {
       setComparisonData(prev => {
-        const colorIndex = prev.size; // This ensures we use colors in order
-        const next = new Map(prev).set(player.name, {
+        const next = new Map(prev);
+        next.set(player.name, {
           data: newData,
-          color: COMPARISON_COLORS[colorIndex] // Will start with orange (index 0)
+          color: COMPARISON_COLORS[next.size]
         });
+        
+        loadedCompareIdsRef.current.add(player.name);
         
         // Update URL with new comparison
         const currentCompares = Array.from(next.keys());
@@ -722,10 +721,14 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
     setShowCompareSearch(false);
   }, [loadComparisonData, comparisonData.size, playerId]);
 
-  const removeComparison = useCallback((playerId) => {
+  const removeComparison = useCallback((comparePlayerId) => {
+    // Stop following URL compareIds after manual removal
+    shouldFollowUrlRef.current = false;
+    
     setComparisonData(prev => {
       const next = new Map(prev);
-      next.delete(playerId);
+      next.delete(comparePlayerId);
+      loadedCompareIdsRef.current.delete(comparePlayerId);
       
       // Reassign colors to maintain order
       const entries = Array.from(next.entries());
@@ -738,12 +741,13 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       
       // Update URL after removal
       const currentCompares = Array.from(next.keys());
-      const urlString = formatMultipleUsernamesForUrl(mainPlayerId, currentCompares);
+      const urlString = formatMultipleUsernamesForUrl(playerId, currentCompares);
       window.history.replaceState(null, '', `/graph/${urlString}`);
       
       return next;
     });
-  }, [mainPlayerId]);
+  }, [playerId]);
+
 
   const getDynamicYAxisDomain = useCallback((dataMin, dataMax, data, timeWindow, customTimeRange = null) => {
     if (!data?.length) return [0, 50000];
@@ -1065,68 +1069,61 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
 
   // Get Comparisons from URL if any
   useEffect(() => {
+    // Capture ref values at the start of the effect
+    const loadedIds = loadedCompareIdsRef.current;
+    const shouldFollowUrl = shouldFollowUrlRef.current;
+    let isLoading = isLoadingRef.current;
+
     const loadInitialComparisons = async () => {
-      // Skip if no new comparisons to load
-      if (!compareIds?.length || !globalLeaderboard) return;
-      
-      // Check if we've already loaded these exact compareIds
-      const currentCompareIds = Array.from(comparisonData.keys());
-      const needsLoading = compareIds.some(id => !currentCompareIds.includes(id));
-      
-      if (!needsLoading && initialLoadComplete.current) {
+      // Skip if we shouldn't follow URL anymore or other conditions aren't met
+      if (!isOpen || !compareIds?.length || !globalLeaderboard || 
+          isLoading || !shouldFollowUrl) {
         return;
       }
-      
-      // Only load new comparisons
-      const newComparisons = new Map();
-      
-      for (const [index, compareId] of compareIds.entries()) {
-        if (newComparisons.size >= MAX_COMPARISONS) break;
-        if (comparisonData.has(compareId)) {
-          // Keep existing comparison data
-          newComparisons.set(compareId, comparisonData.get(compareId));
-          continue;
-        }
-        
-        const newData = await loadComparisonData(compareId);
-        if (newData) {
-          newComparisons.set(compareId, {
-            data: newData,
-            color: COMPARISON_COLORS[index] // Assign colors in order
-          });
-        }
+
+      // Check if we already have exactly these comparisons
+      const currentCompareIds = Array.from(comparisonData.keys());
+      if (JSON.stringify(currentCompareIds) === JSON.stringify(compareIds)) {
+        return;
       }
+
+      isLoading = true;
+      isLoadingRef.current = true;
       
-      // Only update state if we have new comparisons
-      if (newComparisons.size > 0) {
-        setComparisonData(prev => {
-          const next = new Map([...prev, ...newComparisons]);
-          // Reassign colors to maintain order
-          const entries = Array.from(next.entries());
-          entries.forEach(([id], index) => {
-            next.set(id, {
-              ...next.get(id),
+      try {
+        const newComparisons = new Map();
+        
+        for (const [index, compareId] of compareIds.entries()) {
+          if (newComparisons.size >= MAX_COMPARISONS) break;
+          
+          const comparisonResult = await loadComparisonData(compareId);
+          
+          if (comparisonResult) {
+            newComparisons.set(compareId, {
+              data: comparisonResult,
               color: COMPARISON_COLORS[index]
             });
-          });
-          return next;
-        });
+            loadedIds.add(compareId);
+          }
+        }
+        
+        if (newComparisons.size > 0) {
+          setComparisonData(newComparisons);
+        }
+      } finally {
+        isLoading = false;
+        isLoadingRef.current = false;
       }
-      
-      // Update refs
-      previousCompareIds.current = compareIds;
-      initialLoadComplete.current = true;
     };
-  
-    if (isOpen) {
-      loadInitialComparisons();
-    }
+
+    loadInitialComparisons();
     
-    // Reset the refs when modal closes
+    // Cleanup function uses captured values
     return () => {
       if (!isOpen) {
-        initialLoadComplete.current = false;
-        previousCompareIds.current = [];
+        loadedIds.clear();
+        shouldFollowUrlRef.current = true; // Reset when modal closes
+        isLoadingRef.current = false;
       }
     };
   }, [isOpen, compareIds, globalLeaderboard, comparisonData, loadComparisonData]);
@@ -1537,23 +1534,23 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
         </div>
 
         {comparisonData.size > 0 && (
-          <div className="flex gap-2 mb-4 flex-wrap">
-            {Array.from(comparisonData.entries()).map(([compareId, { color }]) => (
-              <div 
-                key={compareId}
-                className="flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1"
-              >
-                <span className="text-sm" style={{ color: color }}>{compareId}</span>
-                <button
-                  onClick={() => removeComparison(compareId)}
-                  className="text-gray-400 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {Array.from(comparisonData.entries()).map(([compareId, { color }]) => (
+          <div 
+            key={compareId}
+            className="flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1"
+          >
+            <span className="text-sm" style={{ color: color }}>{compareId}</span>
+            <button
+              onClick={() => removeComparison(compareId)}
+              className="text-gray-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-        )}
+        ))}
+      </div>
+    )}
 
         <div className="h-[calc(85vh-140px)] w-full">
           {loading ? (
