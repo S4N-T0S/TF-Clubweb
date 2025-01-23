@@ -261,9 +261,11 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
   const [selectedTimeRange, setSelectedTimeRange] = useState('24H');
   const [viewWindow, setViewWindow] = useState(null);
   const [showCompareSearch, setShowCompareSearch] = useState(false);
+  const previousCompareIds = useRef([]);
   const modalRef = useRef(null);
   const chartRef = useRef(null);
   const dataCache = useRef(null);
+  const initialLoadComplete = useRef(false);
   const [showCompareHint, setShowCompareHint] = useState(true);
   const [showZoomHint, setShowZoomHint] = useState(true);
   const mainPlayerId = playerId;
@@ -1043,7 +1045,14 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
   // Get Comparisons from URL if any
   useEffect(() => {
     const loadInitialComparisons = async () => {
+      // Skip if no new comparisons to load
       if (!compareIds?.length || !globalLeaderboard) return;
+      
+      // Check if we've already loaded these exact compareIds
+      if (JSON.stringify(previousCompareIds.current) === JSON.stringify(compareIds) && 
+          initialLoadComplete.current) {
+        return;
+      }
       
       // Load all comparison data first
       const newComparisons = new Map();
@@ -1077,11 +1086,23 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
           return next;
         });
       }
+      
+      // Update refs
+      previousCompareIds.current = compareIds;
+      initialLoadComplete.current = true;
     };
   
     if (isOpen) {
       loadInitialComparisons();
     }
+    
+    // Reset the refs when modal closes
+    return () => {
+      if (!isOpen) {
+        initialLoadComplete.current = false;
+        previousCompareIds.current = [];
+      }
+    };
   }, [isOpen, compareIds, globalLeaderboard, comparisonData, loadComparisonData]);
 
   // Adjusted calculateYAxisStepSize function

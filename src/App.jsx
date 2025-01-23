@@ -84,26 +84,51 @@ const App = () => {
   useEffect(() => {
     if (graph) {
       const { main, compare } = parseMultipleUsernamesFromUrl(graph);
-      if (main) {
-          setGraphModalState({ 
-            isOpen: true, 
-            playerId: main,
-            compareIds: compare,
-            isClubView: view === 'members'
-          });
-      } else {
+      if (!main) {
         navigate('/');
+        return;
       }
+      
+      setGraphModalState(prev => {
+        // Important: Check if we really need to update the state
+        if (
+          prev.isOpen && 
+          prev.playerId === main && 
+          JSON.stringify(prev.compareIds) === JSON.stringify(compare) &&
+          prev.isClubView === (view === 'members')
+        ) {
+          return prev; // Return previous state if nothing changed
+        }
+        
+        return {
+          isOpen: true,
+          playerId: main,
+          compareIds: compare,
+          isClubView: (view === 'members')
+        };
+      });
+    } else {
+      // Reset modal state when no graph parameter
+      setGraphModalState({
+        isOpen: false,
+        playerId: null,
+        compareIds: [],
+        isClubView: false
+      });
     }
+  }, [graph, navigate, view]);
+
+  useEffect(() =>  {
     if (history) {
       const parsed = safeParseUsernameFromUrl(history);
       if (parsed) {
         setSearchModalState({ isOpen: true, initialSearch: parsed });
       } else {
         navigate('/');
+        return;
       }
     }
-  }, [graph, history, navigate, view]);
+  }, [history, navigate]);
 
   // Update cookie whenever view changes
   useEffect(() => {
@@ -129,8 +154,7 @@ const App = () => {
   };
 
   // Handle graph modal open/close
-  const handleGraphModalOpen = (playerId, compareIds = [], isClubView = false) => {
-    setGraphModalState({ isOpen: true, playerId, compareIds, isClubView });
+  const handleGraphModalOpen = (playerId, compareIds = []) => {
     const urlString = formatMultipleUsernamesForUrl(playerId, compareIds);
     navigate(`/graph/${urlString}`);
   };
@@ -181,7 +205,7 @@ const App = () => {
               totalMembers={clanMembersData.length} 
               onPlayerSearch={(name) => handleSearchModalOpen(name)}
               clanMembersData={clanMembersData} // Pass clan members data to members view
-              onGraphOpen={(playerId) => handleGraphModalOpen(playerId, [], true)}
+              onGraphOpen={(playerId) => handleGraphModalOpen(playerId, [])}
             />
           )}
           {view === 'clans' && (
@@ -196,7 +220,7 @@ const App = () => {
               onPlayerSearch={(name) => handleSearchModalOpen(name)}
               searchQuery={globalSearchQuery}
               setSearchQuery={setGlobalSearchQuery}
-              onGraphOpen={(playerId) => handleGraphModalOpen(playerId, [], false)}
+              onGraphOpen={(playerId) => handleGraphModalOpen(playerId, [])}
             />
           )}
         </div>
@@ -218,7 +242,7 @@ const App = () => {
           compareIds={graphModalState.compareIds}
           isClubView={graphModalState.isClubView}
           globalLeaderboard={graphModalState.isClubView ? rankedClanMembers : globalLeaderboard}
-          onSwitchToGlobal={(playerId) => { setView('global'); handleGraphModalOpen(playerId, [], false); }}
+          onSwitchToGlobal={(playerId) => { setView('global'); handleGraphModalOpen(playerId, []); }}
         />
       )}
       <Outlet />
