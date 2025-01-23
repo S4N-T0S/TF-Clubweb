@@ -119,7 +119,6 @@ const TIME = {
 TIME.MINUTES_15 = 15 * TIME.MINUTE; // 15 minutes delay ~ between data points
 TIME.TWO_HOURS = 2 * TIME.HOUR; // supposed to be for view window but I think it's bugged
 TIME.SEVENTY_TWO_HOURS = 72 * TIME.HOUR; // for extrapolation visibility
-TIME.CACHE_DURATION = 5 * TIME.MINUTE;// cache for reopenning modal
 
 // Time format for tooltips and such.
 TIME.FORMAT = {
@@ -999,19 +998,6 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
   }, [data, getDynamicYAxisDomain, selectedTimeRange, getHighlightedPeriodAnnotation]);
 
   const loadData = useCallback(async () => {
-    if (
-      dataCache.current?.playerId === playerId && 
-      Date.now() - dataCache.current.timestamp < TIME.CACHE_DURATION
-    ) {
-      setData(dataCache.current.data);
-      // Set time range based on cached data
-      const defaultRange = determineDefaultTimeRange(dataCache.current.data);
-      setSelectedTimeRange(defaultRange);
-      const window = calculateViewWindow(dataCache.current.data, defaultRange);
-      setViewWindow(window);
-      return;
-    }
-  
     setLoading(true);
     setError(null);
     try {
@@ -1032,15 +1018,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       }));
       
       const interpolatedData = interpolateDataPoints(parsedData);
-      
-      // Cache the data
-      dataCache.current = {
-        playerId,
-        data: interpolatedData,
-        timestamp: Date.now()
-      };
-      
       setData(interpolatedData);
+      
       // Set time range based on loaded data
       const defaultRange = determineDefaultTimeRange(interpolatedData);
       setSelectedTimeRange(defaultRange);
@@ -1059,12 +1038,12 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
         onClose();
       }
     };
-
+  
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       loadData();
     }
-
+  
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
