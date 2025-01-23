@@ -74,22 +74,20 @@ const getRankFromScore = (score) => {
 const createTooltip = (chart) => {
   const tooltipEl = document.createElement('div');
   tooltipEl.className = 'rank-tooltip';
-  tooltipEl.style.background = '#1f2937';
-  tooltipEl.style.borderRadius = '3px';
-  tooltipEl.style.color = '#FAF9F6';
-  tooltipEl.style.opacity = 1;
-  tooltipEl.style.pointerEvents = 'none';
-  tooltipEl.style.position = 'absolute';
-  tooltipEl.style.transform = 'translate(-50%, 0)';
-  tooltipEl.style.transition = 'all .1s ease';
-  tooltipEl.style.padding = '12px';
-
-  const table = document.createElement('table');
-  table.style.margin = '0px';
-
-  tooltipEl.appendChild(table);
-  chart.canvas.parentNode.appendChild(tooltipEl);
+  Object.assign(tooltipEl.style, {
+    background: '#1f2937',
+    borderRadius: '3px',
+    color: '#FAF9F6',
+    opacity: 1,
+    pointerEvents: 'none',
+    position: 'absolute',
+    transform: 'translate(-50%, 0)',
+    transition: 'all .1s ease',
+    padding: '12px'
+  });
   
+  tooltipEl.appendChild(document.createElement('table'));
+  chart.canvas.parentNode.appendChild(tooltipEl);
   return tooltipEl;
 };
 
@@ -138,6 +136,19 @@ TIME.RANGES = {
   '7D': TIME.WEEK,
   'MAX': Infinity
 };
+
+// Display format times for x-axis
+TIME.DISPLAY_FORMATS = {
+  millisecond: 'dd MMM HH:mm',
+  second: 'dd MMM HH:mm',
+  minute: 'dd MMM HH:mm',
+  hour: 'd MMM HH:mm',
+  day: 'dd MMM',
+  week: 'dd MMM',
+  month: 'MMM yyyy',
+  quarter: 'MMM yyyy',
+  year: 'yyyy'
+}
 const MAX_COMPARISONS = 5;
 
 const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClose, comparisonData }) => {
@@ -409,14 +420,40 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       const rank = getRankFromScore(score);
       const datasetIndex = tooltip.dataPoints[0].datasetIndex;
       const dataPoint = tooltip.dataPoints[0].raw.raw;
-      
-      const tableRoot = tooltipEl.querySelector('table');
-  
-      // Clear previous tooltip content
-      while (tableRoot.firstChild) {
-        tableRoot.firstChild.remove();
+        
+      // Clear previous tooltip
+      while (tooltipEl.firstChild) {
+        tooltipEl.firstChild.remove();
       }
-  
+
+      // Create fresh table
+      const tableRoot = document.createElement('table');
+      tableRoot.style.margin = '0px';
+      tooltipEl.appendChild(tableRoot);
+
+      // Compact corner rank badge
+      if (
+        dataPoint?.rank !== null && 
+        Number.isInteger(dataPoint?.rank) && 
+        !dataPoint.isExtrapolated && 
+        !dataPoint.isInterpolated
+      ) {
+        const rankBadge = document.createElement('div');
+        rankBadge.style.position = 'absolute';
+        rankBadge.style.right = '-6px';
+        rankBadge.style.top = '-6px';
+        rankBadge.style.backgroundColor = '#4b5563';
+        rankBadge.style.color = '#ffffff';
+        rankBadge.style.fontSize = '10px';
+        rankBadge.style.fontWeight = 'bold';
+        rankBadge.style.padding = '4px 6px';
+        rankBadge.style.borderRadius = '0 3px 0 6px';
+        rankBadge.style.boxShadow = '0 1px 3px rgba(0,0,0,0.3)';
+        rankBadge.textContent = `#${dataPoint.rank.toLocaleString()}`;
+      
+        tooltipEl.appendChild(rankBadge);
+      }
+
       // Add player name if in comparison mode (more than one dataset)
       if (chart.data.datasets.length > 1) {
         const playerNameRow = document.createElement('tr');
@@ -1127,17 +1164,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       x: {
         type: 'time',
         time: {
-          displayFormats: {
-            millisecond: 'dd MMM HH:mm',
-            second: 'dd MMM HH:mm',
-            minute: 'dd MMM HH:mm',
-            hour: 'd MMM HH:mm',
-            day: 'dd MMM',
-            week: 'dd MMM',
-            month: 'MMM yyyy',
-            quarter: 'MMM yyyy',
-            year: 'yyyy'
-          },
+          displayFormats: TIME.DISPLAY_FORMATS,
           // Ensure Chart.js knows to interpret timestamps as UTC
           parser: 'yyyy-MM-dd\'T\'HH:mm:ss.SSS\'Z\'',
           // Display in local timezone
@@ -1356,7 +1383,12 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       data: data.map(d => ({
           x: d.timestamp,
           y: d.rankScore,
-          raw: d
+          raw: {
+            ...d,
+            timestamp: d.timestamp,
+            rankScore: d.rankScore,
+            rank: d.rank,
+        }
       })),
       segment: {
         borderColor: ctx => {
