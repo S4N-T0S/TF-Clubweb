@@ -101,10 +101,10 @@ const App = () => {
         }
         
         return {
-          isOpen: true,
-          playerId: main,
-          compareIds: compare,
-          isClubView: (view === 'members')
+        isOpen: true,
+        playerId: main,
+        compareIds: compare,
+        isClubView: (view === 'members')
         };
       });
     } else {
@@ -155,8 +155,14 @@ const App = () => {
 
   // Handle graph modal open/close
   const handleGraphModalOpen = (playerId, compareIds = []) => {
-    const urlString = formatMultipleUsernamesForUrl(playerId, compareIds);
-    navigate(`/graph/${urlString}`);
+    // Only navigate if the modal isn't already open with same parameters
+    if (!graphModalState.isOpen || 
+    graphModalState.playerId !== playerId || 
+    JSON.stringify(graphModalState.compareIds) !== JSON.stringify(compareIds))
+    {
+      const urlString = formatMultipleUsernamesForUrl(playerId, compareIds);
+      navigate(`/graph/${urlString}`);
+    }
   };
 
   const handleGraphModalClose = () => {
