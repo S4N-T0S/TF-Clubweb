@@ -44,55 +44,59 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile 
             onClick={() => onGraphClick(player.name)}
           />
         </div>
-        <div className="flex justify-between items-center">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
+        <div className="flex justify-between items-start">
+          <div className="flex flex-col min-w-0 flex-1 mr-3">
+            <div className="flex flex-col">
               {player.clubTag && (
                 <span 
-                  className="bg-gray-700 px-1 py-0.5 rounded text-blue-400 hover:text-blue-300 cursor-pointer"
+                  className="self-start bg-gray-700 px-1.5 py-0.5 rounded text-blue-400 hover:text-blue-300 cursor-pointer mb-1"
                   onClick={() => onClanClick(player.clubTag)}
                 >
                   [{player.clubTag}]
                 </span>
               )}
-              <span className="text-gray-300">
-                {username}
-                <span className="text-gray-500">#{discriminator}</span>
-              </span>
-              <UserSearch 
-                className="w-6 h-6 p-1 text-gray-400 hover:text-blue-400 cursor-pointer rounded-full hover:bg-gray-700 transition-colors" 
-                onClick={() => onSearchClick(player.name)}
-              />
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-gray-300 truncate">
+                  {username}
+                  <span className="text-gray-500">#{discriminator}</span>
+                </span>
+                <UserSearch 
+                  className="flex-shrink-0 w-6 h-6 p-1 text-gray-400 hover:text-blue-400 cursor-pointer rounded-full hover:bg-gray-700 transition-colors" 
+                  onClick={() => onSearchClick(player.name)}
+                />
+              </div>
             </div>
             {(player.steamName || player.psnName || player.xboxName) && (
-              <div className="text-xs text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
+              <div className="text-[11px] text-gray-400 mt-1 flex flex-wrap gap-1.5">
                 {player.steamName && (
                   <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
-                    <PlatformIcons.Steam className="w-3 h-3" />
-                    <span className="truncate max-w-[100px]">{player.steamName}</span>
+                    <PlatformIcons.Steam className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate max-w-[120px]">{player.steamName}</span>
                   </span>
                 )}
                 {player.psnName && (
                   <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
-                    <PlatformIcons.PSN className="w-3 h-3" />
-                    <span className="truncate max-w-[100px]">{player.psnName}</span>
+                    <PlatformIcons.PSN className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate max-w-[120px]">{player.psnName}</span>
                   </span>
                 )}
                 {player.xboxName && (
                   <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
-                    <PlatformIcons.Xbox className="w-3 h-3" />
-                    <span className="truncate max-w-[100px]">{player.xboxName}</span>
+                    <PlatformIcons.Xbox className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate max-w-[120px]">{player.xboxName}</span>
                   </span>
                 )}
               </div>
             )}
           </div>
-          <LeagueDisplay 
-            league={player.league} 
-            score={player.rankScore} 
-            rank={player.rank}
-            mobile={true}
-          />
+          <div className="flex-shrink-0">
+            <LeagueDisplay 
+              league={player.league} 
+              score={player.rankScore} 
+              rank={player.rank}
+              mobile={true}
+            />
+          </div>
         </div>
       </div>
     );

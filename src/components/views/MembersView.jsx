@@ -42,41 +42,47 @@ const MemberRow = ({
         }`}
       >
         <div className="flex justify-between items-center">
-          <span className={`font-bold ${member.notInLeaderboard ? 'text-red-400' : 'text-gray-300'}`}>
-            {member.notInLeaderboard ? '-' : `#${member.rank.toLocaleString()}`}
-          </span>
-          <LineChart
-            className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer"
-            onClick={() => onGraphClick(member.name)}
-          />
+          <div className="flex items-center gap-2">
+            <span className={`font-bold ${member.notInLeaderboard ? 'text-red-400' : 'text-gray-300'}`}>
+              {member.notInLeaderboard ? '-' : `#${member.rank.toLocaleString()}`}
+            </span>
+          </div>
+          {!member.notInLeaderboard && (
+            <LineChart
+              className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer flex-shrink-0"
+              onClick={() => onGraphClick(member.name)}
+            />
+          )}
         </div>
-        <div className="flex justify-between items-center">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <span className={member.notInLeaderboard ? 'text-red-400' : 'text-gray-300'}>
-                {`${username}`}
+        <div className="flex justify-between items-start">
+          <div className="flex flex-col min-w-0 flex-1 mr-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={`truncate ${member.notInLeaderboard ? 'text-red-400' : 'text-gray-300'}`}>
+                {username}
                 <span className={`${member.notInLeaderboard ? 'text-red-400' : 'text-gray-500'}`}>#{discriminator}</span>
               </span>
               <UserSearch 
-                className="w-6 h-6 p-1 text-gray-400 hover:text-blue-400 cursor-pointer rounded-full hover:bg-gray-700 transition-colors" 
+                className="flex-shrink-0 w-6 h-6 p-1 text-gray-400 hover:text-blue-400 cursor-pointer rounded-full hover:bg-gray-700 transition-colors" 
                 onClick={() => onSearchClick(member.name)}
               />
             </div>
-            {(member.discord) && (
-              <div className="text-xs text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
+            {member.discord && (
+              <div className="text-[11px] text-gray-400 mt-1 flex flex-wrap gap-1.5">
                 <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
-                  <PlatformIcons.Discord className="w-3 h-3" />
-                  <span className="truncate max-w-[100px]">{member.discord}</span>
+                  <PlatformIcons.Discord className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate max-w-[150px]">{member.discord}</span>
                 </span>
               </div>
             )}
           </div>
-          <LeagueDisplay 
-            league={member.league} 
-            score={member.rankScore} 
-            rank={member.rank}
-            mobile={true}
-          />
+          <div className="flex-shrink-0">
+            <LeagueDisplay 
+              league={member.league} 
+              score={member.rankScore} 
+              rank={member.rank}
+              mobile={true}
+            />
+          </div>
         </div>
       </div>
     );
