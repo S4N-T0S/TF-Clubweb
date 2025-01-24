@@ -2,16 +2,17 @@
 
 A leaderboard website for The Finals game built with React. Originally made to track OG club member stats, it now includes global leaderboards and detailed player analytics.
 
-![Website Preview](https://github.com/S4N-T0S/TF-Clubweb/blob/main/public/assets/website-preview.png)
-
 ## Features
 
 - 📊 Global leaderboard tracking
 - 📈 Player progress graphs and stats
 - 🔍 Historical player data lookup
 - 🎮 OG club members stats
+- 📱 Fully responsive mobile design for on-the-go stat tracking
 
-![Graphs Example](https://github.com/S4N-T0S/TF-Clubweb/blob/main/public/assets/graphs-example.gif)
+![Desktop Preview](https://github.com/S4N-T0S/TF-Clubweb/blob/main/public/assets/desktop-preview.gif)
+
+![Mobile Preview](https://github.com/S4N-T0S/TF-Clubweb/blob/main/public/assets/mobile-preview.gif)
 
 ## About
 
