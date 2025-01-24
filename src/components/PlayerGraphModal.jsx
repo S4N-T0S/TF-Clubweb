@@ -1474,7 +1474,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
             </div>
             {data && (
               <p className="text-sm text-gray-400 mt-1 truncate">
-                Data available between {`${new Date(data[0].timestamp).toLocaleDateString(undefined, TIME.FORMAT)} - ${new Date().toLocaleDateString(undefined, TIME.FORMAT)}`}
+                {!isMobile ? 'Data available between ' : 'MAX: '} {`${new Date(data[0].timestamp).toLocaleDateString(undefined, TIME.FORMAT)} - ${new Date().toLocaleDateString(undefined, TIME.FORMAT)}`}
               </p>
             )}
           </div>
@@ -1550,16 +1550,21 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
         </div>
 
         {comparisonData.size > 0 && (
-          <div className={`flex gap-2 mb-4 ${isMobile ? 'overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-600' : 'flex-wrap'}`}>
+          <div className={`flex gap-2 mb-4 ${
+            isMobile 
+              ? 'flex-wrap max-h-[100px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600' 
+              : 'flex-wrap'
+          }`}>
             {Array.from(comparisonData.entries()).map(([compareId, { color }]) => (
               <div 
                 key={compareId}
-                className="flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1 whitespace-nowrap"
+                className={`flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1 
+                  ${isMobile ? 'flex-basis-[140px]' : 'whitespace-nowrap'}`}
               >
-                <span className="text-sm" style={{ color: color }}>{compareId}</span>
+                <span className="text-sm truncate" style={{ color: color }}>{compareId}</span>
                 <button
                   onClick={() => removeComparison(compareId)}
-                  className="text-gray-400 hover:text-white"
+                  className="text-gray-400 hover:text-white flex-shrink-0"
                 >
                   <X className="w-4 h-4" />
                 </button>
