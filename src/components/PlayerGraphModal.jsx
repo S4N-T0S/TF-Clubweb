@@ -23,6 +23,7 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import 'chartjs-adapter-date-fns';
 import { fetchPlayerGraphData } from '../services/gp-api';
 import { formatMultipleUsernamesForUrl } from '../utils/urlHandler';
+import { useMobileDetect } from '../hooks/useMobileDetect';
 import { PlayerGraphModalProps, ComparePlayerSearchProps } from '../types/propTypes';
 
 ChartJS.register(
@@ -150,7 +151,7 @@ TIME.DISPLAY_FORMATS = {
 }
 const MAX_COMPARISONS = 5;
 
-const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClose, comparisonData }) => {
+const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClose, comparisonData, className = '' }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredPlayers, setFilteredPlayers] = useState([]);
   const searchRef = useRef(null);
@@ -214,7 +215,7 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
   }, [onClose]);
 
   return (
-    <div ref={searchRef} className="absolute right-0 top-12 w-96 bg-gray-800 rounded-lg shadow-lg p-4 z-50">
+    <div ref={searchRef} className={`absolute right-0 top-12 w-96 bg-gray-800 rounded-lg shadow-lg p-4 z-50 ${className}`}>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-white">Add Player to Compare</h3>
         <button onClick={onClose} className="text-gray-400 hover:text-white sm:hidden">
@@ -271,6 +272,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
   const [selectedTimeRange, setSelectedTimeRange] = useState('24H');
   const [viewWindow, setViewWindow] = useState(null);
   const [showCompareSearch, setShowCompareSearch] = useState(false);
+  const isMobile = useMobileDetect();
   const modalRef = useRef(null);
   const chartRef = useRef(null);
 
@@ -1453,106 +1455,120 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div ref={modalRef} className="bg-[#1a1f2e] rounded-lg p-6 w-full max-w-[80vw] max-h-[95vh] overflow-hidden">
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <h2 className="text-xl font-bold text-white">{playerId} - Graph</h2>
+      <div ref={modalRef} className={`bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden
+        ${isMobile ? 'max-w-[95vw] max-h-[98vh]' : 'max-w-[80vw] max-h-[95vh]'}`}>
+        <div className={`${isMobile ? 'flex flex-col gap-2' : 'flex justify-between items-center'} mb-4`}>
+          <div className={`${isMobile ? 'w-full' : ''}`}>
+            <div className="flex items-center justify-between">
+              <h2 className={`font-bold text-white ${isMobile ? 'text-lg truncate max-w-[200px]' : 'text-xl'}`}>
+                {playerId}
+              </h2>
+              {isMobile && (
+                <button 
+                  onClick={onClose}
+                  className="p-2 hover:bg-gray-700 rounded-lg"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              )}
+            </div>
             {data && (
-              <p className="text-sm text-gray-400 mt-1">
-                Data available from {new Date(data[0].timestamp).toLocaleDateString(undefined, TIME.FORMAT)} to {new Date().toLocaleDateString(undefined, TIME.FORMAT)}
+              <p className="text-sm text-gray-400 mt-1 truncate">
+                Data available between {`${new Date(data[0].timestamp).toLocaleDateString(undefined, TIME.FORMAT)} - ${new Date().toLocaleDateString(undefined, TIME.FORMAT)}`}
               </p>
             )}
           </div>
           {isClubView && (
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm text-blue-400">
-                      Comparing available with club members only
-                    </p>
-                    <button
-                      onClick={() => {
-                        onClose();
-                        onSwitchToGlobal(playerId);
-                      }}
-                      className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-full transition-colors"
-                    >
-                      Switch to Global View
-                    </button>
-                  </div>
-                )}
-          <div className="flex gap-2 items-center relative">
-            {comparisonData.size < MAX_COMPARISONS && (
-            <div className="relative">
-              <button 
-                onClick={() => setShowCompareSearch(true)}
-                className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative transition-all duration-200 group"
-                title="Compare with another player"
+            <div className={`flex ${isMobile ? 'flex-col' : 'items-center'} gap-2`}>
+              <p className="text-sm text-blue-400 truncate">
+                Comparing available with club members only
+              </p>
+              <button
+                onClick={() => {
+                  onClose();
+                  onSwitchToGlobal(playerId);
+                }}
+                className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-full transition-colors whitespace-nowrap"
               >
-                <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
-                {showCompareHint && (
-                  <div className="absolute -top-2 -right-2 w-5 h-5 bg-blue-500 rounded-full animate-pulse" />
-                )}
+                Switch to Global View
               </button>
-              {showCompareHint && (
-                <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-gray-800 text-white text-xs py-1 px-2 rounded fade-out">
-                  Try comparing players!
+            </div>
+          )}
+          <div className="relative flex flex-col w-full">
+            <div className={`flex items-center ${isMobile ? 'w-full justify-between mb-2' : 'w-full justify-end gap-2'}`}>
+              {comparisonData.size < MAX_COMPARISONS && (
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowCompareSearch(true)}
+                    className={`p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative transition-all duration-200 group
+                      ${isMobile ? 'mr-4' : ''}`}
+                    title="Compare with another player"
+                  >
+                    <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
+                    {showCompareHint && (
+                      <div className="absolute -top-2 -right-2 w-5 h-5 bg-blue-500 rounded-full animate-pulse" />
+                    )}
+                  </button>
+                  {showCompareHint && (
+                    <div className={`absolute -top-8 whitespace-nowrap bg-gray-800 text-white text-xs py-1 px-2 rounded fade-out
+                      ${isMobile ? 'left-0' : 'left-1/2 -translate-x-1/2'}`}>
+                      Try comparing players!
+                    </div>
+                  )}
                 </div>
               )}
+              <div className={`flex gap-2 bg-gray-800 rounded-lg p-1 ${isMobile ? 'flex-1 justify-center ml-2' : ''}`}>
+                {Object.keys(TIME.RANGES).map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => setSelectedTimeRange(range)}
+                    className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                      selectedTimeRange === range
+                        ? 'bg-gray-600 text-white'
+                        : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                    } ${isMobile ? 'flex-1' : ''}`}
+                  >
+                    {range}
+                  </button>
+                ))}
+              </div>
             </div>
-            )}
-            <div className="flex gap-2 bg-gray-800 rounded-lg p-1">
-              {Object.keys(TIME.RANGES).map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setSelectedTimeRange(range)}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                    selectedTimeRange === range
-                      ? 'bg-gray-600 text-white'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                  }`}
-                >
-                  {range}
-                </button>
-              ))}
-            </div>
-            <button 
-              onClick={onClose}
-              className="sm:hidden p-2 hover:bg-gray-700 rounded-lg"
-            >
-              <X className="w-5 h-5 text-gray-400" />
-            </button>
-            
+
             {showCompareSearch && (
-            <ComparePlayerSearch
-              onSelect={handleAddComparison}
-              mainPlayerId={playerId}
-              globalLeaderboard={globalLeaderboard}
-              comparisonData={comparisonData}
-              onClose={() => setShowCompareSearch(false)}
-            />
-          )}
+              <ComparePlayerSearch
+                onSelect={handleAddComparison}
+                mainPlayerId={playerId}
+                globalLeaderboard={globalLeaderboard}
+                comparisonData={comparisonData}
+                onClose={() => setShowCompareSearch(false)}
+                className={`${isMobile 
+                  ? 'absolute left-0 right-0 top-full mt-2 w-full max-w-[95vw] mx-auto' 
+                  : 'absolute right-0 top-12 w-96'}`}
+              />
+            )}
           </div>
         </div>
 
         {comparisonData.size > 0 && (
-      <div className="flex gap-2 mb-4 flex-wrap">
-        {Array.from(comparisonData.entries()).map(([compareId, { color }]) => (
-          <div 
-            key={compareId}
-            className="flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1"
-          >
-            <span className="text-sm" style={{ color: color }}>{compareId}</span>
-            <button
-              onClick={() => removeComparison(compareId)}
-              className="text-gray-400 hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          <div className={`flex gap-2 mb-4 ${isMobile ? 'overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-600' : 'flex-wrap'}`}>
+            {Array.from(comparisonData.entries()).map(([compareId, { color }]) => (
+              <div 
+                key={compareId}
+                className="flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1 whitespace-nowrap"
+              >
+                <span className="text-sm" style={{ color: color }}>{compareId}</span>
+                <button
+                  onClick={() => removeComparison(compareId)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-    )}
+        )}
 
-        <div className="h-[calc(85vh-140px)] w-full">
+        <div className={`w-full ${isMobile ? 'h-[calc(80vh-180px)]' : 'h-[calc(85vh-140px)]'}`}>
           {loading ? (
             <div className="flex items-center justify-center h-full text-gray-400">Loading...</div>
           ) : error ? (
