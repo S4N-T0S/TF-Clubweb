@@ -87,7 +87,7 @@ const Toast = ({ message, type, timestamp, ttl }) => {
     }
   };
 
-  if (!currentMessage) return null;
+  if (!currentMessage || !isVisible) return null;
 
   return (
     <div className={`fixed top-4 right-4 z-50 transition-opacity duration-300 ${
