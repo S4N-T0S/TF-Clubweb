@@ -1,8 +1,10 @@
-import { Check, X, UserSearch, LineChart } from 'lucide-react';
+import { Check, UserSearch, LineChart } from 'lucide-react';
 import { LeagueDisplay } from '../LeagueDisplay';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
-import { MembersViewProps, PriorRubyDisplayProps, MemberRowProps } from '../../types/propTypes';
+import { useMobileDetect } from '../../hooks/useMobileDetect';
+import { PlatformIcons } from "../icons/Platforms";
+import { MembersViewProps, MemberRowProps, PriorRubyDisplayProps } from '../../types/propTypes';
 
 const PriorRubyDisplay = ({ isPriorRuby }) => {
   if (isPriorRuby) {
@@ -15,14 +17,72 @@ const PriorRubyDisplay = ({ isPriorRuby }) => {
   return <span className="text-gray-500">💀</span>;
 };
 
-// Updated to accept clanMembersData prop which contains the data
-const MemberRow = ({ member, onSearchClick, onGraphClick, clanMembersData }) => {
+const MemberRow = ({ 
+  member, 
+  onSearchClick, 
+  onGraphClick, 
+  clanMembersData, 
+  isMobile 
+}) => {
   const [username, discriminator] = member.name.split('#');
   const clanMemberInfo = clanMembersData?.find(m => 
     m.embarkId.toLowerCase() === member.name.toLowerCase() ||
     (m.discord && m.discord.toLowerCase() === member.discord?.toLowerCase())
   );
 
+  // Mobile row rendering
+  if (isMobile) {
+    return (
+      <div 
+        className={`flex flex-col gap-2 p-4 border-b border-gray-700 bg-gray-800 rounded-lg shadow-sm 
+        active:bg-gray-750 active:scale-[0.99] transition-all duration-150 ease-in-out ${
+          member.notInLeaderboard 
+            ? 'bg-red-900 bg-opacity-20' 
+            : ''
+        }`}
+      >
+        <div className="flex justify-between items-center">
+          <span className={`font-bold ${member.notInLeaderboard ? 'text-red-400' : 'text-gray-300'}`}>
+            {member.notInLeaderboard ? '-' : `#${member.rank.toLocaleString()}`}
+          </span>
+          <LineChart
+            className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer"
+            onClick={() => onGraphClick(member.name)}
+          />
+        </div>
+        <div className="flex justify-between items-center">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <span className={member.notInLeaderboard ? 'text-red-400' : 'text-gray-300'}>
+                {`${username}`}
+                <span className={`${member.notInLeaderboard ? 'text-red-400' : 'text-gray-500'}`}>#{discriminator}</span>
+              </span>
+              <UserSearch 
+                className="w-6 h-6 p-1 text-gray-400 hover:text-blue-400 cursor-pointer rounded-full hover:bg-gray-700 transition-colors" 
+                onClick={() => onSearchClick(member.name)}
+              />
+            </div>
+            {(member.discord) && (
+              <div className="text-xs text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
+                <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
+                  <PlatformIcons.Discord className="w-3 h-3" />
+                  <span className="truncate max-w-[100px]">{member.discord}</span>
+                </span>
+              </div>
+            )}
+          </div>
+          <LeagueDisplay 
+            league={member.league} 
+            score={member.rankScore} 
+            rank={member.rank}
+            mobile={true}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop row rendering
   return (
     <tr 
       className={`border-t border-gray-700 ${
@@ -35,42 +95,35 @@ const MemberRow = ({ member, onSearchClick, onGraphClick, clanMembersData }) => 
         {member.notInLeaderboard ? '-' : `#${member.rank.toLocaleString()}`}
       </td>
       <td className="px-4 py-2">
-        <div className="flex items-center gap-2">
-          <span className={member.notInLeaderboard ? 'text-red-400' : 'text-gray-300'}>
-            {`${username}`}
-            <span className={member.notInLeaderboard ? 'text-red-400' : 'text-gray-500'}>#{discriminator}</span>
-          </span>
-          <UserSearch 
-            className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer" 
-            onClick={() => onSearchClick(member.name)}
-          />
-        </div>
-      </td>
-      <td className="px-4 py-2 text-gray-300">
-        <div className="group relative">
-          {member.discord ? (
-            <Check className="w-4 h-4 text-green-400 cursor-pointer" />
-          ) : (
-            <X className="w-4 h-4 text-red-400" />
-          )}
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            <span className={member.notInLeaderboard ? 'text-red-400' : 'text-gray-300'}>
+              {`${username}`}
+              <span className={member.notInLeaderboard ? 'text-red-400' : 'text-gray-500'}>#{discriminator}</span>
+            </span>
+            <UserSearch 
+              className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer" 
+              onClick={() => onSearchClick(member.name)}
+            />
+          </div>
           {member.discord && (
-            <div className="absolute hidden group-hover:block bg-gray-800 text-white p-2 rounded shadow-lg -mt-2 left-0 z-10">
-              <div className="flex flex-col">
-                <span>{member.discord}</span>
-                <span className="text-xs text-gray-400">(Discord username)</span>
-              </div>
+            <div className="text-xs text-gray-400 mt-1 flex items-center gap-3">
+              <span className="flex items-center">
+                <PlatformIcons.Discord />
+                {member.discord}
+              </span>
             </div>
           )}
         </div>
+      </td>
+      <td className="px-4 py-2 text-center">
+        <PriorRubyDisplay isPriorRuby={clanMemberInfo?.pruby} />
       </td>
       <LeagueDisplay 
         league={member.league} 
         score={member.rankScore} 
         rank={member.rank}
       />
-      <td className="px-4 py-2 text-center">
-        <PriorRubyDisplay isPriorRuby={clanMemberInfo?.pruby} />
-      </td>
       <td className="px-4 py-2 text-center">
         {!member.notInLeaderboard && (
           <LineChart
@@ -83,7 +136,6 @@ const MemberRow = ({ member, onSearchClick, onGraphClick, clanMembersData }) => 
   );
 };
 
-// Updated to accept clanMembersData prop
 export const MembersView = ({ 
   clanMembers,
   totalMembers,
@@ -91,6 +143,8 @@ export const MembersView = ({
   clanMembersData,
   onGraphOpen
 }) => {
+  const isMobile = useMobileDetect();
+
   useSwipe(
     () => window.scrollBy({ left: 100, behavior: 'smooth' }),
     () => window.scrollBy({ left: -100, behavior: 'smooth' })
@@ -99,28 +153,8 @@ export const MembersView = ({
   return (
     <div>
       <div className="table-container">
-        <table className="w-full min-w-[640px]">
-          <thead>
-            <tr className="bg-gray-700">
-              <th className="px-4 py-2 text-left text-gray-300">Rank</th>
-              <th className="px-4 py-2 text-left text-gray-300">Player</th>
-              <th className="group relative px-4 py-2 text-left text-gray-300">
-                DL?
-                <div className="absolute hidden group-hover:block bg-gray-800 text-white p-2 rounded shadow-lg mt-1 left-0 z-10">
-                  Discord Linked?
-                </div>
-              </th>
-              <th className="px-4 py-2 text-center text-gray-300">League</th>
-              <th className="group relative px-4 py-2 text-center text-gray-300">
-                PR?
-                <div className="absolute hidden group-hover:block bg-gray-800 text-white p-2 rounded shadow-lg mt-1 right-0 z-10">
-                  Prior Ruby?
-                </div>
-              </th>
-              <th className="px-4 py-2 text-center text-gray-300">Graph</th>
-            </tr>
-          </thead>
-          <tbody>
+        {isMobile ? (
+          <div>
             {clanMembers
               .sort((a, b) => b.rankScore - a.rankScore)
               .map((member) => (
@@ -129,11 +163,40 @@ export const MembersView = ({
                   member={member} 
                   onSearchClick={onPlayerSearch}
                   onGraphClick={onGraphOpen}
-                  clanMembersData={clanMembersData} // Pass the new club members data to the MemberRow component
+                  clanMembersData={clanMembersData}
+                  isMobile={true}
                 />
-              ))}
-          </tbody>
-        </table>
+              ))
+            }
+          </div>
+        ) : (
+          <table className="w-full min-w-[640px]">
+            <thead>
+              <tr className="bg-gray-700">
+                <th className="px-4 py-2 text-left text-gray-300">Rank</th>
+                <th className="px-4 py-2 text-left text-gray-300">Player</th>
+                <th className="px-4 py-2 text-center text-gray-300">Prior Ruby</th>
+                <th className="px-4 py-2 text-center text-gray-300">League</th>
+                <th className="px-4 py-2 text-center text-gray-300">Graph</th>
+              </tr>
+            </thead>
+            <tbody>
+              {clanMembers
+                .sort((a, b) => b.rankScore - a.rankScore)
+                .map((member) => (
+                  <MemberRow 
+                    key={member.name} 
+                    member={member} 
+                    onSearchClick={onPlayerSearch}
+                    onGraphClick={onGraphOpen}
+                    clanMembersData={clanMembersData}
+                    isMobile={false}
+                  />
+                ))
+              }
+            </tbody>
+          </table>
+        )}
       </div>
       <div className="mt-4 text-sm text-gray-400">
         <p>Total Members: {totalMembers.toLocaleString()}/{(50).toLocaleString()}</p>
@@ -143,6 +206,6 @@ export const MembersView = ({
   );
 };
 
-MemberRow.propTypes = MemberRowProps;
 MembersView.propTypes = MembersViewProps;
+MemberRow.propTypes = MemberRowProps;
 PriorRubyDisplay.propTypes = PriorRubyDisplayProps;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useId } from 'react';
 import { Search, AlertTriangle, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { searchPlayerHistory } from '../services/historicalDataService';
 import { Hexagon } from './icons/Hexagon';
@@ -23,6 +23,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
   const inputRef = useRef(null);
   const isMobile = useMobileDetect();
   const initialSearchRef = useRef(false);
+  const searchId = useId();
 
   // Add useEffect for managing body scroll
   useEffect(() => {
@@ -257,12 +258,14 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <input
+                  id={searchId}
                   ref={inputRef}
                   type="text"
                   value={searchState.query}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyPress}
                   placeholder="Enter Embark ID (e.g. 00#0000)"
+                  autoComplete="off"
                   className={`w-full px-4 py-2 bg-gray-700 border rounded-lg text-white
                     ${searchState.error ? 'border-red-500' : 'border-gray-600 focus:border-blue-500'}
                     ${isMobile ? 'text-base' : ''}`}

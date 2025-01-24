@@ -1,8 +1,10 @@
 import { ArrowUp } from 'lucide-react';
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useMobileDetect } from '../hooks/useMobileDetect';
 
 export const BackToTop = () => {
   const [isVisible, setIsVisible] = useState(false);
+  const isMobile = useMobileDetect();
 
   // Cross-browser way to get scroll position
   const getScrollPosition = () => {
@@ -67,7 +69,11 @@ export const BackToTop = () => {
 
   return (
     <button
-      className={`fixed bottom-4 right-4 bg-blue-600 text-white p-3 rounded-full shadow-lg transition-opacity duration-200 hover:bg-blue-700 z-40 ${
+      className={`fixed bg-blue-600 text-white p-3 rounded-full shadow-lg transition-opacity duration-200 hover:bg-blue-700 z-40 ${
+        isMobile 
+          ? 'bottom-16 right-4' // Positioned above the mobile navbar 
+          : 'bottom-4 right-4'  // Keep existing desktop positioning
+      } ${
         isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
       }`}
       onClick={scrollToTop}

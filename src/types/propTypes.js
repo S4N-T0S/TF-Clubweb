@@ -53,8 +53,17 @@ export const LeagueDisplayProps = {
   leagueNumber: PropTypes.number
 };
 
+export const ClanRowProps = {
+  clan: PropTypes.shape(ClanType).isRequired,
+  onClanClick: PropTypes.func.isRequired,
+  isMobile: PropTypes.bool.isRequired
+};
+
 export const ClansViewProps = {
-  topClans: PropTypes.arrayOf(PropTypes.shape(ClanType)).isRequired,
+  topClans: PropTypes.arrayOf(PropTypes.shape({
+    ...ClanType,
+    originalRank: PropTypes.number
+  })).isRequired,
   onClanClick: PropTypes.func.isRequired
 };
 
@@ -101,7 +110,8 @@ export const MemberRowProps = {
     embarkId: PropTypes.string.isRequired,
     discord: PropTypes.string,
     pruby: PropTypes.bool
-  }))
+  })),
+  isMobile: PropTypes.bool.isRequired
 };
 
 export const ToastProps = {

@@ -1,6 +1,7 @@
-import { SiEmbark, SiSteam, SiPlaystation } from "react-icons/si";
+import { SiDiscord, SiEmbark, SiSteam, SiPlaystation } from "react-icons/si";
 
 export const PlatformIcons = {
+    Discord: () => <SiDiscord className="w-4 h-4 inline-block mr-1" />,
     Embark: () => <SiEmbark className="w-4 h-4 inline-block mr-1" />,
     Steam: () => <SiSteam className="w-4 h-4 inline-block mr-1" />,
     PSN: () => <SiPlaystation className="w-4 h-4 inline-block mr-1" />,

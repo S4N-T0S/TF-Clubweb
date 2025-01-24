@@ -1,4 +1,4 @@
-import { ChevronUp, ChevronDown, UserSearch, LineChart, } from 'lucide-react';
+import { ChevronUp, ChevronDown, UserSearch, LineChart } from 'lucide-react';
 import { usePagination } from '../../hooks/usePagination';
 import { SearchBar } from '../SearchBar';
 import { LeagueDisplay } from '../LeagueDisplay';
@@ -27,9 +27,78 @@ const RankChangeDisplay = ({ change }) => {
   );
 };
 
-const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick }) => {
+const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile }) => {
   const [username, discriminator] = player.name.split('#');
   
+  // Mobile row rendering
+  if (isMobile) {
+    return (
+      <div className="flex flex-col gap-2 p-4 border-b border-gray-700 bg-gray-800 rounded-lg shadow-sm active:bg-gray-750 active:scale-[0.99] transition-all duration-150 ease-in-out">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-gray-300 font-bold">#{player.rank.toLocaleString()}</span>
+            <RankChangeDisplay change={player.change} />
+          </div>
+          <LineChart
+            className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer"
+            onClick={() => onGraphClick(player.name)}
+          />
+        </div>
+        <div className="flex justify-between items-center">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              {player.clubTag && (
+                <span 
+                  className="bg-gray-700 px-1 py-0.5 rounded text-blue-400 hover:text-blue-300 cursor-pointer"
+                  onClick={() => onClanClick(player.clubTag)}
+                >
+                  [{player.clubTag}]
+                </span>
+              )}
+              <span className="text-gray-300">
+                {username}
+                <span className="text-gray-500">#{discriminator}</span>
+              </span>
+              <UserSearch 
+                className="w-6 h-6 p-1 text-gray-400 hover:text-blue-400 cursor-pointer rounded-full hover:bg-gray-700 transition-colors" 
+                onClick={() => onSearchClick(player.name)}
+              />
+            </div>
+            {(player.steamName || player.psnName || player.xboxName) && (
+              <div className="text-xs text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
+                {player.steamName && (
+                  <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
+                    <PlatformIcons.Steam className="w-3 h-3" />
+                    <span className="truncate max-w-[100px]">{player.steamName}</span>
+                  </span>
+                )}
+                {player.psnName && (
+                  <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
+                    <PlatformIcons.PSN className="w-3 h-3" />
+                    <span className="truncate max-w-[100px]">{player.psnName}</span>
+                  </span>
+                )}
+                {player.xboxName && (
+                  <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
+                    <PlatformIcons.Xbox className="w-3 h-3" />
+                    <span className="truncate max-w-[100px]">{player.xboxName}</span>
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          <LeagueDisplay 
+            league={player.league} 
+            score={player.rankScore} 
+            rank={player.rank}
+            mobile={true}
+          />
+        </div>
+      </div>
+    );
+  }
+  
+  // Desktop row rendering (original)
   return (
     <tr key={player.name} className="border-t border-gray-700 hover:bg-gray-700">
       <td className="px-4 py-2 text-gray-300">#{player.rank.toLocaleString()}</td>
@@ -122,7 +191,7 @@ export const GlobalView = ({
     filteredItems,
     sortConfig,
     handleSort
-  } = usePagination(globalLeaderboard, 50);
+  } = usePagination(globalLeaderboard, isMobile ? 25 : 50);
 
   useSwipe(
     () => currentPage < totalPages && handlePageChange(currentPage + 1),
@@ -155,53 +224,8 @@ export const GlobalView = ({
         searchInputRef={searchInputRef}
       />
       <div className="table-container">
-        <table className="w-full min-w-[640px]">
-          <thead>
-            <tr className="bg-gray-700">
-              <th className="px-4 py-2 text-left text-gray-300">
-                <div className="flex items-center">
-                  Rank
-                  <SortButton
-                    field="rank"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                  />
-                </div>
-              </th>
-              <th className="px-4 py-2 text-left text-gray-300">
-                <div className="flex items-center">
-                  Change
-                  <SortButton
-                    field="change"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                  />
-                </div>
-              </th>
-              <th className="px-4 py-2 text-left text-gray-300">
-                <div className="flex items-center">
-                  Player
-                  <SortButton
-                    field="name"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                  />
-                </div>
-              </th>
-              <th className="px-4 py-2 text-center text-gray-300">
-                <div className="flex items-center justify-center">
-                  League
-                  <SortButton
-                    field="score"
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                  />
-                </div>
-              </th>
-              <th className="px-4 py-2 text-center text-gray-300">Graph</th>
-            </tr>
-          </thead>
-          <tbody>
+        {isMobile ? (
+          <div>
             {currentItems.map((player) => (
               <PlayerRow 
                 key={player.name}
@@ -209,10 +233,71 @@ export const GlobalView = ({
                 onSearchClick={onPlayerSearch}
                 onClanClick={handleClanClick}
                 onGraphClick={onGraphOpen}
+                isMobile={true}
               />
             ))}
-          </tbody>
-        </table>
+          </div>
+        ) : (
+          <table className="w-full min-w-[640px]">
+            <thead>
+              <tr className="bg-gray-700">
+                <th className="px-4 py-2 text-left text-gray-300">
+                  <div className="flex items-center">
+                    Rank
+                    <SortButton
+                      field="rank"
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    />
+                  </div>
+                </th>
+                <th className="px-4 py-2 text-left text-gray-300">
+                  <div className="flex items-center">
+                    Change
+                    <SortButton
+                      field="change"
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    />
+                  </div>
+                </th>
+                <th className="px-4 py-2 text-left text-gray-300">
+                  <div className="flex items-center">
+                    Player
+                    <SortButton
+                      field="name"
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    />
+                  </div>
+                </th>
+                <th className="px-4 py-2 text-center text-gray-300">
+                  <div className="flex items-center justify-center">
+                    League
+                    <SortButton
+                      field="score"
+                      sortConfig={sortConfig}
+                      onSort={handleSort}
+                    />
+                  </div>
+                </th>
+                <th className="px-4 py-2 text-center text-gray-300">Graph</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentItems.map((player) => (
+                <PlayerRow 
+                  key={player.name}
+                  player={player}
+                  onSearchClick={onPlayerSearch}
+                  onClanClick={handleClanClick}
+                  onGraphClick={onGraphOpen}
+                  isMobile={false}
+                />
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
       <Pagination
         currentPage={currentPage}
