@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, AlertTriangle, X } from 'lucide-react';
+import { Search, AlertTriangle, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { searchPlayerHistory } from '../services/historicalDataService';
 import { Hexagon } from './icons/Hexagon';
 import { PlatformIcons } from './icons/Platforms';
@@ -18,6 +18,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
     selectedIndex: -1
   });
   
+  const [isExplanationExpanded, setIsExplanationExpanded] = useState(false);
   const modalRef = useRef(null);
   const inputRef = useRef(null);
   const isMobile = useMobileDetect();
@@ -35,6 +36,10 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
+
+  const toggleExplanation = () => {
+    setIsExplanationExpanded(!isExplanationExpanded);
+  };
 
   const isPartialEmbarkId = (id) => id.length >= 1;
 
@@ -214,7 +219,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div 
         ref={modalRef} 
-        className="bg-gray-800 rounded-lg p-6 w-2/3 h-[80vh] m-4 flex flex-col"
+        className="bg-gray-800 rounded-lg p-6 w-full sm:w-2/3 h-[80vh] m-4 flex flex-col"
       >
         <div className="flex-shrink-0">
           <div className="flex items-center mb-4 relative">
@@ -227,8 +232,25 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
             <h2 className="text-xl font-bold text-white w-full text-center">Player History Search</h2>
           </div>
 
-          <div className="mb-4 p-4 bg-gray-700 rounded-lg text-gray-300">
-            <p className="text-sm">This tool searches the leaderboards for Open Beta and Seasons 1-5 using an Embark ID. It identifies any linked Steam, Xbox, or PSN usernames from these records and performs additional searches on those accounts to uncover more associated records. All linked accounts and results are displayed. Note: The autofill feature only works for players in the top 10k, but you can manually enter an Embark ID for inactive players.</p>
+          <div className="mb-4">
+            <div 
+              onClick={toggleExplanation}
+              className="p-4 bg-gray-700 rounded-lg text-gray-300 flex justify-between items-center cursor-pointer sm:hidden"
+            >
+              <span className="text-sm">Tap to view search tool details</span>
+              {isExplanationExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </div>
+            
+            {/* Full explanation visible on desktop, conditional on mobile */}
+            <div className={`
+              bg-gray-700 rounded-lg text-gray-300 
+              ${isMobile 
+                ? `${isExplanationExpanded ? 'block' : 'hidden'}` 
+                : 'block'
+              } p-4 text-sm
+            `}>
+              <p>This tool searches the leaderboards for Open Beta and Seasons 1-5 using an Embark ID. It identifies any linked Steam, Xbox, or PSN usernames from these records and performs additional searches on those accounts to uncover more associated records. All linked accounts and results are displayed. Note: The autofill feature only works for players in the top 10k, but you can manually enter an Embark ID for inactive players.</p>
+            </div>
           </div>
 
           <div className="relative mb-4">
@@ -242,7 +264,8 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
                   onKeyDown={handleKeyPress}
                   placeholder="Enter Embark ID (e.g. 00#0000)"
                   className={`w-full px-4 py-2 bg-gray-700 border rounded-lg text-white
-                    ${searchState.error ? 'border-red-500' : 'border-gray-600 focus:border-blue-500'}`}
+                    ${searchState.error ? 'border-red-500' : 'border-gray-600 focus:border-blue-500'}
+                    ${isMobile ? 'text-base' : ''}`}
                 />
                 {searchState.suggestions.length > 0 && (
                   <div className="absolute z-10 w-full bg-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto mt-1">
@@ -263,8 +286,11 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
               <button
                 onClick={() => handleSearch(searchState.query)}
                 disabled={searchState.isSearching}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50
-                  flex items-center justify-center"
+                className={`
+                  px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50
+                  flex items-center justify-center
+                  ${isMobile ? 'w-16' : ''}
+                `}
               >
                 <Search className={`w-5 h-5 ${searchState.isSearching ? 'animate-spin' : ''}`} />
               </button>
@@ -279,14 +305,14 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {searchState.results.length === 0 && !searchState.error && !searchState.isSearching && searchState.query && (
-              <div className="col-span-2 p-4 bg-gray-700 rounded-lg text-gray-300 text-center">
+              <div className="col-span-1 sm:col-span-2 p-4 bg-gray-700 rounded-lg text-gray-300 text-center">
                 No results found
               </div>
             )}
 
-            {searchState.results.map((result, index) => (
+{searchState.results.map((result, index) => (
               <div 
                 key={`${result.season}-${index}`}
                 className={`p-4 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors
@@ -312,7 +338,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
                 </div>
 
                 <div className="space-y-2 text-gray-300">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {result.name && (
                       <p className="flex items-center">
                         <PlatformIcons.Embark />
