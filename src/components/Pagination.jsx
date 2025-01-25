@@ -8,10 +8,6 @@ export const Pagination = ({
   totalItems, 
   onPageChange 
 }) => {
-  const handleLastPage = () => {
-    onPageChange(totalPages);
-    window.scrollTo(0, document.body.scrollHeight);
-  };
 
   return (
     <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -20,7 +16,7 @@ export const Pagination = ({
       </div>
       <div className="flex gap-2 flex-wrap justify-center">
         <button
-          onClick={() => onPageChange(1)}
+          onClick={() => { onPageChange(1); window.scrollTo(0, 0); }}
           disabled={currentPage === 1}
           className={`px-3 py-1 rounded ${
             currentPage === 1 
@@ -53,7 +49,7 @@ export const Pagination = ({
           Next
         </button>
         <button
-          onClick={handleLastPage}
+          onClick={() => { onPageChange(totalPages); window.scrollTo(0, document.body.scrollHeight); }}
           disabled={currentPage === totalPages}
           className={`px-3 py-1 rounded ${
             currentPage === totalPages 

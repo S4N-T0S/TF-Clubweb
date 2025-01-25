@@ -1,7 +1,6 @@
 import { Check, UserSearch, LineChart } from 'lucide-react';
 import { LeagueDisplay } from '../LeagueDisplay';
 import { BackToTop } from '../BackToTop';
-import { useSwipe } from '../../hooks/useSwipe';
 import { PlatformIcons } from "../icons/Platforms";
 import { MembersViewProps, MemberRowProps, PriorRubyDisplayProps } from '../../types/propTypes';
 
@@ -150,11 +149,6 @@ export const MembersView = ({
   onGraphOpen,
   isMobile
 }) => {
-
-  useSwipe(
-    () => window.scrollBy({ left: 100, behavior: 'smooth' }),
-    () => window.scrollBy({ left: -100, behavior: 'smooth' })
-  );
 
   return (
     <div>

@@ -75,6 +75,19 @@ const ClanRow = ({ clan, onClanClick, isMobile }) => {
 
 export const ClansView = ({ topClans, onClanClick, isMobile }) => {
   const searchInputRef = useRef(null);
+  const { slideDirection, showIndicator } = useSwipe(
+    () => currentPage < totalPages && handlePageChange(currentPage + 1),
+    () => currentPage > 1 && handlePageChange(currentPage - 1),
+    {
+      enableIndicator: true,
+      onSwipeStart: () => {
+        // Optional callback
+      },
+      onSwipeEnd: () => {
+        // Optional callback
+      }
+    }
+  );
 
   // Pre-process clans to add original rank
   const rankedClans = topClans.map((clan, index) => ({
@@ -96,11 +109,6 @@ export const ClansView = ({ topClans, onClanClick, isMobile }) => {
     handleSort
   } = usePagination(rankedClans, isMobile ? 15 : 15); // Same items on mobile or desktop, but just added for future ref.
 
-  useSwipe(
-    () => currentPage < totalPages && handlePageChange(currentPage + 1),
-    () => currentPage > 1 && handlePageChange(currentPage - 1)
-  );
-
   return (
     <div>
       <SearchBar
@@ -109,6 +117,8 @@ export const ClansView = ({ topClans, onClanClick, isMobile }) => {
         placeholder="Search through clubs..."
         searchInputRef={searchInputRef}
       />
+      <div className="page-transition-container">
+      <div className={`page-content ${slideDirection}`} key={currentPage}>
       <div className="table-container">
         {isMobile ? (
           <div>
@@ -179,6 +189,11 @@ export const ClansView = ({ topClans, onClanClick, isMobile }) => {
             </tbody>
           </table>
         )}
+      </div>
+      </div>
+      <div className={`page-number-indicator ${showIndicator ? 'visible' : 'hidden'}`}>
+        Page {currentPage}/{totalPages}
+      </div>
       </div>
       <Pagination
         currentPage={currentPage}

@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react';
 
-export const useSwipe = (onSwipeLeft, onSwipeRight) => {
+export const useSwipe = (onSwipeLeft, onSwipeRight, options = {}) => {
   const [touchStart, setTouchStart] = useState(null);
   const [touchEnd, setTouchEnd] = useState(null);
   const [isHorizontalScroll, setIsHorizontalScroll] = useState(false);
+  const [slideDirection, setSlideDirection] = useState('');
+  const [showIndicator, setShowIndicator] = useState(false);
 
-  const minSwipeDistance = 50;
+  const {
+    minSwipeDistance = 50,
+    enableIndicator = true,
+    onSwipeStart,
+    onSwipeEnd
+  } = options;
 
   useEffect(() => {
     const onTouchStart = (e) => {
@@ -20,10 +27,25 @@ export const useSwipe = (onSwipeLeft, onSwipeRight) => {
 
       setTouchEnd(null);
       setTouchStart(e.targetTouches[0].clientX);
+      onSwipeStart?.();
     };
 
     const onTouchMove = (e) => {
       setTouchEnd(e.targetTouches[0].clientX);
+    };
+
+    const handleSwipeAnimation = (direction, callback) => {
+      setSlideDirection(`slide-${direction}-enter`);
+      setShowIndicator(enableIndicator);
+      callback?.();
+      
+      setTimeout(() => {
+        setSlideDirection('slide-center');
+      }, 50);
+
+      setTimeout(() => {
+        setShowIndicator(false);
+      }, 800);
     };
 
     const onTouchEnd = () => {
@@ -33,8 +55,14 @@ export const useSwipe = (onSwipeLeft, onSwipeRight) => {
       const isLeftSwipe = distance > minSwipeDistance;
       const isRightSwipe = distance < -minSwipeDistance;
       
-      if (isLeftSwipe && onSwipeLeft) onSwipeLeft();
-      if (isRightSwipe && onSwipeRight) onSwipeRight();
+      if (isLeftSwipe && onSwipeLeft) {
+        handleSwipeAnimation('left', onSwipeLeft);
+      }
+      if (isRightSwipe && onSwipeRight) {
+        handleSwipeAnimation('right', onSwipeRight);
+      }
+
+      onSwipeEnd?.();
     };
 
     const findScrollableParent = (element) => {
@@ -56,5 +84,11 @@ export const useSwipe = (onSwipeLeft, onSwipeRight) => {
       document.removeEventListener('touchmove', onTouchMove);
       document.removeEventListener('touchend', onTouchEnd);
     };
-  }, [onSwipeLeft, onSwipeRight, touchStart, touchEnd, isHorizontalScroll]);
+  }, [onSwipeLeft, onSwipeRight, touchStart, touchEnd, isHorizontalScroll, minSwipeDistance, enableIndicator, onSwipeStart, onSwipeEnd]);
+
+  return {
+    slideDirection,
+    showIndicator,
+    setShowIndicator
+  };
 };

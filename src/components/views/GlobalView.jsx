@@ -182,6 +182,19 @@ export const GlobalView = ({
   isMobile
 }) => {
   const searchInputRef = useRef(null);
+  const { slideDirection, showIndicator } = useSwipe(
+    () => currentPage < totalPages && handlePageChange(currentPage + 1),
+    () => currentPage > 1 && handlePageChange(currentPage - 1),
+    {
+      enableIndicator: true,
+      onSwipeStart: () => {
+        // Optional callback
+      },
+      onSwipeEnd: () => {
+        // Optional callback
+      }
+    }
+  );
 
   const {
     searchQuery,
@@ -196,11 +209,6 @@ export const GlobalView = ({
     sortConfig,
     handleSort
   } = usePagination(globalLeaderboard, isMobile ? 25 : 50);
-
-  useSwipe(
-    () => currentPage < totalPages && handlePageChange(currentPage + 1),
-    () => currentPage > 1 && handlePageChange(currentPage - 1)
-  );
 
   useEffect(() => {
     if (initialSearchQuery) {
@@ -227,6 +235,8 @@ export const GlobalView = ({
         onChange={setSearchQuery} 
         searchInputRef={searchInputRef}
       />
+      <div className="page-transition-container">
+      <div className={`page-content ${slideDirection}`} key={currentPage}>
       <div className="table-container">
         {isMobile ? (
           <div>
@@ -302,6 +312,11 @@ export const GlobalView = ({
             </tbody>
           </table>
         )}
+      </div>
+      </div>
+      <div className={`page-number-indicator ${showIndicator ? 'visible' : 'hidden'}`}>
+        Page {currentPage}/{totalPages}
+      </div>
       </div>
       <Pagination
         currentPage={currentPage}

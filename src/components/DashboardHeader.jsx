@@ -18,11 +18,11 @@ const ViewButton = ({ active, onClick, icon, text }) => (
 );
 
 export const DashboardHeader = ({ 
-  isTopClan, 
-  unknownMembers, 
-  view, 
-  setView, 
-  onRefresh, 
+  isTopClan,
+  unknownMembers,
+  view,
+  setView,
+  onRefresh,
   isRefreshing,
   onOpenSearch,
   isMobile

@@ -97,7 +97,6 @@ export const usePagination = (items, itemsPerPage) => {
 
   const handlePageChange = (newPage) => {
     setCurrentPage(Math.min(Math.max(1, newPage), totalPages));
-    window.scrollTo(0, 0);
   };
 
   return {
