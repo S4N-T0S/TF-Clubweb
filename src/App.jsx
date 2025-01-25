@@ -251,7 +251,7 @@ const App = () => {
           compareIds={graphModalState.compareIds}
           isClubView={graphModalState.isClubView}
           globalLeaderboard={graphModalState.isClubView ? rankedClanMembers : globalLeaderboard}
-          onSwitchToGlobal={(playerId) => { setView('global'); handleGraphModalOpen(playerId, []); }}
+          onSwitchToGlobal={() => setView('global')}
           isMobile={graphModalState.isMobile}
         />
       )}

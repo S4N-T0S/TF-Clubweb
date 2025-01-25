@@ -1482,10 +1482,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
                 Comparing available with club members only
               </p>
               <button
-                onClick={() => {
-                  onClose();
-                  onSwitchToGlobal(playerId);
-                }}
+                onClick={() => onSwitchToGlobal()}
                 className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-full transition-colors whitespace-nowrap"
               >
                 Switch to Global View
