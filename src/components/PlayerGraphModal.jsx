@@ -23,7 +23,6 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import 'chartjs-adapter-date-fns';
 import { fetchPlayerGraphData } from '../services/gp-api';
 import { formatMultipleUsernamesForUrl } from '../utils/urlHandler';
-import { useMobileDetect } from '../hooks/useMobileDetect';
 import { PlayerGraphModalProps, ComparePlayerSearchProps } from '../types/propTypes';
 
 ChartJS.register(
@@ -264,7 +263,7 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
   );
 };
 
-const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubView = false, globalLeaderboard = [], onSwitchToGlobal }) => {
+const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubView = false, globalLeaderboard = [], onSwitchToGlobal, isMobile }) => {
   const [data, setData] = useState(null);
   const [comparisonData, setComparisonData] = useState(new Map());
   const [error, setError] = useState(null);
@@ -272,7 +271,6 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
   const [selectedTimeRange, setSelectedTimeRange] = useState('24H');
   const [viewWindow, setViewWindow] = useState(null);
   const [showCompareSearch, setShowCompareSearch] = useState(false);
-  const isMobile = useMobileDetect();
   const modalRef = useRef(null);
   const chartRef = useRef(null);
 

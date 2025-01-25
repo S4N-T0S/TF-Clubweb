@@ -6,7 +6,6 @@ import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
 import { useEffect, useRef } from 'react';
-import { useMobileDetect } from '../../hooks/useMobileDetect';
 import { GlobalViewProps, GlobalPlayerRowProps, RankChangeDisplayProps } from '../../types/propTypes';
 import { PlatformIcons } from "../icons/Platforms";
 import { SortButton } from '../SortButton';
@@ -94,7 +93,7 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile 
               league={player.league} 
               score={player.rankScore} 
               rank={player.rank}
-              mobile={true}
+              isMobile={isMobile}
             />
           </div>
         </div>
@@ -162,6 +161,7 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile 
         league={player.league} 
         score={player.rankScore} 
         rank={player.rank}
+        isMobile={isMobile}
       />
       <td className="px-4 py-2 text-center">
         <LineChart
@@ -178,10 +178,10 @@ export const GlobalView = ({
   onPlayerSearch,
   searchQuery: initialSearchQuery,
   setSearchQuery: setGlobalSearchQuery,
-  onGraphOpen
+  onGraphOpen,
+  isMobile
 }) => {
   const searchInputRef = useRef(null);
-  const isMobile = useMobileDetect();
 
   const {
     searchQuery,
@@ -311,7 +311,7 @@ export const GlobalView = ({
         totalItems={filteredItems.length}
         onPageChange={handlePageChange}
       />
-      <BackToTop />
+      <BackToTop isMobile={isMobile} />
     </div>
   );
 };

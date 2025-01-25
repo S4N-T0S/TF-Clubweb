@@ -2,7 +2,6 @@ import { Check, UserSearch, LineChart } from 'lucide-react';
 import { LeagueDisplay } from '../LeagueDisplay';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
-import { useMobileDetect } from '../../hooks/useMobileDetect';
 import { PlatformIcons } from "../icons/Platforms";
 import { MembersViewProps, MemberRowProps, PriorRubyDisplayProps } from '../../types/propTypes';
 
@@ -80,7 +79,7 @@ const MemberRow = ({
               league={member.league} 
               score={member.rankScore} 
               rank={member.rank}
-              mobile={true}
+              isMobile={isMobile}
             />
           </div>
         </div>
@@ -129,6 +128,7 @@ const MemberRow = ({
         league={member.league} 
         score={member.rankScore} 
         rank={member.rank}
+        isMobile={isMobile}
       />
       <td className="px-4 py-2 text-center">
         {!member.notInLeaderboard && (
@@ -147,9 +147,9 @@ export const MembersView = ({
   totalMembers,
   onPlayerSearch,
   clanMembersData,
-  onGraphOpen
+  onGraphOpen,
+  isMobile
 }) => {
-  const isMobile = useMobileDetect();
 
   useSwipe(
     () => window.scrollBy({ left: 100, behavior: 'smooth' }),
@@ -207,7 +207,7 @@ export const MembersView = ({
       <div className="mt-4 text-sm text-gray-400">
         <p>Total Members: {totalMembers.toLocaleString()}/{(50).toLocaleString()}</p>
       </div>
-      <BackToTop />
+      <BackToTop isMobile={isMobile} />
     </div>
   );
 };

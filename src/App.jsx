@@ -7,38 +7,38 @@ import { GlobalView } from './components/views/GlobalView';
 import { ErrorDisplay } from './components/ErrorDisplay';
 import { LoadingDisplay } from './components/LoadingDisplay';
 import { DashboardHeader } from './components/DashboardHeader';
-import Toast from './components/Toast';
-import PlayerSearchModal from './components/PlayerSearchModal';
-import PlayerGraphModal from './components/PlayerGraphModal';
 import { fetchClanMembers } from './services/mb-api';
 import { safeParseUsernameFromUrl, formatUsernameForUrl, parseMultipleUsernamesFromUrl, formatMultipleUsernamesForUrl } from './utils/urlHandler';
+import { useMobileDetect } from './hooks/useMobileDetect';
+import PlayerSearchModal from './components/PlayerSearchModal';
+import PlayerGraphModal from './components/PlayerGraphModal';
+import Toast from './components/Toast';
 
-// Cookie helper functions
-const getCookie = (name) => {
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-  return match ? match[2] : null;
+// No clue why I was using cookie before
+const getStoredTab = () => {
+  return localStorage.getItem('dashboard_tab') || 'global';
 };
 
-const setTabCookie = (tab) => {
-  // Set cookie with 1 week expiration
-  const oneWeek = 7 * 24 * 60 * 60;
-  document.cookie = `dashboard_tab=${tab}; max-age=${oneWeek}; path=/; SameSite=Strict`;
+const setStoredTab = (tab) => {
+  localStorage.setItem('dashboard_tab', tab);
 };
 
 const App = () => {
+  const isMobile = useMobileDetect() || false;
   const navigate = useNavigate();
   const { graph, history } = useParams();
-
-  const [view, setView] = useState(() => getCookie('dashboard_tab') || 'global');
+  const [view, setView] = useState(() => getStoredTab());
   const [searchModalState, setSearchModalState] = useState({ 
     isOpen: false, 
-    initialSearch: '' 
+    initialSearch: '',
+    isMobile
   });
   const [graphModalState, setGraphModalState] = useState({
     isOpen: false,
     playerId: null,
     compareIds: [],
-    isClubView: false
+    isClubView: false,
+    isMobile
   });
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [clanMembersData, setClanMembersData] = useState([]);
@@ -80,9 +80,9 @@ const App = () => {
     loadClanMembers();
   }, []);
 
-  // Update cookie whenever view changes
+  // Update localstorage whenever view changes
   useEffect(() => {
-    setTabCookie(view);
+    setStoredTab(view);
   }, [view]);
 
   const handleClanClick = (clanTag) => {
@@ -92,12 +92,12 @@ const App = () => {
 
   // Handle search modal open/close
   const handleSearchModalClose = () => {
-    setSearchModalState({ isOpen: false, initialSearch: '' });
+    setSearchModalState({ isOpen: false, initialSearch: '', isMobile });
     navigate('/');
   };
 
   const handleSearchModalOpen = (initialSearch = '') => {
-    setSearchModalState({ isOpen: true, initialSearch });
+    setSearchModalState({ isOpen: true, initialSearch, isMobile });
     if (initialSearch) {
       navigate(`/history/${formatUsernameForUrl(initialSearch)}`);
     }
@@ -135,7 +135,8 @@ const App = () => {
           prev.isOpen && 
           prev.playerId === main && 
           JSON.stringify(prev.compareIds) === JSON.stringify(compare) &&
-          prev.isClubView === (view === 'members')
+          prev.isClubView === (view === 'members') &&
+          prev.isMobile === isMobile
         ) {
           return prev; // Return previous state if nothing changed
         }
@@ -144,7 +145,8 @@ const App = () => {
         isOpen: true,
         playerId: main,
         compareIds: compare,
-        isClubView: (view === 'members')
+        isClubView: (view === 'members'),
+        isMobile
         };
       });
     } else {
@@ -155,25 +157,26 @@ const App = () => {
             isOpen: false,
             playerId: null,
             compareIds: [],
-            isClubView: false
+            isClubView: false,
+            isMobile
           };
         }
         return prev; // Don't update state if modal is already closed
       });
     }
-  }, [graph, navigate, view]);
+  }, [graph, navigate, view, isMobile]);
 
   useEffect(() =>  {
     if (history) {
       const parsed = safeParseUsernameFromUrl(history);
       if (parsed) {
-        setSearchModalState({ isOpen: true, initialSearch: parsed });
+        setSearchModalState({ isOpen: true, initialSearch: parsed, isMobile });
       } else {
         navigate('/');
         return;
       }
     }
-  }, [history, navigate]);
+  }, [history, navigate, isMobile]);
 
   if (error) return <ErrorDisplay error={error} onRetry={refreshData} />;
   if (loading || clanMembersLoading) return <LoadingDisplay />;
@@ -198,6 +201,7 @@ const App = () => {
             onRefresh={() => refreshData(false)}
             isRefreshing={isRefreshing}
             onOpenSearch={() => handleSearchModalOpen()}
+            isMobile={isMobile}
           />
 
           {view === 'members' && (
@@ -207,12 +211,14 @@ const App = () => {
               onPlayerSearch={(name) => handleSearchModalOpen(name)}
               clanMembersData={clanMembersData} // Pass clan members data to members view
               onGraphOpen={(playerId) => handleGraphModalOpen(playerId, [])}
+              isMobile={isMobile}
             />
           )}
           {view === 'clans' && (
             <ClansView 
               topClans={topClans} 
               onClanClick={handleClanClick}
+              isMobile={isMobile}
             />
           )}
           {view === 'global' && (
@@ -222,6 +228,7 @@ const App = () => {
               searchQuery={globalSearchQuery}
               setSearchQuery={setGlobalSearchQuery}
               onGraphOpen={(playerId) => handleGraphModalOpen(playerId, [])}
+              isMobile={isMobile}
             />
           )}
         </div>
@@ -233,6 +240,7 @@ const App = () => {
         initialSearch={searchModalState.initialSearch}
         cachedS5Data={globalLeaderboard}
         onSearch={handleSearchSubmit}
+        isMobile={isMobile}
       />
 
       {graphModalState.playerId && (
@@ -244,6 +252,7 @@ const App = () => {
           isClubView={graphModalState.isClubView}
           globalLeaderboard={graphModalState.isClubView ? rankedClanMembers : globalLeaderboard}
           onSwitchToGlobal={(playerId) => { setView('global'); handleGraphModalOpen(playerId, []); }}
+          isMobile={graphModalState.isMobile}
         />
       )}
       <Outlet />

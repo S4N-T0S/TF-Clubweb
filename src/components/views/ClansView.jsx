@@ -3,7 +3,6 @@ import { SearchBar } from '../SearchBar';
 import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
-import { useMobileDetect } from '../../hooks/useMobileDetect';
 import { ClansViewProps, ClanRowProps } from '../../types/propTypes';
 import { SortButton } from '../SortButton';
 import { useRef } from 'react';
@@ -74,9 +73,8 @@ const ClanRow = ({ clan, onClanClick, isMobile }) => {
   );
 };
 
-export const ClansView = ({ topClans, onClanClick }) => {
+export const ClansView = ({ topClans, onClanClick, isMobile }) => {
   const searchInputRef = useRef(null);
-  const isMobile = useMobileDetect();
 
   // Pre-process clans to add original rank
   const rankedClans = topClans.map((clan, index) => ({
@@ -190,7 +188,7 @@ export const ClansView = ({ topClans, onClanClick }) => {
         totalItems={filteredItems.length}
         onPageChange={handlePageChange}
       />
-      <BackToTop />
+      <BackToTop isMobile={isMobile} />
     </div>
   );
 };

@@ -37,7 +37,8 @@ export const DashboardHeaderProps = {
   view: PropTypes.oneOf(['members', 'clans', 'global']).isRequired,
   setView: PropTypes.func.isRequired,
   onRefresh: PropTypes.func.isRequired,
-  isRefreshing: PropTypes.bool.isRequired
+  isRefreshing: PropTypes.bool.isRequired,
+  isMobile: PropTypes.bool.isRequired
 };
 
 export const ViewButtonProps = {
@@ -50,7 +51,8 @@ export const ViewButtonProps = {
 export const LeagueDisplayProps = {
   league: PropTypes.string,
   score: PropTypes.number.isRequired,
-  leagueNumber: PropTypes.number
+  leagueNumber: PropTypes.number,
+  isMobile: PropTypes.bool.isRequired
 };
 
 export const ClanRowProps = {
@@ -64,7 +66,8 @@ export const ClansViewProps = {
     ...ClanType,
     originalRank: PropTypes.number
   })).isRequired,
-  onClanClick: PropTypes.func.isRequired
+  onClanClick: PropTypes.func.isRequired,
+  isMobile: PropTypes.bool.isRequired
 };
 
 export const GlobalViewProps = {
@@ -72,14 +75,16 @@ export const GlobalViewProps = {
   onPlayerSearch: PropTypes.func.isRequired,
   searchQuery: PropTypes.string,
   setSearchQuery: PropTypes.func.isRequired,
-  onGraphOpen: PropTypes.func.isRequired
+  onGraphOpen: PropTypes.func.isRequired,
+  isMobile: PropTypes.bool.isRequired
 };
 
 export const GlobalPlayerRowProps = {
   player: PropTypes.shape(PlayerType).isRequired,
   onSearchClick: PropTypes.func.isRequired,
   onClanClick: PropTypes.func.isRequired,
-  onGraphClick: PropTypes.func.isRequired
+  onGraphClick: PropTypes.func.isRequired,
+  isMobile: PropTypes.bool.isRequired
 };
 
 export const RankChangeDisplayProps = {
@@ -95,7 +100,8 @@ export const MembersViewProps = {
     discord: PropTypes.string,
     pruby: PropTypes.bool
   })),
-  onGraphOpen: PropTypes.func.isRequired
+  onGraphOpen: PropTypes.func.isRequired,
+  isMobile: PropTypes.bool.isRequired
 };
 
 export const PriorRubyDisplayProps = {
@@ -136,7 +142,8 @@ export const PlayerSearchModalProps = {
   onClose: PropTypes.func.isRequired,
   initialSearch: PropTypes.string,
   cachedS5Data: PropTypes.array,
-  onSearch: PropTypes.func.isRequired
+  onSearch: PropTypes.func.isRequired,
+  isMobile: PropTypes.bool.isRequired
 };
 
 export const PaginationProps = {
@@ -172,5 +179,6 @@ export const PlayerGraphModalProps = {
   compareIds: PropTypes.arrayOf(PropTypes.string),
   isClubView: PropTypes.bool,
   globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)),
-  onSwitchToGlobal: PropTypes.func
+  onSwitchToGlobal: PropTypes.func,
+  isMobile: PropTypes.bool.isRequired
 };

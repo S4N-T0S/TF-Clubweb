@@ -1,12 +1,10 @@
 import { Hexagon } from './icons/Hexagon';
 import { getLeagueInfo } from '../utils/leagueUtils';
 import { LeagueDisplayProps } from '../types/propTypes';
-import { useMobileDetect } from '../hooks/useMobileDetect';
 
-export const LeagueDisplay = ({ league, score, leagueNumber }) => {
+export const LeagueDisplay = ({ league, score, leagueNumber, isMobile }) => {
   const { style } = getLeagueInfo(leagueNumber, league);
   const displayLeague = (league || 'Unranked');
-  const isMobile = useMobileDetect();
   
   const content = (
     <div className="flex items-center justify-center gap-2">

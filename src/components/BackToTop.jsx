@@ -1,10 +1,8 @@
 import { ArrowUp } from 'lucide-react';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useMobileDetect } from '../hooks/useMobileDetect';
 
-export const BackToTop = () => {
+export const BackToTop = (isMobile) => {
   const [isVisible, setIsVisible] = useState(false);
-  const isMobile = useMobileDetect();
 
   // Cross-browser way to get scroll position
   const getScrollPosition = () => {

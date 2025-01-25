@@ -1,7 +1,7 @@
+import { useState, useEffect } from 'react';
 import { Users, Trophy, Globe, RefreshCw, FileSearch } from 'lucide-react';
 import { DashboardHeaderProps, ViewButtonProps } from '../types/propTypes';
-import { useMobileDetect } from '../hooks/useMobileDetect';
-import { useState, useEffect } from 'react';
+
 
 const ViewButton = ({ active, onClick, icon, text }) => (
   <button
@@ -24,10 +24,10 @@ export const DashboardHeader = ({
   setView, 
   onRefresh, 
   isRefreshing,
-  onOpenSearch 
+  onOpenSearch,
+  isMobile
 }) => {
   const [isScrolledToBottom, setIsScrolledToBottom] = useState(false);
-  const isMobile = useMobileDetect();
 
   useEffect(() => {
     if (!isMobile) return;

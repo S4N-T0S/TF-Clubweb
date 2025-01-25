@@ -4,11 +4,10 @@ import { searchPlayerHistory } from '../services/historicalDataService';
 import { Hexagon } from './icons/Hexagon';
 import { PlatformIcons } from './icons/Platforms';
 import { getLeagueInfo } from '../utils/leagueUtils';
-import { useMobileDetect } from '../hooks/useMobileDetect';
 import { PlayerSearchModalProps } from '../types/propTypes';
 import { isValidEmbarkId, formatUsernameForUrl } from '../utils/urlHandler';
 
-const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSearch }) => {
+const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSearch, isMobile }) => {
   const [searchState, setSearchState] = useState({
     query: '',
     results: [],
@@ -21,7 +20,6 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
   const [isExplanationExpanded, setIsExplanationExpanded] = useState(false);
   const modalRef = useRef(null);
   const inputRef = useRef(null);
-  const isMobile = useMobileDetect();
   const initialSearchRef = useRef(false);
   const searchId = useId();
 
