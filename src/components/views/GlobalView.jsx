@@ -9,6 +9,7 @@ import { useEffect, useRef } from 'react';
 import { GlobalViewProps, GlobalPlayerRowProps, RankChangeDisplayProps } from '../../types/propTypes';
 import { PlatformIcons } from "../icons/Platforms";
 import { SortButton } from '../SortButton';
+import { Hexagon } from '../icons/Hexagon';
 
 const RankChangeDisplay = ({ change }) => {
   if (!change || change === 0) return null;
@@ -26,13 +27,31 @@ const RankChangeDisplay = ({ change }) => {
   );
 };
 
+const RubyCutoffIndicator = ({ cutoff, onCutoffClick }) => {
+  if (!cutoff) return null;
+
+  return (
+    <div 
+      className={`fixed top-6 left-6 z-50 bg-gray-800/95 shadow-lg px-3 py-1.5 rounded-full border border-red-500/20 backdrop-blur-sm cursor-pointer hover:border-red-500/40 transition-colors`}
+      onClick={onCutoffClick}
+    >
+      <div className="flex items-center gap-2">
+        <Hexagon className={'w-3 h-3 text-red-600 animate-pulse'} />
+        <span className="text-red-400 text-sm font-medium">
+          {cutoff.toLocaleString()} RS
+        </span>
+      </div>
+    </div>
+  );
+};
+
 const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile }) => {
   const [username, discriminator] = player.name.split('#');
   
   // Mobile row rendering
   if (isMobile) {
     return (
-      <div className="flex flex-col gap-2 p-4 border-b border-gray-700 bg-gray-800 rounded-lg shadow-sm active:bg-gray-750 active:scale-[0.99] transition-all duration-150 ease-in-out">
+      <div className="player-row flex flex-col gap-2 p-4 border-b border-gray-700 bg-gray-800 rounded-lg shadow-sm active:bg-gray-750 active:scale-[0.99] transition-all duration-150 ease-in-out">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
             <span className="text-gray-300 font-bold">#{player.rank.toLocaleString()}</span>
@@ -175,6 +194,7 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile 
 
 export const GlobalView = ({ 
   globalLeaderboard,
+  rubyCutoff,
   onPlayerSearch,
   searchQuery: initialSearchQuery,
   setSearchQuery: setGlobalSearchQuery,
@@ -207,8 +227,9 @@ export const GlobalView = ({
     handlePageChange,
     filteredItems,
     sortConfig,
-    handleSort
-  } = usePagination(globalLeaderboard, isMobile ? 25 : 50);
+    handleSort,
+    scrollToIndex
+  } = usePagination(globalLeaderboard, isMobile ? 25 : 50, isMobile);
 
   useEffect(() => {
     if (initialSearchQuery) {
@@ -220,6 +241,10 @@ export const GlobalView = ({
   const handleClanClick = (clubTag) => {
     setSearchQuery('');
     setGlobalSearchQuery(`[${clubTag}]`);
+  };
+
+  const handleCutoffClick = () => {
+    scrollToIndex(500);
   };
 
   useEffect(() => {
@@ -235,6 +260,7 @@ export const GlobalView = ({
         onChange={setSearchQuery} 
         searchInputRef={searchInputRef}
       />
+      <RubyCutoffIndicator cutoff={rubyCutoff} onCutoffClick={handleCutoffClick} />
       <div className="page-transition-container">
       <div className={`page-content ${slideDirection}`} key={currentPage}>
       <div className="table-container">

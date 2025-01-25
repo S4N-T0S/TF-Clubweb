@@ -51,6 +51,7 @@ const App = () => {
     topClans,
     unknownMembers,
     globalLeaderboard,
+    rubyCutoff,
     loading,
     error,
     isRefreshing,
@@ -223,7 +224,8 @@ const App = () => {
           )}
           {view === 'global' && (
             <GlobalView 
-              globalLeaderboard={globalLeaderboard} 
+              globalLeaderboard={globalLeaderboard}
+              rubyCutoff={rubyCutoff}
               onPlayerSearch={(name) => handleSearchModalOpen(name)}
               searchQuery={globalSearchQuery}
               setSearchQuery={setGlobalSearchQuery}

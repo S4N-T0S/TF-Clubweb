@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 
-export const usePagination = (items, itemsPerPage) => {
+export const usePagination = (items, itemsPerPage, isMobile) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState({ field: null, direction: 'default' });
@@ -9,6 +9,32 @@ export const usePagination = (items, itemsPerPage) => {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery]);
+
+  // Scroll to a specific index new function
+  const scrollToIndex = (index) => {
+    const targetPage = Math.ceil((index) / itemsPerPage);
+    setCurrentPage(targetPage);
+    
+    setTimeout(() => {
+      // For desktop, we need to account for the header row
+      // For mobile, we minus 1 because the first row is the column header
+      const rowIndex = (index % itemsPerPage) + itemsPerPage - (isMobile && 1);
+      
+      // Use different selectors for mobile and desktop
+      const selector = isMobile ? '[class*="player-row"]' : 'tr';
+
+      const rows = document.querySelectorAll(selector);
+      const targetRow = rows[rowIndex];
+      
+      if (targetRow) {
+        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetRow.classList.add('highlight-animation');
+        setTimeout(() => {
+          targetRow.classList.remove('highlight-animation');
+        }, 2000);
+      }
+    }, 100);
+  };
 
   // Handle sort
   const handleSort = (field) => {
@@ -110,6 +136,7 @@ export const usePagination = (items, itemsPerPage) => {
     handlePageChange,
     filteredItems: processedItems,
     sortConfig,
-    handleSort
+    handleSort,
+    scrollToIndex
   };
 };

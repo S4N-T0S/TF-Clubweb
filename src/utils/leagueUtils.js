@@ -21,7 +21,7 @@ export const getLeagueInfo = (leagueNumber, league = null) => {
       18: { name: "Diamond 3", style: 'text-blue-400' },
       19: { name: "Diamond 2", style: 'text-blue-400' },
       20: { name: "Diamond 1", style: 'text-blue-400' },
-      21: { name: "Ruby", style: 'text-red-600' }
+      21: { name: "Ruby", style: 'text-red-600' } // Ruby League remember to change if API changes (in dataProcessing.js)
     };
   
     if (leagueNumber !== undefined && leagueNumber !== null) {

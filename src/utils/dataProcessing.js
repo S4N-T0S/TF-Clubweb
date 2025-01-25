@@ -1,4 +1,11 @@
 export const processLeaderboardData = (rawData, clanMembers) => {
+  // Find Ruby cutoff score
+  const rubyPlayers = rawData.filter(player => player.leagueNumber === 21); // Ruby League remember to change if API changes
+  const rubyCutoff = rubyPlayers.length > 0 ? rubyPlayers.reduce((lowest, player) => 
+    player.rankScore < lowest ? player.rankScore : lowest,
+    Infinity
+  ) : false;
+
   // Process global leaderboard data
   const globalLeaderboard = rawData.map(player => ({
     ...player,
@@ -40,7 +47,8 @@ export const processLeaderboardData = (rawData, clanMembers) => {
     isTopClan: topClans[0]?.tag === 'OG',
     topClans,
     unknownMembers,
-    globalLeaderboard
+    globalLeaderboard,
+    rubyCutoff
   };
 };
 
