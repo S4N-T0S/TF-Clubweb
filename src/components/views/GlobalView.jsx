@@ -35,7 +35,7 @@ const RubyCutoffIndicator = ({ cutoff, onCutoffClick }) => {
       className={`fixed top-6 left-6 z-50 bg-gray-800/95 shadow-lg px-3 py-1.5 rounded-full border border-red-500/20 backdrop-blur-sm cursor-pointer hover:border-red-500/40 transition-colors`}
       onClick={onCutoffClick}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 select-none">
         <Hexagon className={'w-3 h-3 text-red-600 animate-pulse'} />
         <span className="text-red-400 text-sm font-medium">
           {cutoff.toLocaleString()} RS
@@ -248,7 +248,7 @@ export const GlobalView = ({
 
     setTimeout(() => {
       scrollToIndex(500);
-    }, 150);
+    }, 125);
   };
 
   useEffect(() => {
