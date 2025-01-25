@@ -135,29 +135,35 @@ export const DashboardHeader = ({
       </div>
 
       {isMobile && !isScrolledToBottom && (
-        <div className="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 z-50">
-          <div className="flex justify-around py-3">
-            <button 
-              onClick={() => handleMobileViewChange('members')}
-              className={`flex flex-col items-center ${view === 'members' ? 'text-blue-400' : 'text-gray-400'}`}
-            >
-              <Users className="w-6 h-6" />
-            </button>
-            <button 
-              onClick={() => handleMobileViewChange('clans')}
-              className={`flex flex-col items-center ${view === 'clans' ? 'text-blue-400' : 'text-gray-400'}`}
-            >
-              <Trophy className="w-6 h-6" />
-            </button>
-            <button 
-              onClick={() => handleMobileViewChange('global')}
-              className={`flex flex-col items-center ${view === 'global' ? 'text-blue-400' : 'text-gray-400'}`}
-            >
-              <Globe className="w-6 h-6" />
-            </button>
-          </div>
-        </div>
-      )}
+  <div className="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 z-50">
+    <div className="flex justify-around py-3">
+      <button 
+        onClick={() => handleMobileViewChange('members')}
+        className={`flex flex-col items-center justify-center w-14 h-6 ${
+          view === 'members' ? 'text-blue-400' : 'text-gray-400'
+        }`}
+      >
+        <Users className="w-6 h-6" />
+      </button>
+      <button 
+        onClick={() => handleMobileViewChange('clans')}
+        className={`flex flex-col items-center justify-center w-14 h-6 ${
+          view === 'clans' ? 'text-blue-400' : 'text-gray-400'
+        }`}
+      >
+        <Trophy className="w-6 h-6" />
+      </button>
+      <button 
+        onClick={() => handleMobileViewChange('global')}
+        className={`flex flex-col items-center justify-center w-14 h-6 ${
+          view === 'global' ? 'text-blue-400' : 'text-gray-400'
+        }`}
+      >
+        <Globe className="w-6 h-6" />
+      </button>
+    </div>
+  </div>
+)}
     </>
   );
 };
