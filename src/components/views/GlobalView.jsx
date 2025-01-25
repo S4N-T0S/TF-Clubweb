@@ -244,7 +244,11 @@ export const GlobalView = ({
   };
 
   const handleCutoffClick = () => {
-    scrollToIndex(500);
+    setSearchQuery('');
+
+    setTimeout(() => {
+      scrollToIndex(500);
+    }, 150);
   };
 
   useEffect(() => {
