@@ -91,6 +91,11 @@ export const RankChangeDisplayProps = {
   change: PropTypes.number
 };
 
+export const RubyCutoffIndicatorProps = {
+  cutoff: PropTypes.number,
+  onCutoffClick: PropTypes.func.isRequired
+};
+
 export const MembersViewProps = {
   clanMembers: PropTypes.arrayOf(PropTypes.shape(PlayerType)).isRequired,
   totalMembers: PropTypes.number.isRequired,

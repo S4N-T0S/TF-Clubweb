@@ -6,7 +6,7 @@ import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
 import { useEffect, useRef } from 'react';
-import { GlobalViewProps, GlobalPlayerRowProps, RankChangeDisplayProps } from '../../types/propTypes';
+import { GlobalViewProps, GlobalPlayerRowProps, RankChangeDisplayProps, RubyCutoffIndicatorProps } from '../../types/propTypes';
 import { PlatformIcons } from "../icons/Platforms";
 import { SortButton } from '../SortButton';
 import { Hexagon } from '../icons/Hexagon';
@@ -360,3 +360,4 @@ export const GlobalView = ({
 GlobalView.propTypes = GlobalViewProps;
 PlayerRow.propTypes = GlobalPlayerRowProps;
 RankChangeDisplay.propTypes = RankChangeDisplayProps;
+RubyCutoffIndicator.propTypes = RubyCutoffIndicatorProps;
