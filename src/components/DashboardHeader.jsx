@@ -68,10 +68,7 @@ export const DashboardHeader = ({
       <button
         onClick={() => {
           if (!isGlobalView) {
-            updateToastMessage(
-              'Switch to Global view to use favorites.',
-              'info'
-            );
+            updateToastMessage('Switch to Global view to use favorites.', 'info');
             return;
           }
   
@@ -82,6 +79,7 @@ export const DashboardHeader = ({
                 : 'No favorites yet!\nClick the star next to a player to add them to favorites.',
               'info'
             );
+            return;
           } else {
             setShowFavorites(!showFavorites);
           }
