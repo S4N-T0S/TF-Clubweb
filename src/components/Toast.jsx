@@ -112,7 +112,7 @@ const Toast = ({ message, type, timestamp, ttl }) => {
         {getIcon()}
         
         <div className="flex-1 min-w-0">
-          <p className="font-medium break-words whitespace-pre-wrap">
+          <p className="font-medium break-words">
             {isDataTooOld
               ? 'Data is significantly outdated' 
               : formatMessage(currentMessage)}
