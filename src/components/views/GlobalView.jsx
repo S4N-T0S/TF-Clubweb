@@ -35,7 +35,7 @@ const RubyCutoffIndicator = ({ cutoff, onCutoffClick }) => {
 
   return (
     <div 
-      className={`fixed top-6 left-6 z-50 bg-gray-800/95 shadow-lg px-3 py-1.5 rounded-full border border-red-500/20 backdrop-blur-sm cursor-pointer hover:border-red-500/40 transition-colors`}
+      className={`fixed top-6 left-6 z-40 bg-gray-800/95 shadow-lg px-3 py-1.5 rounded-full border border-red-500/20 backdrop-blur-sm cursor-pointer hover:border-red-500/40 transition-colors`}
       onClick={onCutoffClick}
     >
       <div className="flex items-center gap-2 select-none">
