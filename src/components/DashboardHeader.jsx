@@ -27,7 +27,8 @@ export const DashboardHeader = ({
   onOpenSearch,
   isMobile,
   showFavorites,
-  setShowFavorites
+  setShowFavorites,
+  updateToastMessage
 }) => {
   const [isScrolledToBottom, setIsScrolledToBottom] = useState(false);
   const { favorites } = useFavorites();
@@ -55,8 +56,18 @@ export const DashboardHeader = ({
   const FavoritesButton = () => (
     view === 'global' && (
       <button
-        onClick={() => setShowFavorites(!showFavorites)}
-        disabled={favorites.length === 0}
+        onClick={() => {
+          if (favorites.length === 0) {
+            updateToastMessage(
+              isMobile 
+                ? 'No favorites yet!\nLong-press on a player to add them to favorites. You can also swipe to switch pages.' 
+                : 'No favorites yet!\nClick the star next to a player to add them to favorites. You can also swipe to switch pages.',
+              'info'
+            );
+          } else {
+            setShowFavorites(!showFavorites);
+          }
+        }}
         className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 
           ${showFavorites 
             ? 'bg-yellow-500 text-white' 

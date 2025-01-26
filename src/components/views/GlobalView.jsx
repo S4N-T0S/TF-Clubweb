@@ -250,11 +250,10 @@ export const GlobalView = ({
   setSearchQuery: setGlobalSearchQuery,
   onGraphOpen,
   isMobile,
-  showFavorites,
-  setShowFavorites
+  showFavorites
 }) => {
   const searchInputRef = useRef(null);
-  const { favorites, getFavoritesWithFallback } = useFavorites();
+  const { getFavoritesWithFallback } = useFavorites();
   const { slideDirection, showIndicator } = useSwipe(
     () => currentPage < totalPages && handlePageChange(currentPage + 1),
     () => currentPage > 1 && handlePageChange(currentPage - 1),
@@ -289,17 +288,6 @@ export const GlobalView = ({
     isMobile ? 25 : 50,
     isMobile
   );
-
-  useEffect(() => {
-    if (showFavorites && favorites.length === 0) {
-      // Assuming you have a toast context/function
-      //showToast({
-      //  message: 'No favorites yet! Long-press on a player to add them to favorites.',
-      //  type: 'info'
-      //});
-      setShowFavorites(false);
-    }
-  }, [showFavorites, favorites.length, setShowFavorites]);
 
   // Don't show ruby cutoff in favorites mode
   const shouldShowRubyCutoff = !showFavorites && rubyCutoff;

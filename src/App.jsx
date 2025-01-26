@@ -83,6 +83,15 @@ const App = () => {
     loadClanMembers();
   }, []);
 
+  const updateToastMessage = (message, type = 'info') => {
+    setToastMessage({
+      message,
+      type,
+      timestamp: Date.now(),
+      ttl: 10 * 60,
+    });
+  };
+
   // Update localstorage whenever view changes
   useEffect(() => {
     setStoredTab(view);
@@ -208,6 +217,7 @@ const App = () => {
             isMobile={isMobile}
             showFavorites={showFavorites}
             setShowFavorites={setShowFavorites}
+            updateToastMessage={updateToastMessage}
           />
 
           {view === 'members' && (
@@ -237,7 +247,6 @@ const App = () => {
               onGraphOpen={(playerId) => handleGraphModalOpen(playerId, [])}
               isMobile={isMobile}
               showFavorites={showFavorites}
-              setShowFavorites={setShowFavorites}
             />
           )}
         </div>

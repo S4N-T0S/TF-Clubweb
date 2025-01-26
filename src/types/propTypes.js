@@ -79,8 +79,7 @@ export const GlobalViewProps = {
   setSearchQuery: PropTypes.func.isRequired,
   onGraphOpen: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired,
-  showFavorites: PropTypes.bool.isRequired,
-  setShowFavorites: PropTypes.func.isRequired
+  showFavorites: PropTypes.bool.isRequired
 };
 
 export const GlobalPlayerRowProps = {
@@ -132,7 +131,7 @@ export const MemberRowProps = {
 
 export const ToastProps = {
   message: PropTypes.string.isRequired,
-  type: PropTypes.oneOf(['loading', 'success', 'error', 'warning']).isRequired,
+  type: PropTypes.oneOf(['loading', 'success', 'error', 'warning', 'info']).isRequired,
   timestamp: PropTypes.number,
   ttl: PropTypes.number
 };

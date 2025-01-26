@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, Clock, X, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, X, Loader2, Info } from 'lucide-react';
 import { ToastProps } from '../types/propTypes';
 
 const MAX_ACCEPTABLE_AGE = 30 * 60; // 30 minutes in seconds
@@ -32,7 +32,7 @@ const formatTtl = (ttl, type) => {
   const minutes = Math.ceil(ttl / 60);
   
   if (type === 'success') {
-    return minutes === 1 ? 'Update available 1 minute' : `Update available in ${minutes} minutes`;
+    return minutes === 1 ? 'Update available in 1 minute' : `Update available in ${minutes} minutes`;
   }
   return minutes === 1 ? 'Retrying in 1 minute' : `Retrying in ${minutes} minutes`;
 };
@@ -48,18 +48,18 @@ const Toast = ({ message, type, timestamp, ttl }) => {
 
   // Show toast whenever new message arrives
   useEffect(() => {
-    if (message) {
+    if (message && timestamp) {  // Check for both message and timestamp
       setCurrentMessage(message);
       setIsVisible(true);
       
-      // Auto-hide after 2 seconds
+      // Auto-hide after 2.5 seconds
       const timer = setTimeout(() => {
         setIsVisible(false);
       }, 2500);
 
       return () => clearTimeout(timer);
     }
-  }, [message]);
+  }, [message, timestamp]);
 
   const dataAge = getDataAge(timestamp);
   const isDataTooOld = dataAge > MAX_ACCEPTABLE_AGE;
@@ -82,6 +82,8 @@ const Toast = ({ message, type, timestamp, ttl }) => {
         return <AlertCircle className="w-5 h-5 text-white shrink-0" />;
       case 'loading':
         return <Loader2 className="w-5 h-5 text-white shrink-0 animate-spin" />;
+      case 'info':
+        return <Info className="w-5 h-5 text-white shrink-0" />;
       default:
         return <Clock className="w-5 h-5 text-white shrink-0" />;
     }
@@ -92,22 +94,26 @@ const Toast = ({ message, type, timestamp, ttl }) => {
   return (
     <div className={`fixed top-4 right-4 z-50 transition-opacity duration-300 ${
       isVisible ? 'opacity-100' : 'opacity-0'
-    }`}>
-      <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 ${getBgColor()}`}>
+    } max-w-sm`}>
+      <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 ${getBgColor()} text-white`}>
         {getIcon()}
         
         <div className="flex-1 min-w-0">
-          <p className="text-white font-medium break-words">
+          <p className="font-medium break-words whitespace-pre-wrap">
             {isDataTooOld
               ? 'Data is significantly outdated' 
               : currentMessage}
           </p>
-          {timestamp && type !== 'loading' && (
-            <p className="text-white/80 text-sm">Last updated {formatTimestamp(timestamp)}</p>
-          )}
-          {ttl && type !== 'loading' && (
-            <p className="text-white/80 text-sm">{formatTtl(ttl, type)}</p>
-          )}
+          {type === 'error' || type === 'warning' ? (
+            <>
+              {timestamp && (
+                <p className="text-white/80 text-sm">Last updated {formatTimestamp(timestamp)}</p>
+              )}
+              {ttl && (
+                <p className="text-white/80 text-sm">{formatTtl(ttl, type)}</p>
+              )}
+            </>
+          ) : null}
         </div>
 
         <button 
