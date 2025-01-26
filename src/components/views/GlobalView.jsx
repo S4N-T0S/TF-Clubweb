@@ -1,4 +1,4 @@
-import { ChevronUp, ChevronDown, UserSearch, LineChart } from 'lucide-react';
+import { ChevronUp, ChevronDown, UserSearch, LineChart, Star, StarOff } from 'lucide-react';
 import { usePagination } from '../../hooks/usePagination';
 import { SearchBar } from '../SearchBar';
 import { LeagueDisplay } from '../LeagueDisplay';
@@ -10,6 +10,8 @@ import { GlobalViewProps, GlobalPlayerRowProps, RankChangeDisplayProps, RubyCuto
 import { PlatformIcons } from "../icons/Platforms";
 import { SortButton } from '../SortButton';
 import { Hexagon } from '../icons/Hexagon';
+import { useFavorites } from '../../context/FavoritesContext';
+import { useOnHold } from '../../hooks/useOnHold';
 
 const RankChangeDisplay = ({ change }) => {
   if (!change || change === 0) return null;
@@ -47,14 +49,48 @@ const RubyCutoffIndicator = ({ cutoff, onCutoffClick }) => {
 
 const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile }) => {
   const [username, discriminator] = player.name.split('#');
+  const { isFavorite, addFavorite, removeFavorite } = useFavorites();
+  const { isHolding, holdProps, ref } = useOnHold(() => {
+    if (isFavorite(player) || player.foundViaFallback) {
+      removeFavorite(player);
+    } else {
+      addFavorite(player);
+    }
+  });
+  const isFav = isFavorite(player);
+  const animationClasses = isMobile && isHolding
+    ? isFav || player.foundViaFallback 
+      ? 'animate-unfavorite-fill'
+      : 'animate-favorite-fill'
+    : '';
+
+  const getBackgroundClass = () => {
+    if (player.notFound) return '!bg-red-900/50';
+    if (player.foundViaFallback) return '!bg-amber-800/30';
+    if (isFav) return '!bg-yellow-600/20';
+    return '';
+  };
+  
+  // Desktop favorite button handler
+  const handleFavoriteClick = () => {
+    if (isFav || player.foundViaFallback) {
+      removeFavorite(player);
+    } else {
+      addFavorite(player);
+    }
+  };
   
   // Mobile row rendering
   if (isMobile) {
     return (
-      <div className="player-row flex flex-col gap-2 p-4 border-b border-gray-700 bg-gray-800 rounded-lg shadow-sm active:bg-gray-750 active:scale-[0.99] transition-all duration-150 ease-in-out">
+      <div 
+        ref={ref} className={`player-row flex flex-col gap-2 p-4 border-b border-gray-700 bg-gray-800 rounded-lg shadow-sm active:bg-gray-750 
+          active:scale-[0.99] transition-all duration-150 ease-in-out ${getBackgroundClass()} ${animationClasses}`}
+        {...holdProps}
+        >
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <span className="text-gray-300 font-bold">#{player.rank.toLocaleString()}</span>
+            <span className="text-gray-300 font-bold w-24">#{player.rank.toLocaleString()}</span>
             <RankChangeDisplay change={player.change} />
           </div>
           <LineChart
@@ -122,10 +158,24 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile 
   
   // Desktop row rendering (original)
   return (
-    <tr key={player.name} className="border-t border-gray-700 hover:bg-gray-700">
-      <td className="px-4 py-2 text-gray-300">#{player.rank.toLocaleString()}</td>
-      <td className="px-4 py-2">
-        <RankChangeDisplay change={player.change} />
+    <tr ref={ref} key={player.name} className={`border-t border-gray-700 hover:bg-gray-700 ${getBackgroundClass()}`}>
+      <td className="px-4 py-2 text-gray-300 text-start">#{player.rank.toLocaleString()}</td>
+      <td className="px-4 py-2 w-24">
+        <div className="flex items-center justify-center gap-2">
+          <RankChangeDisplay change={player.change} />
+        </div>
+      </td>
+      <td className="py-2 pr-0 pl-2 w-8">
+        <button 
+          onClick={handleFavoriteClick}
+          className="hover:scale-110 transition-transform flex items-center justify-center"
+        >
+          {isFav || player.foundViaFallback ? (
+            <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+          ) : (
+            <StarOff className="w-5 h-5 text-gray-400 hover:text-yellow-500" />
+          )}
+        </button>
       </td>
       <td className="px-4 py-2">
         <div className="flex flex-col">
@@ -199,9 +249,12 @@ export const GlobalView = ({
   searchQuery: initialSearchQuery,
   setSearchQuery: setGlobalSearchQuery,
   onGraphOpen,
-  isMobile
+  isMobile,
+  showFavorites,
+  setShowFavorites
 }) => {
   const searchInputRef = useRef(null);
+  const { favorites, getFavoritesWithFallback } = useFavorites();
   const { slideDirection, showIndicator } = useSwipe(
     () => currentPage < totalPages && handlePageChange(currentPage + 1),
     () => currentPage > 1 && handlePageChange(currentPage - 1),
@@ -229,7 +282,27 @@ export const GlobalView = ({
     sortConfig,
     handleSort,
     scrollToIndex
-  } = usePagination(globalLeaderboard, isMobile ? 25 : 50, isMobile);
+  } = usePagination(
+    showFavorites 
+      ? getFavoritesWithFallback(globalLeaderboard)
+      : globalLeaderboard,
+    isMobile ? 25 : 50,
+    isMobile
+  );
+
+  useEffect(() => {
+    if (showFavorites && favorites.length === 0) {
+      // Assuming you have a toast context/function
+      //showToast({
+      //  message: 'No favorites yet! Long-press on a player to add them to favorites.',
+      //  type: 'info'
+      //});
+      setShowFavorites(false);
+    }
+  }, [showFavorites, favorites.length, setShowFavorites]);
+
+  // Don't show ruby cutoff in favorites mode
+  const shouldShowRubyCutoff = !showFavorites && rubyCutoff;
 
   useEffect(() => {
     if (initialSearchQuery) {
@@ -264,7 +337,9 @@ export const GlobalView = ({
         onChange={setSearchQuery} 
         searchInputRef={searchInputRef}
       />
-      <RubyCutoffIndicator cutoff={rubyCutoff} onCutoffClick={handleCutoffClick} />
+      {shouldShowRubyCutoff && (
+        <RubyCutoffIndicator cutoff={rubyCutoff} onCutoffClick={handleCutoffClick} />
+      )}
       <div className="page-transition-container">
       <div className={`page-content ${slideDirection}`} key={currentPage}>
       <div className="table-container">
@@ -282,65 +357,68 @@ export const GlobalView = ({
             ))}
           </div>
         ) : (
-          <table className="w-full min-w-[640px]">
-            <thead>
-              <tr className="bg-gray-700">
-                <th className="px-4 py-2 text-left text-gray-300">
-                  <div className="flex items-center">
-                    Rank
-                    <SortButton
-                      field="rank"
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    />
-                  </div>
-                </th>
-                <th className="px-4 py-2 text-left text-gray-300">
-                  <div className="flex items-center">
-                    Change
-                    <SortButton
-                      field="change"
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    />
-                  </div>
-                </th>
-                <th className="px-4 py-2 text-left text-gray-300">
-                  <div className="flex items-center">
-                    Player
-                    <SortButton
-                      field="name"
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    />
-                  </div>
-                </th>
-                <th className="px-4 py-2 text-center text-gray-300">
-                  <div className="flex items-center justify-center">
-                    League
-                    <SortButton
-                      field="score"
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    />
-                  </div>
-                </th>
-                <th className="px-4 py-2 text-center text-gray-300">Graph</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentItems.map((player) => (
-                <PlayerRow 
-                  key={player.name}
-                  player={player}
-                  onSearchClick={onPlayerSearch}
-                  onClanClick={handleClanClick}
-                  onGraphClick={onGraphOpen}
-                  isMobile={false}
-                />
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-hidden rounded-lg">
+            <table className="w-full min-w-[640px] rounded-lg">
+              <thead>
+                <tr className="bg-gray-700">
+                  <th className="px-4 py-2 text-center text-gray-300 w-24">
+                    <div className="flex items-center justify-center">
+                      Rank
+                      <SortButton
+                        field="rank"
+                        sortConfig={sortConfig}
+                        onSort={handleSort}
+                      />
+                    </div>
+                  </th>
+                  <th className="px-4 py-2 text-left text-gray-300 w-24">
+                    <div className="flex items-center justify-center">
+                      Change
+                      <SortButton
+                        field="change"
+                        sortConfig={sortConfig}
+                        onSort={handleSort}
+                      />
+                    </div>
+                  </th>
+                  <th className="py-2 pr-0 pl-2 w-8"></th>
+                  <th className="px-4 py-2 text-left text-gray-300">
+                    <div className="flex items-center">
+                      Player
+                      <SortButton
+                        field="name"
+                        sortConfig={sortConfig}
+                        onSort={handleSort}
+                      />
+                    </div>
+                  </th>
+                  <th className="px-4 py-2 text-center text-gray-300">
+                    <div className="flex items-center justify-center">
+                      League
+                      <SortButton
+                        field="score"
+                        sortConfig={sortConfig}
+                        onSort={handleSort}
+                      />
+                    </div>
+                  </th>
+                  <th className="px-4 py-2 text-center text-gray-300">Graph</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentItems.map((player) => (
+                  <PlayerRow 
+                    key={player.name}
+                    player={player}
+                    onSearchClick={onPlayerSearch}
+                    onClanClick={handleClanClick}
+                    onGraphClick={onGraphOpen}
+                    isMobile={false}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
       </div>

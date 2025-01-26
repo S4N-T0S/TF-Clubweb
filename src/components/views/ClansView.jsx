@@ -132,62 +132,64 @@ export const ClansView = ({ topClans, onClanClick, isMobile }) => {
             ))}
           </div>
         ) : (
-          <table className="w-full min-w-[640px]">
-            <thead>
-              <tr className="bg-gray-700">
-                <th className="px-4 py-2 text-left text-gray-300">
-                  <div className="flex items-center">
-                    Rank
-                    <SortButton
-                      field="originalRank"
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    />
-                  </div>
-                </th>
-                <th className="px-4 py-2 text-left text-gray-300">
-                  <div className="flex items-center">
-                    Club
-                    <SortButton
-                      field="tag"
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    />
-                  </div>
-                </th>
-                <th className="px-4 py-2 text-left text-gray-300">
-                  <div className="flex items-center">
-                    Members in Top10k
-                    <SortButton
-                      field="memberCount"
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    />
-                  </div>
-                </th>
-                <th className="px-4 py-2 text-left text-gray-300">
-                  <div className="flex items-center">
-                    Total Score
-                    <SortButton
-                      field="totalScore"
-                      sortConfig={sortConfig}
-                      onSort={handleSort}
-                    />
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentItems.map((clan) => (
-                <ClanRow 
-                  key={clan.tag}
-                  clan={clan}
-                  onClanClick={onClanClick}
-                  isMobile={false}
-                />
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-hidden rounded-lg">
+            <table className="w-full min-w-[640px] rounded-lg">
+              <thead>
+                <tr className="bg-gray-700">
+                  <th className="px-4 py-2 text-left text-gray-300">
+                    <div className="flex items-center">
+                      Rank
+                      <SortButton
+                        field="originalRank"
+                        sortConfig={sortConfig}
+                        onSort={handleSort}
+                      />
+                    </div>
+                  </th>
+                  <th className="px-4 py-2 text-left text-gray-300">
+                    <div className="flex items-center">
+                      Club
+                      <SortButton
+                        field="tag"
+                        sortConfig={sortConfig}
+                        onSort={handleSort}
+                      />
+                    </div>
+                  </th>
+                  <th className="px-4 py-2 text-left text-gray-300">
+                    <div className="flex items-center">
+                      Members in Top10k
+                      <SortButton
+                        field="memberCount"
+                        sortConfig={sortConfig}
+                        onSort={handleSort}
+                      />
+                    </div>
+                  </th>
+                  <th className="px-4 py-2 text-left text-gray-300">
+                    <div className="flex items-center">
+                      Total Score
+                      <SortButton
+                        field="totalScore"
+                        sortConfig={sortConfig}
+                        onSort={handleSort}
+                      />
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentItems.map((clan) => (
+                  <ClanRow 
+                    key={clan.tag}
+                    clan={clan}
+                    onClanClick={onClanClick}
+                    isMobile={false}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
       </div>

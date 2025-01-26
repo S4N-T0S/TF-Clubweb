@@ -1,19 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Users, Trophy, Globe, RefreshCw, FileSearch } from 'lucide-react';
+import { Users, Trophy, Globe, RefreshCw, FileSearch, Star } from 'lucide-react';
 import { DashboardHeaderProps, ViewButtonProps } from '../types/propTypes';
-
+import { useFavorites } from '../context/FavoritesContext';
 
 const ViewButton = ({ active, onClick, icon, text }) => (
   <button
     onClick={onClick}
-    className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 ${
+    className={`px-4 py-2 rounded-lg flex items-center justify-center gap-1.5 whitespace-nowrap text-base ${
       active 
         ? 'bg-blue-600 text-white' 
         : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-    } w-full sm:w-auto`}
+    } w-full sm:w-auto min-w-[100px]`}
   >
     {icon}
-    {text}
+    <span className="hidden sm:inline">{text}</span>
   </button>
 );
 
@@ -25,9 +25,12 @@ export const DashboardHeader = ({
   onRefresh,
   isRefreshing,
   onOpenSearch,
-  isMobile
+  isMobile,
+  showFavorites,
+  setShowFavorites
 }) => {
   const [isScrolledToBottom, setIsScrolledToBottom] = useState(false);
+  const { favorites } = useFavorites();
 
   useEffect(() => {
     if (!isMobile) return;
@@ -49,32 +52,44 @@ export const DashboardHeader = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const FavoritesButton = () => (
+    view === 'global' && (
+      <button
+        onClick={() => setShowFavorites(!showFavorites)}
+        disabled={favorites.length === 0}
+        className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 
+          ${showFavorites 
+            ? 'bg-yellow-500 text-white' 
+            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'} 
+          w-full sm:w-auto ${favorites.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        <Star className={`w-4 h-4 ${showFavorites ? 'fill-current' : ''}`} />
+      </button>
+    )
+  );
+
   return (
     <>
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-bold mb-2 text-white">OG Club Dashboard</h1>
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 w-full">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2">
+            <h1 className="text-2xl lg:text-3xl font-bold text-white whitespace-nowrap">OG Club Dashboard</h1>
             {isTopClan && (
-            <p className="text-xl font-semibold text-green-400">
+            <p className="text-xl font-semibold text-green-400 whitespace-nowrap">
               OG is on top! 🏆
             </p>
             )}
-            {view === 'members' && unknownMembers && unknownMembers.length > 0 ? (
-              unknownMembers.length < 10 ? (
-                <p className="text-yellow-400 text-sm mt-2">
-                  {unknownMembers.length} member(s) in top 10k not found in clublist.
-                </p>
-              ) : unknownMembers.length > 10 ? (
-                <p className="text-red-400 text-sm mt-2">
-                  Failed to load an asset, refreshing the page will likely fix this.
-                </p>
-              ) : null
-            ) : null }
+            {view === 'members' && unknownMembers && unknownMembers.length > 0 && (
+            <p className={`text-sm ${unknownMembers.length < 10 ? 'text-yellow-400' : 'text-red-400'}`}>
+              {unknownMembers.length < 10 
+                ? `${unknownMembers.length} member(s) in top 10k not found in clublist.`
+                : 'Failed to load an asset, refreshing the page will likely fix this.'}
+            </p>
+          )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ml-auto">
             {!isMobile ? (
-              <>
+              <div className="flex items-center gap-2 flex-nowrap">
                 <ViewButton
                   active={view === 'members'}
                   onClick={() => setView('members')}
@@ -93,6 +108,7 @@ export const DashboardHeader = ({
                   icon={<Globe className="w-4 h-4" />}
                   text="Global"
                 />
+                <FavoritesButton />
                 <button
                   onClick={onOpenSearch}
                   className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 
@@ -109,9 +125,10 @@ export const DashboardHeader = ({
                 >
                   <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 </button>
-              </>
+              </div>
             ) : (
               <div className="flex justify-end gap-2 w-full">
+                <FavoritesButton />
                 <button
                   onClick={onOpenSearch}
                   className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 

@@ -89,3 +89,63 @@ body {
 .highlight-animation {
   animation: highlight 2s ease-out;
 }
+
+/* CSS for useFavorite */
+.player-row,
+tr.player-row {
+  position: relative;
+  isolation: isolate;
+}
+
+.player-row::before,
+tr.player-row::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  transform-origin: left;
+  transition: transform 750ms ease-out;
+}
+
+/* Base favorite state */
+.player-row.favorite::before {
+  background: rgba(234, 179, 8, 0.1);
+  transform: scaleX(1);
+}
+
+/* Favoriting animation */
+.animate-favorite-fill::before {
+  background: rgba(234, 179, 8, 0.1);
+  transform: scaleX(0);
+  animation: fillFromLeft 750ms ease-out forwards;
+}
+
+/* Unfavoriting animation */
+.animate-unfavorite-fill::before {
+  background: rgba(234, 179, 8, 0.1);
+  transform: scaleX(1);
+  animation: fillFromRight 750ms ease-out forwards;
+}
+
+@keyframes fillFromLeft {
+  from {
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+  to {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+}
+
+@keyframes fillFromRight {
+  from {
+    transform: scaleX(1);
+    transform-origin: right;
+  }
+  to {
+    transform: scaleX(0);
+    transform-origin: right;
+  }
+}

@@ -13,6 +13,7 @@ import { useMobileDetect } from './hooks/useMobileDetect';
 import PlayerSearchModal from './components/PlayerSearchModal';
 import PlayerGraphModal from './components/PlayerGraphModal';
 import Toast from './components/Toast';
+import { FavoritesProvider } from './context/FavoritesContext';
 
 // No clue why I was using cookie before
 const getStoredTab = () => {
@@ -43,6 +44,7 @@ const App = () => {
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [clanMembersData, setClanMembersData] = useState([]);
   const [clanMembersLoading, setClanMembersLoading] = useState(true);
+  const [showFavorites, setShowFavorites] = useState(false);
 
   const {
     clanMembers,
@@ -184,6 +186,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
+      <FavoritesProvider>
       {toastMessage && (
         <Toast 
           message={toastMessage.message}
@@ -203,6 +206,8 @@ const App = () => {
             isRefreshing={isRefreshing}
             onOpenSearch={() => handleSearchModalOpen()}
             isMobile={isMobile}
+            showFavorites={showFavorites}
+            setShowFavorites={setShowFavorites}
           />
 
           {view === 'members' && (
@@ -231,6 +236,8 @@ const App = () => {
               setSearchQuery={setGlobalSearchQuery}
               onGraphOpen={(playerId) => handleGraphModalOpen(playerId, [])}
               isMobile={isMobile}
+              showFavorites={showFavorites}
+              setShowFavorites={setShowFavorites}
             />
           )}
         </div>
@@ -258,6 +265,7 @@ const App = () => {
         />
       )}
       <Outlet />
+      </FavoritesProvider>
     </div>
   );
 };

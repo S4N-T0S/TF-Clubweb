@@ -38,7 +38,9 @@ export const DashboardHeaderProps = {
   setView: PropTypes.func.isRequired,
   onRefresh: PropTypes.func.isRequired,
   isRefreshing: PropTypes.bool.isRequired,
-  isMobile: PropTypes.bool.isRequired
+  isMobile: PropTypes.bool.isRequired,
+  showFavorites: PropTypes.bool.isRequired,
+  setShowFavorites: PropTypes.func.isRequired
 };
 
 export const ViewButtonProps = {
@@ -76,7 +78,9 @@ export const GlobalViewProps = {
   searchQuery: PropTypes.string,
   setSearchQuery: PropTypes.func.isRequired,
   onGraphOpen: PropTypes.func.isRequired,
-  isMobile: PropTypes.bool.isRequired
+  isMobile: PropTypes.bool.isRequired,
+  showFavorites: PropTypes.bool.isRequired,
+  setShowFavorites: PropTypes.func.isRequired
 };
 
 export const GlobalPlayerRowProps = {
@@ -84,7 +88,8 @@ export const GlobalPlayerRowProps = {
   onSearchClick: PropTypes.func.isRequired,
   onClanClick: PropTypes.func.isRequired,
   onGraphClick: PropTypes.func.isRequired,
-  isMobile: PropTypes.bool.isRequired
+  isMobile: PropTypes.bool.isRequired,
+  notFound: PropTypes.bool
 };
 
 export const RankChangeDisplayProps = {
@@ -186,4 +191,8 @@ export const PlayerGraphModalProps = {
   globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)),
   onSwitchToGlobal: PropTypes.func,
   isMobile: PropTypes.bool.isRequired
+};
+
+export const FavoritesProviderProps = {
+  children: PropTypes.node.isRequired
 };

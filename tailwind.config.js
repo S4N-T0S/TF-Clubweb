@@ -1,3 +1,5 @@
+import tailwindScrollbar from 'tailwind-scrollbar';
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -5,9 +7,32 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      keyframes: {
+        'favorite-fill': {
+          '0%': {
+            background: 'linear-gradient(to right, rgba(234, 179, 8, 0.1) 0%, transparent 0%)'
+          },
+          '100%': {
+            background: 'linear-gradient(to right, rgba(234, 179, 8, 0.1) 100%, transparent 100%)'
+          }
+        },
+        'unfavorite-fill': {
+          '0%': {
+            background: 'linear-gradient(to left, transparent 0%, rgba(234, 179, 8, 0.1) 0%)'
+          },
+          '100%': {
+            background: 'linear-gradient(to left, transparent 100%, rgba(234, 179, 8, 0.1) 100%)'
+          }
+        }
+      },
+      animation: {
+        'favorite-fill': 'favorite-fill 750ms ease-out forwards',
+        'unfavorite-fill': 'unfavorite-fill 750ms ease-out forwards'
+      }
+    }
   },
   plugins: [
-    require('tailwind-scrollbar')({ nocompatible: true }),
+    tailwindScrollbar({ nocompatible: true }),
   ],
 }

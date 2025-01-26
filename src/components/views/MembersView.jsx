@@ -170,32 +170,34 @@ export const MembersView = ({
             }
           </div>
         ) : (
-          <table className="w-full min-w-[640px]">
-            <thead>
-              <tr className="bg-gray-700">
-                <th className="px-4 py-2 text-left text-gray-300">Rank</th>
-                <th className="px-4 py-2 text-left text-gray-300">Player</th>
-                <th className="px-4 py-2 text-center text-gray-300">Prior Ruby</th>
-                <th className="px-4 py-2 text-center text-gray-300">League</th>
-                <th className="px-4 py-2 text-center text-gray-300">Graph</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clanMembers
-                .sort((a, b) => b.rankScore - a.rankScore)
-                .map((member) => (
-                  <MemberRow 
-                    key={member.name} 
-                    member={member} 
-                    onSearchClick={onPlayerSearch}
-                    onGraphClick={onGraphOpen}
-                    clanMembersData={clanMembersData}
-                    isMobile={false}
-                  />
-                ))
-              }
-            </tbody>
-          </table>
+          <div className="overflow-hidden rounded-lg">
+            <table className="w-full min-w-[640px] rounded-lg">
+              <thead>
+                <tr className="bg-gray-700">
+                  <th className="px-4 py-2 text-left text-gray-300">Rank</th>
+                  <th className="px-4 py-2 text-left text-gray-300">Player</th>
+                  <th className="px-4 py-2 text-center text-gray-300">Prior Ruby</th>
+                  <th className="px-4 py-2 text-center text-gray-300">League</th>
+                  <th className="px-4 py-2 text-center text-gray-300">Graph</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clanMembers
+                  .sort((a, b) => b.rankScore - a.rankScore)
+                  .map((member) => (
+                    <MemberRow 
+                      key={member.name} 
+                      member={member} 
+                      onSearchClick={onPlayerSearch}
+                      onGraphClick={onGraphOpen}
+                      clanMembersData={clanMembersData}
+                      isMobile={false}
+                    />
+                  ))
+                }
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
       <div className="mt-4 text-sm text-gray-400">
