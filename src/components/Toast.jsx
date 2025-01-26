@@ -104,7 +104,7 @@ const Toast = ({ message, type, timestamp, ttl }) => {
               ? 'Data is significantly outdated' 
               : currentMessage}
           </p>
-          {type === 'error' || type === 'warning' ? (
+          {type === 'success' || type === 'error' || type === 'warning' ? (
             <>
               {timestamp && (
                 <p className="text-white/80 text-sm">Last updated {formatTimestamp(timestamp)}</p>

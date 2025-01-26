@@ -40,7 +40,8 @@ export const useLeaderboard = (clanMembersData) => {
     if (isRefreshing) {
       return {
         message: 'Refreshing leaderboard data...',
-        type: 'loading'
+        type: 'loading',
+        timestamp: Date.now()
       };
     }
 
