@@ -53,11 +53,29 @@ export const DashboardHeader = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const FavoritesButton = () => (
-    view === 'global' && (
+  const FavoritesButton = () => {
+    const isGlobalView = view === 'global';
+    const hasNoFavorites = favorites.length === 0;
+  
+    // Effect to disable favorites mode when no favorites remain [bugfix]
+    useEffect(() => {
+      if (hasNoFavorites && showFavorites) {
+        setShowFavorites(false);
+      }
+    }, [hasNoFavorites]);
+  
+    return (
       <button
         onClick={() => {
-          if (favorites.length === 0) {
+          if (!isGlobalView) {
+            updateToastMessage(
+              'Switch to Global view to use favorites.',
+              'info'
+            );
+            return;
+          }
+  
+          if (hasNoFavorites) {
             updateToastMessage(
               isMobile 
                 ? 'No favorites yet!\nLong-press on a player to add them to favorites. You can also swipe to switch pages.' 
@@ -72,12 +90,12 @@ export const DashboardHeader = ({
           ${showFavorites 
             ? 'bg-yellow-500 text-white' 
             : 'bg-gray-700 text-gray-300 hover:bg-gray-600'} 
-          w-full sm:w-auto ${favorites.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+          w-full sm:w-auto ${!isGlobalView || hasNoFavorites ? 'opacity-50' : ''}`}
       >
         <Star className={`w-4 h-4 ${showFavorites ? 'fill-current' : ''}`} />
       </button>
-    )
-  );
+    );
+  };
 
   return (
     <>
