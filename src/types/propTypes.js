@@ -192,6 +192,10 @@ export const PlayerGraphModalProps = {
   isMobile: PropTypes.bool.isRequired
 };
 
-export const FavoritesProviderProps = {
+export const FavoritesContextProps = {
+  children: PropTypes.node.isRequired
+};
+
+export const ModalContextProps = {
   children: PropTypes.node.isRequired
 };

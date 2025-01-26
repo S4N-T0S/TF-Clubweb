@@ -6,8 +6,10 @@ import { PlatformIcons } from './icons/Platforms';
 import { getLeagueInfo } from '../utils/leagueUtils';
 import { PlayerSearchModalProps } from '../types/propTypes';
 import { isValidEmbarkId, formatUsernameForUrl } from '../utils/urlHandler';
+import { useModal } from '../context/ModalContext';
 
 const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSearch, isMobile }) => {
+  const { setIsModalOpen, modalRef, setOnClose } = useModal();
   const [searchState, setSearchState] = useState({
     query: '',
     results: [],
@@ -18,23 +20,9 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
   });
   
   const [isExplanationExpanded, setIsExplanationExpanded] = useState(false);
-  const modalRef = useRef(null);
   const inputRef = useRef(null);
   const initialSearchRef = useRef(false);
   const searchId = useId();
-
-  // Add useEffect for managing body scroll
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
 
   const toggleExplanation = () => {
     setIsExplanationExpanded(!isExplanationExpanded);
@@ -197,20 +185,16 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
   }, [isOpen, initialSearch, handleSearch]);
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (modalRef.current && !modalRef.current.contains(event.target)) {
-        handleClose();
-      }
-    };
-
     if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      if (!initialSearchRef.current && !initialSearch && inputRef.current && !isMobile) {
-        inputRef.current.focus();
-      }
+      setIsModalOpen(isOpen);
+      setOnClose(() => handleClose);
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, initialSearch, handleClose, isMobile]);
+
+    return () => {
+      setIsModalOpen(false);
+      setOnClose(null);
+    };
+  }, [isOpen, setIsModalOpen, handleClose, setOnClose]);
 
   if (!isOpen) return null;
 
@@ -223,7 +207,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
         <div className="flex-shrink-0">
           <div className="flex items-center mb-4 relative">
             <button 
-              onClick={onClose}
+              onClick={handleClose}
               className="sm:hidden absolute right-0 p-2 hover:bg-gray-700 rounded-lg"
             >
               <X className="w-5 h-5 text-gray-400" />

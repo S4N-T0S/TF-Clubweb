@@ -24,6 +24,7 @@ import 'chartjs-adapter-date-fns';
 import { fetchPlayerGraphData } from '../services/gp-api';
 import { formatMultipleUsernamesForUrl } from '../utils/urlHandler';
 import { PlayerGraphModalProps, ComparePlayerSearchProps } from '../types/propTypes';
+import { useModal } from '../context/ModalContext';
 
 ChartJS.register(
   CategoryScale,
@@ -264,6 +265,7 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
 };
 
 const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubView = false, globalLeaderboard = [], onSwitchToGlobal, isMobile }) => {
+  const { setIsModalOpen, modalRef, setOnClose } = useModal();
   const [data, setData] = useState(null);
   const [comparisonData, setComparisonData] = useState(new Map());
   const [error, setError] = useState(null);
@@ -271,7 +273,6 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
   const [selectedTimeRange, setSelectedTimeRange] = useState('24H');
   const [viewWindow, setViewWindow] = useState(null);
   const [showCompareSearch, setShowCompareSearch] = useState(false);
-  const modalRef = useRef(null);
   const chartRef = useRef(null);
 
   // Hints for new features
@@ -283,45 +284,18 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
   const loadedCompareIdsRef = useRef(new Set());
   const shouldFollowUrlRef = useRef(true);
 
-  // Add useEffect for managing body scroll
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
+  // Detect if modal is open, if so do conditionals.
+useEffect(() => {
+  if (isOpen) {
+    setIsModalOpen(isOpen);
+    setOnClose(() => onClose);
+  }
 
-  // Function to determine the appropriate default time range based on data points
-  const determineDefaultTimeRange = useCallback((data) => {
-    if (!data?.length) return '24H';
-
-    const now = new Date();
-    const last24Hours = new Date(now - TIME.DAY);
-    const last7Days = new Date(now - TIME.WEEK);
-
-    // Count data points in last 24 hours
-    const pointsIn24H = data.filter(point => 
-      !point.isInterpolated && !point.isExtrapolated && 
-      point.timestamp >= last24Hours
-    ).length;
-
-    if (pointsIn24H >= 2) return '24H';
-
-    // Count data points in last 7 days
-    const pointsIn7D = data.filter(point => 
-      !point.isInterpolated && !point.isExtrapolated && 
-      point.timestamp >= last7Days
-    ).length;
-
-    if (pointsIn7D >= 2) return '7D';
-
-    return 'MAX';
-  }, []);
+  return () => {
+    setIsModalOpen(false);
+    setOnClose(null);
+  };
+}, [isOpen, onClose, setIsModalOpen, setOnClose]);
 
   // Reset state when modal is opened with new player
   useEffect(() => {
@@ -330,7 +304,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       setError(null);
       setViewWindow(null);
     }
-  }, [isOpen, playerId]);
+  }, [isOpen]);
 
   // Temporary hint shown when comparison feature has been added
   useEffect(() => {
@@ -358,6 +332,33 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       setShowZoomHint(false);
     }
   });
+
+  // Function to determine the appropriate default time range based on data points
+  const determineDefaultTimeRange = useCallback((data) => {
+    if (!data?.length) return '24H';
+
+    const now = new Date();
+    const last24Hours = new Date(now - TIME.DAY);
+    const last7Days = new Date(now - TIME.WEEK);
+
+    // Count data points in last 24 hours
+    const pointsIn24H = data.filter(point => 
+      !point.isInterpolated && !point.isExtrapolated && 
+      point.timestamp >= last24Hours
+    ).length;
+
+    if (pointsIn24H >= 2) return '24H';
+
+    // Count data points in last 7 days
+    const pointsIn7D = data.filter(point => 
+      !point.isInterpolated && !point.isExtrapolated && 
+      point.timestamp >= last7Days
+    ).length;
+
+    if (pointsIn7D >= 2) return '7D';
+
+    return 'MAX';
+  }, []);
 
   const getPointRadius = useCallback((ctx) => {
     if (!ctx.chart) return 3;  // Default size if chart context is not available
@@ -1041,22 +1042,12 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
     }
   }, [playerId, calculateViewWindow, interpolateDataPoints, determineDefaultTimeRange]);
 
+  // Load data now, after init
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (modalRef.current && !modalRef.current.contains(event.target)) {
-        onClose();
-      }
-    };
-  
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+    if (isOpen && playerId) {
       loadData();
     }
-  
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen, onClose, loadData]);
+  }, [isOpen, playerId, loadData]);
 
   // Separate effect for handling time range changes
   useEffect(() => {
@@ -1449,7 +1440,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
     }))]
   } : null, [data, playerId, comparisonData, getPointRadius]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !playerId) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">

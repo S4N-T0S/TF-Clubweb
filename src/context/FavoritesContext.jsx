@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { FavoritesProviderProps } from '../types/propTypes';
+import { FavoritesContextProps } from '../types/propTypes';
 
 const FavoritesContext = createContext(null);
 
@@ -143,4 +143,4 @@ export const FavoritesProvider = ({ children }) => {
   );
 };
 
-FavoritesProvider.propTypes = FavoritesProviderProps;
+FavoritesProvider.propTypes = FavoritesContextProps;

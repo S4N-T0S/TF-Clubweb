@@ -11,11 +11,14 @@ export const useSwipe = (onSwipeLeft, onSwipeRight, options = {}) => {
     minSwipeDistance = 50,
     enableIndicator = true,
     onSwipeStart,
-    onSwipeEnd
+    onSwipeEnd,
+    isSwipeActive = true
   } = options;
 
   useEffect(() => {
     const onTouchStart = (e) => {
+      if (!isSwipeActive) return;
+
       const target = e.target;
       const scrollableParent = findScrollableParent(target);
       
@@ -49,7 +52,7 @@ export const useSwipe = (onSwipeLeft, onSwipeRight, options = {}) => {
     };
 
     const onTouchEnd = () => {
-      if (!touchStart || !touchEnd || isHorizontalScroll) return;
+      if (!isSwipeActive || !touchStart || !touchEnd || isHorizontalScroll) return;
       
       const distance = touchStart - touchEnd;
       const isLeftSwipe = distance > minSwipeDistance;
@@ -84,7 +87,7 @@ export const useSwipe = (onSwipeLeft, onSwipeRight, options = {}) => {
       document.removeEventListener('touchmove', onTouchMove);
       document.removeEventListener('touchend', onTouchEnd);
     };
-  }, [onSwipeLeft, onSwipeRight, touchStart, touchEnd, isHorizontalScroll, minSwipeDistance, enableIndicator, onSwipeStart, onSwipeEnd]);
+  }, [onSwipeLeft, onSwipeRight, touchStart, touchEnd, isHorizontalScroll, minSwipeDistance, enableIndicator, onSwipeStart, onSwipeEnd, isSwipeActive]);
 
   return {
     slideDirection,

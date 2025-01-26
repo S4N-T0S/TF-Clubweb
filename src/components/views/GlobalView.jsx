@@ -11,6 +11,7 @@ import { PlatformIcons } from "../icons/Platforms";
 import { SortButton } from '../SortButton';
 import { Hexagon } from '../icons/Hexagon';
 import { useFavorites } from '../../context/FavoritesContext';
+import { useModal } from '../../context/ModalContext';
 import { useOnHold } from '../../hooks/useOnHold';
 
 const RankChangeDisplay = ({ change }) => {
@@ -252,6 +253,7 @@ export const GlobalView = ({
   isMobile,
   showFavorites
 }) => {
+  const { isModalOpen } = useModal();
   const searchInputRef = useRef(null);
   const { getFavoritesWithFallback } = useFavorites();
   const { slideDirection, showIndicator } = useSwipe(
@@ -264,7 +266,8 @@ export const GlobalView = ({
       },
       onSwipeEnd: () => {
         // Optional callback
-      }
+      },
+      isSwipeActive: !isModalOpen
     }
   );
 

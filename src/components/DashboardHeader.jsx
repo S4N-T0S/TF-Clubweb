@@ -61,7 +61,7 @@ export const DashboardHeader = ({
             updateToastMessage(
               isMobile 
                 ? 'No favorites yet!\nLong-press on a player to add them to favorites. You can also swipe to switch pages.' 
-                : 'No favorites yet!\nClick the star next to a player to add them to favorites. You can also swipe to switch pages.',
+                : 'No favorites yet!\nClick the star next to a player to add them to favorites.',
               'info'
             );
           } else {

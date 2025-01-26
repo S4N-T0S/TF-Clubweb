@@ -14,6 +14,7 @@ import PlayerSearchModal from './components/PlayerSearchModal';
 import PlayerGraphModal from './components/PlayerGraphModal';
 import Toast from './components/Toast';
 import { FavoritesProvider } from './context/FavoritesContext';
+import { ModalProvider } from './context/ModalContext';
 
 // No clue why I was using cookie before
 const getStoredTab = () => {
@@ -121,10 +122,10 @@ const App = () => {
   };
 
   // Handle graph modal close
-  const handleGraphModalClose = useCallback(() => {
-    // Just navigate, the statechange is done by the UseEffect
+  const handleGraphModalClose = () => {
+    setGraphModalState({ isOpen: false, playerId: null, compareIds: [], isClubView: false, isMobile });
     navigate('/');
-  }, [navigate]);
+  };
 
   // Handle graph modal open/close
   const handleGraphModalOpen = useCallback((playerId, compareIds = []) => {
@@ -161,20 +162,6 @@ const App = () => {
         isMobile
         };
       });
-    } else {
-      // When no graph parameter, just close without other state changes
-      setGraphModalState(prev => {
-        if (prev.isOpen) {
-          return {
-            isOpen: false,
-            playerId: null,
-            compareIds: [],
-            isClubView: false,
-            isMobile
-          };
-        }
-        return prev; // Don't update state if modal is already closed
-      });
     }
   }, [graph, navigate, view, isMobile]);
 
@@ -196,84 +183,86 @@ const App = () => {
   return (
     <div className="min-h-screen bg-gray-900 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
       <FavoritesProvider>
-      {toastMessage && (
-        <Toast 
-          message={toastMessage.message}
-          type={toastMessage.type}
-          timestamp={toastMessage.timestamp}
-          ttl={toastMessage.ttl}
-        />
-      )}
-      <div className="max-w-7xl mx-auto p-4">
-        <div className="bg-gray-800 rounded-lg shadow-xl p-6 mb-6">
-          <DashboardHeader
-            isTopClan={isTopClan}
-            unknownMembers={unknownMembers}
-            view={view}
-            setView={setView}
-            onRefresh={() => refreshData(false)}
-            isRefreshing={isRefreshing}
-            onOpenSearch={() => handleSearchModalOpen()}
+        <ModalProvider>
+          {toastMessage && (
+            <Toast 
+              message={toastMessage.message}
+              type={toastMessage.type}
+              timestamp={toastMessage.timestamp}
+              ttl={toastMessage.ttl}
+            />
+          )}
+          <div className="max-w-7xl mx-auto p-4">
+            <div className="bg-gray-800 rounded-lg shadow-xl p-6 mb-6">
+              <DashboardHeader
+                isTopClan={isTopClan}
+                unknownMembers={unknownMembers}
+                view={view}
+                setView={setView}
+                onRefresh={() => refreshData(false)}
+                isRefreshing={isRefreshing}
+                onOpenSearch={() => handleSearchModalOpen()}
+                isMobile={isMobile}
+                showFavorites={showFavorites}
+                setShowFavorites={setShowFavorites}
+                updateToastMessage={updateToastMessage}
+              />
+
+              {view === 'members' && (
+                <MembersView 
+                  clanMembers={clanMembers} 
+                  totalMembers={clanMembersData.length} 
+                  onPlayerSearch={(name) => handleSearchModalOpen(name)}
+                  clanMembersData={clanMembersData} // Pass clan members data to members view
+                  onGraphOpen={(playerId) => handleGraphModalOpen(playerId)}
+                  isMobile={isMobile}
+                />
+              )}
+              {view === 'clans' && (
+                <ClansView 
+                  topClans={topClans} 
+                  onClanClick={handleClanClick}
+                  isMobile={isMobile}
+                />
+              )}
+              {view === 'global' && (
+                <GlobalView 
+                  globalLeaderboard={globalLeaderboard}
+                  rubyCutoff={rubyCutoff}
+                  onPlayerSearch={(name) => handleSearchModalOpen(name)}
+                  searchQuery={globalSearchQuery}
+                  setSearchQuery={setGlobalSearchQuery}
+                  onGraphOpen={(playerId) => handleGraphModalOpen(playerId)}
+                  isMobile={isMobile}
+                  showFavorites={showFavorites}
+                />
+              )}
+            </div>
+          </div>
+
+          <PlayerSearchModal 
+            isOpen={searchModalState.isOpen}
+            onClose={handleSearchModalClose}
+            initialSearch={searchModalState.initialSearch}
+            cachedS5Data={globalLeaderboard}
+            onSearch={handleSearchSubmit}
             isMobile={isMobile}
-            showFavorites={showFavorites}
-            setShowFavorites={setShowFavorites}
-            updateToastMessage={updateToastMessage}
           />
 
-          {view === 'members' && (
-            <MembersView 
-              clanMembers={clanMembers} 
-              totalMembers={clanMembersData.length} 
-              onPlayerSearch={(name) => handleSearchModalOpen(name)}
-              clanMembersData={clanMembersData} // Pass clan members data to members view
-              onGraphOpen={(playerId) => handleGraphModalOpen(playerId, [])}
-              isMobile={isMobile}
+          {graphModalState.playerId && (
+            <PlayerGraphModal
+              isOpen={graphModalState.isOpen}
+              onClose={handleGraphModalClose}
+              playerId={graphModalState.playerId}
+              compareIds={graphModalState.compareIds}
+              isClubView={graphModalState.isClubView}
+              globalLeaderboard={graphModalState.isClubView ? rankedClanMembers : globalLeaderboard}
+              onSwitchToGlobal={() => setView('global')}
+              isMobile={graphModalState.isMobile}
             />
           )}
-          {view === 'clans' && (
-            <ClansView 
-              topClans={topClans} 
-              onClanClick={handleClanClick}
-              isMobile={isMobile}
-            />
-          )}
-          {view === 'global' && (
-            <GlobalView 
-              globalLeaderboard={globalLeaderboard}
-              rubyCutoff={rubyCutoff}
-              onPlayerSearch={(name) => handleSearchModalOpen(name)}
-              searchQuery={globalSearchQuery}
-              setSearchQuery={setGlobalSearchQuery}
-              onGraphOpen={(playerId) => handleGraphModalOpen(playerId, [])}
-              isMobile={isMobile}
-              showFavorites={showFavorites}
-            />
-          )}
-        </div>
-      </div>
-      
-      <PlayerSearchModal 
-        isOpen={searchModalState.isOpen}
-        onClose={handleSearchModalClose}
-        initialSearch={searchModalState.initialSearch}
-        cachedS5Data={globalLeaderboard}
-        onSearch={handleSearchSubmit}
-        isMobile={isMobile}
-      />
-
-      {graphModalState.playerId && (
-        <PlayerGraphModal
-          isOpen={graphModalState.isOpen}
-          onClose={handleGraphModalClose}
-          playerId={graphModalState.playerId}
-          compareIds={graphModalState.compareIds}
-          isClubView={graphModalState.isClubView}
-          globalLeaderboard={graphModalState.isClubView ? rankedClanMembers : globalLeaderboard}
-          onSwitchToGlobal={() => setView('global')}
-          isMobile={graphModalState.isMobile}
-        />
-      )}
-      <Outlet />
+          <Outlet />
+        </ModalProvider>
       </FavoritesProvider>
     </div>
   );

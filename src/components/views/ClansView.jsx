@@ -6,6 +6,7 @@ import { useSwipe } from '../../hooks/useSwipe';
 import { ClansViewProps, ClanRowProps } from '../../types/propTypes';
 import { SortButton } from '../SortButton';
 import { useRef } from 'react';
+import { useModal } from '../../context/ModalContext';
 
 const ClanRow = ({ clan, onClanClick, isMobile }) => {
   // Mobile row rendering
@@ -74,6 +75,7 @@ const ClanRow = ({ clan, onClanClick, isMobile }) => {
 };
 
 export const ClansView = ({ topClans, onClanClick, isMobile }) => {
+  const { isModalOpen } = useModal();
   const searchInputRef = useRef(null);
   const { slideDirection, showIndicator } = useSwipe(
     () => currentPage < totalPages && handlePageChange(currentPage + 1),
@@ -85,7 +87,8 @@ export const ClansView = ({ topClans, onClanClick, isMobile }) => {
       },
       onSwipeEnd: () => {
         // Optional callback
-      }
+      },
+      isSwipeActive: !isModalOpen
     }
   );
 
