@@ -4,6 +4,19 @@ import { ToastProps } from '../types/propTypes';
 
 const MAX_ACCEPTABLE_AGE = 30 * 60; // 30 minutes in seconds
 
+const formatMessage = (message) => { // Quick and dirty formatting for messages...
+  if (!message || typeof message !== 'string') return message;
+  if (!message.includes('\n')) return message;
+  
+  const [firstLine, ...rest] = message.split('\n');
+  return (
+    <>
+      {firstLine}<br />
+      <span className="text-sm">{rest.join('\n')}</span>
+    </>
+  );
+};
+
 const formatTimestamp = (timestamp) => {
   const date = new Date(timestamp);
   const minutes = Math.floor((Date.now() - date) / 1000 / 60);
@@ -102,7 +115,7 @@ const Toast = ({ message, type, timestamp, ttl }) => {
           <p className="font-medium break-words whitespace-pre-wrap">
             {isDataTooOld
               ? 'Data is significantly outdated' 
-              : currentMessage}
+              : formatMessage(currentMessage)}
           </p>
           {type === 'success' || type === 'error' || type === 'warning' ? (
             <>
