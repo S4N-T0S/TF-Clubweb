@@ -77,14 +77,16 @@ const createTooltip = (chart) => {
   tooltipEl.className = 'rank-tooltip';
   Object.assign(tooltipEl.style, {
     background: '#1f2937',
-    borderRadius: '3px',
+    borderRadius: '8px', // softer rounded corners
+    border: '1px solid #374151', // subtle border
     color: '#FAF9F6',
     opacity: 1,
     pointerEvents: 'none',
     position: 'absolute',
-    transform: 'translate(-50%, 0)',
-    transition: 'all .1s ease',
-    padding: '12px'
+    transform: 'translate(-50%, -100%)', // position above cursor
+    transition: 'all 0.15s ease-out', // smoother transition
+    padding: '12px',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.3)' // deeper shadow
   });
   
   tooltipEl.appendChild(document.createElement('table'));
@@ -222,7 +224,7 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
           <X className="w-5 h-5" />
         </button>
       </div>
-      
+     
       <div className="relative mb-4">
         <input
           type="text"
@@ -234,28 +236,39 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
         />
         <Search className="absolute right-3 top-2.5 h-5 w-5 text-gray-400" />
       </div>
-
-      <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
+      
+      <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-500 scrollbar-track-gray-800 scrollbar-thumb-rounded-full scrollbar-w-1.5 hover:scrollbar-thumb-gray-500">
+        {filteredPlayers.length === 0 && (
+          <div className="p-4 text-center text-gray-400 text-sm">
+            No matching players found
+            <div className="mt-1 text-xs">Try a different search term</div>
+          </div>
+        )}
         {filteredPlayers.map((player) => {
           const mainPlayer = globalLeaderboard.find(p => p.name === mainPlayerId);
           const scoreDiff = mainPlayer ? player.rankScore - mainPlayer.rankScore : 0;
-          
+     
           return (
             <div
               key={player.name}
-              className="flex items-center justify-between p-2 hover:bg-gray-700 rounded-lg cursor-pointer"
+              className="flex items-center justify-between p-3 hover:bg-gray-700/50 rounded-xl cursor-pointer transition-colors duration-150 group"
               onClick={() => onSelect(player)}
             >
-              <div className="flex items-center gap-2">
-                <span className="text-gray-400">#{player.rank}</span>
-                <span className="text-white">
-                  {player.clubTag ? `[${player.clubTag}] ` : ''}{player.name}
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-gray-400 flex-shrink-0">#{player.rank}</span>
+                <span className="text-white truncate">
+                {player.clubTag && (
+                  <span className="text-blue-300 font-medium">[{player.clubTag}] </span>
+                )}{player.name}
                 </span>
-                <span className={`text-xs ${scoreDiff > 0 ? 'text-green-400' : scoreDiff < 0 ? 'text-red-400' : 'text-gray-400'}`}>
-                  {scoreDiff > 0 ? '+' : ''}{scoreDiff.toLocaleString()}
+                <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md flex-shrink-0
+                  ${scoreDiff > 0 ? 'bg-green-900/40 text-green-400' :
+                  scoreDiff < 0 ? 'bg-red-900/40 text-red-400' :
+                  'bg-gray-600/40 text-gray-300'}`}>
+                    {scoreDiff > 0 ? '↑' : '↓'} {Math.abs(scoreDiff).toLocaleString()}
                 </span>
               </div>
-              <Plus className="w-5 h-5 text-gray-400 hover:text-white" />
+              <Plus className="w-5 h-5 text-gray-400 hover:text-white flex-shrink-0" />
             </div>
           );
         })}
@@ -441,12 +454,12 @@ useEffect(() => {
         rankBadge.style.position = 'absolute';
         rankBadge.style.right = '-6px';
         rankBadge.style.top = '-6px';
-        rankBadge.style.backgroundColor = '#4b5563';
+        rankBadge.style.backgroundColor = '#3b82f6'; // blue instead of gray
         rankBadge.style.color = '#ffffff';
-        rankBadge.style.fontSize = '10px';
+        rankBadge.style.fontSize = '11px';
         rankBadge.style.fontWeight = 'bold';
-        rankBadge.style.padding = '4px 6px';
-        rankBadge.style.borderRadius = '0 3px 0 6px';
+        rankBadge.style.padding = '3px 8px';
+        rankBadge.style.borderRadius = '4px 0 4px 0';
         rankBadge.style.boxShadow = '0 1px 3px rgba(0,0,0,0.3)';
         rankBadge.textContent = `#${dataPoint.rank.toLocaleString()}`;
       
@@ -504,6 +517,7 @@ useEffect(() => {
           const previousScore = dataset[dataIndex - 1].rankScore;
           const scoreChange = score - previousScore;
           const scoreChangeText = document.createElement('span');
+          scoreChangeText.style.fontWeight = '600';
           scoreChangeText.style.marginLeft = '4px';
           scoreChangeText.style.fontSize = '12px';
           scoreChangeText.style.color = scoreChange > 0 ? '#10B981' : scoreChange < 0 ? '#EF4444' : '#9ca3af';

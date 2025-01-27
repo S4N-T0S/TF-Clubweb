@@ -149,3 +149,9 @@ tr.player-row::before {
     transform-origin: right;
   }
 }
+
+/* Css for PlayerGraphModal */
+.rank-tooltip {
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+  transform-origin: bottom center;
+}
