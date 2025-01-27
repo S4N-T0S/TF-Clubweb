@@ -1367,15 +1367,9 @@ useEffect(() => {
               currentTimeWindow // Pass current view window to maintain context
             );
     
-            // Preserve Y-axis zoom if manual adjustments were made
-            const currentYRange = chart.scales.y.max - chart.scales.y.min;
-            const newYRange = newMax - newMin;
-            
-            // Only update Y-axis if the visible data requires more space
-            if (newYRange > currentYRange) {
-              chart.options.scales.y.min = newMin;
-              chart.options.scales.y.max = newMax;
-            }
+            // Always update -- another bugfix
+            chart.options.scales.y.min = newMin;
+            chart.options.scales.y.max = newMax;
     
             chart.options.scales.y.ticks.stepSize = calculateYAxisStepSize(
               chart.options.scales.y.min, 
