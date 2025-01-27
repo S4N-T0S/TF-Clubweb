@@ -1315,72 +1315,63 @@ useEffect(() => {
       },
       legend: {
         onClick: (evt, item, legend) => {
-          // Call the default legend click handler using the Chart import
           const chart = chartRef.current;
           if (!chart) return;
-          
-          // Use Chart.defaults for the default behavior
+        
+          // Execute default legend visibility toggling first
           ChartJS.defaults.plugins.legend.onClick(evt, item, legend);
-          
-          // Wait for next tick to ensure dataset visibility is updated
+        
           setTimeout(() => {
-            // Get current X-axis view window
             const xScale = chart.scales.x;
-            const currentTimeWindow = {
-              min: xScale.min,
-              max: xScale.max
-            };
-    
-            // Collect min/max from visible data IN CURRENT VIEW WINDOW
-            let visibleMin = Infinity;
-            let visibleMax = -Infinity;
-    
+            const currentTimeWindow = { min: xScale.min, max: xScale.max };
+        
+            // Early exit if no visible datasets
+            const visibleDatasets = chart.data.datasets.filter((_, index) => 
+              chart.getDatasetMeta(index).visible
+            );
+            if (visibleDatasets.length === 0) return;
+        
+            // Collect scores from ALL visible points in current view window
+            let allVisibleScores = [];
             chart.data.datasets.forEach((dataset, index) => {
               if (chart.getDatasetMeta(index).visible) {
                 const visiblePoints = dataset.data.filter(d => 
                   d.x >= currentTimeWindow.min && 
                   d.x <= currentTimeWindow.max
                 );
-                
-                if (visiblePoints.length === 0) return;
-                
-                const scores = visiblePoints.map(d => d.raw?.rankScore).filter(Boolean);
-                const datasetMin = Math.min(...scores);
-                const datasetMax = Math.max(...scores);
-                
-                visibleMin = Math.min(visibleMin, datasetMin);
-                visibleMax = Math.max(visibleMax, datasetMax);
+                allVisibleScores.push(...visiblePoints.map(d => d.raw?.rankScore).filter(Number.isFinite));
               }
             });
-    
-            // Fallback to current Y-axis range if no valid data
-            if (visibleMin === Infinity || visibleMax === -Infinity) {
-              visibleMin = chart.options.scales.y.min;
-              visibleMax = chart.options.scales.y.max;
-            }
-    
-            const [newMin, newMax] = getDynamicYAxisDomain(
-              visibleMin,
-              visibleMax,
+        
+            // Handle empty visible scores (use current Y-axis range as fallback)
+            const [newMin, newMax] = allVisibleScores.length > 0
+              ? [
+                  Math.min(...allVisibleScores),
+                  Math.max(...allVisibleScores)
+                ]
+              : [
+                  chart.options.scales.y.min,
+                  chart.options.scales.y.max
+                ];
+        
+            // Get padded Y-axis domain (using existing buffer logic)
+            const [paddedMin, paddedMax] = getDynamicYAxisDomain(
+              newMin,
+              newMax,
               data,
               selectedTimeRange,
-              currentTimeWindow // Pass current view window to maintain context
+              currentTimeWindow
             );
-    
-            // Always update -- another bugfix
-            chart.options.scales.y.min = newMin;
-            chart.options.scales.y.max = newMax;
-    
-            chart.options.scales.y.ticks.stepSize = calculateYAxisStepSize(
-              chart.options.scales.y.min, 
-              chart.options.scales.y.max
-            );
-            
+        
+            // Always update axis bounds
+            chart.options.scales.y.min = paddedMin;
+            chart.options.scales.y.max = paddedMax;
+        
+            // Update remaining chart properties
+            chart.options.scales.y.ticks.stepSize = calculateYAxisStepSize(paddedMin, paddedMax);
             chart.options.plugins.annotation.annotations = getRankAnnotations(currentTimeWindow);
-            
-            // Update the chart
             chart.update();
-          }, 0);
+          }, 0); // <-- 0ms timeout ensures this runs after visibility toggles
         },
         labels: {
           color: '#ffffff',
