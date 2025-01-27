@@ -1324,20 +1324,65 @@ useEffect(() => {
           
           // Wait for next tick to ensure dataset visibility is updated
           setTimeout(() => {
-            // Recalculate Y axis domain based on visible datasets
+            // Get current X-axis view window
+            const xScale = chart.scales.x;
+            const currentTimeWindow = {
+              min: xScale.min,
+              max: xScale.max
+            };
+    
+            // Collect min/max from visible data IN CURRENT VIEW WINDOW
+            let visibleMin = Infinity;
+            let visibleMax = -Infinity;
+    
+            chart.data.datasets.forEach((dataset, index) => {
+              if (chart.getDatasetMeta(index).visible) {
+                const visiblePoints = dataset.data.filter(d => 
+                  d.x >= currentTimeWindow.min && 
+                  d.x <= currentTimeWindow.max
+                );
+                
+                if (visiblePoints.length === 0) return;
+                
+                const scores = visiblePoints.map(d => d.raw?.rankScore).filter(Boolean);
+                const datasetMin = Math.min(...scores);
+                const datasetMax = Math.max(...scores);
+                
+                visibleMin = Math.min(visibleMin, datasetMin);
+                visibleMax = Math.max(visibleMax, datasetMax);
+              }
+            });
+    
+            // Fallback to current Y-axis range if no valid data
+            if (visibleMin === Infinity || visibleMax === -Infinity) {
+              visibleMin = chart.options.scales.y.min;
+              visibleMax = chart.options.scales.y.max;
+            }
+    
             const [newMin, newMax] = getDynamicYAxisDomain(
-              Math.min(...data.map(d => d.rankScore)),
-              Math.max(...data.map(d => d.rankScore)),
+              visibleMin,
+              visibleMax,
               data,
-              selectedTimeRange
+              selectedTimeRange,
+              currentTimeWindow // Pass current view window to maintain context
+            );
+    
+            // Preserve Y-axis zoom if manual adjustments were made
+            const currentYRange = chart.scales.y.max - chart.scales.y.min;
+            const newYRange = newMax - newMin;
+            
+            // Only update Y-axis if the visible data requires more space
+            if (newYRange > currentYRange) {
+              chart.options.scales.y.min = newMin;
+              chart.options.scales.y.max = newMax;
+            }
+    
+            chart.options.scales.y.ticks.stepSize = calculateYAxisStepSize(
+              chart.options.scales.y.min, 
+              chart.options.scales.y.max
             );
             
-            // Update the chart's Y axis
-            chart.options.scales.y.min = newMin;
-            chart.options.scales.y.max = newMax;
-            
-            // Update rank annotations
-            chart.options.plugins.annotation.annotations = getRankAnnotations();
+            chart.options.plugins.annotation.annotations = getRankAnnotations(currentTimeWindow);
             
             // Update the chart
             chart.update();
