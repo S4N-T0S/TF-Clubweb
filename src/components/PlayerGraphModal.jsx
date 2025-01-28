@@ -236,7 +236,7 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
         />
         <Search className="absolute right-3 top-2.5 h-5 w-5 text-gray-400" />
       </div>
-      
+
       <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-500 scrollbar-track-gray-800 scrollbar-thumb-rounded-full scrollbar-w-1.5 hover:scrollbar-thumb-gray-500">
         {filteredPlayers.length === 0 && (
           <div className="p-4 text-center text-gray-400 text-sm">
@@ -1512,7 +1512,7 @@ useEffect(() => {
             )}
           </div>
           {isClubView && (
-            <div className={`flex ${isMobile ? 'flex-col' : 'items-center'} gap-2`}>
+            <div className={`flex-1 flex justify-center ${isMobile ? 'flex-col' : 'items-center'} gap-2`}>
               <p className="text-sm text-blue-400 truncate">
                 Comparing available with club members only
               </p>
@@ -1524,7 +1524,7 @@ useEffect(() => {
               </button>
             </div>
           )}
-          <div className="relative flex flex-col w-full">
+          <div className={`relative flex flex-col ${isMobile ? 'w-full' : 'w-auto'}`}>
             <div className={`flex items-center ${isMobile ? 'w-full justify-between mb-2' : 'w-full justify-end gap-2'}`}>
               {comparisonData.size < MAX_COMPARISONS && (
                 <div className="relative">
