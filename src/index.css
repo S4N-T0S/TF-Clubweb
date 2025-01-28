@@ -14,8 +14,13 @@ body {
   @apply min-h-screen bg-gray-900;
 }
 
-.scrollbar-thin::-webkit-scrollbar:horizontal {
-  height: 8px;
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #4b5563;
+  border-radius: 3px;
 }
 
 .table-container {

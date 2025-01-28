@@ -220,8 +220,8 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
     <div ref={searchRef} className={`absolute right-0 top-12 w-96 bg-gray-800 rounded-lg shadow-lg p-4 z-50 ${className}`}>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-white">Add Player to Compare</h3>
-        <button onClick={onClose} className="text-gray-400 hover:text-white sm:hidden">
-          <X className="w-5 h-5" />
+        <button onClick={onClose} aria-label="Close comparisons" className="text-gray-400 hover:text-white sm:hidden">
+          <X className="w-5 h-5 text-gray-400" />
         </button>
       </div>
      
@@ -1490,7 +1490,7 @@ useEffect(() => {
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
       <div ref={modalRef} className={`bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden
         ${isMobile ? 'max-w-[95vw] max-h-[98vh]' : 'max-w-[80vw] max-h-[95vh]'}`}>
-        <div className={`${isMobile ? 'flex flex-col gap-2' : 'flex justify-between items-center'} mb-4`}>
+        <div className={`${isMobile ? 'flex flex-col gap-2' : 'flex justify-between items-center gap-4'} mb-4`}>
           <div className={`${isMobile ? 'w-full' : ''}`}>
             <div className="flex items-center justify-between">
               <h2 className={`font-bold text-white ${isMobile ? 'text-lg truncate max-w-[200px]' : 'text-xl'}`}>
@@ -1499,6 +1499,7 @@ useEffect(() => {
               {isMobile && (
                 <button 
                   onClick={onClose}
+                  aria-label="Close modal"
                   className="p-2 hover:bg-gray-700 rounded-lg"
                 >
                   <X className="w-5 h-5 text-gray-400" />
@@ -1547,10 +1548,11 @@ useEffect(() => {
                   )}
                 </div>
               )}
-              <div className={`flex gap-2 bg-gray-800 rounded-lg p-1 ${isMobile ? 'flex-1 justify-center ml-2' : ''}`}>
+              <div className={`flex gap-2 bg-gray-800 rounded-lg p-1 ${isMobile ? 'flex-1 justify-center ml-2' : 'justify-end'}`}>
                 {Object.keys(TIME.RANGES).map((range) => (
                   <button
                     key={range}
+                    aria-pressed={selectedTimeRange === range}
                     onClick={() => setSelectedTimeRange(range)}
                     className={`px-3 py-1 text-sm rounded-md transition-colors ${
                       selectedTimeRange === range
@@ -1603,7 +1605,7 @@ useEffect(() => {
           </div>
         )}
 
-        <div className={`w-full ${isMobile ? 'h-[calc(80vh-180px)]' : 'h-[calc(85vh-140px)]'}`}>
+        <div className={`w-full ${isMobile ? 'h-[calc(100vh-180px)]' : 'h-[calc(90vh-170px)]'}`}>
           {loading ? (
             <div className="flex items-center justify-center h-full text-gray-400">Loading...</div>
           ) : error ? (
@@ -1613,8 +1615,8 @@ useEffect(() => {
               {showZoomHint && (
                 <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 
                                 bg-gray-800 bg-opacity-90 text-white px-4 py-2 rounded-lg 
-                                transition-opacity duration-300 cursor-pointer z-10"
-                                onClick={() => setShowZoomHint(false)}>
+                                transition-opacity duration-300 cursor-pointer z-10 animate-fadeIn shadow-lg"
+                                onClick={() => setShowZoomHint(false)} style={{ backdropFilter: 'blur(2px)' }}>
                   <div className="flex flex-col items-center gap-2 text-sm">
                     <div className="flex items-center gap-2">
                       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
