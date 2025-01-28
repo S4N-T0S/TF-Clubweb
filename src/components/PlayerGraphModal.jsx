@@ -1605,7 +1605,7 @@ useEffect(() => {
           </div>
         )}
 
-        <div className={`w-full ${isMobile ? 'h-[calc(100vh-180px)]' : 'h-[calc(90vh-170px)]'}`}>
+        <div className={`w-full ${isMobile ? 'h-[calc(80vh-180px)]' : 'h-[calc(90vh-170px)]'}`}>
           {loading ? (
             <div className="flex items-center justify-center h-full text-gray-400">Loading...</div>
           ) : error ? (
