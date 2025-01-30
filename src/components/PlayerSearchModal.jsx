@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useId } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, AlertTriangle, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { searchPlayerHistory } from '../services/historicalDataService';
 import { Hexagon } from './icons/Hexagon';
@@ -22,7 +22,6 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
   const [isExplanationExpanded, setIsExplanationExpanded] = useState(false);
   const inputRef = useRef(null);
   const initialSearchRef = useRef(false);
-  const searchId = useId();
 
   const toggleExplanation = () => {
     setIsExplanationExpanded(!isExplanationExpanded);
@@ -240,7 +239,6 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <input
-                  id={searchId}
                   ref={inputRef}
                   type="text"
                   value={searchState.query}

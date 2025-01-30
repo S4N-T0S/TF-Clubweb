@@ -1,6 +1,5 @@
 import { Search, X } from 'lucide-react';
 import { SearchBarProps } from '../types/propTypes';
-import { useId } from 'react';
 
 export const SearchBar = ({ 
   value, 
@@ -8,7 +7,6 @@ export const SearchBar = ({
   placeholder = "Search by Embark, Steam, PSN, Xbox, or club tag! e.g: [OG] ttvscruy",
   searchInputRef
 }) => {
-  const searchId = useId();
 
   const handleSearch = (searchValue) => {
     // No need to clean up the search value here
@@ -21,7 +19,6 @@ export const SearchBar = ({
         <Search className="h-5 w-5 text-gray-400" />
       </div>
       <input
-        id={searchId}
         ref={searchInputRef}
         type="text"
         value={value}
