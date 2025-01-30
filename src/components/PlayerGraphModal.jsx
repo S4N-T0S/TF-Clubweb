@@ -1623,14 +1623,14 @@ useEffect(() => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                               d="M12 4v16m8-8H4" />
                       </svg>
-                      <span>Mouse wheel to zoom</span>
+                      <span>{isMobile ? 'Pinch to zoom' : 'Mouse wheel to zoom'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                               d="M17 8l4 4m0 0l-4 4m4-4H3" />
                       </svg>
-                      <span>Click and drag to pan</span>
+                      <span>{isMobile ? 'Touch and drag to pan' : 'Click and drag to pan'}</span>
                     </div>
                   </div>
                 </div>
