@@ -244,7 +244,7 @@ const App = () => {
             isOpen={searchModalState.isOpen}
             onClose={handleSearchModalClose}
             initialSearch={searchModalState.initialSearch}
-            cachedS5Data={globalLeaderboard}
+            currentSeasonData={globalLeaderboard}
             onSearch={handleSearchSubmit}
             isMobile={isMobile}
           />

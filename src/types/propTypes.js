@@ -150,7 +150,7 @@ export const PlayerSearchModalProps = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   initialSearch: PropTypes.string,
-  cachedS5Data: PropTypes.array,
+  currentSeasonData: PropTypes.array,
   onSearch: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired
 };

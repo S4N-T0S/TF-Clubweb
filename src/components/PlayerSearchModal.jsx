@@ -8,7 +8,7 @@ import { PlayerSearchModalProps } from '../types/propTypes';
 import { isValidEmbarkId, formatUsernameForUrl } from '../utils/urlHandler';
 import { useModal } from '../context/ModalContext';
 
-const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSearch, isMobile }) => {
+const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile }) => {
   const { setIsModalOpen, modalRef, setOnClose } = useModal();
   const [searchState, setSearchState] = useState({
     query: '',
@@ -50,7 +50,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
     }));
   
     try {
-      const results = await searchPlayerHistory(query, cachedS5Data);
+      const results = await searchPlayerHistory(query, currentSeasonData);
       setSearchState(prev => ({
         ...prev,
         results,
@@ -70,7 +70,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
         isSearching: false
       }));
     }
-  }, [cachedS5Data, onSearch]);
+  }, [currentSeasonData, onSearch]);
 
   const handleClose = useCallback(() => {
     setSearchState({
@@ -86,13 +86,13 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
   }, [onClose]);
 
   const updateSuggestions = useCallback((query) => {
-    if (!cachedS5Data || !isPartialEmbarkId(query)) {
+    if (!currentSeasonData || !isPartialEmbarkId(query)) {
       setSearchState(prev => ({ ...prev, suggestions: [], selectedIndex: -1 }));
       return;
     }
   
     const lowercaseQuery = query.toLowerCase();
-    const matchingPlayers = cachedS5Data
+    const matchingPlayers = currentSeasonData
       .filter(player => 
         player.name && player.name.toLowerCase().includes(lowercaseQuery)
       )
@@ -107,7 +107,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, cachedS5Data, onSea
       suggestions: matchingPlayers,
       selectedIndex: -1
     }));
-  }, [cachedS5Data]);
+  }, [currentSeasonData]);
 
   const handleInputChange = (e) => {
     const newQuery = e.target.value;
