@@ -144,7 +144,7 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile 
               </div>
             )}
           </div>
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 mt-auto">
             <LeagueDisplay 
               league={player.league} 
               score={player.rankScore} 
