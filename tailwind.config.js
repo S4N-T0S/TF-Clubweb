@@ -27,8 +27,8 @@ export default {
         }
       },
       animation: {
-        'favorite-fill': 'favorite-fill 750ms ease-out forwards',
-        'unfavorite-fill': 'unfavorite-fill 750ms ease-out forwards'
+        'favorite-fill': 'favorite-fill 1000ms ease-out forwards',
+        'unfavorite-fill': 'unfavorite-fill 1000ms ease-out forwards'
       }
     }
   },

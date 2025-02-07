@@ -110,7 +110,7 @@ tr.player-row::before {
   z-index: -1;
   pointer-events: none;
   transform-origin: left;
-  transition: transform 750ms ease-out;
+  transition: transform 1000ms ease-out;
 }
 
 /* Base favorite state */
@@ -123,14 +123,14 @@ tr.player-row::before {
 .animate-favorite-fill::before {
   background: rgba(234, 179, 8, 0.1);
   transform: scaleX(0);
-  animation: fillFromLeft 750ms ease-out forwards;
+  animation: fillFromLeft 1000ms ease-out forwards;
 }
 
 /* Unfavoriting animation */
 .animate-unfavorite-fill::before {
   background: rgba(234, 179, 8, 0.1);
   transform: scaleX(1);
-  animation: fillFromRight 750ms ease-out forwards;
+  animation: fillFromRight 1000ms ease-out forwards;
 }
 
 @keyframes fillFromLeft {
