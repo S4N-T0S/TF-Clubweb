@@ -1,70 +1,54 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-export const useOnHold = (callback, duration = 1000) => {
+export const useOnHold = (callback, duration = 1700) => {  // Increased default duration
   const [isHolding, setIsHolding] = useState(false);
   const timerRef = useRef(null);
   const visualFeedbackTimerRef = useRef(null);
-  const startTimeRef = useRef(null);
-  const preventDefaultRef = useRef(false);
   const nodeRef = useRef(null);
   const lastScrollTop = useRef(0);
   const scrollCheckInterval = useRef(null);
 
-  // Create a cleanup function that can be reused
   const cleanup = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    if (visualFeedbackTimerRef.current) {
-      clearTimeout(visualFeedbackTimerRef.current);
-      visualFeedbackTimerRef.current = null;
-    }
-    if (scrollCheckInterval.current) {
-      clearInterval(scrollCheckInterval.current);
-      scrollCheckInterval.current = null;
-    }
-    preventDefaultRef.current = false;
+    timerRef.current && clearTimeout(timerRef.current);
+    visualFeedbackTimerRef.current && clearTimeout(visualFeedbackTimerRef.current);
+    scrollCheckInterval.current && clearInterval(scrollCheckInterval.current);
+    timerRef.current = null;
+    visualFeedbackTimerRef.current = null;
+    scrollCheckInterval.current = null;
     setIsHolding(false);
   }, []);
 
   const checkIfScrolling = useCallback(() => {
-    const currentScrollTop = window.scrollY;
-    if (currentScrollTop !== lastScrollTop.current) {
+    if (window.scrollY !== lastScrollTop.current) {
       cleanup();
-      lastScrollTop.current = currentScrollTop;
+      lastScrollTop.current = window.scrollY;
     }
   }, [cleanup]);
 
   const startHold = useCallback((e) => {
-    if (e.target.closest('button') || e.target.closest('a')) {
-      return;
-    }
+    if (e.target.closest('button') || e.target.closest('a')) return;
 
     lastScrollTop.current = window.scrollY;
-    scrollCheckInterval.current = setInterval(checkIfScrolling, 50);
-    
-    startTimeRef.current = Date.now();
-    preventDefaultRef.current = false;
-    
+    scrollCheckInterval.current = setInterval(checkIfScrolling, 30);  // More frequent checks for scrolling
+
+    // Increased the prevention delay from 250ms to 700ms
+    visualFeedbackTimerRef.current = setTimeout(() => {
+      setIsHolding(true);
+    }, 700);
+
+    // Main callback after full duration
     timerRef.current = setTimeout(() => {
       callback();
       cleanup();
     }, duration);
 
-    visualFeedbackTimerRef.current = setTimeout(() => {
-      setIsHolding(true);
-      preventDefaultRef.current = true;
-    }, 250);
   }, [callback, duration, checkIfScrolling, cleanup]);
 
-  const touchMoveHandler = useCallback((e) => {
-    if (preventDefaultRef.current) {
-      e.preventDefault();
-    }
-  }, []);
+  // Cancel immediately on any movement
+  const touchMoveHandler = useCallback(() => {
+    cleanup();
+  }, [cleanup]);
 
-  // Ref callback
   const ref = useCallback(node => {
     if (node) {
       nodeRef.current = node;
@@ -72,12 +56,9 @@ export const useOnHold = (callback, duration = 1000) => {
     }
   }, [touchMoveHandler]);
 
-  // Cleanup with useEffect
   useEffect(() => {
     return () => {
-      if (nodeRef.current) {
-        nodeRef.current.removeEventListener('touchmove', touchMoveHandler);
-      }
+      nodeRef.current?.removeEventListener('touchmove', touchMoveHandler);
       cleanup();
     };
   }, [touchMoveHandler, cleanup]);
