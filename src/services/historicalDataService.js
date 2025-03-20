@@ -3,6 +3,7 @@ import S1Data from '../data/S1/S1-merged.json';
 import S2Data from '../data/S2/S2-merged.json';
 import S3Data from '../data/S3/S3-crossplay.json';
 import S4Data from '../data/S4/S4-crossplay.json';
+import S5Data from '../data/S5/S5-crossplay.json';
 
 const SEASONS = {
   OB: { data: OBData, label: 'Open Beta', hasRuby: false, hasRankScore: true, scoreKey: 'fame' },
@@ -10,7 +11,8 @@ const SEASONS = {
   S2: { data: S2Data, label: 'Season 2', hasRuby: false, hasRankScore: false },
   S3: { data: S3Data, label: 'Season 3', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore' },
   S4: { data: S4Data, label: 'Season 4', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore' },
-  S5: { data: null, label: 'Season 5', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isCurrent: true }
+  S5: { data: S5Data, label: 'Season 5', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore' },
+  S6: { data: null, label: 'Season 6', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isCurrent: true }
 };
 
 const filterPlayers = (players, searchQuery, searchType) => {
@@ -94,7 +96,7 @@ export const searchPlayerHistory = async (embarkId, currentSeasonData = null) =>
   ]);
 
   // Sort results by season
-  const seasonOrder = ['Open Beta', 'Season 1', 'Season 2', 'Season 3', 'Season 4', 'Season 5'];
+  const seasonOrder = ['Open Beta', 'Season 1', 'Season 2', 'Season 3', 'Season 4', 'Season 5', 'Season 6'];
   return Array.from(allResults.values()).sort((a, b) => 
     seasonOrder.indexOf(a.season) - seasonOrder.indexOf(b.season)
   );
