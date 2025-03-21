@@ -41,10 +41,10 @@ function parseCsvData(csvText) {
     .slice(1) // Skip header row
     .filter(Boolean)
     .map(row => {
-      const [embarkId, discord] = row.split(',');
+      const [embarkId] = row.split(',');
       return {
         embarkId: embarkId?.trim() || null,
-        discord: discord?.trim() || null // Discord only removed from UI.
+        //discord: discord?.trim() || null -- Discord Link Removed.
       };
     });
 };

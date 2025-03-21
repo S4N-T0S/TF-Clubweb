@@ -9,27 +9,36 @@ const MemberRow = ({
   member, 
   onSearchClick, 
   onGraphClick, 
-  // clanMembersData, -- Removed Discord Link
+  clanMembersData,
   isMobile 
 }) => {
   const [username, discriminator] = member.name.split('#');
+  
   /* Removed Discord Link
   const clanMemberInfo = clanMembersData?.find(m => 
     m.embarkId.toLowerCase() === member.name.toLowerCase() ||
     (m.discord && m.discord.toLowerCase() === member.discord?.toLowerCase())
   );
   */
+  
+  // Check if member is in OG but not in CSV
+  const inOgNotInCsv = clanMembersData && !clanMembersData.find(m => 
+    m.embarkId.toLowerCase() === member.name.toLowerCase()
+  );
+
+  // Background class for row
+  const getBackgroundClass = () => {
+    if (member.notInLeaderboard) return 'bg-red-900 bg-opacity-20';
+    if (inOgNotInCsv) return '!bg-yellow-600/20';
+    return '';
+  };
 
   // Mobile row rendering
   if (isMobile) {
     return (
       <div 
         className={`flex flex-col gap-2 p-4 border-b border-gray-700 bg-gray-800 rounded-lg shadow-sm 
-        active:bg-gray-750 active:scale-[0.99] transition-all duration-150 ease-in-out ${
-          member.notInLeaderboard 
-            ? 'bg-red-900 bg-opacity-20' 
-            : ''
-        }`}
+        active:bg-gray-750 active:scale-[0.99] transition-all duration-150 ease-in-out ${getBackgroundClass()}`}
       >
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -105,10 +114,8 @@ const MemberRow = ({
   // Desktop row rendering
   return (
     <tr 
-      className={`border-t border-gray-700 ${
-        member.notInLeaderboard 
-          ? 'bg-red-900 bg-opacity-20' 
-          : 'hover:bg-gray-700'
+      className={`border-t border-gray-700 ${getBackgroundClass()} ${
+        !member.notInLeaderboard && !inOgNotInCsv ? 'hover:bg-gray-700' : ''
       }`}
     >
       <td className="px-4 py-2 text-gray-300">
