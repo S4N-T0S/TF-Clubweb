@@ -106,26 +106,22 @@ export const MembersViewProps = {
   onPlayerSearch: PropTypes.func.isRequired,
   clanMembersData: PropTypes.arrayOf(PropTypes.shape({
     embarkId: PropTypes.string.isRequired,
-    discord: PropTypes.string,
-    pruby: PropTypes.bool
+    discord: PropTypes.string
   })),
   onGraphOpen: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired
-};
-
-export const PriorRubyDisplayProps = {
-  isPriorRuby: PropTypes.bool
 };
 
 export const MemberRowProps = {
   member: PropTypes.shape(PlayerType).isRequired,
   onSearchClick: PropTypes.func.isRequired,
   onGraphClick: PropTypes.func.isRequired,
+  /*
   clanMembersData: PropTypes.arrayOf(PropTypes.shape({
     embarkId: PropTypes.string.isRequired,
-    discord: PropTypes.string,
-    pruby: PropTypes.bool
+    discord: PropTypes.string
   })),
+  */
   isMobile: PropTypes.bool.isRequired
 };
 

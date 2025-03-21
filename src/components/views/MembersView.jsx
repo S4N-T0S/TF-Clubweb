@@ -1,32 +1,24 @@
-import { Check, UserSearch, LineChart } from 'lucide-react';
+import { UserSearch, LineChart } from 'lucide-react';
 import { LeagueDisplay } from '../LeagueDisplay';
 import { BackToTop } from '../BackToTop';
 import { PlatformIcons } from "../icons/Platforms";
-import { MembersViewProps, MemberRowProps, PriorRubyDisplayProps } from '../../types/propTypes';
+import { MembersViewProps, MemberRowProps } from '../../types/propTypes';
 
-const PriorRubyDisplay = ({ isPriorRuby }) => {
-  if (isPriorRuby) {
-    return (
-      <div className="flex justify-center items-center">
-        <Check className="w-4 h-4 text-green-400 opacity-50" />
-      </div>
-    );
-  }
-  return <span className="text-gray-500">💀</span>;
-};
 
 const MemberRow = ({ 
   member, 
   onSearchClick, 
   onGraphClick, 
-  clanMembersData, 
+  // clanMembersData, -- Removed Discord Link
   isMobile 
 }) => {
   const [username, discriminator] = member.name.split('#');
+  /* Removed Discord Link
   const clanMemberInfo = clanMembersData?.find(m => 
     m.embarkId.toLowerCase() === member.name.toLowerCase() ||
     (m.discord && m.discord.toLowerCase() === member.discord?.toLowerCase())
   );
+  */
 
   // Mobile row rendering
   if (isMobile) {
@@ -64,12 +56,36 @@ const MemberRow = ({
                 onClick={() => onSearchClick(member.name)}
               />
             </div>
+            {/* Removed Discord Link
             {member.discord && (
               <div className="text-[11px] text-gray-400 mt-1 flex flex-wrap gap-1.5">
                 <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
                   <PlatformIcons.Discord className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate max-w-[150px]">{member.discord}</span>
                 </span>
+              </div>
+            )}
+            */}
+            {(member.steamName || member.psnName || member.xboxName) && (
+              <div className="text-[11px] text-gray-400 mt-1 flex flex-wrap gap-1.5">
+                {member.steamName && (
+                  <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
+                    <PlatformIcons.Steam className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate max-w-[120px]">{member.steamName}</span>
+                  </span>
+                )}
+                {member.psnName && (
+                  <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
+                    <PlatformIcons.PSN className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate max-w-[120px]">{member.psnName}</span>
+                  </span>
+                )}
+                {member.xboxName && (
+                  <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
+                    <PlatformIcons.Xbox className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate max-w-[120px]">{member.xboxName}</span>
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -110,6 +126,7 @@ const MemberRow = ({
               onClick={() => onSearchClick(member.name)}
             />
           </div>
+          {/* Removed Discord Link
           {member.discord && (
             <div className="text-xs text-gray-400 mt-1 flex items-center gap-3">
               <span className="flex items-center">
@@ -118,10 +135,30 @@ const MemberRow = ({
               </span>
             </div>
           )}
+          */}
+          {(member.steamName || member.psnName || member.xboxName) && (
+            <div className="text-xs text-gray-400 mt-1 flex items-center gap-3">
+              {member.steamName && (
+                <span className="flex items-center">
+                  <PlatformIcons.Steam className="w-3 h-3 flex-shrink-0 mr-1" />
+                  {member.steamName}
+                </span>
+              )}
+              {member.psnName && (
+                <span className="flex items-center">
+                  <PlatformIcons.PSN className="w-3 h-3 flex-shrink-0 mr-1" />
+                  {member.psnName}
+                </span>
+              )}
+              {member.xboxName && (
+                <span className="flex items-center">
+                  <PlatformIcons.Xbox className="w-3 h-3 flex-shrink-0 mr-1" />
+                  {member.xboxName}
+                </span>
+              )}
+            </div>
+          )}
         </div>
-      </td>
-      <td className="px-4 py-2 text-center">
-        <PriorRubyDisplay isPriorRuby={clanMemberInfo?.pruby} />
       </td>
       <LeagueDisplay 
         league={member.league} 
@@ -176,7 +213,6 @@ export const MembersView = ({
                 <tr className="bg-gray-700">
                   <th className="px-4 py-2 text-left text-gray-300">Rank</th>
                   <th className="px-4 py-2 text-left text-gray-300">Player</th>
-                  <th className="px-4 py-2 text-center text-gray-300">Prior Ruby</th>
                   <th className="px-4 py-2 text-center text-gray-300">League</th>
                   <th className="px-4 py-2 text-center text-gray-300">Graph</th>
                 </tr>
@@ -210,4 +246,3 @@ export const MembersView = ({
 
 MembersView.propTypes = MembersViewProps;
 MemberRow.propTypes = MemberRowProps;
-PriorRubyDisplay.propTypes = PriorRubyDisplayProps;
