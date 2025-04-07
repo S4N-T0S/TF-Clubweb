@@ -95,7 +95,7 @@ body {
   animation: highlight 2s ease-out;
 }
 
-/* CSS for useFavorite */
+/* CSS for useFavourite */
 .player-row,
 tr.player-row {
   position: relative;
@@ -113,15 +113,15 @@ tr.player-row::before {
   transition: transform 1000ms ease-out;
 }
 
-/* Favoriting animation */
-.animate-favorite-fill::before {
+/* Favouriting animation */
+.animate-favourite-fill::before {
   background: rgba(234, 179, 8, 0.1);
   transform: scaleX(0);
   animation: fillFromLeft 1000ms ease-out forwards;
 }
 
-/* Unfavoriting animation */
-.animate-unfavorite-fill::before {
+/* Unfavouriting animation */
+.animate-unfavourite-fill::before {
   background: rgba(234, 179, 8, 0.1);
   transform: scaleX(1);
   animation: fillFromRight 1000ms ease-out forwards;

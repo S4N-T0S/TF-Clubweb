@@ -13,7 +13,7 @@ import { useMobileDetect } from './hooks/useMobileDetect';
 import PlayerSearchModal from './components/PlayerSearchModal';
 import PlayerGraphModal from './components/PlayerGraphModal';
 import Toast from './components/Toast';
-import { FavoritesProvider } from './context/FavoritesContext';
+import { FavouritesProvider } from './context/FavouritesContext';
 import { ModalProvider } from './context/ModalContext';
 
 // Storing last view selection in localStorage.
@@ -45,7 +45,7 @@ const App = () => {
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [clanMembersData, setClanMembersData] = useState([]);
   const [clanMembersLoading, setClanMembersLoading] = useState(true);
-  const [showFavorites, setShowFavorites] = useState(false);
+  const [showFavourites, setShowFavourites] = useState(false);
 
   const currentSeason = 'S6';
   const [selectedSeason, setSelectedSeason] = useState(currentSeason);
@@ -107,21 +107,26 @@ const App = () => {
     }
   }, [view, currentSeason]);
 
-  const handleClanClick = (clanTag) => {
+  const handleClanClick = (clanTag, seasonKey = null) => {
     setGlobalSearchQuery(`[${clanTag}]`);
     setView('global');
+    setSelectedSeason(seasonKey || currentSeason);
+    
+    // Reset URL to root and close modals
+    handleSearchModalClose();
+    handleGraphModalClose();
   };
 
   // Handle search modal open/close
   const handleSearchModalClose = () => {
     setSearchModalState({ isOpen: false, initialSearch: '', isMobile });
-    navigate('/');
+    navigate('/', { replace: true });
   };
 
   const handleSearchModalOpen = (initialSearch = '') => {
     setSearchModalState({ isOpen: true, initialSearch, isMobile });
     if (initialSearch) {
-      navigate(`/history/${formatUsernameForUrl(initialSearch)}`);
+      navigate(`/history/${formatUsernameForUrl(initialSearch)}`, { replace: true });
     }
   };
 
@@ -133,13 +138,13 @@ const App = () => {
   // Handle graph modal close
   const handleGraphModalClose = () => {
     setGraphModalState({ isOpen: false, playerId: null, compareIds: [], isClubView: false, isMobile });
-    navigate('/');
+    navigate('/', { replace: true });
   };
 
   // Handle graph modal open/close
   const handleGraphModalOpen = useCallback((playerId, compareIds = []) => {
     const urlString = formatMultipleUsernamesForUrl(playerId, compareIds);
-    navigate(`/graph/${urlString}`);
+    navigate(`/graph/${urlString}`, { replace: true });
   }, [navigate]);
 
   // Handle URL parameters on mount
@@ -191,7 +196,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
-      <FavoritesProvider>
+      <FavouritesProvider>
         <ModalProvider>
           {toastMessage && (
             <Toast 
@@ -214,8 +219,8 @@ const App = () => {
                 isRefreshing={isRefreshing}
                 onOpenSearch={() => handleSearchModalOpen()}
                 isMobile={isMobile}
-                showFavorites={showFavorites}
-                setShowFavorites={setShowFavorites}
+                showFavourites={showFavourites}
+                setShowFavourites={setShowFavourites}
                 updateToastMessage={updateToastMessage}
               />
 
@@ -248,8 +253,8 @@ const App = () => {
                   setSearchQuery={setGlobalSearchQuery}
                   onGraphOpen={(playerId) => handleGraphModalOpen(playerId)}
                   isMobile={isMobile}
-                  showFavorites={showFavorites}
-                  setShowFavorites={setShowFavorites}
+                  showFavourites={showFavourites}
+                  setShowFavourites={setShowFavourites}
                   updateToastMessage={updateToastMessage}
                 />
               )}
@@ -263,6 +268,7 @@ const App = () => {
             currentSeasonData={globalLeaderboard}
             onSearch={handleSearchSubmit}
             isMobile={isMobile}
+            onClanClick={handleClanClick}
           />
 
           {graphModalState.playerId && (
@@ -279,7 +285,7 @@ const App = () => {
           )}
           <Outlet />
         </ModalProvider>
-      </FavoritesProvider>
+      </FavouritesProvider>
     </div>
   );
 };

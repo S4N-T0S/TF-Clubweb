@@ -10,7 +10,7 @@ import { GlobalViewProps, GlobalPlayerRowProps, RankChangeDisplayProps, RubyCuto
 import { PlatformIcons } from "../icons/Platforms";
 import { SortButton } from '../SortButton';
 import { Hexagon } from '../icons/Hexagon';
-import { useFavorites } from '../../context/FavoritesContext';
+import { useFavourites } from '../../context/FavouritesContext';
 import { useModal } from '../../context/ModalContext';
 import { useOnHold } from '../../hooks/useOnHold';
 import { SEASONS, getSeasonLeaderboard, getAllSeasonsLeaderboard } from '../../services/historicalDataService';
@@ -51,19 +51,19 @@ const RubyCutoffIndicator = ({ cutoff, onCutoffClick }) => {
 
 const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile, isCurrentSeason, selectedSeason }) => {
   const [username, discriminator] = player.name.split('#');
-  const { isFavorite, addFavorite, removeFavorite } = useFavorites();
+  const { isFavourite, addFavourite, removeFavourite } = useFavourites();
   const { isHolding, holdProps, ref } = useOnHold(() => {
-    if (isFavorite(player) || player.foundViaFallback) {
-      removeFavorite(player);
+    if (isFavourite(player) || player.foundViaFallback) {
+      removeFavourite(player);
     } else {
-      addFavorite(player);
+      addFavourite(player);
     }
   });
-  const isFav = isFavorite(player);
+  const isFav = isFavourite(player);
   const animationClasses = isCurrentSeason && isMobile && isHolding
     ? isFav || player.foundViaFallback 
-      ? 'animate-unfavorite-fill'
-      : 'animate-favorite-fill'
+      ? 'animate-unfavourite-fill'
+      : 'animate-favourite-fill'
     : '';
 
   const getBackgroundClass = () => {
@@ -74,12 +74,12 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile,
     return '';
   };
   
-  // Desktop favorite button handler
-  const handleFavoriteClick = () => {
+  // Desktop Favourite button handler
+  const handleFavouriteClick = () => {
     if (isFav || player.foundViaFallback) {
-      removeFavorite(player);
+      removeFavourite(player);
     } else {
-      addFavorite(player);
+      addFavourite(player);
     }
   };
   
@@ -108,7 +108,7 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile,
             />
           ) : (
             <span title="Not available for this season">
-              <X className="w-5 h-5 text-gray-500 mx-auto" />
+              <LineChart className="w-5 h-5 text-gray-500/60 mx-auto cursor-not-allowed" />
             </span>
           )}
         </div>
@@ -193,18 +193,22 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile,
       <td className="py-2 pr-0 pl-2 w-8">
         {isCurrentSeason ? (
           <button 
-            onClick={handleFavoriteClick}
+            onClick={handleFavouriteClick}
             className="hover:scale-110 transition-transform flex items-center justify-center"
           >
             {isFav || player.foundViaFallback ? (
-              <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+              <span title="Remove player from favourites">
+                <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+              </span>
             ) : (
-              <StarOff className="w-5 h-5 text-gray-400 hover:text-yellow-500" />
+              <span title="Add player to favourites">
+                <Star className="w-5 h-5 text-gray-400 hover:text-yellow-500" />
+              </span>
             )}
           </button>
         ) : (
           <span title="Disabled for historical seasons">
-            <X className="w-5 h-5 text-gray-500 mx-auto" />
+            <StarOff className="w-5 h-5 text-gray-500/60 mx-auto cursor-not-allowed" />
           </span>
         )}
       </td>
@@ -271,7 +275,7 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile,
           />
         ) : (
           <span title="Not available for this season">
-            <X className="w-4 h-4 text-gray-500 mx-auto" />
+            <LineChart className="w-4 h-4 text-gray-500/60 mx-auto cursor-not-allowed" />
           </span>
         )}
       </td>
@@ -290,14 +294,14 @@ export const GlobalView = ({
   setSearchQuery: setGlobalSearchQuery,
   onGraphOpen,
   isMobile,
-  showFavorites,
-  setShowFavorites,
+  showFavourites,
+  setShowFavourites,
   updateToastMessage
 }) => {
   const [isCurrentSeason, setIsCurrentSeason] = useState(currentSeason === selectedSeason);
   const { isModalOpen } = useModal();
   const searchInputRef = useRef(null);
-  const { getFavoritesWithFallback } = useFavorites();
+  const { getFavouritesWithFallback } = useFavourites();
   const { slideDirection, showIndicator } = useSwipe(
     () => currentPage < totalPages && handlePageChange(currentPage + 1),
     () => currentPage > 1 && handlePageChange(currentPage - 1),
@@ -323,10 +327,11 @@ export const GlobalView = ({
     const newSeason = e.target.value;
     setSelectedSeason(newSeason);
     resetSort();
+    resetPage();
     
-    // Clear search when changing seasons
-    setSearchQuery('');
-    setGlobalSearchQuery('');
+    // Clear search when changing seasons - Don't for now.
+    // setSearchQuery('');
+    // setGlobalSearchQuery('');
   
     // New toast for All Seasons
     if (newSeason === 'ALL') {
@@ -342,12 +347,12 @@ export const GlobalView = ({
       ? { leaderboard: globalLeaderboard, rubyCutoff }
       : getSeasonLeaderboard(selectedSeason);
 
-  // Disable favorites when not in current season
+  // Disable Favourites when not in current season
   useEffect(() => {
-    if (!isCurrentSeason && showFavorites) {
-      setShowFavorites(false);
+    if (!isCurrentSeason && showFavourites) {
+      setShowFavourites(false);
     }
-  }, [isCurrentSeason, showFavorites, setShowFavorites]);
+  }, [isCurrentSeason, showFavourites, setShowFavourites]);
 
   const {
     searchQuery,
@@ -362,10 +367,11 @@ export const GlobalView = ({
     sortConfig,
     handleSort,
     scrollToIndex,
-    resetSort
+    resetSort,
+    resetPage
   } = usePagination(
-    (isCurrentSeason && showFavorites)
-      ? getFavoritesWithFallback(historicalLeaderboard)
+    (isCurrentSeason && showFavourites)
+      ? getFavouritesWithFallback(historicalLeaderboard)
       : historicalLeaderboard,
     isMobile ? 25 : 50,
     isMobile
@@ -410,7 +416,9 @@ export const GlobalView = ({
         <select
           value={selectedSeason}
           onChange={handleSeasonChange}
-          className="bg-gray-700 text-gray-200 rounded-lg px-4 py-1.5 border border-gray-600 focus:ring-2 focus:ring-blue-500 sm:w-48 flex-shrink-0 text-sm h-[42px]"
+          className={`bg-gray-700 text-gray-200 rounded-lg px-4 py-1.5 border ${
+            selectedSeason !== currentSeason ? 'border-blue-500 border-2' : 'border-gray-600'
+          } focus:ring-2 focus:ring-blue-500 focus-visible:ring-blue-500 focus-visible:border-blue-500 focus-visible:outline-none sm:w-48 flex-shrink-0 text-sm h-[42px]`}
         >
           {Object.entries(SEASONS).reverse().map(([key, season]) => 
             key !== 'ALL' && (
@@ -420,7 +428,7 @@ export const GlobalView = ({
           <option value="ALL">All Seasons</option>
         </select>
       </div>
-      {!showFavorites && isCurrentSeason && rubyCutoff && (
+      {!showFavourites && isCurrentSeason && rubyCutoff && (
         <RubyCutoffIndicator cutoff={rubyCutoff} onCutoffClick={handleCutoffClick} />
       )}
       <div className="page-transition-container">

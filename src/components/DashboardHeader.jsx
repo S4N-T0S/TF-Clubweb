@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Users, Trophy, Globe, RefreshCw, FileSearch, Star } from 'lucide-react';
 import { DashboardHeaderProps, ViewButtonProps } from '../types/propTypes';
-import { useFavorites } from '../context/FavoritesContext';
+import { useFavourites } from '../context/FavouritesContext';
 
 const ViewButton = ({ active, onClick, icon, text }) => (
   <button
@@ -28,12 +28,12 @@ export const DashboardHeader = ({
   isRefreshing,
   onOpenSearch,
   isMobile,
-  showFavorites,
-  setShowFavorites,
+  showFavourites,
+  setShowFavourites,
   updateToastMessage
 }) => {
   const [isScrolledToBottom, setIsScrolledToBottom] = useState(false);
-  const { favorites } = useFavorites();
+  const { Favourites } = useFavourites();
 
   useEffect(() => {
     if (!isMobile) return;
@@ -55,50 +55,50 @@ export const DashboardHeader = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const FavoritesButton = () => {
+  const FavouritesButton = () => {
     const isGlobalView = view === 'global';
-    const hasNoFavorites = favorites.length === 0;
+    const hasNoFavourites = Favourites.length === 0;
     const isHistoricalSeason = selectedSeason !== currentSeason;
   
-    // Effect to disable favorites mode when no favorites remain [bugfix]
+    // Effect to disable Favourites mode when no Favourites remain [bugfix]
     useEffect(() => {
-      if ((hasNoFavorites && showFavorites) || isHistoricalSeason) {
-        setShowFavorites(false);
+      if ((hasNoFavourites && showFavourites) || isHistoricalSeason) {
+        setShowFavourites(false);
       }
-    }, [hasNoFavorites, isHistoricalSeason]);
+    }, [hasNoFavourites, isHistoricalSeason]);
   
     return (
       <button
         onClick={() => {
           if (!isGlobalView) {
-            updateToastMessage('Switch to Global view to use favorites.', 'info');
+            updateToastMessage('Switch to Global view to use Favourites.', 'info');
             return;
           }
           
           if (isHistoricalSeason) {
-            updateToastMessage('Favorites are disabled in historical seasons', 'info');
+            updateToastMessage('Favourites are disabled in historical seasons', 'info');
             return;
           }
 
-          if (hasNoFavorites) {
+          if (hasNoFavourites) {
             updateToastMessage(
               isMobile 
-                ? 'No favorites yet!\nLong-press on a player to add them to favorites. You can also swipe to switch pages.' 
-                : 'No favorites yet!\nClick the star next to a player to add them to favorites.',
+                ? 'No Favourites yet!\nLong-press on a player to add them to Favourites. You can also swipe to switch pages.' 
+                : 'No Favourites yet!\nClick the star next to a player to add them to Favourites.',
               'info'
             );
             return;
           }
           
-          setShowFavorites(!showFavorites);
+          setShowFavourites(!showFavourites);
         }}
         className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 
-          ${showFavorites && !isHistoricalSeason 
+          ${showFavourites && !isHistoricalSeason 
             ? 'bg-yellow-500 text-white' 
             : 'bg-gray-700 text-gray-300 hover:bg-gray-600'} 
-          w-full sm:w-auto ${!isGlobalView || hasNoFavorites || isHistoricalSeason ? 'opacity-50' : ''}`}
+          w-full sm:w-auto ${!isGlobalView || hasNoFavourites || isHistoricalSeason ? 'opacity-50' : ''}`}
       >
-        <Star className={`w-4 h-4 ${showFavorites && !isHistoricalSeason ? 'fill-current' : ''}`} />
+        <Star className={`w-4 h-4 ${showFavourites && !isHistoricalSeason ? 'fill-current' : ''}`} />
       </button>
     );
   };
@@ -143,7 +143,7 @@ export const DashboardHeader = ({
                   icon={<Globe className="w-4 h-4" />}
                   text="Global"
                 />
-                <FavoritesButton />
+                <FavouritesButton />
                 <button
                   onClick={onOpenSearch}
                   className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 
@@ -163,7 +163,7 @@ export const DashboardHeader = ({
               </div>
             ) : (
               <div className="flex justify-end gap-2 w-full">
-                <FavoritesButton />
+                <FavouritesButton />
                 <button
                   onClick={onOpenSearch}
                   className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 

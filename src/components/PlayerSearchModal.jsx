@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, AlertTriangle, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Search, AlertTriangle, X, ChevronUp, ChevronDown, Users } from 'lucide-react';
 import { searchPlayerHistory } from '../services/historicalDataService';
 import { Hexagon } from './icons/Hexagon';
 import { PlatformIcons } from './icons/Platforms';
@@ -8,7 +8,7 @@ import { PlayerSearchModalProps } from '../types/propTypes';
 import { isValidEmbarkId, formatUsernameForUrl } from '../utils/urlHandler';
 import { useModal } from '../context/ModalContext';
 
-const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile }) => {
+const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClanClick }) => {
   const { setIsModalOpen, modalRef, setOnClose } = useModal();
   const [searchState, setSearchState] = useState({
     query: '',
@@ -295,7 +295,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
               </div>
             )}
 
-{searchState.results.map((result, index) => (
+            {searchState.results.map((result, index) => (
               <div 
                 key={`${result.season}-${index}`}
                 className={`p-4 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors
@@ -323,14 +323,28 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
                 <div className="space-y-2 text-gray-300">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {result.name && (
-                      <p className="flex items-center">
+                      <p title="Embark username" className="flex items-center">
                         <PlatformIcons.Embark />
                         {result.name}
                       </p>
                     )}
+                    {result.clubTag && (
+                      <p title="Club membership" className="flex items-center">
+                        <Users className="w-4 h-4 inline-block mr-1" />
+                        <span
+                          className="text-blue-400 hover:text-blue-300 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onClanClick(result.clubTag, result.seasonKey);
+                          }}
+                        >
+                          {result.clubTag}
+                        </span>
+                      </p>
+                    )}
                     {result.steamName && (
                       <div className="flex items-center gap-2">
-                        <p className="flex items-center">
+                        <p title="Steam display name" className="flex items-center">
                           <PlatformIcons.Steam />
                           {result.steamName}
                         </p>
@@ -345,13 +359,13 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
                       </div>
                     )}
                     {result.psnName && (
-                      <p className="flex items-center">
+                      <p title="PSN username" className="flex items-center">
                         <PlatformIcons.PSN />
                         {result.psnName}
                       </p>
                     )}
                     {result.xboxName && (
-                      <p className="flex items-center">
+                      <p title="Xbox username" className="flex items-center">
                         <PlatformIcons.Xbox />
                         {result.xboxName}
                       </p>

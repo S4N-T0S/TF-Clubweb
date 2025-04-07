@@ -73,11 +73,13 @@ const filterPlayers = (players, searchQuery, searchType) => {
   });
 };
 
-const processResult = (result, seasonConfig, searchType, originalEmbarkId) => ({
+const processResult = (result, seasonConfig, searchType, originalEmbarkId, seasonKey) => ({
   season: seasonConfig.label,
+  seasonKey: seasonKey,
   rank: result.rank,
   league: result.league,
   score: seasonConfig.hasRankScore ? result[seasonConfig.scoreKey] : undefined,
+  clubTag: result.clubTag || '',
   name: result.name || '',
   steamName: result.steamName || '',
   psnName: result.psnName || '',
@@ -98,7 +100,7 @@ export const searchPlayerHistory = async (embarkId, currentSeasonData = null) =>
   const platformNames = { steam: new Set(), psn: new Set(), xbox: new Set() };
 
   // Process all seasons including current
-  for (const [, seasonConfig] of Object.entries(SEASONS)) {
+  for (const [seasonKey, seasonConfig] of Object.entries(SEASONS)) {
     const currentsSeason = await getSeasonData(seasonConfig, currentSeasonData);
     
     // Search by Embark ID and collect platform names
@@ -111,14 +113,14 @@ export const searchPlayerHistory = async (embarkId, currentSeasonData = null) =>
       
       const resultKey = `${seasonConfig.label}-${result.name}-${result.steamName}-${result.psnName}-${result.xboxName}`;
       if (!allResults.has(resultKey)) {
-        allResults.set(resultKey, processResult(result, seasonConfig, 'embarkId', embarkId));
+        allResults.set(resultKey, processResult(result, seasonConfig, 'embarkId', embarkId, seasonKey));
       }
     });
   }
 
   // Search by platform names across all seasons
   const searchPlatformNames = async (names, type) => {
-    for (const [, seasonConfig] of Object.entries(SEASONS)) {
+    for (const [seasonKey, seasonConfig] of Object.entries(SEASONS)) {
       const currentsSeason = await getSeasonData(seasonConfig, currentSeasonData);
       
       for (const name of names) {
@@ -127,7 +129,7 @@ export const searchPlayerHistory = async (embarkId, currentSeasonData = null) =>
         platformResults.forEach(result => {
           const resultKey = `${seasonConfig.label}-${result.name}-${result.steamName}-${result.psnName}-${result.xboxName}`;
           if (!allResults.has(resultKey)) {
-            allResults.set(resultKey, processResult(result, seasonConfig, type, embarkId));
+            allResults.set(resultKey, processResult(result, seasonConfig, type, embarkId, seasonKey));
           }
         });
       }

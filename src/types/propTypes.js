@@ -41,8 +41,8 @@ export const DashboardHeaderProps = {
   onRefresh: PropTypes.func.isRequired,
   isRefreshing: PropTypes.bool.isRequired,
   isMobile: PropTypes.bool.isRequired,
-  showFavorites: PropTypes.bool.isRequired,
-  setShowFavorites: PropTypes.func.isRequired
+  showFavourites: PropTypes.bool.isRequired,
+  setShowFavourites: PropTypes.func.isRequired
 };
 
 export const ViewButtonProps = {
@@ -84,7 +84,7 @@ export const GlobalViewProps = {
   setSearchQuery: PropTypes.func.isRequired,
   onGraphOpen: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired,
-  showFavorites: PropTypes.bool.isRequired
+  showFavourites: PropTypes.bool.isRequired
 };
 
 export const GlobalPlayerRowProps = {
@@ -193,7 +193,7 @@ export const PlayerGraphModalProps = {
   isMobile: PropTypes.bool.isRequired
 };
 
-export const FavoritesContextProps = {
+export const FavouritesContextProps = {
   children: PropTypes.node.isRequired
 };
 

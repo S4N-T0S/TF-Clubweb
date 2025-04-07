@@ -7,10 +7,13 @@ export const usePagination = (items, itemsPerPage, isMobile) => {
   const resetSort = () => {
     setSortConfig({ field: null, direction: 'default' });
   };
+  const resetPage = () => {
+    setCurrentPage(1);
+  };
 
   // Reset page when search changes
   useEffect(() => {
-    setCurrentPage(1);
+    resetPage();
   }, [searchQuery]);
 
   // Scroll to a specific index new function
@@ -146,6 +149,7 @@ export const usePagination = (items, itemsPerPage, isMobile) => {
     sortConfig,
     handleSort,
     scrollToIndex,
-    resetSort
+    resetSort,
+    resetPage
   };
 };
