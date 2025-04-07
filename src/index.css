@@ -145,7 +145,7 @@ tr.player-row::before {
   }
 }
 
-/* Css for PlayerGraphModal */
+/* CSS for PlayerGraphModal */
 .rank-tooltip {
   transition: opacity 0.15s ease-out, transform 0.15s ease-out;
   transform-origin: bottom center;

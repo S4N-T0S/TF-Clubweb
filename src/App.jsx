@@ -16,7 +16,7 @@ import Toast from './components/Toast';
 import { FavoritesProvider } from './context/FavoritesContext';
 import { ModalProvider } from './context/ModalContext';
 
-// No clue why I was using cookie before
+// Storing last view selection in localStorage.
 const getStoredTab = () => {
   return localStorage.getItem('dashboard_tab') || 'global';
 };
@@ -47,6 +47,8 @@ const App = () => {
   const [clanMembersLoading, setClanMembersLoading] = useState(true);
   const [showFavorites, setShowFavorites] = useState(false);
 
+  const currentSeason = 'S6';
+  const [selectedSeason, setSelectedSeason] = useState(currentSeason);
   const {
     clanMembers,
     rankedClanMembers,
@@ -97,6 +99,13 @@ const App = () => {
   useEffect(() => {
     setStoredTab(view);
   }, [view]);
+
+  // Reset selected season when view changes off global
+  useEffect(() => {
+    if (view !== 'global') {
+      setSelectedSeason(currentSeason);
+    }
+  }, [view, currentSeason]);
 
   const handleClanClick = (clanTag) => {
     setGlobalSearchQuery(`[${clanTag}]`);
@@ -195,6 +204,8 @@ const App = () => {
           <div className="max-w-7xl mx-auto p-4">
             <div className="bg-gray-800 rounded-lg shadow-xl p-6 mb-6">
               <DashboardHeader
+                currentSeason={currentSeason}
+                selectedSeason={selectedSeason}
                 isTopClan={isTopClan}
                 unknownMembers={unknownMembers}
                 view={view}
@@ -227,6 +238,9 @@ const App = () => {
               )}
               {view === 'global' && (
                 <GlobalView 
+                  currentSeason={currentSeason}
+                  selectedSeason={selectedSeason}
+                  setSelectedSeason={setSelectedSeason}
                   globalLeaderboard={globalLeaderboard}
                   rubyCutoff={rubyCutoff}
                   onPlayerSearch={(name) => handleSearchModalOpen(name)}
@@ -235,6 +249,8 @@ const App = () => {
                   onGraphOpen={(playerId) => handleGraphModalOpen(playerId)}
                   isMobile={isMobile}
                   showFavorites={showFavorites}
+                  setShowFavorites={setShowFavorites}
+                  updateToastMessage={updateToastMessage}
                 />
               )}
             </div>

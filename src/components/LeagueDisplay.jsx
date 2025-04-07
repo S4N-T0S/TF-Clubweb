@@ -11,7 +11,9 @@ export const LeagueDisplay = ({ league, score, leagueNumber, isMobile }) => {
       <Hexagon className={style} />
       <div className="flex flex-col text-center">
         <span className="text-sm font-medium text-gray-200">{displayLeague}</span>
-        <span className="text-xs text-gray-400">{score.toLocaleString()}</span>
+        {score !== undefined && score !== null && score !== 0 && (
+          <span className="text-xs text-gray-400">{score.toLocaleString()}</span>
+        )}
       </div>
     </div>
   );

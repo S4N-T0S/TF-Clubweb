@@ -4,6 +4,9 @@ export const usePagination = (items, itemsPerPage, isMobile) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState({ field: null, direction: 'default' });
+  const resetSort = () => {
+    setSortConfig({ field: null, direction: 'default' });
+  };
 
   // Reset page when search changes
   useEffect(() => {
@@ -81,6 +84,11 @@ export const usePagination = (items, itemsPerPage, isMobile) => {
       return [...filtered].sort((a, b) => {
         let comparison = 0;
         switch (sortConfig.field) {
+          case 'season': {
+            const seasonOrder = ['OB', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6'];
+            comparison = seasonOrder.indexOf(a.season) - seasonOrder.indexOf(b.season);
+            break;
+          }
           case 'originalRank':
             comparison = a.originalRank - b.originalRank;
             break;
@@ -137,6 +145,7 @@ export const usePagination = (items, itemsPerPage, isMobile) => {
     filteredItems: processedItems,
     sortConfig,
     handleSort,
-    scrollToIndex
+    scrollToIndex,
+    resetSort
   };
 };

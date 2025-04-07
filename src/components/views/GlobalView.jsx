@@ -1,11 +1,11 @@
-import { ChevronUp, ChevronDown, UserSearch, LineChart, Star, StarOff } from 'lucide-react';
+import { ChevronUp, ChevronDown, UserSearch, LineChart, Star, StarOff, X } from 'lucide-react';
 import { usePagination } from '../../hooks/usePagination';
 import { SearchBar } from '../SearchBar';
 import { LeagueDisplay } from '../LeagueDisplay';
 import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GlobalViewProps, GlobalPlayerRowProps, RankChangeDisplayProps, RubyCutoffIndicatorProps } from '../../types/propTypes';
 import { PlatformIcons } from "../icons/Platforms";
 import { SortButton } from '../SortButton';
@@ -13,6 +13,7 @@ import { Hexagon } from '../icons/Hexagon';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useModal } from '../../context/ModalContext';
 import { useOnHold } from '../../hooks/useOnHold';
+import { SEASONS, getSeasonLeaderboard, getAllSeasonsLeaderboard } from '../../services/historicalDataService';
 
 const RankChangeDisplay = ({ change }) => {
   if (!change || change === 0) return null;
@@ -48,7 +49,7 @@ const RubyCutoffIndicator = ({ cutoff, onCutoffClick }) => {
   );
 };
 
-const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile }) => {
+const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile, isCurrentSeason, selectedSeason }) => {
   const [username, discriminator] = player.name.split('#');
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const { isHolding, holdProps, ref } = useOnHold(() => {
@@ -59,13 +60,14 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile 
     }
   });
   const isFav = isFavorite(player);
-  const animationClasses = isMobile && isHolding
+  const animationClasses = isCurrentSeason && isMobile && isHolding
     ? isFav || player.foundViaFallback 
       ? 'animate-unfavorite-fill'
       : 'animate-favorite-fill'
     : '';
 
   const getBackgroundClass = () => {
+    if (!isCurrentSeason) return '';
     if (player.notFound) return '!bg-red-900/50';
     if (player.foundViaFallback) return '!bg-amber-800/30';
     if (isFav) return '!bg-yellow-600/20';
@@ -85,19 +87,30 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile 
   if (isMobile) {
     return (
       <div 
-        ref={ref} className={`player-row flex flex-col gap-2 p-4 border-b border-gray-700 bg-gray-800 rounded-lg shadow-sm active:bg-gray-750 
+        ref={isCurrentSeason ? ref : null} className={`player-row flex flex-col gap-2 p-4 border-b border-gray-700 bg-gray-800 rounded-lg shadow-sm active:bg-gray-750 
           active:scale-[0.99] transition-all duration-150 ease-in-out ${getBackgroundClass()} ${animationClasses}`}
-        {...holdProps}
+        {...(isCurrentSeason ? holdProps : {})}
         >
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <span className="text-gray-300 font-bold w-24">#{player.rank.toLocaleString()}</span>
+            <span className="text-gray-300 font-bold w-24">
+              {selectedSeason === 'ALL' ? 
+                SEASONS[player.season]?.label : 
+                `#${player.rank.toLocaleString()}`
+              }
+            </span>
             <RankChangeDisplay change={player.change} />
           </div>
-          <LineChart
-            className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer"
-            onClick={() => onGraphClick(player.name)}
-          />
+          {isCurrentSeason ? (
+            <LineChart
+              className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer"
+              onClick={() => onGraphClick(player.name)}
+            />
+          ) : (
+            <span title="Not available for this season">
+              <X className="w-5 h-5 text-gray-500 mx-auto" />
+            </span>
+          )}
         </div>
         <div className="flex justify-between items-start">
           <div className="flex flex-col min-w-0 flex-1 mr-3">
@@ -160,23 +173,40 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile 
   // Desktop row rendering (original)
   return (
     <tr ref={ref} key={player.name} className={`border-t border-gray-700 hover:bg-gray-700 ${getBackgroundClass()}`}>
-      <td className="px-4 py-2 text-gray-300 text-start">#{player.rank.toLocaleString()}</td>
+      <td className="px-4 py-2 text-gray-300 text-start">
+        {selectedSeason === 'ALL' ? 
+          SEASONS[player.season]?.label : 
+          `#${player.rank.toLocaleString()}`
+        }
+      </td>
       <td className="px-4 py-2 w-24">
         <div className="flex items-center justify-center gap-2">
-          <RankChangeDisplay change={player.change} />
+          {isCurrentSeason ? (
+            <RankChangeDisplay change={player.change} />
+          ) : (
+            <span title="Disabled for historical seasons">
+              <X className="w-4 h-4 text-gray-500 mx-auto" />
+            </span>
+          )}
         </div>
       </td>
       <td className="py-2 pr-0 pl-2 w-8">
-        <button 
-          onClick={handleFavoriteClick}
-          className="hover:scale-110 transition-transform flex items-center justify-center"
-        >
-          {isFav || player.foundViaFallback ? (
-            <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-          ) : (
-            <StarOff className="w-5 h-5 text-gray-400 hover:text-yellow-500" />
-          )}
-        </button>
+        {isCurrentSeason ? (
+          <button 
+            onClick={handleFavoriteClick}
+            className="hover:scale-110 transition-transform flex items-center justify-center"
+          >
+            {isFav || player.foundViaFallback ? (
+              <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+            ) : (
+              <StarOff className="w-5 h-5 text-gray-400 hover:text-yellow-500" />
+            )}
+          </button>
+        ) : (
+          <span title="Disabled for historical seasons">
+            <X className="w-5 h-5 text-gray-500 mx-auto" />
+          </span>
+        )}
       </td>
       <td className="px-4 py-2">
         <div className="flex flex-col">
@@ -234,16 +264,25 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile 
         isMobile={isMobile}
       />
       <td className="px-4 py-2 text-center">
-        <LineChart
-          className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer mx-auto"
-          onClick={() => onGraphClick(player.name)}
-        />
+        {isCurrentSeason ? (
+          <LineChart
+            className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer mx-auto"
+            onClick={() => onGraphClick(player.name)}
+          />
+        ) : (
+          <span title="Not available for this season">
+            <X className="w-4 h-4 text-gray-500 mx-auto" />
+          </span>
+        )}
       </td>
     </tr>
   );
 };
 
-export const GlobalView = ({ 
+export const GlobalView = ({
+  currentSeason,
+  selectedSeason,
+  setSelectedSeason,
   globalLeaderboard,
   rubyCutoff,
   onPlayerSearch,
@@ -251,8 +290,11 @@ export const GlobalView = ({
   setSearchQuery: setGlobalSearchQuery,
   onGraphOpen,
   isMobile,
-  showFavorites
+  showFavorites,
+  setShowFavorites,
+  updateToastMessage
 }) => {
+  const [isCurrentSeason, setIsCurrentSeason] = useState(currentSeason === selectedSeason);
   const { isModalOpen } = useModal();
   const searchInputRef = useRef(null);
   const { getFavoritesWithFallback } = useFavorites();
@@ -271,6 +313,42 @@ export const GlobalView = ({
     }
   );
 
+  // Live comparison to check if we viewing currentseason
+  useEffect(() => {
+    setIsCurrentSeason(currentSeason === selectedSeason);
+  }, [currentSeason, selectedSeason]);
+
+  // Update the season selection handler
+  const handleSeasonChange = (e) => {
+    const newSeason = e.target.value;
+    setSelectedSeason(newSeason);
+    resetSort();
+    
+    // Clear search when changing seasons
+    setSearchQuery('');
+    setGlobalSearchQuery('');
+  
+    // New toast for All Seasons
+    if (newSeason === 'ALL') {
+      updateToastMessage('"All Seasons" should only be used for mass searching purposes.', 'info');
+    }
+  };
+
+  // Get data based on selected season
+  const { leaderboard: historicalLeaderboard } = 
+  selectedSeason === 'ALL'
+    ? getAllSeasonsLeaderboard(globalLeaderboard)
+    : isCurrentSeason
+      ? { leaderboard: globalLeaderboard, rubyCutoff }
+      : getSeasonLeaderboard(selectedSeason);
+
+  // Disable favorites when not in current season
+  useEffect(() => {
+    if (!isCurrentSeason && showFavorites) {
+      setShowFavorites(false);
+    }
+  }, [isCurrentSeason, showFavorites, setShowFavorites]);
+
   const {
     searchQuery,
     setSearchQuery,
@@ -283,17 +361,15 @@ export const GlobalView = ({
     filteredItems,
     sortConfig,
     handleSort,
-    scrollToIndex
+    scrollToIndex,
+    resetSort
   } = usePagination(
-    showFavorites 
-      ? getFavoritesWithFallback(globalLeaderboard)
-      : globalLeaderboard,
+    (isCurrentSeason && showFavorites)
+      ? getFavoritesWithFallback(historicalLeaderboard)
+      : historicalLeaderboard,
     isMobile ? 25 : 50,
     isMobile
   );
-
-  // Don't show ruby cutoff in favorites mode
-  const shouldShowRubyCutoff = !showFavorites && rubyCutoff;
 
   useEffect(() => {
     if (initialSearchQuery) {
@@ -323,12 +399,28 @@ export const GlobalView = ({
 
   return (
     <div>
-      <SearchBar 
-        value={searchQuery} 
-        onChange={setSearchQuery} 
-        searchInputRef={searchInputRef}
-      />
-      {shouldShowRubyCutoff && (
+      <div className="flex flex-col sm:flex-row gap-0 sm:gap-2 mb-4 sm:mb-0">
+        <div className="flex-1">
+          <SearchBar 
+            value={searchQuery} 
+            onChange={setSearchQuery} 
+            searchInputRef={searchInputRef}
+          />
+        </div>
+        <select
+          value={selectedSeason}
+          onChange={handleSeasonChange}
+          className="bg-gray-700 text-gray-200 rounded-lg px-4 py-1.5 border border-gray-600 focus:ring-2 focus:ring-blue-500 sm:w-48 flex-shrink-0 text-sm h-[42px]"
+        >
+          {Object.entries(SEASONS).reverse().map(([key, season]) => 
+            key !== 'ALL' && (
+              <option key={key} value={key}>{season.label}</option>
+            )
+          )}
+          <option value="ALL">All Seasons</option>
+        </select>
+      </div>
+      {!showFavorites && isCurrentSeason && rubyCutoff && (
         <RubyCutoffIndicator cutoff={rubyCutoff} onCutoffClick={handleCutoffClick} />
       )}
       <div className="page-transition-container">
@@ -336,14 +428,16 @@ export const GlobalView = ({
       <div className="table-container">
         {isMobile ? (
           <div>
-            {currentItems.map((player) => (
+            {currentItems.map((player, index) => (
               <PlayerRow 
-                key={player.name}
+                key={`${player.rank}-${player.name}-${index}`}
                 player={player}
                 onSearchClick={onPlayerSearch}
                 onClanClick={handleClanClick}
                 onGraphClick={onGraphOpen}
                 isMobile={true}
+                isCurrentSeason={isCurrentSeason}
+                selectedSeason={selectedSeason}
               />
             ))}
           </div>
@@ -354,9 +448,9 @@ export const GlobalView = ({
                 <tr className="bg-gray-700">
                   <th className="px-4 py-2 text-center text-gray-300 w-24">
                     <div className="flex items-center justify-center">
-                      Rank
+                      {selectedSeason === 'ALL' ? 'Season' : 'Rank'}
                       <SortButton
-                        field="rank"
+                        field={selectedSeason === 'ALL' ? 'season' : 'rank'}
                         sortConfig={sortConfig}
                         onSort={handleSort}
                       />
@@ -397,14 +491,16 @@ export const GlobalView = ({
                 </tr>
               </thead>
               <tbody>
-                {currentItems.map((player) => (
+                {currentItems.map((player, index) => (
                   <PlayerRow 
-                    key={player.name}
+                    key={`${player.rank}-${player.name}-${index}`}
                     player={player}
                     onSearchClick={onPlayerSearch}
                     onClanClick={handleClanClick}
                     onGraphClick={onGraphOpen}
                     isMobile={false}
+                    isCurrentSeason={isCurrentSeason}
+                    selectedSeason={selectedSeason}
                   />
                 ))}
               </tbody>

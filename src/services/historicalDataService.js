@@ -5,7 +5,8 @@ import S3Data from '../data/S3/S3-crossplay.json';
 import S4Data from '../data/S4/S4-crossplay.json';
 import S5Data from '../data/S5/S5-crossplay.json';
 
-const SEASONS = {
+export const SEASONS = {
+  ALL: { label: 'All Seasons', isAggregate: true },
   OB: { data: OBData, label: 'Open Beta', hasRuby: false, hasRankScore: true, scoreKey: 'fame' },
   S1: { data: S1Data, label: 'Season 1', hasRuby: false, hasRankScore: true, scoreKey: 'fame' },
   S2: { data: S2Data, label: 'Season 2', hasRuby: false, hasRankScore: false },
@@ -13,6 +14,50 @@ const SEASONS = {
   S4: { data: S4Data, label: 'Season 4', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore' },
   S5: { data: S5Data, label: 'Season 5', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore' },
   S6: { data: null, label: 'Season 6', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isCurrent: true }
+};
+
+export const getSeasonLeaderboard = (seasonKey) => {
+  const season = SEASONS[seasonKey];
+  if (!season || !season.data) return { leaderboard: [] };
+
+  const leaderboard = season.data.data
+    .map(player => ({
+      rank: player.rank,
+      change: 0, // No need to pass this
+      name: player.name || 'Unknown#0000',
+      steamName: player.steamName || null,
+      psnName: player.psnName || null,
+      xboxName: player.xboxName || null,
+      clubTag: player.clubTag || null,
+      leagueNumber: player.leagueNumber || 0,
+      league: player.league || 'Unknown',
+      rankScore: player[season.scoreKey] || 0
+    }))
+    // Filter entries with no valid names
+    .filter(player => 
+      !(player.name === 'Unknown#0000' && 
+        !player.steamName && 
+        !player.psnName && 
+        !player.xboxName)
+    );
+
+  return { leaderboard };
+};
+
+export const getAllSeasonsLeaderboard = (currentSeasonData) => {
+  const allData = Object.entries(SEASONS)
+    .filter(([key]) => key !== 'ALL' && key !== 'S6')
+    .flatMap(([key]) => {
+      const seasonData = getSeasonLeaderboard(key).leaderboard;
+      return seasonData.map(p => ({ ...p, season: key }));
+    });
+
+  return {
+    leaderboard: [
+      ...allData,
+      ...currentSeasonData.map(p => ({ ...p, season: 'S6' }))
+    ]
+  };
 };
 
 const filterPlayers = (players, searchQuery, searchType) => {

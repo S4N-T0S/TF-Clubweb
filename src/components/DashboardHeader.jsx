@@ -18,6 +18,8 @@ const ViewButton = ({ active, onClick, icon, text }) => (
 );
 
 export const DashboardHeader = ({ 
+  currentSeason,
+  selectedSeason,
   isTopClan,
   unknownMembers,
   view,
@@ -56,13 +58,14 @@ export const DashboardHeader = ({
   const FavoritesButton = () => {
     const isGlobalView = view === 'global';
     const hasNoFavorites = favorites.length === 0;
+    const isHistoricalSeason = selectedSeason !== currentSeason;
   
     // Effect to disable favorites mode when no favorites remain [bugfix]
     useEffect(() => {
-      if (hasNoFavorites && showFavorites) {
+      if ((hasNoFavorites && showFavorites) || isHistoricalSeason) {
         setShowFavorites(false);
       }
-    }, [hasNoFavorites]);
+    }, [hasNoFavorites, isHistoricalSeason]);
   
     return (
       <button
@@ -71,7 +74,12 @@ export const DashboardHeader = ({
             updateToastMessage('Switch to Global view to use favorites.', 'info');
             return;
           }
-  
+          
+          if (isHistoricalSeason) {
+            updateToastMessage('Favorites are disabled in historical seasons', 'info');
+            return;
+          }
+
           if (hasNoFavorites) {
             updateToastMessage(
               isMobile 
@@ -80,17 +88,17 @@ export const DashboardHeader = ({
               'info'
             );
             return;
-          } else {
-            setShowFavorites(!showFavorites);
           }
+          
+          setShowFavorites(!showFavorites);
         }}
         className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 
-          ${showFavorites 
+          ${showFavorites && !isHistoricalSeason 
             ? 'bg-yellow-500 text-white' 
             : 'bg-gray-700 text-gray-300 hover:bg-gray-600'} 
-          w-full sm:w-auto ${!isGlobalView || hasNoFavorites ? 'opacity-50' : ''}`}
+          w-full sm:w-auto ${!isGlobalView || hasNoFavorites || isHistoricalSeason ? 'opacity-50' : ''}`}
       >
-        <Star className={`w-4 h-4 ${showFavorites ? 'fill-current' : ''}`} />
+        <Star className={`w-4 h-4 ${showFavorites && !isHistoricalSeason ? 'fill-current' : ''}`} />
       </button>
     );
   };

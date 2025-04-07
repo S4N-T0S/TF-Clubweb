@@ -918,9 +918,9 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
     // Normal case with multiple different points
     const padding = Math.round((maxScore - minScore) * 0.10);
     return [Math.max(0, minScore - padding), maxScore + padding];
-  }, [comparisonData, chartRef]);  
+  }, [comparisonData, chartRef]);
 
-
+  /* - Not currently in use, Embark switched to often changing people's RS without any method to track without other systems in place which are out of scope for this project right now.
   const getHighlightedPeriodAnnotation = useCallback((customTimeRange = null) => {
     if (!data?.length) return null;
 
@@ -1000,6 +1000,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       }
     };
   }, [data, comparisonData, viewWindow?.max, viewWindow?.min]);
+  */
 
   const getRankAnnotations = useCallback((customTimeRange = null) => {
     if (!data) return [];
@@ -1036,14 +1037,16 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
         }
       }));
 
+    /* - Line 923 for explanation
     // Add the highlighted period annotation if it exists
     const highlightAnnotation = getHighlightedPeriodAnnotation(customTimeRange);
     if (highlightAnnotation) {
       annotations.push(highlightAnnotation);
     }
+    */
 
     return annotations;
-  }, [data, getDynamicYAxisDomain, selectedTimeRange, getHighlightedPeriodAnnotation]);
+  }, [data, getDynamicYAxisDomain, selectedTimeRange, /* getHighlightedPeriodAnnotation */]);
 
   const loadData = useCallback(async () => {
     setLoading(true);

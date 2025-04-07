@@ -32,6 +32,8 @@ export const SortButtonProps = {
 };
 
 export const DashboardHeaderProps = {
+  currentSeason: PropTypes.string.isRequired,
+  selectedSeason: PropTypes.string.isRequired,
   isTopClan: PropTypes.bool.isRequired,
   unknownMembers: PropTypes.arrayOf(PropTypes.object).isRequired,
   view: PropTypes.oneOf(['members', 'clans', 'global']).isRequired,
@@ -73,6 +75,9 @@ export const ClansViewProps = {
 };
 
 export const GlobalViewProps = {
+  currentSeason: PropTypes.string.isRequired,
+  selectedSeason: PropTypes.string.isRequired,
+  setSelectedSeason: PropTypes.func.isRequired,
   globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)).isRequired,
   onPlayerSearch: PropTypes.func.isRequired,
   searchQuery: PropTypes.string,
@@ -88,7 +93,7 @@ export const GlobalPlayerRowProps = {
   onClanClick: PropTypes.func.isRequired,
   onGraphClick: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired,
-  notFound: PropTypes.bool
+  isCurrentSeason: PropTypes.bool.isRequired
 };
 
 export const RankChangeDisplayProps = {
@@ -97,7 +102,7 @@ export const RankChangeDisplayProps = {
 
 export const RubyCutoffIndicatorProps = {
   cutoff: PropTypes.number,
-  onCutoffClick: PropTypes.func.isRequired
+  onCutoffClick: PropTypes.func
 };
 
 export const MembersViewProps = {
