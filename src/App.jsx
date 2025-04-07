@@ -111,6 +111,10 @@ const App = () => {
     setGlobalSearchQuery(`[${clanTag}]`);
     setView('global');
     setSelectedSeason(seasonKey || currentSeason);
+    const message = /\d/.test(seasonKey) 
+    ? `Quicksearched & Switched to Season ${seasonKey.slice(1)}` 
+    : `Quicksearched & Switched to ${seasonKey}`;
+    updateToastMessage(message, 'info');
     
     // Reset URL to root and close modals
     handleSearchModalClose();
