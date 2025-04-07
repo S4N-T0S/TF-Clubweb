@@ -5,7 +5,7 @@ to keep up with it's logic. I'm sorry for the mess.
 */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { X, Plus, Search } from 'lucide-react';
+import { X, Plus, Search, Camera } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -288,9 +288,12 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
   const [showCompareSearch, setShowCompareSearch] = useState(false);
   const chartRef = useRef(null);
 
-  // Hints for new features
+  // Hints&Notifs&Dropdowns for features
   const [showCompareHint, setShowCompareHint] = useState(true);
   const [showZoomHint, setShowZoomHint] = useState(true);
+  const [notifScreenshot, setNotifScreenshot] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const ssdropdownRef = useRef(null);
 
   // Add loading ref specifically to fix multiple api requests on URL fetch
   const isLoadingRef = useRef(false);
@@ -298,17 +301,17 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
   const shouldFollowUrlRef = useRef(true);
 
   // Detect if modal is open, if so do conditionals.
-useEffect(() => {
-  if (isOpen) {
-    setIsModalOpen(isOpen);
-    setOnClose(() => onClose);
-  }
-
-  return () => {
-    setIsModalOpen(false);
-    setOnClose(null);
-  };
-}, [isOpen, onClose, setIsModalOpen, setOnClose]);
+  useEffect(() => {
+    if (isOpen) {
+      setIsModalOpen(isOpen);
+      setOnClose(() => onClose);
+    }
+  
+    return () => {
+      setIsModalOpen(false);
+      setOnClose(null);
+    };
+  }, [isOpen, onClose, setIsModalOpen, setOnClose]);
 
   // Reset state when modal is opened with new player
   useEffect(() => {
@@ -339,6 +342,27 @@ useEffect(() => {
       return () => clearTimeout(timer);
     }
   }, [showZoomHint]);
+
+  // Convuluted method to remove dropdown in case of clicking outside of it...
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (ssdropdownRef.current && !ssdropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    };
+  
+    // Add event listener when dropdown is shown
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+  
+    // Clean up event listener
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showDropdown]);
 
   const handleZoomPanRef = useRef(() => {
     if (showZoomHint) {
@@ -1147,6 +1171,67 @@ useEffect(() => {
     }) || fallbackStep;
   }, []);
 
+  const handleScreenshot = async (withBackground = true) => {
+    const canvas = chartRef.current?.canvas;
+    if (!canvas) return;
+ 
+    try {
+      // Create temporary canvas
+      const tempCanvas = document.createElement('canvas');
+      const ctx = tempCanvas.getContext('2d');
+     
+      // Set dimensions
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+     
+      if (withBackground) {
+        // Fill background
+        ctx.fillStyle = '#1a1f2e';
+        ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+      }
+     
+      // Draw original chart
+      ctx.drawImage(canvas, 0, 0);
+     
+      // Add watermark
+      ctx.save();
+      ctx.globalAlpha = 0.15; // visible but still transparent
+      ctx.font = 'bold 24px Arial';
+      ctx.fillStyle = 'white';
+     
+      // Position watermark based on device type
+      const watermarkText = 'https://ogclub.s4nt0s.eu';
+      const textMetrics = ctx.measureText(watermarkText);
+      
+      ctx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
+      
+      if (isMobile) {
+        // Better positioning for mobile
+        ctx.translate(tempCanvas.width / 8, tempCanvas.height / 4);
+      }
+      
+      ctx.rotate(-Math.PI / 6); // Slight diagonal angle
+      ctx.fillText(watermarkText, -textMetrics.width / 2, 0);
+      ctx.restore();
+     
+      // Convert to blob
+      const blob = await new Promise(resolve => tempCanvas.toBlob(resolve, 'image/png'));
+     
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+     
+      setNotifScreenshot(true);
+      setTimeout(() => setNotifScreenshot(false), 1000);
+      
+      // Close dropdown after screenshot is taken
+      setShowDropdown(false);
+    } catch (err) {
+      console.error('Failed to copy chart:', err);
+      alert('Screenshot failed, please report this error.')
+    }
+  };
+
   const chartOptions = useMemo(() => data ? {
     responsive: true,
     maintainAspectRatio: false,
@@ -1527,6 +1612,42 @@ useEffect(() => {
           )}
           <div className={`relative flex flex-col ${isMobile ? 'w-full' : 'w-auto'}`}>
             <div className={`flex items-center ${isMobile ? 'w-full justify-between mb-2' : 'w-full justify-end gap-2'}`}>
+              <div className="relative" ref={ssdropdownRef}>
+                <button
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative"
+                  title="Screenshot options"
+                >
+                  <Camera className="w-5 h-5" />
+                  {notifScreenshot && (
+                    <div
+                      className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-gray-800 text-white text-xs py-1 px-2 rounded-md shadow-lg animate-fadeIn pointer-events-none"
+                      onClick={(e) => e.stopPropagation()} // stop accidental clicks from triggering another screenshot
+                    >
+                      Screenshot copied! 📋
+                    </div>
+                  )}
+                </button>
+              
+                {showDropdown && (
+                  <div className={`absolute ${isMobile ? 'top-full mt-2 left-0' : 'right-0 mt-2'} w-48 bg-gray-800 rounded-md shadow-lg z-10`}>
+                    <div className="py-1">
+                      <button
+                        onClick={() => handleScreenshot(true)}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700"
+                      >
+                        With background
+                      </button>
+                      <button
+                        onClick={() => handleScreenshot(false)}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700"
+                      >
+                        Without background
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
               {comparisonData.size < MAX_COMPARISONS && (
                 <div className="relative">
                   <button 

@@ -1,4 +1,5 @@
-/* This tool was made to merge multiple json crossplay,steam,xbox,psn files together
+/*
+This tool was made to merge multiple json crossplay,steam,xbox,psn files together
 it requires editing for each season as for example season 1 had fame points and this used those 
 to verify duplicates on steam, also this season 1 has cashouts data where others do not.
 I left many comments in the file in case anyone needs this and to edit it.
