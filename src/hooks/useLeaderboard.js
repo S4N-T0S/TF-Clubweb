@@ -59,6 +59,7 @@ export const useLeaderboard = (clubMembersData) => {
           type: 'success',
           timestamp,
           showMeta: true,
+          duration: 3000,
           ttl
         };
       case 'kv-cache-fallback':
