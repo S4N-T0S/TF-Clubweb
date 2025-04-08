@@ -30,7 +30,7 @@ const formatTtl = (ttl, type) => {
   const minutes = Math.ceil(ttl / 60);
   
   if (type === 'success') {
-    return minutes === 1 ? 'Update available in 1 minute' : `Update available in ${minutes} minutes`;
+    return minutes === 1 ? 'Trying to update in 1 minute' : `Trying to update in ${minutes} minutes`;
   }
   return minutes === 1 ? 'Retrying in 1 minute' : `Retrying in ${minutes} minutes`;
 };
