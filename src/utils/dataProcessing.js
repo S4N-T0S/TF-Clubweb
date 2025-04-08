@@ -1,4 +1,4 @@
-export const processLeaderboardData = (rawData, clanMembers) => {
+export const processLeaderboardData = (rawData, clubMembers) => {
   // Find Ruby cutoff score
   const rubyPlayers = rawData.filter(player => player.leagueNumber === 21); // Ruby League remember to change if API changes
   const rubyCutoff = rubyPlayers.length > 0 ? rubyPlayers.reduce((lowest, player) => 
@@ -12,19 +12,19 @@ export const processLeaderboardData = (rawData, clanMembers) => {
     displayName: player.clubTag ? `[${player.clubTag}] ${player.name}` : player.name
   }));
 
-  // Process clan scores
-  const clanScores = new Map();
+  // Process club scores
+  const clubScores = new Map();
   rawData.forEach(player => {
     if (player?.clubTag) {
-      const existing = clanScores.get(player.clubTag) || { score: 0, members: 0 };
-      clanScores.set(player.clubTag, {
+      const existing = clubScores.get(player.clubTag) || { score: 0, members: 0 };
+      clubScores.set(player.clubTag, {
         score: existing.score + (player.rankScore || 0),
         members: existing.members + 1
       });
     }
   });
 
-  const topClans = Array.from(clanScores.entries())
+  const topClubs = Array.from(clubScores.entries())
     .map(([tag, data]) => ({
       tag,
       totalScore: data.score,
@@ -37,48 +37,48 @@ export const processLeaderboardData = (rawData, clanMembers) => {
     player?.clubTag === 'OG'
   );
 
-  const { matchedMembers, unknownMembers, matchedClanMembers } = processOGMembers(ogMembersInLeaderboard, clanMembers);
-  const unrankedMembers = getUnrankedMembers(matchedClanMembers, clanMembers);
-  const finalClanMembers = [...matchedMembers, ...unrankedMembers];
+  const { matchedMembers, unknownMembers, matchedClubMembers } = processOGMembers(ogMembersInLeaderboard, clubMembers);
+  const unrankedMembers = getUnrankedMembers(matchedClubMembers, clubMembers);
+  const finalClubMembers = [...matchedMembers, ...unrankedMembers];
 
   return {
-    clanMembers: finalClanMembers,
-    rankedClanMembers: ogMembersInLeaderboard,
-    isTopClan: topClans[0]?.tag === 'OG',
-    topClans,
+    clubMembers: finalClubMembers,
+    rankedClubMembers: ogMembersInLeaderboard,
+    isTopClub: topClubs[0]?.tag === 'OG',
+    topClubs,
     unknownMembers,
     globalLeaderboard,
     rubyCutoff
   };
 };
 
-const processOGMembers = (ogMembersInLeaderboard, clanMembers) => {
-  const matchedClanMembers = new Set();
+const processOGMembers = (ogMembersInLeaderboard, clubMembers) => {
+  const matchedClubMembers = new Set();
   const unknownMembers = [];
 
   const matchedMembers = ogMembersInLeaderboard.map(apiMember => {
-    const clanMember = clanMembers.find(member => 
+    const clubMember = clubMembers.find(member => 
       member.embarkId.toLowerCase() === apiMember.name.toLowerCase()
     );
 
-    if (clanMember) {
-      matchedClanMembers.add(clanMember.embarkId);
+    if (clubMember) {
+      matchedClubMembers.add(clubMember.embarkId);
     } else {
       unknownMembers.push(apiMember);
     }
 
     return {
       ...apiMember,
-      discord: clanMember?.discord || null
+      discord: clubMember?.discord || null
     };
   });
 
-  return { matchedMembers, unknownMembers, matchedClanMembers };
+  return { matchedMembers, unknownMembers, matchedClubMembers };
 };
 
-const getUnrankedMembers = (matchedClanMembers, clanMembers) => {
-  return clanMembers
-    .filter(member => !matchedClanMembers.has(member.embarkId))
+const getUnrankedMembers = (matchedClubMembers, clubMembers) => {
+  return clubMembers
+    .filter(member => !matchedClubMembers.has(member.embarkId))
     .map(member => ({
       name: member.embarkId,
       discord: member.discord,

@@ -15,7 +15,7 @@ export const PlayerType = {
   xboxName: PropTypes.string
 };
 
-export const ClanType = {
+export const ClubType = {
   tag: PropTypes.string.isRequired,
   memberCount: PropTypes.number.isRequired,
   totalScore: PropTypes.number.isRequired,
@@ -34,9 +34,9 @@ export const SortButtonProps = {
 export const DashboardHeaderProps = {
   currentSeason: PropTypes.string.isRequired,
   selectedSeason: PropTypes.string.isRequired,
-  isTopClan: PropTypes.bool.isRequired,
+  isTopClub: PropTypes.bool.isRequired,
   unknownMembers: PropTypes.arrayOf(PropTypes.object).isRequired,
-  view: PropTypes.oneOf(['members', 'clans', 'global']).isRequired,
+  view: PropTypes.oneOf(['members', 'clubs', 'global']).isRequired,
   setView: PropTypes.func.isRequired,
   onRefresh: PropTypes.func.isRequired,
   isRefreshing: PropTypes.bool.isRequired,
@@ -59,18 +59,18 @@ export const LeagueDisplayProps = {
   isMobile: PropTypes.bool.isRequired
 };
 
-export const ClanRowProps = {
-  clan: PropTypes.shape(ClanType).isRequired,
-  onClanClick: PropTypes.func.isRequired,
+export const ClubRowProps = {
+  club: PropTypes.shape(ClubType).isRequired,
+  onClubClick: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired
 };
 
-export const ClansViewProps = {
-  topClans: PropTypes.arrayOf(PropTypes.shape({
-    ...ClanType,
+export const ClubsViewProps = {
+  topClubs: PropTypes.arrayOf(PropTypes.shape({
+    ...ClubType,
     originalRank: PropTypes.number
   })).isRequired,
-  onClanClick: PropTypes.func.isRequired,
+  onClubClick: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired
 };
 
@@ -90,7 +90,7 @@ export const GlobalViewProps = {
 export const GlobalPlayerRowProps = {
   player: PropTypes.shape(PlayerType).isRequired,
   onSearchClick: PropTypes.func.isRequired,
-  onClanClick: PropTypes.func.isRequired,
+  onClubClick: PropTypes.func.isRequired,
   onGraphClick: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired,
   isCurrentSeason: PropTypes.bool.isRequired
@@ -106,10 +106,10 @@ export const RubyCutoffIndicatorProps = {
 };
 
 export const MembersViewProps = {
-  clanMembers: PropTypes.arrayOf(PropTypes.shape(PlayerType)).isRequired,
+  clubMembers: PropTypes.arrayOf(PropTypes.shape(PlayerType)).isRequired,
   totalMembers: PropTypes.number.isRequired,
   onPlayerSearch: PropTypes.func.isRequired,
-  clanMembersData: PropTypes.arrayOf(PropTypes.shape({
+  clubMembersData: PropTypes.arrayOf(PropTypes.shape({
     embarkId: PropTypes.string.isRequired,
     discord: PropTypes.string
   })),
@@ -122,7 +122,7 @@ export const MemberRowProps = {
   onSearchClick: PropTypes.func.isRequired,
   onGraphClick: PropTypes.func.isRequired,
   /*
-  clanMembersData: PropTypes.arrayOf(PropTypes.shape({
+  clubMembersData: PropTypes.arrayOf(PropTypes.shape({
     embarkId: PropTypes.string.isRequired,
     discord: PropTypes.string
   })),
@@ -132,9 +132,19 @@ export const MemberRowProps = {
 
 export const ToastProps = {
   message: PropTypes.string.isRequired,
-  type: PropTypes.oneOf(['loading', 'success', 'error', 'warning', 'info']).isRequired,
-  timestamp: PropTypes.number,
-  ttl: PropTypes.number
+  type: PropTypes.oneOf(['success', 'error', 'warning', 'info', 'loading', 'default']).isRequired,
+  timestamp: PropTypes.number.isRequired,
+  ttl: PropTypes.number,
+  title: PropTypes.string,
+  icon: PropTypes.elementType,
+  textSize: PropTypes.oneOf(['small', 'normal', 'large', 'xlarge']),
+  position: PropTypes.oneOf([
+    'top-right', 'top-left', 'bottom-right', 'bottom-left', 'top-center', 'bottom-center'
+  ]),
+  duration: PropTypes.number,
+  showCloseButton: PropTypes.bool,
+  isMobile: PropTypes.bool.isRequired,
+  onClose: PropTypes.func
 };
 
 export const SearchBarProps = {

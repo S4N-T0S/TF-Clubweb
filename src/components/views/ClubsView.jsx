@@ -3,12 +3,12 @@ import { SearchBar } from '../SearchBar';
 import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
-import { ClansViewProps, ClanRowProps } from '../../types/propTypes';
+import { ClubsViewProps, ClubRowProps } from '../../types/propTypes';
 import { SortButton } from '../SortButton';
 import { useRef } from 'react';
 import { useModal } from '../../context/ModalContext';
 
-const ClanRow = ({ clan, onClanClick, isMobile }) => {
+const ClubRow = ({ club, onClubClick, isMobile }) => {
   // Mobile row rendering
   if (isMobile) {
     return (
@@ -18,27 +18,27 @@ const ClanRow = ({ clan, onClanClick, isMobile }) => {
       >
         <div className="flex justify-between items-center">
           <span className="text-gray-300 font-bold">
-            #{clan.originalRank.toLocaleString()}
+            #{club.originalRank.toLocaleString()}
           </span>
           <span 
             className={`text-gray-300 hover:text-blue-400 cursor-pointer ${
-              clan.tag === 'OG' ? 'text-blue-500' : ''
+              club.tag === 'OG' ? 'text-blue-500' : ''
             }`}
-            onClick={() => onClanClick(clan.tag)}
+            onClick={() => onClubClick(club.tag)}
           >
-            [{clan.tag}]
+            [{club.tag}]
           </span>
         </div>
         <div className="flex justify-between items-center">
           <div className="text-gray-400">Members in Top 10k</div>
           <div className="text-gray-300 font-semibold">
-            {clan.memberCount.toLocaleString()}
+            {club.memberCount.toLocaleString()}
           </div>
         </div>
         <div className="flex justify-between items-center">
           <div className="text-gray-400">Total Score</div>
           <div className="text-gray-300 font-semibold">
-            {clan.totalScore.toLocaleString()}
+            {club.totalScore.toLocaleString()}
           </div>
         </div>
       </div>
@@ -48,33 +48,33 @@ const ClanRow = ({ clan, onClanClick, isMobile }) => {
   // Desktop row rendering
   return (
     <tr
-      key={clan.tag}
+      key={club.tag}
       className={`border-t border-gray-700 ${
-        clan.tag === 'OG' ? 'bg-blue-900 bg-opacity-20' : 'hover:bg-gray-700'
+        club.tag === 'OG' ? 'bg-blue-900 bg-opacity-20' : 'hover:bg-gray-700'
       }`}
     >
       <td className="px-4 py-2 text-gray-300">
-        #{clan.originalRank.toLocaleString()}
+        #{club.originalRank.toLocaleString()}
       </td>
       <td className="px-4 py-2">
         <span
           className="text-gray-300 hover:text-blue-400 cursor-pointer"
-          onClick={() => onClanClick(clan.tag)}
+          onClick={() => onClubClick(club.tag)}
         >
-          [{clan.tag}]
+          [{club.tag}]
         </span>
       </td>
       <td className="px-4 py-2 text-gray-300">
-        {clan.memberCount.toLocaleString()}
+        {club.memberCount.toLocaleString()}
       </td>
       <td className="px-4 py-2 text-gray-300">
-        {clan.totalScore.toLocaleString()}
+        {club.totalScore.toLocaleString()}
       </td>
     </tr>
   );
 };
 
-export const ClansView = ({ topClans, onClanClick, isMobile }) => {
+export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
   const { isModalOpen } = useModal();
   const searchInputRef = useRef(null);
   const { slideDirection, showIndicator } = useSwipe(
@@ -92,9 +92,9 @@ export const ClansView = ({ topClans, onClanClick, isMobile }) => {
     }
   );
 
-  // Pre-process clans to add original rank
-  const rankedClans = topClans.map((clan, index) => ({
-    ...clan,
+  // Pre-process club to add original rank
+  const rankedClubs = topClubs.map((club, index) => ({
+    ...club,
     originalRank: index + 1
   }));
 
@@ -110,7 +110,7 @@ export const ClansView = ({ topClans, onClanClick, isMobile }) => {
     filteredItems,
     sortConfig,
     handleSort
-  } = usePagination(rankedClans, isMobile ? 15 : 15); // Same items on mobile or desktop, but just added for future ref.
+  } = usePagination(rankedClubs, isMobile ? 15 : 15); // Same items on mobile or desktop, but just added for future ref.
 
   return (
     <div>
@@ -125,11 +125,11 @@ export const ClansView = ({ topClans, onClanClick, isMobile }) => {
       <div className="table-container">
         {isMobile ? (
           <div>
-            {currentItems.map((clan) => (
-              <ClanRow 
-                key={clan.tag}
-                clan={clan}
-                onClanClick={onClanClick}
+            {currentItems.map((club) => (
+              <ClubRow 
+                key={club.tag}
+                club={club}
+                onClubClick={onClubClick}
                 isMobile={true}
               />
             ))}
@@ -182,11 +182,11 @@ export const ClansView = ({ topClans, onClanClick, isMobile }) => {
                 </tr>
               </thead>
               <tbody>
-                {currentItems.map((clan) => (
-                  <ClanRow 
-                    key={clan.tag}
-                    clan={clan}
-                    onClanClick={onClanClick}
+                {currentItems.map((club) => (
+                  <ClubRow 
+                    key={club.tag}
+                    club={club}
+                    onClubClick={onClubClick}
                     isMobile={false}
                   />
                 ))}
@@ -213,5 +213,5 @@ export const ClansView = ({ topClans, onClanClick, isMobile }) => {
   );
 };
 
-ClansView.propTypes = ClansViewProps;
-ClanRow.propTypes = ClanRowProps;
+ClubsView.propTypes = ClubsViewProps;
+ClubRow.propTypes = ClubRowProps;

@@ -2,12 +2,12 @@ import { useParams, useNavigate, Outlet } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLeaderboard } from './hooks/useLeaderboard';
 import { MembersView } from './components/views/MembersView';
-import { ClansView } from './components/views/ClansView';
+import { ClubsView } from './components/views/ClubsView';
 import { GlobalView } from './components/views/GlobalView';
 import { ErrorDisplay } from './components/ErrorDisplay';
 import { LoadingDisplay } from './components/LoadingDisplay';
 import { DashboardHeader } from './components/DashboardHeader';
-import { fetchClanMembers } from './services/mb-api';
+import { fetchClubMembers } from './services/mb-api';
 import { safeParseUsernameFromUrl, formatUsernameForUrl, parseMultipleUsernamesFromUrl, formatMultipleUsernamesForUrl } from './utils/urlHandler';
 import { useMobileDetect } from './hooks/useMobileDetect';
 import PlayerSearchModal from './components/PlayerSearchModal';
@@ -43,17 +43,17 @@ const App = () => {
     isMobile
   });
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
-  const [clanMembersData, setClanMembersData] = useState([]);
-  const [clanMembersLoading, setClanMembersLoading] = useState(true);
+  const [clubMembersData, setClubMembersData] = useState([]);
+  const [clubMembersLoading, setClubMembersLoading] = useState(true);
   const [showFavourites, setShowFavourites] = useState(false);
 
   const currentSeason = 'S6';
   const [selectedSeason, setSelectedSeason] = useState(currentSeason);
   const {
-    clanMembers,
-    rankedClanMembers,
-    isTopClan,
-    topClans,
+    clubMembers,
+    rankedClubMembers,
+    isTopClub,
+    topClubs,
     unknownMembers,
     globalLeaderboard,
     rubyCutoff,
@@ -63,35 +63,33 @@ const App = () => {
     refreshData,
     toastMessage,
     setToastMessage,
-  } = useLeaderboard(clanMembersData);
+  } = useLeaderboard(clubMembersData);
 
-  // Load clan members data once on page load
+  // Load club members data once on page load
   const toastMessageRef = useRef(setToastMessage);
   useEffect(() => {
-    const loadClanMembers = async () => {
+    const loadClubMembers = async () => {
       try {
-        const members = await fetchClanMembers();
-        setClanMembersData(members);
+        const members = await fetchClubMembers();
+        setClubMembersData(members);
       } catch (error) {
-        console.error('Failed to load clan members:', error);
+        console.error('Failed to load club members:', error);
         toastMessageRef.current({
-          message: 'Failed to load clan members data',
+          message: 'Failed to load club members data',
           type: 'error'
         });
       } finally {
-        setClanMembersLoading(false);
+        setClubMembersLoading(false);
       }
     };
 
-    loadClanMembers();
+    loadClubMembers();
   }, []);
 
-  const updateToastMessage = (message, type = 'info') => {
+  const showToast = (toastOptions) => {
     setToastMessage({
-      message,
-      type,
-      timestamp: Date.now(),
-      ttl: 10 * 60,
+      timestamp: Date.now(), // required for index/unique
+      ...toastOptions
     });
   };
 
@@ -107,18 +105,28 @@ const App = () => {
     }
   }, [view, currentSeason]);
 
-  const handleClanClick = (clanTag, seasonKey = null) => {
-    setGlobalSearchQuery(`[${clanTag}]`);
-    setView('global');
-    setSelectedSeason(seasonKey || currentSeason);
-    const message = /\d/.test(seasonKey) 
-    ? `Quicksearched & Switched to Season ${seasonKey.slice(1)}` 
-    : `Quicksearched & Switched to ${seasonKey}`;
-    updateToastMessage(message, 'info');
-    
+  const handleClubClick = (clubTag, seasonKey = null) => {
+    seasonKey = seasonKey || currentSeason; // Mutate seasonKey if null
     // Reset URL to root and close modals
     handleSearchModalClose();
     handleGraphModalClose();
+  
+    setView('global');
+    setGlobalSearchQuery(`[${clubTag}]`);
+    setSelectedSeason(seasonKey);
+  
+    const message = /\d/.test(seasonKey) 
+      ? `Searching in Season ${seasonKey.slice(1)}.` 
+      : `Searching in ${seasonKey}.`;
+    
+    // Using the new modular toast system
+    showToast({
+      title: `Club Search: ${clubTag}`,
+      message: message,
+      type: 'info',
+      textSize: 'normal',
+      duration: 3500
+    });
   };
 
   // Handle search modal open/close
@@ -196,7 +204,7 @@ const App = () => {
   }, [history, navigate, isMobile]);
 
   if (error) return <ErrorDisplay error={error} onRetry={refreshData} />;
-  if (loading || clanMembersLoading) return <LoadingDisplay />;
+  if (loading || clubMembersLoading) return <LoadingDisplay />;
 
   return (
     <div className="min-h-screen bg-gray-900 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
@@ -207,7 +215,16 @@ const App = () => {
               message={toastMessage.message}
               type={toastMessage.type}
               timestamp={toastMessage.timestamp}
+              showMeta={toastMessage.showMeta}
               ttl={toastMessage.ttl}
+              title={toastMessage.title}
+              icon={toastMessage.icon}
+              textSize={toastMessage.textSize || 'normal'}
+              position={toastMessage.position || 'top-right'}
+              duration={toastMessage.duration || 2500}
+              showCloseButton={toastMessage.showCloseButton}
+              isMobile={isMobile}
+              onClose={toastMessage.onClose}
             />
           )}
           <div className="max-w-7xl mx-auto p-4">
@@ -215,7 +232,7 @@ const App = () => {
               <DashboardHeader
                 currentSeason={currentSeason}
                 selectedSeason={selectedSeason}
-                isTopClan={isTopClan}
+                isTopClub={isTopClub}
                 unknownMembers={unknownMembers}
                 view={view}
                 setView={setView}
@@ -225,23 +242,23 @@ const App = () => {
                 isMobile={isMobile}
                 showFavourites={showFavourites}
                 setShowFavourites={setShowFavourites}
-                updateToastMessage={updateToastMessage}
+                showToast={showToast}
               />
 
               {view === 'members' && (
                 <MembersView 
-                  clanMembers={clanMembers} 
-                  totalMembers={clanMembersData.length} 
+                  clubMembers={clubMembers} 
+                  totalMembers={clubMembersData.length} 
                   onPlayerSearch={(name) => handleSearchModalOpen(name)}
-                  clanMembersData={clanMembersData} // Pass clan members data to members view
+                  clubMembersData={clubMembersData} // Pass club members data to members view
                   onGraphOpen={(playerId) => handleGraphModalOpen(playerId)}
                   isMobile={isMobile}
                 />
               )}
-              {view === 'clans' && (
-                <ClansView 
-                  topClans={topClans} 
-                  onClanClick={handleClanClick}
+              {view === 'clubs' && (
+                <ClubsView 
+                  topClubs={topClubs} 
+                  onClubClick={handleClubClick}
                   isMobile={isMobile}
                 />
               )}
@@ -259,7 +276,7 @@ const App = () => {
                   isMobile={isMobile}
                   showFavourites={showFavourites}
                   setShowFavourites={setShowFavourites}
-                  updateToastMessage={updateToastMessage}
+                  showToast={showToast}
                 />
               )}
             </div>
@@ -272,7 +289,7 @@ const App = () => {
             currentSeasonData={globalLeaderboard}
             onSearch={handleSearchSubmit}
             isMobile={isMobile}
-            onClanClick={handleClanClick}
+            onClubClick={handleClubClick}
           />
 
           {graphModalState.playerId && (
@@ -282,7 +299,7 @@ const App = () => {
               playerId={graphModalState.playerId}
               compareIds={graphModalState.compareIds}
               isClubView={graphModalState.isClubView}
-              globalLeaderboard={graphModalState.isClubView ? rankedClanMembers : globalLeaderboard}
+              globalLeaderboard={graphModalState.isClubView ? rankedClubMembers : globalLeaderboard}
               onSwitchToGlobal={() => setView('global')}
               isMobile={graphModalState.isMobile}
             />

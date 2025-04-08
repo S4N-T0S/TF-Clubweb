@@ -8,7 +8,7 @@ import { PlayerSearchModalProps } from '../types/propTypes';
 import { isValidEmbarkId, formatUsernameForUrl } from '../utils/urlHandler';
 import { useModal } from '../context/ModalContext';
 
-const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClanClick }) => {
+const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClubClick }) => {
   const { setIsModalOpen, modalRef, setOnClose } = useModal();
   const [searchState, setSearchState] = useState({
     query: '',
@@ -335,7 +335,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
                           className="text-blue-400 hover:text-blue-300 cursor-pointer"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onClanClick(result.clubTag, result.seasonKey);
+                            onClubClick(result.clubTag, result.seasonKey);
                           }}
                         >
                           {result.clubTag}

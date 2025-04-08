@@ -20,7 +20,7 @@ const ViewButton = ({ active, onClick, icon, text }) => (
 export const DashboardHeader = ({ 
   currentSeason,
   selectedSeason,
-  isTopClan,
+  isTopClub,
   unknownMembers,
   view,
   setView,
@@ -30,7 +30,7 @@ export const DashboardHeader = ({
   isMobile,
   showFavourites,
   setShowFavourites,
-  updateToastMessage
+  showToast
 }) => {
   const [isScrolledToBottom, setIsScrolledToBottom] = useState(false);
   const { Favourites } = useFavourites();
@@ -71,22 +71,35 @@ export const DashboardHeader = ({
       <button
         onClick={() => {
           if (!isGlobalView) {
-            updateToastMessage('Switch to Global view to use Favourites.', 'info');
+            showToast({
+              message: 'Switch to Global view to use Favourites.',
+              type: 'warning',
+              icon: Star,
+              duration: 2000
+            });
             return;
           }
           
           if (isHistoricalSeason) {
-            updateToastMessage('Favourites are disabled in historical seasons', 'info');
+            showToast({
+              message: 'Favourites are disabled in historical seasons.',
+              type: 'warning',
+              icon: Star,
+              duration: 2000
+            });
             return;
           }
 
           if (hasNoFavourites) {
-            updateToastMessage(
-              isMobile 
-                ? 'No Favourites yet!\nLong-press on a player to add them to Favourites. You can also swipe to switch pages.' 
-                : 'No Favourites yet!\nClick the star next to a player to add them to Favourites.',
-              'info'
-            );
+            showToast({
+              title: `No Favourites yet!`,
+              message: isMobile
+                ? 'Long-press on a player to Favourite them. You can also swipe to switch pages.'
+                : 'Click the star next to a player to Favourite them.',
+              type: 'info',
+              icon: Star,
+              duration: 4000
+            });
             return;
           }
           
@@ -109,7 +122,7 @@ export const DashboardHeader = ({
         <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 w-full">
           <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2">
             <h1 className="text-2xl lg:text-3xl font-bold text-white whitespace-nowrap">OG Club Dashboard</h1>
-            {isTopClan && (
+            {isTopClub && (
             <p className="text-xl font-semibold text-green-400 whitespace-nowrap">
               OG is on top! 🏆
             </p>
@@ -132,8 +145,8 @@ export const DashboardHeader = ({
                   text="OG Members"
                 />
                 <ViewButton
-                  active={view === 'clans'}
-                  onClick={() => setView('clans')}
+                  active={view === 'clubs'}
+                  onClick={() => setView('clubs')}
                   icon={<Trophy className="w-4 h-4" />}
                   text="Top Clubs"
                 />
@@ -198,9 +211,9 @@ export const DashboardHeader = ({
         <Users className="w-6 h-6" />
       </button>
       <button 
-        onClick={() => handleMobileViewChange('clans')}
+        onClick={() => handleMobileViewChange('clubs')}
         className={`flex flex-col items-center justify-center w-14 h-6 ${
-          view === 'clans' ? 'text-blue-400' : 'text-gray-400'
+          view === 'clubs' ? 'text-blue-400' : 'text-gray-400'
         }`}
       >
         <Trophy className="w-6 h-6" />

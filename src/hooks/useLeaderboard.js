@@ -4,13 +4,13 @@ import { processLeaderboardData } from '../utils/dataProcessing';
 
 const MAX_ACCEPTABLE_AGE = 30 * 60; // 30 minutes in seconds
 
-export const useLeaderboard = (clanMembersData) => {
+export const useLeaderboard = (clubMembersData) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState({
-    clanMembers: [],
-    isTopClan: false,
-    topClans: [],
+    clubMembers: [],
+    isTopClub: false,
+    topClubs: [],
     unknownMembers: [],
     globalLeaderboard: []
   });
@@ -28,7 +28,7 @@ export const useLeaderboard = (clanMembersData) => {
     const newTopScores = newData.globalLeaderboard.slice(0, 5000).map(p => p.rankScore);
     if (oldTopScores.some((score, i) => score !== newTopScores[i])) return true;
     
-    return oldData.isTopClan !== newData.isTopClan;
+    return oldData.isTopClub !== newData.isTopClub;
   }, []);
 
   const getDataAge = useCallback((timestamp) => {
@@ -39,15 +39,18 @@ export const useLeaderboard = (clanMembersData) => {
   const getToastConfig = useCallback((source, isRefreshing, timestamp, ttl) => {
     if (isRefreshing) {
       return {
+        title: 'Refreshing',
         message: 'Refreshing leaderboard data...',
         type: 'loading',
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        duration: Infinity, // Keep showing until refresh completes
+        showCloseButton: false
       };
     }
-
+  
     const dataAge = getDataAge(timestamp);
     const isDataTooOld = dataAge > MAX_ACCEPTABLE_AGE;
-
+  
     switch (source) {
       case 'kv-cache':
       case 'client-cache':
@@ -55,6 +58,7 @@ export const useLeaderboard = (clanMembersData) => {
           message: 'Everything is up to date.',
           type: 'success',
           timestamp,
+          showMeta: true,
           ttl
         };
       case 'kv-cache-fallback':
@@ -63,22 +67,28 @@ export const useLeaderboard = (clanMembersData) => {
           message: isDataTooOld 
             ? 'Leaderboard is significantly out of date.' 
             : 'Leaderboard is using cached data.',
-          type: 'warning',
+          type: isDataTooOld 
+            ? 'error' 
+            : 'warn',
           timestamp,
+          showMeta: true,
           ttl
         };
       case 'client-cache-emergency':
         return {
-          message: 'Unable to connect to server, using emergency cache',
+          message: 'Unable to connect to server, using emergency cache.',
           type: 'error',
           timestamp,
+          showMeta: true,
           ttl
         };
       default:
         return {
-          message: `Data source: ${source}`,
+          title: 'Information',
+          message: `Data source: ${source}.`,
           type: 'info',
           timestamp,
+          showMeta: true,
           ttl
         };
     }
@@ -92,11 +102,11 @@ export const useLeaderboard = (clanMembersData) => {
       const rawData = await fetchLeaderboardData();
       
       if (!rawData?.data) {
-        throw new Error('Invalid data received from API');
+        throw new Error('Invalid data received from API.');
       }
 
       lastGlobalLeaderboard.current = rawData.data;
-      const processedData = processLeaderboardData(rawData.data, clanMembersData || []);
+      const processedData = processLeaderboardData(rawData.data, clubMembersData || []);
       const hasChanged = !isInitialLoad && hasDataChanged(data, processedData);
       
       setData(processedData);
@@ -116,14 +126,15 @@ export const useLeaderboard = (clanMembersData) => {
       console.error('Error in refreshData:', err);
       setError('Failed to load leaderboard data. Please try again later.');
       setToastMessage({
-        message: 'Failed to load leaderboard data',
-        type: 'error'
+        message: 'Failed to load leaderboard data.',
+        type: 'error',
+        timestamp: Date.now()
       });
     } finally {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, [clanMembersData, data, getToastConfig, hasDataChanged]);
+  }, [clubMembersData, data, getToastConfig, hasDataChanged]);
 
   // Initial load
   useEffect(() => {
@@ -133,13 +144,13 @@ export const useLeaderboard = (clanMembersData) => {
     }
   }, [refreshData]);
 
-  // Update processed data when clan members data arrives
+  // Update processed data when club members data arrives
   useEffect(() => {
-    if (initialLoadDone.current && clanMembersData?.length > 0 && lastGlobalLeaderboard.current.length > 0) {
-      const processedData = processLeaderboardData(lastGlobalLeaderboard.current, clanMembersData);
+    if (initialLoadDone.current && clubMembersData?.length > 0 && lastGlobalLeaderboard.current.length > 0) {
+      const processedData = processLeaderboardData(lastGlobalLeaderboard.current, clubMembersData);
       setData(processedData);
     }
-  }, [clanMembersData]);
+  }, [clubMembersData]);
 
   return {
     ...data,

@@ -49,7 +49,7 @@ const RubyCutoffIndicator = ({ cutoff, onCutoffClick }) => {
   );
 };
 
-const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile, isCurrentSeason, selectedSeason }) => {
+const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile, isCurrentSeason, selectedSeason }) => {
   const [username, discriminator] = player.name.split('#');
   const { isFavourite, addFavourite, removeFavourite } = useFavourites();
   const { isHolding, holdProps, ref } = useOnHold(() => {
@@ -118,7 +118,7 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile,
               {player.clubTag && (
                 <span 
                   className="self-start bg-gray-700 px-1.5 py-0.5 rounded text-blue-400 hover:text-blue-300 cursor-pointer mb-1"
-                  onClick={() => onClanClick(player.clubTag)}
+                  onClick={() => onClubClick(player.clubTag)}
                 >
                   [{player.clubTag}]
                 </span>
@@ -219,7 +219,7 @@ const PlayerRow = ({ player, onSearchClick, onClanClick, onGraphClick, isMobile,
               <span className="text-gray-300">
                 <span 
                   className="bg-gray-700 px-1 py-0.5 rounded text-blue-400 hover:text-blue-300 cursor-pointer"
-                  onClick={() => onClanClick(player.clubTag)}
+                  onClick={() => onClubClick(player.clubTag)}
                 >
                   [{player.clubTag}]
                 </span>
@@ -296,7 +296,7 @@ export const GlobalView = ({
   isMobile,
   showFavourites,
   setShowFavourites,
-  updateToastMessage
+  showToast
 }) => {
   const [isCurrentSeason, setIsCurrentSeason] = useState(currentSeason === selectedSeason);
   const { isModalOpen } = useModal();
@@ -335,7 +335,12 @@ export const GlobalView = ({
   
     // New toast for All Seasons
     if (newSeason === 'ALL') {
-      updateToastMessage('"All Seasons" should only be used for mass searching purposes.', 'info');
+      showToast({
+        title: 'All Seasons',
+        message: 'This mode should only be used for searching purposes.',
+        type: 'info',
+        duration: 3000
+      });
     }
   };
 
@@ -384,9 +389,20 @@ export const GlobalView = ({
     }
   }, [initialSearchQuery, setSearchQuery, setGlobalSearchQuery]);
 
-  const handleClanClick = (clubTag) => {
-    setSearchQuery('');
+  const handleLocalClubClick = (clubTag) => {
+    // setSearchQuery(''); - Not really any need right now to clear the search for this operation. (causes rendering twice if clicked same clubtag over and over)
     setGlobalSearchQuery(`[${clubTag}]`);
+
+    const message = /\d/.test(selectedSeason) 
+      ? `Searching in Season ${selectedSeason.slice(1)}.` 
+      : `Searching in ${selectedSeason}.`;
+
+    showToast({
+      title: `Club Search: ${clubTag}`,
+      message: message,
+      type: 'info',
+      duration: 2500
+    });
   };
 
   const handleCutoffClick = () => {
@@ -441,7 +457,7 @@ export const GlobalView = ({
                 key={`${player.rank}-${player.name}-${index}`}
                 player={player}
                 onSearchClick={onPlayerSearch}
-                onClanClick={handleClanClick}
+                onClubClick={handleLocalClubClick}
                 onGraphClick={onGraphOpen}
                 isMobile={true}
                 isCurrentSeason={isCurrentSeason}
@@ -504,7 +520,7 @@ export const GlobalView = ({
                     key={`${player.rank}-${player.name}-${index}`}
                     player={player}
                     onSearchClick={onPlayerSearch}
-                    onClanClick={handleClanClick}
+                    onClubClick={handleLocalClubClick}
                     onGraphClick={onGraphOpen}
                     isMobile={false}
                     isCurrentSeason={isCurrentSeason}

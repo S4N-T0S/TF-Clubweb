@@ -66,7 +66,7 @@ export const usePagination = (items, itemsPerPage, isMobile) => {
     const filtered = items.filter(item => {
       const searchLower = searchQuery.toLowerCase();
       
-      // Handle clan items (items with 'tag' property)
+      // Handle club items (items with 'tag' property)
       if ('tag' in item) {
         return item.tag.toLowerCase().includes(searchLower);
       }

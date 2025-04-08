@@ -25,12 +25,12 @@ async function fetchWithRetry(options = {}) {
   }
 };
 
-export async function fetchClanMembers() {
+export async function fetchClubMembers() {
   try {
     const csvText = await fetchWithRetry();
     return parseCsvData(csvText);
   } catch (error) {
-    console.error('Error fetching clan members:', error);
+    console.error('Error fetching club members:', error);
     return [];
   }
 };

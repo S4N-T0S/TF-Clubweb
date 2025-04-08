@@ -2,21 +2,6 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock, X, Loader2, Info } from 'lucide-react';
 import { ToastProps } from '../types/propTypes';
 
-const MAX_ACCEPTABLE_AGE = 30 * 60; // 30 minutes in seconds
-
-const formatMessage = (message) => { // Quick and dirty formatting for messages...
-  if (!message || typeof message !== 'string') return message;
-  if (!message.includes('\n')) return message;
-  
-  const [firstLine, ...rest] = message.split('\n');
-  return (
-    <>
-      {firstLine}<br />
-      <span className="text-sm">{rest.join('\n')}</span>
-    </>
-  );
-};
-
 const formatTimestamp = (timestamp) => {
   const date = new Date(timestamp);
   const minutes = Math.floor((Date.now() - date) / 1000 / 60);
@@ -50,91 +35,146 @@ const formatTtl = (ttl, type) => {
   return minutes === 1 ? 'Retrying in 1 minute' : `Retrying in ${minutes} minutes`;
 };
 
-const getDataAge = (timestamp) => {
-  if (!timestamp) return Infinity;
-  return Math.floor((Date.now() - timestamp) / 1000);
+// Map of toast types to their default properties
+const TOAST_TYPE_CONFIG = {
+  loading: {
+    icon: Loader2,
+    iconClassName: 'animate-spin',
+    bgColor: 'bg-blue-600'
+  },
+  success: {
+    icon: CheckCircle2,
+    bgColor: 'bg-green-600'
+  },
+  error: {
+    icon: AlertCircle,
+    bgColor: 'bg-red-600'
+  },
+  warning: {
+    icon: AlertCircle,
+    bgColor: 'bg-orange-500'
+  },
+  info: {
+    icon: Info,
+    bgColor: 'bg-blue-600'
+  },
+  default: {
+    icon: Clock,
+    bgColor: 'bg-blue-600'
+  }
 };
 
-const Toast = ({ message, type, timestamp, ttl }) => {
+const Toast = ({ 
+  message,
+  type = 'info',
+  timestamp,
+  showMeta = false,
+  ttl,
+  title,
+  icon: CustomIcon,
+  textSize = 'normal',
+  position = 'top-right',
+  duration = 2500,
+  showCloseButton,
+  isMobile,
+  onClose
+}) => {
   const [isVisible, setIsVisible] = useState(false);
+  const effectiveShowClose = showCloseButton ?? isMobile;
   const [currentMessage, setCurrentMessage] = useState(message);
+  
+  // Text size mapping
+  const textSizeClasses = {
+    small: 'text-xs',
+    normal: 'text-sm',
+    large: 'text-base',
+    xlarge: 'text-lg'
+  };
+  
+  // Position mapping
+  const positionClasses = {
+    'top-right': 'top-2 right-2 sm:top-4 sm:right-4',
+    'top-left': 'top-2 left-2 sm:top-4 sm:left-4',
+    'bottom-right': 'bottom-2 right-2 sm:bottom-4 sm:right-4',
+    'bottom-left': 'bottom-2 left-2 sm:bottom-4 sm:left-4',
+    'top-center': 'top-2 left-1/2 -translate-x-1/2',
+    'bottom-center': 'bottom-2 left-1/2 -translate-x-1/2'
+  };
 
   // Show toast whenever new message arrives
   useEffect(() => {
-    if (message && timestamp) {  // Check for both message and timestamp
+    if (message) {
       setCurrentMessage(message);
       setIsVisible(true);
       
-      // Auto-hide after 2.5 seconds
-      const timer = setTimeout(() => {
-        setIsVisible(false);
-      }, 2500);
-
-      return () => clearTimeout(timer);
+      // Auto-hide after specified duration
+      if (duration !== Infinity) {
+        const timer = setTimeout(() => {
+          setIsVisible(false);
+          if (onClose) onClose();
+        }, duration);
+  
+        return () => clearTimeout(timer);
+      }
     }
-  }, [message, timestamp]);
+  }, [message, timestamp, duration, onClose]);
 
-  const dataAge = getDataAge(timestamp);
-  const isDataTooOld = dataAge > MAX_ACCEPTABLE_AGE;
+  // Get toast configuration based on type
+  const toastConfig = TOAST_TYPE_CONFIG[type] || TOAST_TYPE_CONFIG.default;
+  
+  // Allow override of default icon with custom icon
+  const IconComponent = CustomIcon || toastConfig.icon;
 
-  const getBgColor = () => {
-    if (type === 'loading') return 'bg-blue-600';
-    if (type === 'success') return 'bg-green-600';
-    if (type === 'error') return 'bg-red-600';
-    if (type === 'warning' && isDataTooOld) return 'bg-red-600';
-    if (type === 'warning') return 'bg-orange-500';
-    return 'bg-blue-600';
-  };
-
-  const getIcon = () => {
-    switch (type) {
-      case 'success':
-        return <CheckCircle2 className="w-5 h-5 text-white shrink-0" />;
-      case 'error':
-      case 'warning':
-        return <AlertCircle className="w-5 h-5 text-white shrink-0" />;
-      case 'loading':
-        return <Loader2 className="w-5 h-5 text-white shrink-0 animate-spin" />;
-      case 'info':
-        return <Info className="w-5 h-5 text-white shrink-0" />;
-      default:
-        return <Clock className="w-5 h-5 text-white shrink-0" />;
-    }
+  const handleClose = () => {
+    setIsVisible(false);
+    if (onClose) onClose();
   };
 
   if (!currentMessage || !isVisible) return null;
 
+  // Get CSS classes based on configuration
+  const textSizeClass = textSizeClasses[textSize] || textSizeClasses.normal;
+  const positionClass = positionClasses[position] || positionClasses['top-right'];
+
   return (
-    <div className={`fixed top-4 right-4 z-50 transition-opacity duration-300 ${
-      isVisible ? 'opacity-100' : 'opacity-0'
-    } max-w-sm`}>
-      <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 ${getBgColor()} text-white`}>
-        {getIcon()}
+    <div 
+      className={`fixed ${positionClass} z-50 transition-all duration-300 ${
+        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+      } max-w-[90vw] sm:max-w-sm w-auto`}
+    >
+      <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 ${toastConfig.bgColor} text-white min-w-[160px]`}>
+        <div className="shrink-0 flex items-center self-stretch">
+          <IconComponent className={`w-5 h-5 text-white ${toastConfig.iconClassName || ''}`} />
+        </div>
         
-        <div className="flex-1 min-w-0">
-          <p className="font-medium break-words">
-            {isDataTooOld
-              ? 'Data is significantly outdated' 
-              : formatMessage(currentMessage)}
+        <div className="flex-1 min-w-0 break-anywhere w-full">
+          {title && (
+            <p className={`font-semibold ${textSizeClass} mb-1`}>{title}</p>
+          )}
+          <p className={`${!title ? 'font-medium' : ''} ${textSizeClass} break-words`}>
+            {currentMessage}
           </p>
-          {type === 'success' || type === 'error' || type === 'warning' ? (
-            <>
+          {showMeta && (timestamp || ttl) ? (
+            <div className="mt-1">
               {timestamp && (
-                <p className="text-white/80 text-sm">Last updated {formatTimestamp(timestamp)}</p>
+                <p className="text-white/80 text-xs">Last updated {formatTimestamp(timestamp)}</p>
               )}
               {ttl && (
-                <p className="text-white/80 text-sm">{formatTtl(ttl, type)}</p>
+                <p className="text-white/80 text-xs">{formatTtl(ttl, type)}</p>
               )}
-            </>
+            </div>
           ) : null}
         </div>
 
-        <button 
-          onClick={() => setIsVisible(false)}
-          className="sm:hidden text-white/80 hover:text-white rounded-full hover:bg-white/10 shrink-0"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        {effectiveShowClose && (
+          <button 
+            onClick={handleClose}
+            className="text-white/80 hover:text-white rounded-full hover:bg-white/10 shrink-0 p-1 self-stretch flex items-center"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -142,3 +182,53 @@ const Toast = ({ message, type, timestamp, ttl }) => {
 
 Toast.propTypes = ToastProps;
 export default Toast;
+
+/* Complete example of setToastMessage with all available options
+
+  // The main content of the toast notification
+  // This can be a simple string or include newlines for multi-line messages
+  message: "Your changes have been saved successfully!",
+  
+  // Type of notification that determines the color scheme and default icon
+  // Options: 'success', 'error', 'warning', 'info', 'loading', 'default'
+  type: "success",
+
+  // Timestamp is required for unique toast but also used for "Last updated" display
+  timestamp: Date.now(),
+
+  // Optional: showMeta is used when providing information and we want to display ttl and timestamp. Defaults to false.
+  showMeta: true or false,
+  
+  // Optional: Add a bold title above the message
+  // Useful for emphasizing the purpose or category of the notification
+  title: "Changes Saved",
+  
+  // Optional: Custom icon to override the default icon for the selected type
+  // Import and use any icon from lucide-react or other compatible icon libraries
+  icon: SaveIcon,
+  
+  // Optional: Control the text size of the notification message and title
+  // Options: 'small', 'normal', 'large', 'xlarge'
+  textSize: "normal",
+  
+  // Optional: Position of the toast on the screen
+  // Options: 'top-right', 'top-left', 'bottom-right', 'bottom-left', 'top-center', 'bottom-center'
+  position: "top-right",
+  
+  // Optional: Time in milliseconds before the toast auto-dismisses
+  // Set to Infinity to keep the toast visible until manually closed
+  duration: 5000,
+  
+  // Optional: Control whether the close button is displayed
+  // Set to false to remove the close button (useful for brief notifications)
+  showCloseButton: true or false,
+  
+  // Optional: Function to call when the toast is closed (either by timeout or manually)
+  // Useful for cleanup actions or triggering follow-up processes
+  onClose: () => console.log("Toast notification closed"),
+  
+  // Optional: Time-to-live in seconds for the cached data
+  // Used to show when next update should be available from API
+  ttl: 600 // 10 minutes
+});
+*/

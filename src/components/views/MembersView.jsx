@@ -9,20 +9,20 @@ const MemberRow = ({
   member, 
   onSearchClick, 
   onGraphClick, 
-  clanMembersData,
+  clubMembersData,
   isMobile 
 }) => {
   const [username, discriminator] = member.name.split('#');
   
   /* Removed Discord Link
-  const clanMemberInfo = clanMembersData?.find(m => 
+  const clubMemberInfo = clubMembersData?.find(m => 
     m.embarkId.toLowerCase() === member.name.toLowerCase() ||
     (m.discord && m.discord.toLowerCase() === member.discord?.toLowerCase())
   );
   */
   
   // Check if member is in OG but not in CSV
-  const inOgNotInCsv = clanMembersData && !clanMembersData.find(m => 
+  const inOgNotInCsv = clubMembersData && !clubMembersData.find(m => 
     m.embarkId.toLowerCase() === member.name.toLowerCase()
   );
 
@@ -186,10 +186,10 @@ const MemberRow = ({
 };
 
 export const MembersView = ({ 
-  clanMembers,
+  clubMembers,
   totalMembers,
   onPlayerSearch,
-  clanMembersData,
+  clubMembersData,
   onGraphOpen,
   isMobile
 }) => {
@@ -199,7 +199,7 @@ export const MembersView = ({
       <div className="table-container">
         {isMobile ? (
           <div>
-            {clanMembers
+            {clubMembers
               .sort((a, b) => b.rankScore - a.rankScore)
               .map((member) => (
                 <MemberRow 
@@ -207,7 +207,7 @@ export const MembersView = ({
                   member={member} 
                   onSearchClick={onPlayerSearch}
                   onGraphClick={onGraphOpen}
-                  clanMembersData={clanMembersData}
+                  clubMembersData={clubMembersData}
                   isMobile={true}
                 />
               ))
@@ -225,7 +225,7 @@ export const MembersView = ({
                 </tr>
               </thead>
               <tbody>
-                {clanMembers
+                {clubMembers
                   .sort((a, b) => b.rankScore - a.rankScore)
                   .map((member) => (
                     <MemberRow 
@@ -233,7 +233,7 @@ export const MembersView = ({
                       member={member} 
                       onSearchClick={onPlayerSearch}
                       onGraphClick={onGraphOpen}
-                      clanMembersData={clanMembersData}
+                      clubMembersData={clubMembersData}
                       isMobile={false}
                     />
                   ))
