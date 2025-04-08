@@ -3,10 +3,19 @@ import { SearchBar } from '../SearchBar';
 import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
-import { ClubsViewProps, ClubRowProps } from '../../types/propTypes';
+import { ClubsViewProps, ClubRowProps, NoResultsMessageProps } from '../../types/propTypes';
 import { SortButton } from '../SortButton';
 import { useRef } from 'react';
 import { useModal } from '../../context/ModalContext';
+
+const NoResultsMessage = () => {
+  return (
+    <div className="p-6 text-center text-gray-400">
+      <p>No clubs found for your search query.</p>
+      <p className="mt-2">Try searching for a club tag with brackets (e.g., [OG]) in the Global View.</p>
+    </div>
+  );
+};
 
 const ClubRow = ({ club, onClubClick, isMobile }) => {
   // Mobile row rendering
@@ -125,14 +134,18 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
       <div className="table-container">
         {isMobile ? (
           <div>
-            {currentItems.map((club) => (
-              <ClubRow 
-                key={club.tag}
-                club={club}
-                onClubClick={onClubClick}
-                isMobile={true}
-              />
-            ))}
+            {currentItems.length === 0 ? (
+              <NoResultsMessage />
+            ) : (
+              currentItems.map((club) => (
+                <ClubRow 
+                  key={club.tag}
+                  club={club}
+                  onClubClick={onClubClick}
+                  isMobile={true}
+                />
+              ))
+            )}
           </div>
         ) : (
           <div className="overflow-hidden rounded-lg">
@@ -182,14 +195,22 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
                 </tr>
               </thead>
               <tbody>
-                {currentItems.map((club) => (
-                  <ClubRow 
-                    key={club.tag}
-                    club={club}
-                    onClubClick={onClubClick}
-                    isMobile={false}
-                  />
-                ))}
+                {currentItems.length === 0 ? (
+                  <tr>
+                    <td colSpan="4">
+                      <NoResultsMessage />
+                    </td>
+                  </tr>
+                ) : (
+                  currentItems.map((club) => (
+                    <ClubRow 
+                      key={club.tag}
+                      club={club}
+                      onClubClick={onClubClick}
+                      isMobile={false}
+                    />
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -215,3 +236,4 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
 
 ClubsView.propTypes = ClubsViewProps;
 ClubRow.propTypes = ClubRowProps;
+NoResultsMessage.propTypes = NoResultsMessageProps;

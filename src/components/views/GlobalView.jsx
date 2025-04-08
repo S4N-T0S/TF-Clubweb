@@ -6,7 +6,7 @@ import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
 import { useEffect, useRef, useState } from 'react';
-import { GlobalViewProps, GlobalPlayerRowProps, RankChangeDisplayProps, RubyCutoffIndicatorProps } from '../../types/propTypes';
+import { GlobalViewProps, GlobalPlayerRowProps, RankChangeDisplayProps, RubyCutoffIndicatorProps, NoResultsMessageProps } from '../../types/propTypes';
 import { PlatformIcons } from "../icons/Platforms";
 import { SortButton } from '../SortButton';
 import { Hexagon } from '../icons/Hexagon';
@@ -14,6 +14,26 @@ import { useFavourites } from '../../context/FavouritesContext';
 import { useModal } from '../../context/ModalContext';
 import { useOnHold } from '../../hooks/useOnHold';
 import { SEASONS, getSeasonLeaderboard, getAllSeasonsLeaderboard } from '../../services/historicalDataService';
+
+const NoResultsMessage = ({ selectedSeason, onSeasonChange }) => {
+  return (
+    <div className="p-6 text-center text-gray-400">
+      {selectedSeason === 'ALL' ? (
+        "No results found for your search query."
+      ) : (
+        <span>
+          No results found in {SEASONS[selectedSeason]?.label || selectedSeason}.<br />
+          Try searching in <span 
+            className="text-blue-400 cursor-pointer hover:underline" 
+            onClick={() => onSeasonChange('ALL')}
+          >
+            All Seasons
+          </span> for historical records.
+        </span>
+      )}
+    </div>
+  );
+};
 
 const RankChangeDisplay = ({ change }) => {
   if (!change || change === 0) return null;
@@ -324,7 +344,7 @@ export const GlobalView = ({
 
   // Update the season selection handler
   const handleSeasonChange = (e) => {
-    const newSeason = e.target.value;
+    const newSeason = typeof e === 'string' ? e : e.target.value;
     setSelectedSeason(newSeason);
     resetSort();
     resetPage();
@@ -450,9 +470,15 @@ export const GlobalView = ({
       <div className="page-transition-container">
       <div className={`page-content ${slideDirection}`} key={currentPage}>
       <div className="table-container">
-        {isMobile ? (
-          <div>
-            {currentItems.map((player, index) => (
+      {isMobile ? (
+        <div>
+          {currentItems.length === 0 ? (
+            <NoResultsMessage 
+              selectedSeason={selectedSeason} 
+              onSeasonChange={handleSeasonChange}
+            />
+          ) : (
+            currentItems.map((player, index) => (
               <PlayerRow 
                 key={`${player.rank}-${player.name}-${index}`}
                 player={player}
@@ -463,9 +489,10 @@ export const GlobalView = ({
                 isCurrentSeason={isCurrentSeason}
                 selectedSeason={selectedSeason}
               />
-            ))}
-          </div>
-        ) : (
+            ))
+          )}
+        </div>
+      ) : (
           <div className="overflow-hidden rounded-lg">
             <table className="w-full min-w-[640px] rounded-lg">
               <thead>
@@ -515,18 +542,29 @@ export const GlobalView = ({
                 </tr>
               </thead>
               <tbody>
-                {currentItems.map((player, index) => (
-                  <PlayerRow 
-                    key={`${player.rank}-${player.name}-${index}`}
-                    player={player}
-                    onSearchClick={onPlayerSearch}
-                    onClubClick={handleLocalClubClick}
-                    onGraphClick={onGraphOpen}
-                    isMobile={false}
-                    isCurrentSeason={isCurrentSeason}
-                    selectedSeason={selectedSeason}
-                  />
-                ))}
+                {currentItems.length === 0 ? (
+                  <tr>
+                    <td colSpan="6">
+                      <NoResultsMessage 
+                        selectedSeason={selectedSeason} 
+                        onSeasonChange={handleSeasonChange}
+                      />
+                    </td>
+                  </tr>
+                ) : (
+                  currentItems.map((player, index) => (
+                    <PlayerRow 
+                      key={`${player.rank}-${player.name}-${index}`}
+                      player={player}
+                      onSearchClick={onPlayerSearch}
+                      onClubClick={handleLocalClubClick}
+                      onGraphClick={onGraphOpen}
+                      isMobile={false}
+                      isCurrentSeason={isCurrentSeason}
+                      selectedSeason={selectedSeason}
+                    />
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -554,3 +592,4 @@ GlobalView.propTypes = GlobalViewProps;
 PlayerRow.propTypes = GlobalPlayerRowProps;
 RankChangeDisplay.propTypes = RankChangeDisplayProps;
 RubyCutoffIndicator.propTypes = RubyCutoffIndicatorProps;
+NoResultsMessage.propTypes = NoResultsMessageProps;

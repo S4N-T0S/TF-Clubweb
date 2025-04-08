@@ -96,6 +96,11 @@ export const GlobalPlayerRowProps = {
   isCurrentSeason: PropTypes.bool.isRequired
 };
 
+export const NoResultsMessageProps = {
+  selectedSeason: PropTypes.string,
+  handleSeasonChange: PropTypes.func
+};
+
 export const RankChangeDisplayProps = {
   change: PropTypes.number
 };
