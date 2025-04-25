@@ -720,7 +720,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       
       const parsedData = result.data.map(item => ({
         ...item,
-        timestamp: new Date(item.timestamp)
+        timestamp: new Date(item.timestamp * 1000)
       }));
       
       return interpolateDataPoints(parsedData);
@@ -1065,7 +1065,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
   
       const parsedData = result.data.map(item => ({
         ...item,
-        timestamp: new Date(item.timestamp)
+        timestamp: new Date(item.timestamp * 1000)
       }));
       
       const interpolatedData = interpolateDataPoints(parsedData);
@@ -1244,8 +1244,6 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
         type: 'time',
         time: {
           displayFormats: TIME.DISPLAY_FORMATS,
-          // Ensure Chart.js knows to interpret timestamps as UTC
-          parser: 'yyyy-MM-dd\'T\'HH:mm:ss.SSS\'Z\'',
           // Display in local timezone
           tooltipFormat: 'd MMM yyyy HH:mm',
           unit: 'hour',

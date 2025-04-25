@@ -52,11 +52,13 @@ const logDataSource = (source, info) => {
   };
 
   const now = Date.now();
-  const age = info.timestamp ? Math.floor((now - info.timestamp) / 1000) : 'N/A';
+  // Convert Unix timestamp (seconds) to milliseconds if needed
+  const timestamp = info.timestamp ? (info.timestamp > 10000000000 ? info.timestamp : info.timestamp * 1000) : null;
+  const age = timestamp ? Math.floor((now - timestamp) / 1000) : 'N/A';
 
   console.group('Leaderboard Data Fetch');
   console.log(`%cSource: ${source}`, styles[source.toLowerCase().replace('-', '')] || '');
-  console.log('Timestamp:', new Date(info.timestamp).toLocaleString());
+  console.log('Timestamp:', timestamp ? new Date(timestamp).toLocaleString() : 'N/A');
   console.log('Cache Age:', `${age}s`);
   console.log('TTL Remaining:', `${info.remainingTtl}s`);
   console.log('Response Time:', `${info.responseTime}ms`);
@@ -113,15 +115,18 @@ export const fetchLeaderboardData = async () => {
 
     const transformedData = transformData(result.data);
     
+    // Handle Unix timestamp (seconds)
+    const timestamp = result.timestamp > 10000000000 ? result.timestamp : (result.timestamp * 1000);
+    
     logDataSource(result.source, {
-      timestamp: result.timestamp,
+      timestamp: result.timestamp, // Pass original timestamp format for proper logging
       remainingTtl: result.remainingTtl,
       responseTime
     });
 
     setCacheData(
       result.data, 
-      result.timestamp, 
+      timestamp, 
       result.remainingTtl || 120, 
       result.source
     );
@@ -129,7 +134,7 @@ export const fetchLeaderboardData = async () => {
     return {
       data: transformedData,
       source: result.source,
-      timestamp: result.timestamp,
+      timestamp: timestamp,
       remainingTtl: result.remainingTtl || 120
     };
 

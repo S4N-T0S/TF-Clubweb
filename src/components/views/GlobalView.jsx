@@ -119,7 +119,11 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
                 `#${player.rank.toLocaleString()}`
               }
             </span>
-            <RankChangeDisplay change={player.change} />
+            {selectedSeason === 'ALL' ? (
+              <span className="flex items-center gap-1 text-gray-400 text-sm">#{player.rank.toLocaleString()}</span>
+            ) : (
+              <RankChangeDisplay change={player.change} />
+            )}
           </div>
           {isCurrentSeason ? (
             <LineChart
@@ -201,7 +205,9 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
       </td>
       <td className="px-4 py-2 w-24">
         <div className="flex items-center justify-center gap-2">
-          {isCurrentSeason ? (
+          {selectedSeason === 'ALL' ? (
+            <span className="flex items-center gap-1 text-gray-400 text-sm">#{player.rank.toLocaleString()}</span>
+          ) : isCurrentSeason ? (
             <RankChangeDisplay change={player.change} />
           ) : (
             <span title="Disabled for historical seasons">
@@ -509,9 +515,9 @@ export const GlobalView = ({
                   </th>
                   <th className="px-4 py-2 text-left text-gray-300 w-24">
                     <div className="flex items-center justify-center">
-                      Change
+                    {selectedSeason === 'ALL' ? 'Rank' : 'Change'}
                       <SortButton
-                        field="change"
+                        field={selectedSeason === 'ALL' ? 'rank' : 'change'}
                         sortConfig={sortConfig}
                         onSort={handleSort}
                       />

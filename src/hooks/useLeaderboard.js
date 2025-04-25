@@ -70,7 +70,7 @@ export const useLeaderboard = (clubMembersData) => {
             : 'Leaderboard is using cached data.',
           type: isDataTooOld 
             ? 'error' 
-            : 'warn',
+            : 'warning',
           timestamp,
           showMeta: true,
           ttl
