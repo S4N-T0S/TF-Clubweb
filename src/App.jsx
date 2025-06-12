@@ -47,7 +47,7 @@ const App = () => {
   const [clubMembersLoading, setClubMembersLoading] = useState(true);
   const [showFavourites, setShowFavourites] = useState(false);
 
-  const currentSeason = 'S6';
+  const currentSeason = 'S7';
   const [selectedSeason, setSelectedSeason] = useState(currentSeason);
   const {
     clubMembers,

@@ -88,7 +88,7 @@ export const usePagination = (items, itemsPerPage, isMobile) => {
         let comparison = 0;
         switch (sortConfig.field) {
           case 'season': {
-            const seasonOrder = ['OB', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6'];
+            const seasonOrder = ['OB', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7'];
             comparison = seasonOrder.indexOf(a.season) - seasonOrder.indexOf(b.season);
             break;
           }

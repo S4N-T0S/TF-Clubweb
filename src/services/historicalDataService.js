@@ -4,6 +4,7 @@ import S2Data from '../data/S2/S2-merged.json';
 import S3Data from '../data/S3/S3-crossplay.json';
 import S4Data from '../data/S4/S4-crossplay.json';
 import S5Data from '../data/S5/S5-crossplay.json';
+import S6Data from '../data/S6/S6-crossplay.json';
 
 export const SEASONS = {
   ALL: { label: 'All Seasons', isAggregate: true },
@@ -13,7 +14,8 @@ export const SEASONS = {
   S3: { data: S3Data, label: 'Season 3', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore' },
   S4: { data: S4Data, label: 'Season 4', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore' },
   S5: { data: S5Data, label: 'Season 5', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore' },
-  S6: { data: null, label: 'Season 6', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isCurrent: true }
+  S6: { data: S6Data, label: 'Season 6', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore' },
+  S7: { data: null, label: 'Season 7', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isCurrent: true }
 };
 
 export const getSeasonLeaderboard = (seasonKey) => {
@@ -46,7 +48,7 @@ export const getSeasonLeaderboard = (seasonKey) => {
 
 export const getAllSeasonsLeaderboard = (currentSeasonData) => {
   const allData = Object.entries(SEASONS)
-    .filter(([key]) => key !== 'ALL' && key !== 'S6')
+    .filter(([key]) => key !== 'ALL' && key !== 'S7')
     .flatMap(([key]) => {
       const seasonData = getSeasonLeaderboard(key).leaderboard;
       return seasonData.map(p => ({ ...p, season: key }));
@@ -55,7 +57,7 @@ export const getAllSeasonsLeaderboard = (currentSeasonData) => {
   return {
     leaderboard: [
       ...allData,
-      ...currentSeasonData.map(p => ({ ...p, season: 'S6' }))
+      ...currentSeasonData.map(p => ({ ...p, season: 'S7' }))
     ]
   };
 };
@@ -143,7 +145,7 @@ export const searchPlayerHistory = async (embarkId, currentSeasonData = null) =>
   ]);
 
   // Sort results by season
-  const seasonOrder = ['Open Beta', 'Season 1', 'Season 2', 'Season 3', 'Season 4', 'Season 5', 'Season 6'];
+  const seasonOrder = ['Open Beta', 'Season 1', 'Season 2', 'Season 3', 'Season 4', 'Season 5', 'Season 6', 'Season 7'];
   return Array.from(allResults.values()).sort((a, b) => 
     seasonOrder.indexOf(a.season) - seasonOrder.indexOf(b.season)
   );
