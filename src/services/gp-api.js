@@ -1,14 +1,13 @@
-const API_URL = 'https://api.ogclub.s4nt0s.eu';
-const AUTH_TOKEN = 'not-secret';
+import { API } from "./api";
 
 export const fetchPlayerGraphData = async (playerId) => {
   try {
     const startTime = Date.now();
-    const response = await fetch(`${API_URL}/graph`, {
-      method: 'POST',
+    const response = await fetch(`${API.BASE_URL}/graph`, {
+      method: API.METHOD,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
-        token: AUTH_TOKEN,
+        token: API.AUTH_TOKEN,
         playerId
       })
     });

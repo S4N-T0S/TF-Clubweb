@@ -1,9 +1,7 @@
 import { getLeagueInfo } from "../utils/leagueUtils";
+import { API } from "./api";
 
 const CACHE_KEY = 'leaderboard_cache';
-const AUTH_TOKEN = 'not-secret';
-const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
-const API_URL = isDev ? 'http://localhost:8787' : 'https://api.ogclub.s4nt0s.eu';
 
 const getCachedData = () => {
   const cached = localStorage.getItem(CACHE_KEY);
@@ -98,10 +96,10 @@ export const fetchLeaderboardData = async () => {
     }
 
     const startTime = Date.now();
-    const response = await fetch(`${API_URL}/leaderboard`, {
-      method: 'POST',
+    const response = await fetch(`${API.BASE_URL}/leaderboard`, {
+      method: API.METHOD,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: AUTH_TOKEN })
+      body: JSON.stringify({ token: API.AUTH_TOKEN })
     });
     
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
