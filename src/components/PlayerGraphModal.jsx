@@ -64,6 +64,7 @@ const RANKS = [
 ];
 
 const GAME_COUNT_TOOLTIP = "Estimated games played from tracked data. This count may not be 100% accurate due to events like rank score adjustments, username changes and games whilst placed under 10k in the leaderboard.";
+const RANKED_PLACEMENTS = 4;
 
 const getRankFromScore = (score) => {
   for (let i = RANKS.length - 1; i >= 0; i--) {
@@ -722,7 +723,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       const result = await fetchPlayerGraphData(compareId);
       if (!result.data?.length) return null;
       
-      const gameCount = result.data.length + 4; // Add 4 for ranked tournament placements.
+      const gameCount = result.data.length + RANKED_PLACEMENTS; // Add 4 for ranked tournament placements.
       const parsedData = result.data.map(item => ({
         ...item,
         timestamp: new Date(item.timestamp * 1000)
@@ -1071,7 +1072,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
         return;
       }
   
-      setMainPlayerGameCount(result.data.length + 4); // Add 4 for ranked tournament placements.
+      setMainPlayerGameCount(result.data.length + RANKED_PLACEMENTS); // Add 4 for ranked tournament placements.
 
       const parsedData = result.data.map(item => ({
         ...item,
@@ -1664,7 +1665,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
               {Array.from(comparisonData.entries()).map(([compareId, { color, gameCount }]) => (
                 <div 
                   key={compareId}
-                  className={`flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1 
+                  className={`flex items-baseline gap-2 bg-gray-700 rounded-lg px-3 py-1 
                     ${isMobile ? 'flex-basis-[140px]' : 'whitespace-nowrap'}`}
                 >
                   <span className="text-sm truncate" style={{ color: color }}>{compareId}</span>
