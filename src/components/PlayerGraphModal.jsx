@@ -63,6 +63,8 @@ const RANKS = [
   { label: 'Diamond 1', y: 47500, color: '#60a5fa' }
 ];
 
+const GAME_COUNT_TOOLTIP = "Estimated games played from tracked data. This count may not be 100% accurate due to events like rank score adjustments, username changes, placements, dipping below 10k in the leaderboard.";
+
 const getRankFromScore = (score) => {
   for (let i = RANKS.length - 1; i >= 0; i--) {
     if (score >= RANKS[i].y) {
@@ -280,6 +282,7 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
 const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubView = false, globalLeaderboard = [], onSwitchToGlobal, isMobile }) => {
   const { setIsModalOpen, modalRef, setOnClose } = useModal();
   const [data, setData] = useState(null);
+  const [mainPlayerGameCount, setMainPlayerGameCount] = useState(0);
   const [comparisonData, setComparisonData] = useState(new Map());
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -319,6 +322,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       setData(null);
       setError(null);
       setViewWindow(null);
+      setMainPlayerGameCount(0);
     }
   }, [isOpen]);
 
@@ -533,8 +537,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       scoreContainer.appendChild(document.createTextNode(`Score: ${score.toLocaleString()}`));
       
       if (!dataPoint.isInterpolated && !dataPoint.isExtrapolated) {
-        const dataset = datasetIndex === 0 ? data : Array.from(comparisonData.values())[datasetIndex - 1].data;
-        const dataIndex = dataset.findIndex(d => d.timestamp.getTime() === dataPoint.timestamp.getTime());
+        const dataIndex = tooltip.dataPoints[0].dataIndex;
+        const dataset = chart.data.datasets[datasetIndex].data.map(d => d.raw);
         
         if (dataIndex > 0) {
           // Ensure locale-independent parsing for previous score
@@ -573,8 +577,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       // Add rank change arrow if needed
       if (!dataPoint.isInterpolated && !dataPoint.isExtrapolated) {
         // Get the correct dataset based on the datasetIndex
-        const dataset = datasetIndex === 0 ? data : Array.from(comparisonData.values())[datasetIndex - 1].data;
-        const dataIndex = dataset.findIndex(d => d.timestamp.getTime() === dataPoint.timestamp.getTime());
+        const dataIndex = tooltip.dataPoints[0].dataIndex;
+        const dataset = chart.data.datasets[datasetIndex].data.map(d => d.raw);
         
         if (dataIndex > 0) {
           const previousScore = dataset[dataIndex - 1].rankScore;
@@ -638,7 +642,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
     tooltipEl.style.top = positionY + tooltip.caretY + 'px';
     tooltipEl.style.font = tooltip.options.bodyFont.string;
     tooltipEl.style.boxShadow = '0 2px 12px 0 rgba(0,0,0,0.4)';
-  }, [data, comparisonData]);
+  }, []);
 
   const calculateViewWindow = useCallback((data, range) => {
     if (!data?.length) return null;
@@ -718,12 +722,14 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       const result = await fetchPlayerGraphData(compareId);
       if (!result.data?.length) return null;
       
+      const gameCount = result.data.length;
       const parsedData = result.data.map(item => ({
         ...item,
         timestamp: new Date(item.timestamp * 1000)
       }));
       
-      return interpolateDataPoints(parsedData);
+      const interpolatedData = interpolateDataPoints(parsedData);
+      return { data: interpolatedData, gameCount };
     } catch (error) {
       console.error(`Failed to load comparison data for ${compareId}:`, error);
       return null;
@@ -738,13 +744,15 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
     // Stop following URL compareIds after manual addition
     shouldFollowUrlRef.current = false;
     
-    const newData = await loadComparisonData(player.name);
-    if (newData) {
+    const loadedResult = await loadComparisonData(player.name);
+    if (loadedResult) {
+      const { data: newData, gameCount: newGameCount } = loadedResult;
       setComparisonData(prev => {
         const next = new Map(prev);
         next.set(player.name, {
           data: newData,
-          color: COMPARISON_COLORS[next.size]
+          color: COMPARISON_COLORS[next.size],
+          gameCount: newGameCount,
         });
         
         loadedCompareIdsRef.current.add(player.name);
@@ -771,9 +779,10 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       
       // Reassign colors to maintain order
       const entries = Array.from(next.entries());
-      entries.forEach(([id], index) => {
+      entries.forEach(([id, {data, gameCount}], index) => {
         next.set(id, {
-          ...next.get(id),
+          data,
+          gameCount,
           color: COMPARISON_COLORS[index]
         });
       });
@@ -786,7 +795,6 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       return next;
     });
   }, [playerId]);
-
 
   const getDynamicYAxisDomain = useCallback((dataMin, dataMax, data, timeWindow, customTimeRange = null) => {
     if (!data?.length) return [0, 50000];
@@ -1037,7 +1045,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
         }
       }));
 
-    /* - Line 923 for explanation
+    /* - Line 931~ for explanation
     // Add the highlighted period annotation if it exists
     const highlightAnnotation = getHighlightedPeriodAnnotation(customTimeRange);
     if (highlightAnnotation) {
@@ -1063,6 +1071,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
         return;
       }
   
+      setMainPlayerGameCount(result.data.length);
+
       const parsedData = result.data.map(item => ({
         ...item,
         timestamp: new Date(item.timestamp * 1000)
@@ -1132,7 +1142,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
           
           if (comparisonResult) {
             newComparisons.set(compareId, {
-              data: comparisonResult,
+              data: comparisonResult.data,
+              gameCount: comparisonResult.gameCount,
               color: COMPARISON_COLORS[index]
             });
             loadedIds.add(compareId);
@@ -1235,6 +1246,43 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
     }
   };
 
+  const updateDynamicAxes = useCallback((chart) => {
+  if (!chart || !data) return;
+
+  const timeRange = {
+    min: chart.scales.x.min,
+    max: chart.scales.x.max
+  };
+
+  // Hide tooltip if it's showing an interpolated/extrapolated point
+  // and view is zoomed out.
+  const tooltipEl = chart.canvas.parentNode.querySelector('div.rank-tooltip');
+  if (tooltipEl) {
+    const currentTimeRange = timeRange.max - timeRange.min;
+    if (currentTimeRange > TIME.SEVENTY_TWO_HOURS) {
+      tooltipEl.style.opacity = 0;
+    }
+  }
+
+  const [newMin, newMax] = getDynamicYAxisDomain(
+    null, // dataMin/Max are not needed as getDynamicYAxisDomain recalculates
+    null,
+    data,
+    selectedTimeRange,
+    timeRange
+  );
+  
+  chart.options.scales.y.min = newMin;
+  chart.options.scales.y.max = newMax;
+  
+  // Recalculate step size
+  chart.options.scales.y.ticks.stepSize = calculateYAxisStepSize(newMin, newMax);
+  
+  // Update annotations for the new view
+  chart.options.plugins.annotation.annotations = getRankAnnotations(timeRange);
+
+}, [data, selectedTimeRange, getDynamicYAxisDomain, calculateYAxisStepSize, getRankAnnotations]);
+
   const chartOptions = useMemo(() => data ? {
     responsive: true,
     maintainAspectRatio: false,
@@ -1324,37 +1372,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
           mode: 'x',
           modifierKey: null,
           onPanStart: handleZoomPanRef.current,
-          onPan: function(ctx) {
-            let timeRange = {
-              min: ctx.chart.scales.x.min,
-              max: ctx.chart.scales.x.max
-            };
-
-            // Hide tooltip if it's showing an interpolated/extrapolated point
-            const tooltipEl = ctx.chart.canvas.parentNode.querySelector('div.rank-tooltip');
-            if (tooltipEl) {
-              const currentTimeRange = timeRange.max - timeRange.min;
-              if (currentTimeRange > TIME.SEVENTY_TWO_HOURS) {
-                tooltipEl.style.opacity = 0;
-              }
-            }
-
-            const [newMin, newMax] = getDynamicYAxisDomain(
-              Math.min(...data.map(d => d.rankScore)),
-              Math.max(...data.map(d => d.rankScore)),
-              data,
-              selectedTimeRange,
-              timeRange
-            );
-            
-            ctx.chart.options.scales.y.min = newMin;
-            ctx.chart.options.scales.y.max = newMax;
-            
-            // Recalculate step size
-            ctx.chart.options.scales.y.ticks.stepSize = calculateYAxisStepSize(newMin, newMax);
-            
-            ctx.chart.options.plugins.annotation.annotations = getRankAnnotations(timeRange);
-          }
+          onPan: (ctx) => updateDynamicAxes(ctx.chart)
         },
         zoom: {
           wheel: {
@@ -1365,37 +1383,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
           },
           mode: 'x',
           onZoomStart: handleZoomPanRef.current,
-          onZoom: function(ctx) {
-            let timeRange = {
-              min: ctx.chart.scales.x.min,
-              max: ctx.chart.scales.x.max
-            };
-
-            // Hide tooltip if it's showing an interpolated/extrapolated point
-            const tooltipEl = ctx.chart.canvas.parentNode.querySelector('div.rank-tooltip');
-            if (tooltipEl) {
-              const currentTimeRange = timeRange.max - timeRange.min;
-              if (currentTimeRange > TIME.SEVENTY_TWO_HOURS) {
-                tooltipEl.style.opacity = 0;
-              }
-            }
-
-            const [newMin, newMax] = getDynamicYAxisDomain(
-              Math.min(...data.map(d => d.rankScore)),
-              Math.max(...data.map(d => d.rankScore)),
-              data,
-              selectedTimeRange,
-              timeRange
-            );
-            
-            ctx.chart.options.scales.y.min = newMin;
-            ctx.chart.options.scales.y.max = newMax;
-            
-            // Recalculate stepSize
-            ctx.chart.options.scales.y.ticks.stepSize = calculateYAxisStepSize(newMin, newMax);
-            
-            ctx.chart.options.plugins.annotation.annotations = getRankAnnotations(timeRange);
-          }
+          onZoom: (ctx) => updateDynamicAxes(ctx.chart),
         },
       },
       annotation: {
@@ -1415,63 +1403,14 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       },
       legend: {
         onClick: (evt, item, legend) => {
-          const chart = chartRef.current;
-          if (!chart) return;
-        
-          // Execute default legend visibility toggling first
+          // Default behavior
           ChartJS.defaults.plugins.legend.onClick(evt, item, legend);
-        
+
+          // Update axes after a short delay to allow the visibility change to register
           setTimeout(() => {
-            const xScale = chart.scales.x;
-            const currentTimeWindow = { min: xScale.min, max: xScale.max };
-        
-            // Early exit if no visible datasets
-            const visibleDatasets = chart.data.datasets.filter((_, index) => 
-              chart.getDatasetMeta(index).visible
-            );
-            if (visibleDatasets.length === 0) return;
-        
-            // Collect scores from ALL visible points in current view window
-            let allVisibleScores = [];
-            chart.data.datasets.forEach((dataset, index) => {
-              if (chart.getDatasetMeta(index).visible) {
-                const visiblePoints = dataset.data.filter(d => 
-                  d.x >= currentTimeWindow.min && 
-                  d.x <= currentTimeWindow.max
-                );
-                allVisibleScores.push(...visiblePoints.map(d => d.raw?.rankScore).filter(Number.isFinite));
-              }
-            });
-        
-            // Handle empty visible scores (use current Y-axis range as fallback)
-            const [newMin, newMax] = allVisibleScores.length > 0
-              ? [
-                  Math.min(...allVisibleScores),
-                  Math.max(...allVisibleScores)
-                ]
-              : [
-                  chart.options.scales.y.min,
-                  chart.options.scales.y.max
-                ];
-        
-            // Get padded Y-axis domain (using existing buffer logic)
-            const [paddedMin, paddedMax] = getDynamicYAxisDomain(
-              newMin,
-              newMax,
-              data,
-              selectedTimeRange,
-              currentTimeWindow
-            );
-        
-            // Always update axis bounds
-            chart.options.scales.y.min = paddedMin;
-            chart.options.scales.y.max = paddedMax;
-        
-            // Update remaining chart properties
-            chart.options.scales.y.ticks.stepSize = calculateYAxisStepSize(paddedMin, paddedMax);
-            chart.options.plugins.annotation.annotations = getRankAnnotations(currentTimeWindow);
-            chart.update();
-          }, 0); // <-- 0ms timeout ensures this runs after visibility toggles
+            updateDynamicAxes(legend.chart);
+            legend.chart.update();
+          }, 0);
         },
         labels: {
           color: '#ffffff',
@@ -1481,7 +1420,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
         }
       }
     }
-  } : null, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, selectedTimeRange, externalTooltipHandler, calculateYAxisStepSize]);
+  } : null, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, selectedTimeRange, externalTooltipHandler, calculateYAxisStepSize, updateDynamicAxes]);
 
   const chartData = useMemo(() => data ? {
     labels: data.map(d => d.timestamp),
@@ -1574,160 +1513,189 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div ref={modalRef} className={`bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden
-        ${isMobile ? 'max-w-[95vw] max-h-[98vh]' : 'max-w-[80vw] max-h-[95vh]'}`}>
-        <div className={`${isMobile ? 'flex flex-col gap-2' : 'flex justify-between items-center gap-4'} mb-4`}>
-          <div className={`${isMobile ? 'w-full' : ''}`}>
-            <div className="flex items-center justify-between">
-              <h2 className={`font-bold text-white ${isMobile ? 'text-lg truncate max-w-[200px]' : 'text-xl'}`}>
-                {playerId}
-              </h2>
-              {isMobile && (
-                <button 
-                  onClick={onClose}
-                  aria-label="Close modal"
-                  className="p-2 hover:bg-gray-700 rounded-lg"
-                >
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              )}
-            </div>
-            {data && (
-              <p className="text-sm text-gray-400 mt-1 truncate">
-                {!isMobile ? 'Data available between ' : 'MAX: '} {`${new Date(data[0].timestamp).toLocaleDateString(undefined, TIME.FORMAT)} - ${new Date().toLocaleDateString(undefined, TIME.FORMAT)}`}
-              </p>
-            )}
-          </div>
-          {isClubView && (
-            <div className={`flex-1 flex justify-center ${isMobile ? 'flex-col' : 'items-center'} gap-2`}>
-              <p className="text-sm text-blue-400 truncate">
-                Comparing available with club members only
-              </p>
-              <button
-                onClick={() => onSwitchToGlobal()}
-                className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-full transition-colors whitespace-nowrap"
-              >
-                Switch to Global View
-              </button>
-            </div>
-          )}
-          <div className={`relative flex flex-col ${isMobile ? 'w-full' : 'w-auto'}`}>
-            <div className={`flex items-center ${isMobile ? 'w-full justify-between mb-2' : 'w-full justify-end gap-2'}`}>
-              <div className="relative" ref={ssdropdownRef}>
-                <button
-                  onClick={() => setShowDropdown(!showDropdown)}
-                  className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative"
-                  title="Screenshot options"
-                >
-                  <Camera className="w-5 h-5" />
-                  {notifScreenshot && (
-                    <div
-                      className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-gray-800 text-white text-xs py-1 px-2 rounded-md shadow-lg animate-fadeIn pointer-events-none"
-                      onClick={(e) => e.stopPropagation()} // stop accidental clicks from triggering another screenshot
-                    >
-                      Screenshot copied! 📋
-                    </div>
-                  )}
-                </button>
-              
-                {showDropdown && (
-                  <div className={`absolute ${isMobile ? 'top-full mt-2 left-0' : 'right-0 mt-2'} w-48 bg-gray-800 rounded-md shadow-lg z-10`}>
-                    <div className="py-1">
-                      <button
-                        onClick={() => handleScreenshot(true)}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700"
-                      >
-                        With background
-                      </button>
-                      <button
-                        onClick={() => handleScreenshot(false)}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700"
-                      >
-                        Without background
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-              {comparisonData.size < MAX_COMPARISONS && (
-                <div className="relative">
-                  <button 
-                    onClick={() => setShowCompareSearch(true)}
-                    className={`p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative transition-all duration-200 group
-                      ${isMobile ? 'mr-4' : ''}`}
-                    title="Compare with another player"
-                  >
-                    <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
-                    {showCompareHint && (
-                      <div className="absolute -top-2 -right-2 w-5 h-5 bg-blue-500 rounded-full animate-pulse" />
-                    )}
-                  </button>
-                  {showCompareHint && (
-                    <div className={`absolute -top-8 whitespace-nowrap bg-gray-800 text-white text-xs py-1 px-2 rounded fade-out
-                      ${isMobile ? 'left-0' : 'left-1/2 -translate-x-1/2'}`}>
-                      Try comparing players!
+      <div ref={modalRef} className={`bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden grid grid-rows-[auto_1fr] gap-4
+        ${isMobile ? 'max-w-[95vw] h-[98vh]' : 'max-w-[80vw] h-[95vh]'}`}>
+        <div>
+          <div className={`${isMobile ? 'flex flex-col gap-2' : 'flex justify-between items-center gap-4'}`}>
+            <div className={`${isMobile ? 'w-full' : ''}`}>
+              <div className="flex items-center justify-between">
+                <div className={`flex items-center gap-2.5 ${isMobile ? 'min-w-0' : ''}`}>
+                  <h2 className={`font-bold text-white truncate ${isMobile ? 'text-lg' : 'text-xl'}`}>
+                    {playerId}
+                  </h2>
+                  {data && mainPlayerGameCount > 0 && (
+                    <div className="relative group flex-shrink-0">
+                      <div className="bg-gray-700 text-gray-300 text-xs font-medium px-2 py-1 rounded-md cursor-help">
+                        {mainPlayerGameCount} games
+                      </div>
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20 shadow-lg border border-gray-700 whitespace-normal">
+                        {GAME_COUNT_TOOLTIP}
+                      </div>
                     </div>
                   )}
                 </div>
-              )}
-              <div className={`flex gap-2 bg-gray-800 rounded-lg p-1 ${isMobile ? 'flex-1 justify-center ml-2' : 'justify-end'}`}>
-                {Object.keys(TIME.RANGES).map((range) => (
-                  <button
-                    key={range}
-                    aria-pressed={selectedTimeRange === range}
-                    onClick={() => setSelectedTimeRange(range)}
-                    className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                      selectedTimeRange === range
-                        ? 'bg-gray-600 text-white'
-                        : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                    } ${isMobile ? 'flex-1' : ''}`}
+                {isMobile && (
+                  <button 
+                    onClick={onClose}
+                    aria-label="Close modal"
+                    className="p-2 hover:bg-gray-700 rounded-lg"
                   >
-                    {range}
+                    <X className="w-5 h-5 text-gray-400" />
                   </button>
-                ))}
+                )}
               </div>
+              {data && (
+                <p className="text-sm text-gray-400 mt-1 truncate">
+                  {!isMobile ? 'Data available between ' : 'MAX: '} {`${new Date(data[0].timestamp).toLocaleDateString(undefined, TIME.FORMAT)} - ${new Date().toLocaleDateString(undefined, TIME.FORMAT)}`}
+                </p>
+              )}
             </div>
-
-            {showCompareSearch && (
-              <ComparePlayerSearch
-                onSelect={handleAddComparison}
-                mainPlayerId={playerId}
-                globalLeaderboard={globalLeaderboard}
-                comparisonData={comparisonData}
-                onClose={() => setShowCompareSearch(false)}
-                className={`${isMobile 
-                  ? 'absolute left-0 right-0 top-full mt-2 w-full max-w-[95vw] mx-auto' 
-                  : 'absolute right-0 top-12 w-96'}`}
-              />
-            )}
-          </div>
-        </div>
-
-        {comparisonData.size > 0 && (
-          <div className={`flex gap-2 mb-4 ${
-            isMobile 
-              ? 'flex-wrap max-h-[100px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600' 
-              : 'flex-wrap'
-          }`}>
-            {Array.from(comparisonData.entries()).map(([compareId, { color }]) => (
-              <div 
-                key={compareId}
-                className={`flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1 
-                  ${isMobile ? 'flex-basis-[140px]' : 'whitespace-nowrap'}`}
-              >
-                <span className="text-sm truncate" style={{ color: color }}>{compareId}</span>
+            {isClubView && (
+              <div className={`flex-1 flex justify-center ${isMobile ? 'flex-col' : 'items-center'} gap-2`}>
+                <p className="text-sm text-blue-400 truncate">
+                  Comparing available with club members only
+                </p>
                 <button
-                  onClick={() => removeComparison(compareId)}
-                  className="text-gray-400 hover:text-white flex-shrink-0"
+                  onClick={() => onSwitchToGlobal()}
+                  className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-full transition-colors whitespace-nowrap"
                 >
-                  <X className="w-4 h-4" />
+                  Switch to Global View
                 </button>
               </div>
-            ))}
-          </div>
-        )}
+            )}
+            <div className={`relative flex flex-col ${isMobile ? 'w-full' : 'w-auto'}`}>
+              <div className={`flex items-center ${isMobile ? 'w-full justify-between' : 'w-full justify-end gap-2'}`}>
+                <div className="relative" ref={ssdropdownRef}>
+                  <button
+                    onClick={() => setShowDropdown(!showDropdown)}
+                    className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative"
+                    title="Screenshot options"
+                  >
+                    <Camera className="w-5 h-5" />
+                    {notifScreenshot && (
+                      <div
+                        className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-gray-800 text-white text-xs py-1 px-2 rounded-md shadow-lg animate-fadeIn pointer-events-none"
+                        onClick={(e) => e.stopPropagation()} // stop accidental clicks from triggering another screenshot
+                      >
+                        Screenshot copied! 📋
+                      </div>
+                    )}
+                  </button>
+                  
+                  {showDropdown && (
+                    <div className={`absolute ${isMobile ? 'top-full mt-2 left-0' : 'right-0 mt-2'} w-48 bg-gray-800 rounded-md shadow-lg z-10`}>
+                      <div className="py-1">
+                        <button
+                          onClick={() => handleScreenshot(true)}
+                          className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700"
+                        >
+                          With background
+                        </button>
+                        <button
+                          onClick={() => handleScreenshot(false)}
+                          className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700"
+                        >
+                          Without background
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {comparisonData.size < MAX_COMPARISONS && (
+                  <div className="relative">
+                    <button 
+                      onClick={() => setShowCompareSearch(true)}
+                      className={`p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative transition-all duration-200 group
+                        ${isMobile ? 'mr-4' : ''}`}
+                      title="Compare with another player"
+                    >
+                      <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
+                      {showCompareHint && (
+                        <div className="absolute -bottom-2 -right-2 w-5 h-5 bg-blue-500 rounded-full animate-pulse" />
+                      )}
 
-        <div className={`w-full ${isMobile ? 'h-[calc(80vh-180px)]' : 'h-[calc(90vh-170px)]'}`}>
+                      {showCompareHint && (
+                        <div className={`absolute top-full mt-2 whitespace-nowrap bg-gray-800 text-white text-xs py-1 px-2 rounded fade-out pointer-events-none
+                          ${isMobile ? 'left-0' : 'left-1/2 -translate-x-1/2'}`}>
+                          Try comparing players!
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                )}
+                <div className={`flex gap-2 bg-gray-800 rounded-lg p-1 ${isMobile ? 'flex-1 justify-center ml-2' : 'justify-end'}`}>
+                  {Object.keys(TIME.RANGES).map((range) => (
+                    <button
+                      key={range}
+                      aria-pressed={selectedTimeRange === range}
+                      onClick={() => setSelectedTimeRange(range)}
+                      className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                        selectedTimeRange === range
+                          ? 'bg-gray-600 text-white'
+                          : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                      } ${isMobile ? 'flex-1' : ''}`}
+                    >
+                      {range}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {showCompareSearch && (
+                <ComparePlayerSearch
+                  onSelect={handleAddComparison}
+                  mainPlayerId={playerId}
+                  globalLeaderboard={globalLeaderboard}
+                  comparisonData={comparisonData}
+                  onClose={() => setShowCompareSearch(false)}
+                  className={`${isMobile 
+                    ? 'absolute left-0 right-0 top-full mt-2 w-full max-w-[95vw] mx-auto' 
+                    : 'absolute right-0 top-12 w-96'}`}
+                />
+              )}
+            </div>
+          </div>
+
+          {comparisonData.size > 0 && (
+            <div className={`flex gap-2 mt-4 ${
+              isMobile 
+                ? 'flex-wrap max-h-[100px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600' 
+                : 'flex-wrap'
+            }`}>
+              {Array.from(comparisonData.entries()).map(([compareId, { color, gameCount }]) => (
+                <div 
+                  key={compareId}
+                  className={`flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1 
+                    ${isMobile ? 'flex-basis-[140px]' : 'whitespace-nowrap'}`}
+                >
+                  <span className="text-sm truncate" style={{ color: color }}>{compareId}</span>
+                  
+                  {gameCount > 0 && (
+                    isMobile ? (
+                      <span className="text-gray-400 text-xs">({gameCount})</span>
+                    ) : (
+                      <div className="relative group">
+                        <span className="text-gray-400 text-xs cursor-help">({gameCount})</span>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20 shadow-lg border border-gray-700 whitespace-normal">
+                          {GAME_COUNT_TOOLTIP}
+                        </div>
+                      </div>
+                    )
+                  )}
+
+                  <button
+                    onClick={() => removeComparison(compareId)}
+                    className="text-gray-400 hover:text-white flex-shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="relative w-full min-h-0">
           {loading ? (
             <div className="flex items-center justify-center h-full text-gray-400">Loading...</div>
           ) : error ? (

@@ -244,7 +244,7 @@ export const MembersView = ({
         )}
       </div>
       <div className="mt-4 text-sm text-gray-400">
-        <p>Total Members: {totalMembers.toLocaleString()}/{(50).toLocaleString()}</p>
+        <p>Total Members: {totalMembers.toLocaleString()}/{(100).toLocaleString()}</p>
       </div>
       <BackToTop isMobile={isMobile} />
     </div>
