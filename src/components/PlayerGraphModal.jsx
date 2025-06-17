@@ -63,7 +63,7 @@ const RANKS = [
   { label: 'Diamond 1', y: 47500, color: '#60a5fa' }
 ];
 
-const GAME_COUNT_TOOLTIP = "Estimated games played from tracked data. This count may not be 100% accurate due to events like rank score adjustments, username changes, placements, dipping below 10k in the leaderboard.";
+const GAME_COUNT_TOOLTIP = "Estimated games played from tracked data. This count may not be 100% accurate due to events like rank score adjustments, username changes and games whilst placed under 10k in the leaderboard.";
 
 const getRankFromScore = (score) => {
   for (let i = RANKS.length - 1; i >= 0; i--) {
@@ -722,7 +722,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       const result = await fetchPlayerGraphData(compareId);
       if (!result.data?.length) return null;
       
-      const gameCount = result.data.length;
+      const gameCount = result.data.length + 4; // Add 4 for ranked tournament placements.
       const parsedData = result.data.map(item => ({
         ...item,
         timestamp: new Date(item.timestamp * 1000)
@@ -1071,7 +1071,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
         return;
       }
   
-      setMainPlayerGameCount(result.data.length);
+      setMainPlayerGameCount(result.data.length + 4); // Add 4 for ranked tournament placements.
 
       const parsedData = result.data.map(item => ({
         ...item,
@@ -1581,7 +1581,6 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
                       </div>
                     )}
                   </button>
-
                   {showDropdown && (
                     <div className={`absolute ${isMobile ? 'top-full mt-2 left-0' : 'right-0 mt-2'} w-48 bg-gray-800 rounded-md shadow-lg z-10`}>
                       <div className="py-1">
