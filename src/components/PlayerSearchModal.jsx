@@ -198,15 +198,17 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div 
-        ref={modalRef} 
-        className="bg-gray-800 rounded-lg p-6 w-full sm:w-2/3 h-[80vh] m-4 flex flex-col"
-      >
+  <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-2 sm:p-4">
+    <div 
+      ref={modalRef} 
+      className="bg-gray-800 rounded-lg p-6 w-full max-h-[90vh] sm:w-2/3 sm:h-[80vh] m-4 flex flex-col"
+    >
         <div className="flex-shrink-0">
           <div className="flex items-center mb-4 relative">
             <button 
               onClick={handleClose}
+              title="Close search"
+              aria-label="Close search"
               className="sm:hidden absolute right-0 p-2 hover:bg-gray-700 rounded-lg"
             >
               <X className="w-5 h-5 text-gray-400" />
@@ -215,13 +217,13 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
           </div>
 
           <div className="mb-4">
-            <div 
+            <button 
               onClick={toggleExplanation}
-              className="p-4 bg-gray-700 rounded-lg text-gray-300 flex justify-between items-center cursor-pointer sm:hidden"
+              className="p-4 bg-gray-700 rounded-lg text-gray-300 flex justify-between items-center w-full text-left sm:hidden hover:bg-gray-600"
             >
               <span className="text-sm">Tap to view search tool details</span>
               {isExplanationExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-            </div>
+            </button>
             
             {/* Full explanation visible on desktop, conditional on mobile */}
             <div className={`
@@ -269,11 +271,9 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
               <button
                 onClick={() => handleSearch(searchState.query)}
                 disabled={searchState.isSearching}
-                className={`
-                  px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50
-                  flex items-center justify-center
-                  ${isMobile ? 'w-16' : ''}
-                `}
+                title="Search"
+                aria-label="Search"
+                className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center"
               >
                 <Search className={`w-5 h-5 ${searchState.isSearching ? 'animate-spin' : ''}`} />
               </button>

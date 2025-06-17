@@ -1571,6 +1571,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
                     onClick={() => setShowDropdown(!showDropdown)}
                     className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative"
                     title="Screenshot options"
+                    aria-haspopup="true"
+                    aria-expanded={showDropdown}
                   >
                     <Camera className="w-5 h-5" />
                     {notifScreenshot && (
@@ -1608,6 +1610,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
                       className={`p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative transition-all duration-200 group
                         ${isMobile ? 'mr-4' : ''}`}
                       title="Compare with another player"
+                      aria-label="Compare with another player"
                     >
                       <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
                       {showCompareHint && (
@@ -1665,7 +1668,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
               {Array.from(comparisonData.entries()).map(([compareId, { color, gameCount }]) => (
                 <div 
                   key={compareId}
-                  className={`flex items-baseline gap-2 bg-gray-700 rounded-lg px-3 py-1 
+                  className={`flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1 
                     ${isMobile ? 'flex-basis-[140px]' : 'whitespace-nowrap'}`}
                 >
                   <span className="text-sm truncate" style={{ color: color }}>{compareId}</span>
@@ -1685,6 +1688,8 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
 
                   <button
                     onClick={() => removeComparison(compareId)}
+                    title={`Remove ${compareId} from comparison`}
+                    aria-label={`Remove ${compareId} from comparison`}
                     className="text-gray-400 hover:text-white flex-shrink-0"
                   >
                     <X className="w-4 h-4" />
