@@ -156,21 +156,21 @@ TIME.DISPLAY_FORMATS = {
 }
 const MAX_COMPARISONS = 5;
 
-const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClose, comparisonData, className = '' }) => {
+const ComparePlayerSearch = ({ onSelect, mainEmbarkId, globalLeaderboard, onClose, comparisonData, className = '' }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredPlayers, setFilteredPlayers] = useState([]);
   const searchRef = useRef(null);
 
   // Find main player's score from leaderboard
   const getClosestPlayers = useCallback(() => {
-    const mainPlayer = globalLeaderboard.find(p => p.name === mainPlayerId);
+    const mainPlayer = globalLeaderboard.find(p => p.name === mainEmbarkId);
     if (!mainPlayer) return [];
   
     const mainRank = mainPlayer.rank;
     
     // Get all valid players (not the main player and not already in comparison)
     const validPlayers = globalLeaderboard.filter(player => 
-      player.name !== mainPlayerId && 
+      player.name !== mainEmbarkId && 
       !Array.from(comparisonData.keys()).includes(player.name)
     );
     
@@ -186,14 +186,14 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
     return sortedByDistance
       .slice(0, 50)
       .sort((a, b) => a.rank - b.rank); // Final sort by rank ascending
-  }, [mainPlayerId, globalLeaderboard, comparisonData]);
+  }, [mainEmbarkId, globalLeaderboard, comparisonData]);
 
   useEffect(() => {
     if (searchTerm) {
       // If there's a search term, filter by name/club tag
       const filtered = globalLeaderboard
         .filter(player => 
-          player.name !== mainPlayerId && 
+          player.name !== mainEmbarkId && 
           !Array.from(comparisonData.keys()).includes(player.name) &&
           (player.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
            (player.clubTag && `[${player.clubTag}]`.toLowerCase().includes(searchTerm.toLowerCase())))
@@ -204,7 +204,7 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
       // If no search term, show closest players
       setFilteredPlayers(getClosestPlayers());
     }
-  }, [searchTerm, mainPlayerId, globalLeaderboard, comparisonData, getClosestPlayers]);
+  }, [searchTerm, mainEmbarkId, globalLeaderboard, comparisonData, getClosestPlayers]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -248,7 +248,7 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
           </div>
         )}
         {filteredPlayers.map((player) => {
-          const mainPlayer = globalLeaderboard.find(p => p.name === mainPlayerId);
+          const mainPlayer = globalLeaderboard.find(p => p.name === mainEmbarkId);
           const scoreDiff = mainPlayer ? player.rankScore - mainPlayer.rankScore : 0;
      
           return (
@@ -280,7 +280,7 @@ const ComparePlayerSearch = ({ onSelect, mainPlayerId, globalLeaderboard, onClos
   );
 };
 
-const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubView = false, globalLeaderboard = [], onSwitchToGlobal, isMobile }) => {
+const PlayerGraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = false, globalLeaderboard = [], onSwitchToGlobal, isMobile }) => {
   const { setIsModalOpen, modalRef, setOnClose } = useModal();
   const [data, setData] = useState(null);
   const [mainPlayerGameCount, setMainPlayerGameCount] = useState(0);
@@ -760,23 +760,23 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
         
         // Update URL with new comparison
         const currentCompares = Array.from(next.keys());
-        const urlString = formatMultipleUsernamesForUrl(playerId, currentCompares);
+        const urlString = formatMultipleUsernamesForUrl(embarkId, currentCompares);
         window.history.replaceState(null, '', `/graph/${urlString}`);
         
         return next;
       });
     }
     setShowCompareSearch(false);
-  }, [loadComparisonData, comparisonData.size, playerId]);
+  }, [loadComparisonData, comparisonData.size, embarkId]);
 
-  const removeComparison = useCallback((comparePlayerId) => {
+  const removeComparison = useCallback((compareEmbarkId) => {
     // Stop following URL compareIds after manual removal
     shouldFollowUrlRef.current = false;
     
     setComparisonData(prev => {
       const next = new Map(prev);
-      next.delete(comparePlayerId);
-      loadedCompareIdsRef.current.delete(comparePlayerId);
+      next.delete(compareEmbarkId);
+      loadedCompareIdsRef.current.delete(compareEmbarkId);
       
       // Reassign colors to maintain order
       const entries = Array.from(next.entries());
@@ -790,12 +790,12 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       
       // Update URL after removal
       const currentCompares = Array.from(next.keys());
-      const urlString = formatMultipleUsernamesForUrl(playerId, currentCompares);
+      const urlString = formatMultipleUsernamesForUrl(embarkId, currentCompares);
       window.history.replaceState(null, '', `/graph/${urlString}`);
       
       return next;
     });
-  }, [playerId]);
+  }, [embarkId]);
 
   const getDynamicYAxisDomain = useCallback((dataMin, dataMax, data, timeWindow, customTimeRange = null) => {
     if (!data?.length) return [0, 50000];
@@ -1061,7 +1061,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
     setLoading(true);
     setError(null);
     try {
-      const result = await fetchPlayerGraphData(playerId);
+      const result = await fetchPlayerGraphData(embarkId);
       if (!result.data?.length) {
         setError('No data available for this player, they may have recently changed their embarkId.');
         return;
@@ -1092,14 +1092,14 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
     } finally {
       setLoading(false);
     }
-  }, [playerId, calculateViewWindow, interpolateDataPoints, determineDefaultTimeRange]);
+  }, [embarkId, calculateViewWindow, interpolateDataPoints, determineDefaultTimeRange]);
 
   // Load data now, after init
   useEffect(() => {
-    if (isOpen && playerId) {
+    if (isOpen && embarkId) {
       loadData();
     }
-  }, [isOpen, playerId, loadData]);
+  }, [isOpen, embarkId, loadData]);
 
   // Separate effect for handling time range changes
   useEffect(() => {
@@ -1426,7 +1426,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
   const chartData = useMemo(() => data ? {
     labels: data.map(d => d.timestamp),
     datasets: [{
-      label: ` ${playerId}`,
+      label: ` ${embarkId}`,
       data: data.map(d => ({
           x: d.timestamp,
           y: d.rankScore,
@@ -1508,9 +1508,9 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
       borderWidth: 2, // if updated, check segment function above
       tension: 0.01
     }))]
-  } : null, [data, playerId, comparisonData, getPointRadius]);
+  } : null, [data, embarkId, comparisonData, getPointRadius]);
 
-  if (!isOpen || !playerId) return null;
+  if (!isOpen || !embarkId) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
@@ -1522,7 +1522,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
               <div className="flex items-center justify-between">
                 <div className={`flex items-center gap-2.5 ${isMobile ? 'min-w-0' : ''}`}>
                   <h2 className={`font-bold text-white truncate ${isMobile ? 'text-lg' : 'text-xl'}`}>
-                    {playerId}
+                    {embarkId}
                   </h2>
                   {data && mainPlayerGameCount > 0 && (
                     <div className="relative group flex-shrink-0">
@@ -1647,7 +1647,7 @@ const PlayerGraphModal = ({ isOpen, onClose, playerId, compareIds = [], isClubVi
               {showCompareSearch && (
                 <ComparePlayerSearch
                   onSelect={handleAddComparison}
-                  mainPlayerId={playerId}
+                  mainEmbarkId={embarkId}
                   globalLeaderboard={globalLeaderboard}
                   comparisonData={comparisonData}
                   onClose={() => setShowCompareSearch(false)}

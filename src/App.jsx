@@ -37,7 +37,7 @@ const App = () => {
   });
   const [graphModalState, setGraphModalState] = useState({
     isOpen: false,
-    playerId: null,
+    embarkId: null,
     compareIds: [],
     isClubView: false,
     isMobile
@@ -149,13 +149,13 @@ const App = () => {
 
   // Handle graph modal close
   const handleGraphModalClose = () => {
-    setGraphModalState({ isOpen: false, playerId: null, compareIds: [], isClubView: false, isMobile });
+    setGraphModalState({ isOpen: false, embarkId: null, compareIds: [], isClubView: false, isMobile });
     navigate('/', { replace: true });
   };
 
   // Handle graph modal open/close
-  const handleGraphModalOpen = useCallback((playerId, compareIds = []) => {
-    const urlString = formatMultipleUsernamesForUrl(playerId, compareIds);
+  const handleGraphModalOpen = useCallback((embarkId, compareIds = []) => {
+    const urlString = formatMultipleUsernamesForUrl(embarkId, compareIds);
     navigate(`/graph/${urlString}`, { replace: true });
   }, [navigate]);
 
@@ -172,7 +172,7 @@ const App = () => {
         // Important: Check if we really need to update the state
         if (
           prev.isOpen && 
-          prev.playerId === main && 
+          prev.embarkId === main && 
           JSON.stringify(prev.compareIds) === JSON.stringify(compare) &&
           prev.isClubView === (view === 'members') &&
           prev.isMobile === isMobile
@@ -182,7 +182,7 @@ const App = () => {
         
         return {
         isOpen: true,
-        playerId: main,
+        embarkId: main,
         compareIds: compare,
         isClubView: (view === 'members'),
         isMobile
@@ -251,7 +251,7 @@ const App = () => {
                   totalMembers={clubMembersData.length} 
                   onPlayerSearch={(name) => handleSearchModalOpen(name)}
                   clubMembersData={clubMembersData} // Pass club members data to members view
-                  onGraphOpen={(playerId) => handleGraphModalOpen(playerId)}
+                  onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
                   isMobile={isMobile}
                 />
               )}
@@ -272,7 +272,7 @@ const App = () => {
                   onPlayerSearch={(name) => handleSearchModalOpen(name)}
                   searchQuery={globalSearchQuery}
                   setSearchQuery={setGlobalSearchQuery}
-                  onGraphOpen={(playerId) => handleGraphModalOpen(playerId)}
+                  onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
                   isMobile={isMobile}
                   showFavourites={showFavourites}
                   setShowFavourites={setShowFavourites}
@@ -292,11 +292,11 @@ const App = () => {
             onClubClick={handleClubClick}
           />
 
-          {graphModalState.playerId && (
+          {graphModalState.embarkId && (
             <PlayerGraphModal
               isOpen={graphModalState.isOpen}
               onClose={handleGraphModalClose}
-              playerId={graphModalState.playerId}
+              embarkId={graphModalState.embarkId}
               compareIds={graphModalState.compareIds}
               isClubView={graphModalState.isClubView}
               globalLeaderboard={graphModalState.isClubView ? rankedClubMembers : globalLeaderboard}

@@ -1,6 +1,6 @@
 import { API } from "./api";
 
-export const fetchPlayerGraphData = async (playerId) => {
+export const fetchPlayerGraphData = async (embarkId) => {
   try {
     const startTime = Date.now();
     const response = await fetch(`${API.BASE_URL}/graph`, {
@@ -8,7 +8,7 @@ export const fetchPlayerGraphData = async (playerId) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         token: API.AUTH_TOKEN,
-        playerId
+        embarkId
       })
     });
     
@@ -24,14 +24,14 @@ export const fetchPlayerGraphData = async (playerId) => {
     }
 
     console.group('Player Graph Data Fetch');
-    console.log('Player ID:', playerId);
+    console.log('Embark ID:', embarkId);
     console.log('Data Points:', result.data.length);
     console.log('Response Time:', `${responseTime}ms`);
     console.groupEnd();
 
     return {
       data: result.data,
-      playerId: result.playerId,
+      embarkId: result.embarkId,
       responseTime
     };
 
