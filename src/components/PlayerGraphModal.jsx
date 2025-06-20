@@ -723,8 +723,12 @@ const PlayerGraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubVi
       const result = await fetchPlayerGraphData(compareId);
       if (!result.data?.length) return null;
       
-      const gameCount = result.data.length + RANKED_PLACEMENTS; // Add 4 for ranked tournament placements.
-      const parsedData = result.data.map(item => ({
+      // Filter for points with score changes
+      const activeData = result.data.filter(item => item.scoreChanged);
+      if (!activeData.length) return null;
+
+      const gameCount = activeData.length + RANKED_PLACEMENTS; // Add 4 for ranked tournament placements.
+      const parsedData = activeData.map(item => ({
         ...item,
         timestamp: new Date(item.timestamp * 1000)
       }));
@@ -1067,14 +1071,22 @@ const PlayerGraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubVi
         return;
       }
       
-      if (result.data.length === 1) {
-        setError('Not enough data points to display graph, player has probably recently changed their embarkId.');
+      // Filter for data points where the score actually changed
+      const activeData = result.data.filter(item => item.scoreChanged);
+      
+      if (!activeData.length) {
+        setError('No games with rank score changes have been recorded for this player.');
+        return;
+      }
+      
+      if (activeData.length < 2) {
+        setError('Not enough data points with score changes to display a meaningful graph.');
         return;
       }
   
-      setMainPlayerGameCount(result.data.length + RANKED_PLACEMENTS); // Add 4 for ranked tournament placements.
+      setMainPlayerGameCount(activeData.length + RANKED_PLACEMENTS); // Use active data for game count
 
-      const parsedData = result.data.map(item => ({
+      const parsedData = activeData.map(item => ({
         ...item,
         timestamp: new Date(item.timestamp * 1000)
       }));
