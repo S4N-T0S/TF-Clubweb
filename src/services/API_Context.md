@@ -23,8 +23,7 @@ You are an expert frontend developer. Your task is to help build a web applicati
       data: PlayerEntry[];
       source: 'kv-cache' | 'kv-cache-fallback';
       timestamp: number; // Unix timestamp of the data
-      cacheDuration: number;
-      remainingTtl: number;
+      expiresAt: number; // The absolute Unix timestamp when the cache is considered stale.
       responseTime: number;
     }
 
@@ -156,11 +155,12 @@ You are an expert frontend developer. Your task is to help build a web applicati
         }
         ```
 
-    4.  **`CLUB_CHANGE`**: A player changed their club affiliation.
+    4.  **`CLUB_CHANGE`**: A player changed their club affiliation. The `is_mass_change` flag helps differentiate between a single player's action and a coordinated change involving multiple players (e.g., a club owner renaming the club tag).
         ```typescript
         interface ClubChangeDetails {
           name: string;
           old_club: string | null;
           new_club: string | null;
+          is_mass_change: boolean;
         }
         ```
