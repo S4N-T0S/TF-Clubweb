@@ -1,39 +1,7 @@
-// Currently storing club members in a google sheets to reduce pointless commits on GitHub. Could store on KV or a DB but no need for now.
-const DEFAULT_OPTIONS = {
-  url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT9bH84oHf5vPtElxeJyS4n4oHDPe7cm-_zYkFF0aX4ELf2rq37X6G6QEmrRvmnD16Afb7anaB2AVzC/pub?output=csv',
-  retryCount: 1,
-  retryDelay: 50
-};
+import { fetchWithRetry } from './apiService';
 
-async function fetchWithRetry(options = {}) {
-  const { url, retryCount, retryDelay } = { ...DEFAULT_OPTIONS, ...options };
-  
-  for (let attempt = 1; attempt <= retryCount + 1; attempt++) {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`, attempt);
-      }
-      return await response.text();
-    } catch (error) {
-      if (attempt === retryCount + 1) {
-        throw new Error(`Failed to fetch after ${retryCount + 1} attempts: ${error.message}`);
-      }
-      console.warn(`Attempt ${attempt} failed, retrying in ${retryDelay}ms...`);
-      await new Promise(resolve => setTimeout(resolve, retryDelay));
-    }
-  }
-};
-
-export async function fetchClubMembers() {
-  try {
-    const csvText = await fetchWithRetry();
-    return parseCsvData(csvText);
-  } catch (error) {
-    console.error('Error fetching club members:', error);
-    return [];
-  }
-};
+// Storing club members in a google sheets to reduce pointless commits on GitHub.
+const CLUB_MEMBERS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT9bH84oHf5vPtElxeJyS4n4oHDPe7cm-_zYkFF0aX4ELf2rq37X6G6QEmrRvmnD16Afb7anaB2AVzC/pub?output=csv';
 
 function parseCsvData(csvText) {
   return csvText
@@ -47,4 +15,14 @@ function parseCsvData(csvText) {
         //discord: discord?.trim() || null -- Discord Link Removed.
       };
     });
+};
+
+export async function fetchClubMembers() {
+  try {
+    const csvText = await fetchWithRetry(CLUB_MEMBERS_CSV_URL);
+    return parseCsvData(csvText);
+  } catch (error) {
+    console.error('Error fetching club members:', error);
+    return [];
+  }
 };
