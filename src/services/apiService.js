@@ -19,10 +19,20 @@ export class ApiError extends Error {
 // --- Central Fetch Function ---
 export async function apiFetch(endpoint, options = {}) {
   const url = `${API.BASE_URL}${endpoint}`;
+  
+  // Only add if we have a body to send
+  const headers = {};
+  if (options.body) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const config = {
     method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: {
+      ...headers,
+      ...options.headers, // Allow overriding headers if needed
+    },
   };
 
   if (config.body && typeof config.body !== 'string') {
