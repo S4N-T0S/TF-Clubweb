@@ -154,12 +154,12 @@ const Toast = ({
           <p className={`${!title ? 'font-medium' : ''} ${textSizeClass} break-words`}>
             {currentMessage}
           </p>
-          {showMeta && (timestamp || ttl) ? (
+          {showMeta && (timestamp || typeof ttl === 'number') ? (
             <div className="mt-1">
               {timestamp && (
                 <p className="text-white/80 text-xs">Last updated {formatTimestamp(timestamp)}</p>
               )}
-              {ttl && (
+              {typeof ttl === 'number' && (
                 <p className="text-white/80 text-xs">{formatTtl(ttl, type)}</p>
               )}
             </div>
