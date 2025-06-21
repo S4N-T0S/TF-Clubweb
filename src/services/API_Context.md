@@ -99,7 +99,7 @@ You are an expert frontend developer. Your task is to help build a web applicati
 
 *   **Endpoint:** `GET /events`
 *   **Auth:** None.
-*   **Purpose:** Fetches a feed of recent, significant player events like name changes, suspected bans, etc. This is for a live "event feed" on the site. The backend returns the last 100 events. (might increase this)
+*   **Purpose:** Fetches a feed of recent, significant player events like name changes, suspected bans, etc. This is for a live "event feed" on the site. The backend returns the last 500 events.
 *   **Response Structure:**
     ```typescript
     interface EventsResponse {

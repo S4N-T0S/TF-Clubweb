@@ -42,7 +42,8 @@ export const DashboardHeaderProps = {
   isRefreshing: PropTypes.bool.isRequired,
   isMobile: PropTypes.bool.isRequired,
   showFavourites: PropTypes.bool.isRequired,
-  setShowFavourites: PropTypes.func.isRequired
+  setShowFavourites: PropTypes.func.isRequired,
+  showToast: PropTypes.func.isRequired
 };
 
 export const ViewButtonProps = {
@@ -84,7 +85,10 @@ export const GlobalViewProps = {
   setSearchQuery: PropTypes.func.isRequired,
   onGraphOpen: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired,
-  showFavourites: PropTypes.bool.isRequired
+  showFavourites: PropTypes.bool.isRequired,
+  setShowFavourites: PropTypes.func.isRequired,
+  rubyCutoff: PropTypes.oneOfType([PropTypes.number, PropTypes.bool]),
+  showToast: PropTypes.func.isRequired
 };
 
 export const GlobalPlayerRowProps = {
@@ -93,12 +97,13 @@ export const GlobalPlayerRowProps = {
   onClubClick: PropTypes.func.isRequired,
   onGraphClick: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired,
-  isCurrentSeason: PropTypes.bool.isRequired
+  isCurrentSeason: PropTypes.bool.isRequired,
+  selectedSeason: PropTypes.string.isRequired
 };
 
 export const NoResultsMessageProps = {
   selectedSeason: PropTypes.string,
-  handleSeasonChange: PropTypes.func
+  onSeasonChange: PropTypes.func
 };
 
 export const RankChangeDisplayProps = {
@@ -106,7 +111,7 @@ export const RankChangeDisplayProps = {
 };
 
 export const RubyCutoffIndicatorProps = {
-  cutoff: PropTypes.number,
+  cutoff: PropTypes.oneOfType([PropTypes.number, PropTypes.bool]),
   onCutoffClick: PropTypes.func
 };
 
@@ -119,20 +124,24 @@ export const MembersViewProps = {
     discord: PropTypes.string
   })),
   onGraphOpen: PropTypes.func.isRequired,
-  isMobile: PropTypes.bool.isRequired
+  isMobile: PropTypes.bool.isRequired,
+  setView: PropTypes.func.isRequired,
+  setGlobalSearchQuery: PropTypes.func.isRequired
 };
 
 export const MemberRowProps = {
   member: PropTypes.shape(PlayerType).isRequired,
   onSearchClick: PropTypes.func.isRequired,
   onGraphClick: PropTypes.func.isRequired,
-  /*
   clubMembersData: PropTypes.arrayOf(PropTypes.shape({
-    embarkId: PropTypes.string.isRequired,
-    discord: PropTypes.string
+    embarkId: PropTypes.string.isRequired
   })),
-  */
   isMobile: PropTypes.bool.isRequired
+};
+
+export const MembersNoResultsProps = {
+  searchQuery: PropTypes.string.isRequired,
+  onSwitchToGlobalSearch: PropTypes.func.isRequired
 };
 
 export const ToastProps = {
@@ -168,7 +177,8 @@ export const PlayerSearchModalProps = {
   initialSearch: PropTypes.string,
   currentSeasonData: PropTypes.array,
   onSearch: PropTypes.func.isRequired,
-  isMobile: PropTypes.bool.isRequired
+  isMobile: PropTypes.bool.isRequired,
+  onClubClick: PropTypes.func.isRequired
 };
 
 export const PaginationProps = {
@@ -194,7 +204,8 @@ export const ComparePlayerSearchProps = {
   mainEmbarkId: PropTypes.string.isRequired,
   globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)).isRequired,
   onClose: PropTypes.func.isRequired,
-  comparisonData: PropTypes.instanceOf(Map).isRequired
+  comparisonData: PropTypes.instanceOf(Map).isRequired,
+  className: PropTypes.string
 };
 
 export const PlayerGraphModalProps = {

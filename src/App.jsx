@@ -256,6 +256,8 @@ const App = () => {
                   onPlayerSearch={(name) => handleSearchModalOpen(name)}
                   clubMembersData={clubMembersData} // Pass club members data to members view
                   onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
+                  setView={setView}
+                  setGlobalSearchQuery={setGlobalSearchQuery}
                   isMobile={isMobile}
                 />
               )}

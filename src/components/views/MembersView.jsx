@@ -2,7 +2,7 @@ import { UserSearch, LineChart } from 'lucide-react';
 import { LeagueDisplay } from '../LeagueDisplay';
 import { BackToTop } from '../BackToTop';
 import { PlatformIcons } from "../icons/Platforms";
-import { MembersViewProps, MemberRowProps } from '../../types/propTypes';
+import { MembersViewProps, MemberRowProps, MembersNoResultsProps } from '../../types/propTypes';
 import { usePagination } from '../../hooks/usePagination';
 import { SearchBar } from '../SearchBar';
 import { Pagination } from '../Pagination';
@@ -11,6 +11,21 @@ import { useRef } from 'react';
 import { useSwipe } from '../../hooks/useSwipe';
 import { useModal } from '../../context/ModalContext';
 
+const MembersNoResults = ({ searchQuery, onSwitchToGlobalSearch }) => (
+  <div className="p-6 text-center text-gray-400">
+    <p>No members found for your search query: &quot;{searchQuery}&quot;</p>
+    <p className="mt-2">
+      Perhaps you meant to search the global leaderboard?{' '}
+      <span
+        className="text-blue-400 cursor-pointer hover:underline"
+        onClick={onSwitchToGlobalSearch}
+        aria-label={`Search for ${searchQuery} in Global View`}
+      >
+        Search for &quot;{searchQuery}&quot; in Global View.
+      </span>
+    </p>
+  </div>
+);
 
 const MemberRow = ({ 
   member, 
@@ -171,7 +186,9 @@ export const MembersView = ({
   onPlayerSearch,
   clubMembersData,
   onGraphOpen,
-  isMobile
+  isMobile,
+  setView,
+  setGlobalSearchQuery
 }) => {
   const searchInputRef = useRef(null);
   const { isModalOpen } = useModal();
@@ -195,6 +212,11 @@ export const MembersView = ({
     { isSwipeActive: !isModalOpen }
   );
 
+  const handleSwitchToGlobalSearch = () => {
+    setView('global');
+    setGlobalSearchQuery(searchQuery);
+  };
+
   return (
     <div>
       <SearchBar
@@ -208,7 +230,10 @@ export const MembersView = ({
           <div className="table-container">
             {isMobile ? (
               <div className="flex flex-col gap-2">
-                {currentItems.map((member) => (
+                {filteredItems.length === 0 && searchQuery ? (
+                  <MembersNoResults searchQuery={searchQuery} onSwitchToGlobalSearch={handleSwitchToGlobalSearch} />
+                ) : (
+                  currentItems.map((member) => (
                     <MemberRow 
                       key={member.name} 
                       member={member} 
@@ -218,7 +243,7 @@ export const MembersView = ({
                       isMobile={true}
                     />
                   ))
-                }
+                )}
               </div>
             ) : (
               <div className="overflow-hidden rounded-lg">
@@ -247,7 +272,14 @@ export const MembersView = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {currentItems.map((member) => (
+                    {filteredItems.length === 0 && searchQuery ? (
+                      <tr>
+                        <td colSpan="4">
+                           <MembersNoResults searchQuery={searchQuery} onSwitchToGlobalSearch={handleSwitchToGlobalSearch} />
+                        </td>
+                      </tr>
+                    ) : (
+                      currentItems.map((member) => (
                         <MemberRow 
                           key={member.name} 
                           member={member} 
@@ -257,7 +289,7 @@ export const MembersView = ({
                           isMobile={false}
                         />
                       ))
-                    }
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -297,3 +329,4 @@ export const MembersView = ({
 
 MembersView.propTypes = MembersViewProps;
 MemberRow.propTypes = MemberRowProps;
+MembersNoResults.propTypes = MembersNoResultsProps;
