@@ -65,7 +65,8 @@ export const fetchLeaderboardData = async () => {
 
     // 1. Check for fresh client cache
     if (cachedData && !cachedData.isStale) {
-      const source = cachedData.source === 'kv-cache-fallback' ? 'Client-Cache-Fallback' : 'Client-Cache';
+      const source = cachedData.source === 'kv-cache-fallback' ? 'client-cache-fallback' : 'client-cache';
+      
       logApiCall(source, {
         groupName: 'Leaderboard',
         timestamp: cachedData.timestamp,
@@ -116,7 +117,7 @@ export const fetchLeaderboardData = async () => {
     console.error("Leaderboard fetch failed, checking for emergency cache.", error);
     const cachedData = getCachedData();
     if (cachedData) {
-      logApiCall('Client-Cache-Emergency', {
+      logApiCall('client-cache-emergency', { // This one was already correct
         groupName: 'Leaderboard',
         timestamp: cachedData.timestamp,
         remainingTtl: 120, // Assign a default TTL for emergency data
