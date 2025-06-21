@@ -6,7 +6,7 @@ You are an expert frontend developer. Your task is to help build a web applicati
 
 *   **Seasons:** The API's data is partitioned by "seasons". Each season has a unique `id` and `name`. The frontend will need to allow users to select a season, especially for viewing player graphs. The current season is `7`. (as this is writen)
 *   **Player Identity:** A player is identified by an "Embark ID" (e.g., `Username#1234`). Players can change their Embark ID. The backend tracks these changes using a permanent, internal ID. API responses will always provide the player's *current* Embark ID, along with their name change history where relevant.
-*   **Public Authentication:** The `/graph` endpoint is a POST request and requires a public auth token to be sent in the request body. The key is `token` and its value is stored in the backend's `.env` as `PUBLIC_API_TOKEN`.
+*   **Public Authentication:** The `/graph` endpoint is a POST request and requires a public auth token to be sent in the request body. (This endpoint still has token in case of floods in future)
 
 ---
 
