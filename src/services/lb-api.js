@@ -97,9 +97,7 @@ export const fetchLeaderboardData = async () => {
 
     const startTime = Date.now();
     const response = await fetch(`${API.BASE_URL}/leaderboard`, {
-      method: API.METHOD,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: API.AUTH_TOKEN })
+      method: 'GET',
     });
     
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);

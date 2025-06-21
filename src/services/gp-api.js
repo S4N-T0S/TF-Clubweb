@@ -4,7 +4,7 @@ export const fetchPlayerGraphData = async (embarkId) => {
   try {
     const startTime = Date.now();
     const response = await fetch(`${API.BASE_URL}/graph`, {
-      method: API.METHOD,
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         token: API.AUTH_TOKEN,
