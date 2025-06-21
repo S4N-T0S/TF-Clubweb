@@ -26,24 +26,28 @@ const formatTimestamp = (timestamp) => {
 };
 
 const formatTtl = (ttl, type) => {
-  // Handle cases where TTL has expired or is zero
+  // Handle cases where TTL has expired or is zero.
   if (ttl <= 0) {
     if (type === 'success') {
       return 'Up to date!';
     }
     // Logic to handle the user-facing cooldown message for stale data warnings and errors.
+    // This tells the user when they can try fetching fresh data again.
     if (type === 'warning' || type === 'error') {
       return 'Try again in 2 minutes';
     }
     // A sensible fallback for other types, though unlikely to be used with a zero TTL.
     return 'Retrying...';
   }
+
+  // If TTL is positive, calculate remaining minutes.
   const minutes = Math.ceil(ttl / 60);
+  const minuteText = minutes === 1 ? '1 minute' : `${minutes} minutes`;
   
   if (type === 'success') {
-    return minutes === 1 ? 'Will check for update in 1 minute' : `Will check for update in ${minutes} minutes`;
+    return `Will check for update in ${minuteText}`;
   }
-  return minutes === 1 ? 'Try again in 1 minute' : `Try again in ${minutes} minutes`;
+  return `Try again in ${minuteText}`;
 };
 
 // Map of toast types to their default properties

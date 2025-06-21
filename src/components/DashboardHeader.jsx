@@ -57,61 +57,61 @@ export const DashboardHeader = ({
 
   const FavouritesButton = () => {
     const isGlobalView = view === 'global';
-    const hasNoFavourites = Favourites.length === 0;
+    const hasFavourites = Favourites.length > 0;
     const isHistoricalSeason = selectedSeason !== currentSeason;
-  
-    // Effect to disable Favourites mode when no Favourites remain [bugfix]
+
+    const isDisabled = !isGlobalView || !hasFavourites || isHistoricalSeason;
+    const isActive = showFavourites && !isHistoricalSeason;
+    const buttonClass = `
+      px-4 py-2 rounded-lg flex items-center justify-center gap-2 
+      ${isActive ? 'bg-yellow-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'} 
+      w-full sm:w-auto ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
+    `;
+
+    // This effect ensures the Favourites view is disabled if the conditions for it are no longer met.
     useEffect(() => {
-      if ((hasNoFavourites && showFavourites) || isHistoricalSeason) {
+      if (isHistoricalSeason || !hasFavourites) {
         setShowFavourites(false);
       }
-    }, [hasNoFavourites, isHistoricalSeason]);
+    }, [isHistoricalSeason, hasFavourites]);
   
-    return (
-      <button
-        onClick={() => {
-          if (!isGlobalView) {
-            showToast({
-              message: 'Switch to Global view to use Favourites.',
-              type: 'warning',
-              icon: Star,
-              duration: 2000
-            });
-            return;
-          }
-          
-          if (isHistoricalSeason) {
-            showToast({
-              message: 'Favourites are disabled in historical seasons.',
-              type: 'warning',
-              icon: Star,
-              duration: 2000
-            });
-            return;
-          }
+    const handleClick = () => {
+      if (isDisabled) {
+        if (!isGlobalView) {
+          showToast({
+            message: 'Switch to Global view to use Favourites.',
+            type: 'warning',
+            icon: Star,
+            duration: 2000
+          });
+        } else if (isHistoricalSeason) {
+          showToast({
+            message: 'Favourites are disabled in historical seasons.',
+            type: 'warning',
+            icon: Star,
+            duration: 2000
+          });
+        } else if (!hasFavourites) {
+          showToast({
+            title: `No Favourites yet!`,
+            message: isMobile
+              ? 'Long-press on a player to Favourite them. You can also swipe to switch pages.'
+              : 'Click the star next to a player to Favourite them.',
+            type: 'info',
+            icon: Star,
+            duration: 4000
+          });
+        }
+        return;
+      }
+      
+      setShowFavourites(!showFavourites);
+    };
 
-          if (hasNoFavourites) {
-            showToast({
-              title: `No Favourites yet!`,
-              message: isMobile
-                ? 'Long-press on a player to Favourite them. You can also swipe to switch pages.'
-                : 'Click the star next to a player to Favourite them.',
-              type: 'info',
-              icon: Star,
-              duration: 4000
-            });
-            return;
-          }
-          
-          setShowFavourites(!showFavourites);
-        }}
-        className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 
-          ${showFavourites && !isHistoricalSeason 
-            ? 'bg-yellow-500 text-white' 
-            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'} 
-          w-full sm:w-auto ${!isGlobalView || hasNoFavourites || isHistoricalSeason ? 'opacity-50' : ''}`}
-      >
-        <Star className={`w-4 h-4 ${showFavourites && !isHistoricalSeason ? 'fill-current' : ''}`} />
+    // The button is not truly disabled, allowing the onClick to fire and show a toast.
+    return (
+      <button onClick={handleClick} className={buttonClass}>
+        <Star className={`w-4 h-4 ${isActive ? 'fill-current' : ''}`} />
       </button>
     );
   };

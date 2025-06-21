@@ -167,25 +167,29 @@ const App = () => {
         navigate('/');
         return;
       }
+      
+      const isClubView = view === 'members';
   
+      // Update the modal state only if the necessary props have changed.
+      // This prevents re-renders and potential flickering when other state updates.
       setGraphModalState(prev => {
-        // Important: Check if we really need to update the state
-        if (
-          prev.isOpen && 
-          prev.embarkId === main && 
-          JSON.stringify(prev.compareIds) === JSON.stringify(compare) &&
-          prev.isClubView === (view === 'members') &&
-          prev.isMobile === isMobile
-        ) {
-          return prev; // Return previous state if nothing changed
+        const hasChanged = 
+          !prev.isOpen ||
+          prev.embarkId !== main || 
+          JSON.stringify(prev.compareIds) !== JSON.stringify(compare) ||
+          prev.isClubView !== isClubView ||
+          prev.isMobile !== isMobile;
+
+        if (!hasChanged) {
+          return prev; // No changes needed, return the existing state.
         }
         
         return {
-        isOpen: true,
-        embarkId: main,
-        compareIds: compare,
-        isClubView: (view === 'members'),
-        isMobile
+          isOpen: true,
+          embarkId: main,
+          compareIds: compare,
+          isClubView: isClubView,
+          isMobile
         };
       });
     }

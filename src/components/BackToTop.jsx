@@ -1,6 +1,18 @@
 import { ArrowUp } from 'lucide-react';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 
+// Throttle function to limit how often a function can be called.
+const throttle = (func, limit) => {
+  let inThrottle;
+  return (...args) => {
+    if (!inThrottle) {
+      func.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => (inThrottle = false), limit);
+    }
+  };
+};
+
 export const BackToTop = (isMobile) => {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -13,19 +25,7 @@ export const BackToTop = (isMobile) => {
     );
   };
 
-  // Throttle function to limit scroll event handling
-  const throttle = (func, limit) => {
-    let inThrottle;
-    return (...args) => {
-      if (!inThrottle) {
-        func.apply(this, args);
-        inThrottle = true;
-        setTimeout(() => (inThrottle = false), limit);
-      }
-    };
-  };
-
-  // Create a stable reference to setIsVisible
+  // Create a stable reference to the scroll check function
   const checkScroll = useCallback(() => {
     if (getScrollPosition() > 300) {
       setIsVisible(true);

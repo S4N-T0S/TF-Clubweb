@@ -65,45 +65,7 @@ const RANKS = [
 
 const GAME_COUNT_TOOLTIP = "Estimated games played from tracked data. This count may not be 100% accurate due to events like rank score adjustments, username changes and games whilst placed under 10k in the leaderboard.";
 const RANKED_PLACEMENTS = 4;
-
-const getRankFromScore = (score) => {
-  for (let i = RANKS.length - 1; i >= 0; i--) {
-    if (score >= RANKS[i].y) {
-      return RANKS[i];
-    }
-  }
-  return RANKS[0];
-};
-
-const createTooltip = (chart) => {
-  const tooltipEl = document.createElement('div');
-  tooltipEl.className = 'rank-tooltip';
-  Object.assign(tooltipEl.style, {
-    background: '#1f2937',
-    borderRadius: '8px', // softer rounded corners
-    border: '1px solid #374151', // subtle border
-    color: '#FAF9F6',
-    opacity: 1,
-    pointerEvents: 'none',
-    position: 'absolute',
-    transform: 'translate(-50%, -100%)', // position above cursor
-    transition: 'all 0.15s ease-out', // smoother transition
-    padding: '12px',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.3)' // deeper shadow
-  });
-  
-  tooltipEl.appendChild(document.createElement('table'));
-  chart.canvas.parentNode.appendChild(tooltipEl);
-  return tooltipEl;
-};
-
-const getOrCreateTooltip = (chart) => {
-  let tooltipEl = chart.canvas.parentNode.querySelector('div.rank-tooltip');
-  if (!tooltipEl) {
-    tooltipEl = createTooltip(chart);
-  }
-  return tooltipEl;
-};
+const MAX_COMPARISONS = 5;
 
 const COMPARISON_COLORS = [
   'rgba(255, 159, 64, 0.8)',  // Orange
@@ -154,7 +116,45 @@ TIME.DISPLAY_FORMATS = {
   quarter: 'MMM yyyy',
   year: 'yyyy'
 }
-const MAX_COMPARISONS = 5;
+
+const getRankFromScore = (score) => {
+  for (let i = RANKS.length - 1; i >= 0; i--) {
+    if (score >= RANKS[i].y) {
+      return RANKS[i];
+    }
+  }
+  return RANKS[0];
+};
+
+const createTooltip = (chart) => {
+  const tooltipEl = document.createElement('div');
+  tooltipEl.className = 'rank-tooltip';
+  Object.assign(tooltipEl.style, {
+    background: '#1f2937',
+    borderRadius: '8px', // softer rounded corners
+    border: '1px solid #374151', // subtle border
+    color: '#FAF9F6',
+    opacity: 1,
+    pointerEvents: 'none',
+    position: 'absolute',
+    transform: 'translate(-50%, -100%)', // position above cursor
+    transition: 'all 0.15s ease-out', // smoother transition
+    padding: '12px',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.3)' // deeper shadow
+  });
+  
+  tooltipEl.appendChild(document.createElement('table'));
+  chart.canvas.parentNode.appendChild(tooltipEl);
+  return tooltipEl;
+};
+
+const getOrCreateTooltip = (chart) => {
+  let tooltipEl = chart.canvas.parentNode.querySelector('div.rank-tooltip');
+  if (!tooltipEl) {
+    tooltipEl = createTooltip(chart);
+  }
+  return tooltipEl;
+};
 
 const ComparePlayerSearch = ({ onSelect, mainEmbarkId, globalLeaderboard, onClose, comparisonData, className = '' }) => {
   const [searchTerm, setSearchTerm] = useState('');

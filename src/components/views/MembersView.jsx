@@ -3,6 +3,13 @@ import { LeagueDisplay } from '../LeagueDisplay';
 import { BackToTop } from '../BackToTop';
 import { PlatformIcons } from "../icons/Platforms";
 import { MembersViewProps, MemberRowProps } from '../../types/propTypes';
+import { usePagination } from '../../hooks/usePagination';
+import { SearchBar } from '../SearchBar';
+import { Pagination } from '../Pagination';
+import { SortButton } from '../SortButton';
+import { useRef } from 'react';
+import { useSwipe } from '../../hooks/useSwipe';
+import { useModal } from '../../context/ModalContext';
 
 
 const MemberRow = ({ 
@@ -14,19 +21,12 @@ const MemberRow = ({
 }) => {
   const [username, discriminator] = member.name.split('#');
   
-  /* Removed Discord Link
-  const clubMemberInfo = clubMembersData?.find(m => 
-    m.embarkId.toLowerCase() === member.name.toLowerCase() ||
-    (m.discord && m.discord.toLowerCase() === member.discord?.toLowerCase())
-  );
-  */
-  
-  // Check if member is in OG but not in CSV
+  // Check if member is in OG club on the leaderboard but not found in the club member list asset.
   const inOgNotInCsv = clubMembersData && !clubMembersData.find(m => 
     m.embarkId.toLowerCase() === member.name.toLowerCase()
   );
 
-  // Background class for row
+  // Background class for row to indicate status
   const getBackgroundClass = () => {
     if (member.notInLeaderboard) return 'bg-red-900 bg-opacity-20';
     if (inOgNotInCsv) return '!bg-yellow-600/20';
@@ -56,7 +56,7 @@ const MemberRow = ({
         <div className="flex justify-between items-start">
           <div className="flex flex-col min-w-0 flex-1 mr-3">
             <div className="flex items-center gap-2 min-w-0">
-              <span className={`truncate ${member.notInLeaderboard ? 'text-red-400' : 'text-gray-300'}`}>
+              <span className={`truncate ${member.notInLeaderboard ? 'text-red-400' : 'text-gray-500'}`}>
                 {username}
                 <span className={`${member.notInLeaderboard ? 'text-red-400' : 'text-gray-500'}`}>#{discriminator}</span>
               </span>
@@ -65,16 +65,6 @@ const MemberRow = ({
                 onClick={() => onSearchClick(member.name)}
               />
             </div>
-            {/* Removed Discord Link
-            {member.discord && (
-              <div className="text-[11px] text-gray-400 mt-1 flex flex-wrap gap-1.5">
-                <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
-                  <PlatformIcons.Discord className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate max-w-[150px]">{member.discord}</span>
-                </span>
-              </div>
-            )}
-            */}
             {(member.steamName || member.psnName || member.xboxName) && (
               <div className="text-[11px] text-gray-400 mt-1 flex flex-wrap gap-1.5">
                 {member.steamName && (
@@ -118,7 +108,7 @@ const MemberRow = ({
         !member.notInLeaderboard && !inOgNotInCsv ? 'hover:bg-gray-700' : ''
       }`}
     >
-      <td className="px-4 py-2 text-gray-300">
+      <td className="pl-4 pr-8 py-2 text-gray-300">
         {member.notInLeaderboard ? '-' : `#${member.rank.toLocaleString()}`}
       </td>
       <td className="px-4 py-2">
@@ -133,16 +123,6 @@ const MemberRow = ({
               onClick={() => onSearchClick(member.name)}
             />
           </div>
-          {/* Removed Discord Link
-          {member.discord && (
-            <div className="text-xs text-gray-400 mt-1 flex items-center gap-3">
-              <span className="flex items-center">
-                <PlatformIcons.Discord />
-                {member.discord}
-              </span>
-            </div>
-          )}
-          */}
           {(member.steamName || member.psnName || member.xboxName) && (
             <div className="text-xs text-gray-400 mt-1 flex items-center gap-3">
               {member.steamName && (
@@ -193,59 +173,123 @@ export const MembersView = ({
   onGraphOpen,
   isMobile
 }) => {
+  const searchInputRef = useRef(null);
+  const { isModalOpen } = useModal();
+  const {
+    searchQuery,
+    setSearchQuery,
+    currentItems,
+    currentPage,
+    totalPages,
+    startIndex,
+    endIndex,
+    handlePageChange,
+    filteredItems,
+    sortConfig,
+    handleSort
+  } = usePagination(clubMembers, isMobile ? 25 : 50, isMobile);
+
+  const { slideDirection, showIndicator } = useSwipe(
+    () => currentPage < totalPages && handlePageChange(currentPage + 1),
+    () => currentPage > 1 && handlePageChange(currentPage - 1),
+    { isSwipeActive: !isModalOpen }
+  );
 
   return (
     <div>
-      <div className="table-container">
-        {isMobile ? (
-          <div>
-            {clubMembers
-              .sort((a, b) => b.rankScore - a.rankScore)
-              .map((member) => (
-                <MemberRow 
-                  key={member.name} 
-                  member={member} 
-                  onSearchClick={onPlayerSearch}
-                  onGraphClick={onGraphOpen}
-                  clubMembersData={clubMembersData}
-                  isMobile={true}
-                />
-              ))
-            }
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-lg">
-            <table className="w-full min-w-[640px] rounded-lg">
-              <thead>
-                <tr className="bg-gray-700">
-                  <th className="px-4 py-2 text-left text-gray-300">Rank</th>
-                  <th className="px-4 py-2 text-left text-gray-300">Player</th>
-                  <th className="px-4 py-2 text-center text-gray-300">League</th>
-                  <th className="px-4 py-2 text-center text-gray-300">Graph</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clubMembers
-                  .sort((a, b) => b.rankScore - a.rankScore)
-                  .map((member) => (
+      <SearchBar
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="Search through members..."
+        searchInputRef={searchInputRef}
+      />
+      <div className="page-transition-container mt-4">
+        <div className={`page-content ${slideDirection}`} key={currentPage}>
+          <div className="table-container">
+            {isMobile ? (
+              <div className="flex flex-col gap-2">
+                {currentItems.map((member) => (
                     <MemberRow 
                       key={member.name} 
                       member={member} 
                       onSearchClick={onPlayerSearch}
                       onGraphClick={onGraphOpen}
                       clubMembersData={clubMembersData}
-                      isMobile={false}
+                      isMobile={true}
                     />
                   ))
                 }
-              </tbody>
-            </table>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-lg">
+                <table className="w-full min-w-[640px] rounded-lg">
+                  <thead>
+                    <tr className="bg-gray-700">
+                      <th className="pl-4 pr-8 py-2 text-left text-gray-300 w-24">
+                        <div className="flex items-center">
+                            Rank
+                            <SortButton field="rank" sortConfig={sortConfig} onSort={handleSort} />
+                        </div>
+                      </th>
+                      <th className="px-4 py-2 text-left text-gray-300">
+                        <div className="flex items-center">
+                            Player
+                            <SortButton field="name" sortConfig={sortConfig} onSort={handleSort} />
+                        </div>
+                      </th>
+                      <th className="px-4 py-2 text-center text-gray-300 w-48">
+                        <div className="flex items-center justify-center">
+                            League
+                            <SortButton field="score" sortConfig={sortConfig} onSort={handleSort} />
+                        </div>
+                      </th>
+                      <th className="px-4 py-2 text-center text-gray-300 w-24">Graph</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentItems.map((member) => (
+                        <MemberRow 
+                          key={member.name} 
+                          member={member} 
+                          onSearchClick={onPlayerSearch}
+                          onGraphClick={onGraphOpen}
+                          clubMembersData={clubMembersData}
+                          isMobile={false}
+                        />
+                      ))
+                    }
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
+        </div>
+        <div className={`page-number-indicator ${showIndicator ? 'visible' : 'hidden'}`}>
+          Page {currentPage}/{totalPages}
+        </div>
       </div>
-      <div className="mt-4 text-sm text-gray-400">
-        <p>Total Members: {totalMembers.toLocaleString()}/{(100).toLocaleString()}</p>
-      </div>
+
+      {!isMobile && (
+        <div className="mt-4 text-sm text-right text-gray-400">
+          <p>Total Members: {totalMembers.toLocaleString()}/{(100).toLocaleString()}</p>
+        </div>
+      )}
+
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        startIndex={startIndex}
+        endIndex={endIndex}
+        totalItems={filteredItems.length}
+        onPageChange={handlePageChange}
+      />
+
+      {isMobile && (
+        <div className="mt-4 text-sm text-center text-gray-400">
+          <p>Total Members: {totalMembers.toLocaleString()}/{(100).toLocaleString()}</p>
+        </div>
+      )}
+
       <BackToTop isMobile={isMobile} />
     </div>
   );
