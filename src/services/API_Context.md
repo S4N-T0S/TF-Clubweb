@@ -1,0 +1,166 @@
+### **Backend API Context for Frontend Development**
+
+You are an expert frontend developer. Your task is to help build a web application using the following backend API. The API provides leaderboard, player history, and event data for a game. Pay close attention to the data structures for the `/graph` and `/events` endpoints, as they have been significantly updated.
+
+#### **Core Concepts**
+
+*   **Seasons:** The API's data is partitioned by "seasons". Each season has a unique `id` and `name`. The frontend will need to allow users to select a season, especially for viewing player graphs. The current season is `7`. (as this is writen)
+*   **Player Identity:** A player is identified by an "Embark ID" (e.g., `Username#1234`). Players can change their Embark ID. The backend tracks these changes using a permanent, internal ID. API responses will always provide the player's *current* Embark ID, along with their name change history where relevant.
+*   **Public Authentication:** The `/graph` endpoint is a POST request and requires a public auth token to be sent in the request body. The key is `token` and its value is stored in the backend's `.env` as `PUBLIC_API_TOKEN`.
+
+---
+
+### **Public API Endpoint Reference**
+
+#### **1. Get Leaderboard**
+
+*   **Endpoint:** `GET /leaderboard`
+*   **Auth:** None.
+*   **Purpose:** Fetches the current state of the main "Ranked" leaderboard. The backend caches this data heavily.
+*   **Response Structure:**
+    ```typescript
+    interface LeaderboardResponse {
+      data: PlayerEntry[];
+      source: 'kv-cache' | 'kv-cache-fallback';
+      timestamp: number; // Unix timestamp of the data
+      cacheDuration: number;
+      remainingTtl: number;
+      responseTime: number;
+    }
+
+    interface PlayerEntry {
+      rank: number;
+      change: number; // Rank change since last update
+      name: string; // Embark ID
+      leagueNumber: number;
+      rankScore: number;
+      steamName?: string | null;
+      psnName?: string | null;
+      xboxName?: string | null;
+      clubTag?: string | null;
+    }
+    ```
+
+#### **2. Get Player History Graph**
+
+*   **Endpoint:** `POST /graph`
+*   **Auth:** Required.
+*   **Purpose:** Fetches a specific player's rank and score history for a given season. This is the primary endpoint for building player profile pages with historical graphs.
+*   **Request Body:**
+    ```json
+    {
+      "embarkId": "PlayerName#1234", // A player's Embark ID (current or historical)
+      "seasonId": 7, // Optional. Defaults to the current season if not provided.
+      "token": "not-secret" // The required auth token.
+    }
+    ```
+*   **Success (200 OK) Response Structure:**
+    ```typescript
+    interface GraphResponse {
+      // The player's most current known Embark ID for this season.
+      currentEmbarkId: string;
+      
+      // A history of all names the player has used in this season.
+      nameHistory: {
+        embark_id: string;
+        start_date: number; // Unix timestamp
+        end_date: number | null; // Null if it's the current name
+      }[];
+
+      // The season ID for which data is being returned.
+      seasonId: number;
+      
+      // A list of all seasons this player has data for. Use this to populate a season selector dropdown.
+      availableSeasons: {
+        id: number;
+        name: string;
+      }[];
+      
+      // The core time-series data for the graph.
+      data: {
+        rank: number;
+        rankScore: number;
+        timestamp: number; // Unix timestamp
+        scoreChanged: boolean; // True if the score is different from the previous data point. Useful for highlighting changes on a graph.
+      }[];
+    }
+    ```
+*   **Not Found (404) Response Structure:**
+    This occurs if the player has no data for the *requested* season. The `availableSeasons` key is still returned if the player was found in other seasons, which is useful for redirecting the user.
+    ```typescript
+    interface GraphNotFoundResponse {
+      error: string; // e.g., "Not Found: Player has no data recorded for Season 7."
+      embarkId: string; // The ID that was searched for.
+      seasonId: number; // The season that was searched for.
+      availableSeasons: { id: number; name: string; }[]; // List of other seasons player was found in.
+    }
+    ```
+
+#### **3. Get Recent Events**
+
+*   **Endpoint:** `GET /events`
+*   **Auth:** None.
+*   **Purpose:** Fetches a feed of recent, significant player events like name changes, suspected bans, etc. This is for a live "event feed" on the site. The backend returns the last 100 events. (might increase this)
+*   **Response Structure:**
+    ```typescript
+    interface EventsResponse {
+      data: EventEntry[];
+      source: 'db';
+      timestamp: number; // Unix timestamp of when the response was generated.
+    }
+
+    // Generic Event structure. The `details` object changes based on `event_type`.
+    interface EventEntry {
+      id: number; // Unique ID for the event.
+      event_type: 'NAME_CHANGE' | 'SUSPECTED_BAN' | 'RS_ADJUSTMENT' | 'CLUB_CHANGE';
+      start_timestamp: number; // Unix timestamp when the event occurred.
+      end_timestamp: number | null; // Used for `SUSPECTED_BAN` to mark when a player returns (unbanned).
+      current_embark_id: string; // The player's current name.
+      details: NameChangeDetails | SuspectedBanDetails | RsAdjustmentDetails | ClubChangeDetails;
+    }
+    ```
+*   **Event `details` Payloads:**
+
+    1.  **`NAME_CHANGE`**: A player changed their Embark ID.
+        ```typescript
+        interface NameChangeDetails {
+          old_name: string;
+          new_name: string;
+          rank: number;
+          rank_score: number;
+          old_club_tag: string | null;
+          new_club_tag: string | null;
+        }
+        ```
+
+    2.  **`SUSPECTED_BAN`**: A high-ranked player disappeared from the leaderboard under suspicious circumstances.
+        ```typescript
+        interface SuspectedBanDetails {
+          last_known_name: string;
+          last_known_rank: number;
+          last_known_rank_score: number;
+          last_known_club_tag: string | null;
+        }
+        ```
+
+    3.  **`RS_ADJUSTMENT`**: A player's Rank Score changed by an unusually large amount between updates, likely due to a manual adjustment by the game developers.
+        ```typescript
+        interface RsAdjustmentDetails {
+          name: string;
+          change: number; // e.g., -5000 or +4000
+          old_score: number;
+          new_score: number;
+          old_rank: number;
+          new_rank: number;
+          club_tag: string | null;
+        }
+        ```
+
+    4.  **`CLUB_CHANGE`**: A player changed their club affiliation.
+        ```typescript
+        interface ClubChangeDetails {
+          name: string;
+          old_club: string | null;
+          new_club: string | null;
+        }
+        ```
