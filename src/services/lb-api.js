@@ -32,11 +32,11 @@ const getCachedData = () => {
   }
 };
 
-const setCacheData = (data, timestamp, remainingTtl, source) => {
+const setCacheData = (data, timestamp, expiresAt, source) => {
   localStorage.setItem(CACHE_KEY, JSON.stringify({
     data,
     timestamp,
-    expiresAt: Date.now() + (remainingTtl * 1000),
+    expiresAt: expiresAt,
     source
   }));
 };
@@ -111,27 +111,31 @@ export const fetchLeaderboardData = async () => {
 
     const transformedData = transformData(result.data);
     
-    // Handle Unix timestamp (seconds)
-    const timestamp = result.timestamp > 10000000000 ? result.timestamp : (result.timestamp * 1000);
-    
+    // API sends timestamps in seconds. Convert them to milliseconds for JS.
+    const timestampMs = result.timestamp * 1000;
+    const expiresAtMs = result.expiresAt * 1000;
+
+    // Calculate a fresh, accurate remaining TTL based on the absolute expiry time.
+    const remainingTtl = Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
+
     logDataSource(result.source, {
       timestamp: result.timestamp, // Pass original timestamp format for proper logging
-      remainingTtl: result.remainingTtl,
+      remainingTtl: remainingTtl,
       responseTime
     });
 
     setCacheData(
       result.data, 
-      timestamp, 
-      result.remainingTtl || 120, 
+      timestampMs, 
+      expiresAtMs, // Pass the absolute expiration time (in ms) to the cache
       result.source
     );
 
     return {
       data: transformedData,
       source: result.source,
-      timestamp: timestamp,
-      remainingTtl: result.remainingTtl || 120
+      timestamp: timestampMs,
+      remainingTtl: remainingTtl // Provide the correctly calculated TTL
     };
 
   } catch (error) {
