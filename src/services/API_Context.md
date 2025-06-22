@@ -142,15 +142,36 @@ You are an expert frontend developer. Your task is to help build a web applicati
         }
         ```
 
-    3.  **`RS_ADJUSTMENT`**: A player's Rank Score changed by an unusually large amount between updates, likely due to a manual adjustment by the game developers.
+    3.  **`RS_ADJUSTMENT`**: **[UPDATED]** A player's Rank Score changed by an unusually large amount between updates. This can happen in two ways, distinguished by the `is_off_leaderboard` flag.
         ```typescript
-        interface RsAdjustmentDetails {
+        // A discriminated union is used for this event type.
+        // Check for the existence and value of `is_off_leaderboard` to know which payload you received.
+        type RsAdjustmentDetails = OnLeaderboardAdjustmentDetails | OffLeaderboardAdjustmentDetails;
+        
+        // --- CASE 1: Player remains ON the leaderboard ---
+        // Occurs when a player's score changes dramatically but they are still on the ranked leaderboard.
+        interface OnLeaderboardAdjustmentDetails {
+          is_off_leaderboard?: false; // This flag will be absent or explicitly false.
           name: string;
           change: number; // e.g., -5000 or +4000
           old_score: number;
           new_score: number;
           old_rank: number;
           new_rank: number;
+          club_tag: string | null;
+        }
+        
+        // --- CASE 2: Player falls OFF the leaderboard ---
+        // Occurs when a high-ranked player vanishes from the main ranked leaderboard but is still
+        // detected on other leaderboards (e.g., World Tour). This implies a massive RS loss, not a ban.
+        interface OffLeaderboardAdjustmentDetails {
+          is_off_leaderboard: true;
+          name: string;
+          old_score: number;
+          old_rank: number;
+          // A calculated value representing the smallest possible score loss for the player to have fallen off the board.
+          // This is useful for display (e.g., "Lost at least 4500 RS").
+          minimum_loss: number;
           club_tag: string | null;
         }
         ```
