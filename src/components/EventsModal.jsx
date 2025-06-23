@@ -10,7 +10,6 @@ import { ErrorDisplay } from './ErrorDisplay';
 import { EventCard } from './EventCard';
 import { LeagueRangeSlider } from './LeagueRangeSlider';
 import { getLeagueIndexForFilter } from '../utils/leagueUtils';
-import { Hexagon } from './icons/Hexagon';
 import { UserCheck, Gavel, ChevronsUpDown, Users, X, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import { EventsModalProps, FilterToggleButtonProps } from '../types/propTypes';
 
@@ -70,7 +69,7 @@ const isQueryInEvent = (event, query) => {
     let lowerQuery = query.toLowerCase();
     
     if (lowerQuery.startsWith('[')) {
-        lowerQuery = lowerQuery.replace(/[\[\]]/g, '');
+        lowerQuery = lowerQuery.replace(/[[]]/g, '');
         if (lowerQuery === '') return true;
         
         const clubTags = [ d.club_tag, d.old_club_tag, d.new_club_tag, d.last_known_club_tag, d.old_club, d.new_club ].filter(Boolean);
@@ -89,6 +88,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [cacheExpiresAt, setCacheExpiresAt] = useState(0);
+  const [isAnimatingRefresh, setIsAnimatingRefresh] = useState(false);
   
   // States with persistence
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -118,7 +118,8 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
           setAutoRefresh(savedAutoRefresh);
         }
         if (savedFilters) {
-          // Exclude old/obsolete filter keys and restore valid ones
+          // Exclude old/obsolete filter keys by destructuring them out.
+          // eslint-disable-next-line no-unused-vars
           const { rankRange, rankFilter, ...validFilters } = savedFilters;
           setFilters(prev => ({ ...prev, ...validFilters }));
         }
@@ -159,6 +160,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
       if (forceRefresh) {
         showToast({ message: 'Events feed has been updated.', type: 'success' });
       }
+    // eslint-disable-next-line no-unused-vars
     } catch (err) {
       setError('Failed to load recent events.');
       showToast({ message: 'Could not fetch recent events.', type: 'error' });
@@ -167,6 +169,16 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     }
   }, [showToast]);
   
+  const forceLoadWithAnimation = useCallback(async () => {
+    setIsAnimatingRefresh(true);
+    try {
+      await loadEvents(true);
+    } finally {
+      // Use a timeout to ensure the spin is visible for at least a moment.
+      setTimeout(() => setIsAnimatingRefresh(false), 2000);
+    }
+  }, [loadEvents]);
+
   // Fetch on open and clear search query
   useEffect(() => {
     if (isOpen) {
@@ -175,21 +187,31 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     }
   }, [isOpen, loadEvents, handleFilterChange]);
 
-  // Auto-refresh timer
+  // Auto-refresh timer: sets when modal opens, clears when it closes.
   useEffect(() => {
-    if (!isOpen || !autoRefresh || !cacheExpiresAt) return;
+    if (!isOpen || !autoRefresh || !cacheExpiresAt) {
+      return; // Do nothing if modal is closed, auto-refresh is off, or no expiry time.
+    }
 
     const now = Date.now();
     const delay = cacheExpiresAt > now ? cacheExpiresAt - now : 0;
     
     const timer = setTimeout(() => {
-        if (isOpen && autoRefresh) { // Double check in case state changed
-            loadEvents(true);
-        }
-    }, delay + 500); // Add a small buffer
+      if (isOpen && autoRefresh) { // Double check in case state changed
+          //console.log('[EventsModal Refresh] Conditions met. Triggering force load with animation.');
+          forceLoadWithAnimation();
+      } else {
+          //console.log('[EventsModal Refresh] Conditions NOT met. Aborting refresh.');
+      }
+    }, delay + 1000);
 
-    return () => clearTimeout(timer);
-  }, [isOpen, autoRefresh, cacheExpiresAt, loadEvents]);
+    // This cleanup function is crucial. It runs when the component unmounts
+    // or when any of its dependencies (like `isOpen`) change.
+    return () => {
+        //console.log('[EventsModal Refresh] Cleaning up timer.');
+        clearTimeout(timer);
+    };
+  }, [isOpen, autoRefresh, cacheExpiresAt, forceLoadWithAnimation]);
 
   const toggleAutoRefresh = () => {
     const nextState = !autoRefresh;
@@ -256,7 +278,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
                     className={`p-2 rounded-full transition-colors ${autoRefresh ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}
                     title={autoRefresh ? 'Auto-refresh is ON' : 'Auto-refresh is OFF'}
                 >
-                    <RefreshCw className="w-5 h-5" />
+                    <RefreshCw className={`w-5 h-5 ${isAnimatingRefresh ? 'animate-spin' : ''}`} />
                 </button>
             </div>
             <h2 className="flex-shrink-0 text-xl font-bold text-white">{autoRefresh ? 'Live ' : ''}Events Feed</h2>
@@ -311,7 +333,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
           </div>
 
             {loading && events.length === 0 ? <LoadingDisplay /> :
-             error ? <ErrorDisplay error={error} onRetry={() => loadEvents(true)} /> :
+             error ? <ErrorDisplay error={error} onRetry={forceLoadWithAnimation} /> :
              <div className="page-transition-container">
                 <div className={`page-content ${slideDirection}`} key={currentPage}>
                     <div className="flex flex-col gap-2">

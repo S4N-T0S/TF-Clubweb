@@ -49,8 +49,8 @@ export const fetchRecentEvents = async (forceRefresh = false) => {
         remainingTtl: Math.floor((cached.expiresAt - Date.now()) / 1000),
         responseTime: 0,
       });
-      // Return the cached data, ensuring the event data is transformed
-      return { ...cached.data, data: cached.data.data.map(transformEventData) };
+      // Correctly return both the cached data and the expiration time
+      return { ...cached.data, data: cached.data.data.map(transformEventData), expiresAt: cached.expiresAt };
     }
   }
 
@@ -64,7 +64,9 @@ export const fetchRecentEvents = async (forceRefresh = false) => {
       try {
         const errorData = await response.json();
         errorDetails = errorData.message || errorData.error || JSON.stringify(errorData);
-      } catch (_e) {
+
+      // eslint-disable-next-line no-unused-vars
+      } catch (_err) {
         errorDetails = await response.text();
       }
       throw new ApiError(`API Error on /events: ${errorDetails}`, response.status, errorDetails);

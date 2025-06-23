@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Outlet, useLocation } from 'react-router-dom';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLeaderboard } from './hooks/useLeaderboard';
 import { MembersView } from './components/views/MembersView';
 import { ClubsView } from './components/views/ClubsView';
@@ -67,8 +67,14 @@ const App = () => {
     setToastMessage,
   } = useLeaderboard(clubMembersData);
 
+  const showToast = useCallback((toastOptions) => {
+    setToastMessage({
+      timestamp: Date.now(), // required for index/unique
+      ...toastOptions
+    });
+  }, [setToastMessage]);
+
   // Load club members data once on page load
-  const toastMessageRef = useRef(setToastMessage);
   useEffect(() => {
     const loadClubMembers = async () => {
       try {
@@ -76,7 +82,7 @@ const App = () => {
         setClubMembersData(members);
       } catch (error) {
         console.error('Failed to load club members:', error);
-        toastMessageRef.current({
+        showToast({
           message: 'Failed to load club members data',
           type: 'error'
         });
@@ -86,14 +92,8 @@ const App = () => {
     };
 
     loadClubMembers();
-  }, []);
-
-  const showToast = (toastOptions) => {
-    setToastMessage({
-      timestamp: Date.now(), // required for index/unique
-      ...toastOptions
-    });
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // This effect must only run once on mount.
 
   // Update localstorage whenever view changes
   useEffect(() => {

@@ -10,7 +10,7 @@ import {
   TrendingDown, // Added for RS adjustments
 } from 'lucide-react';
 import { formatTimeAgo } from '../utils/timeUtils';
-import { EventCardProps } from '../types/propTypes';
+import { EventCardProps, EventCard_PlayerNameProps, EventCard_ClubTagProps } from '../types/propTypes';
 
 // Helper component for clickable player names
 const PlayerName = ({ name, onPlayerSearch }) => (
@@ -109,7 +109,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
         </div>
       );
 
-    case 'RS_ADJUSTMENT':
+    case 'RS_ADJUSTMENT': {
       if (d.is_off_leaderboard) {
         return (
           <div className="text-gray-400 leading-relaxed">
@@ -134,7 +134,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
           </p>
         </div>
       );
-
+    }
     case 'CLUB_CHANGE': {
       // Mobile view for a full club change (from one to another)
       if (isMobile && d.old_club && d.new_club) {
@@ -158,26 +158,25 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
         );
       }
        
-      // Default view for desktop, or mobile join/leave events
-      const renderClubChangeText = () => {
-        if (d.new_club && !d.old_club) {
-          return <><span> joined </span><ClubTag tag={d.new_club} onClubClick={onClubClick} />.</>;
-        }
-        if (!d.new_club && d.old_club) {
-            return <><span> left </span><ClubTag tag={d.old_club} onClubClick={onClubClick} />.</>;
-        }
-        return <>
-            <span> changed club from </span>
-            {d.old_club ? <ClubTag tag={d.old_club} onClubClick={onClubClick} /> : <span className="italic">no club</span>}
-            <span> to </span>
-            {d.new_club ? <ClubTag tag={d.new_club} onClubClick={onClubClick} /> : <span className="italic">no club</span>}.
-        </>;
-      };
-
+      // Default view for desktop, or mobile join/leave events.
+      // Use an IIFE to handle conditional rendering and avoid the 'no-case-declarations' error.
       return (
         <div className="text-gray-400 leading-relaxed">
             <PlayerName name={d.name} onPlayerSearch={onPlayerSearch} />
-            {renderClubChangeText()}
+            {(() => {
+              if (d.new_club && !d.old_club) {
+                return <><span> joined </span><ClubTag tag={d.new_club} onClubClick={onClubClick} />.</>;
+              }
+              if (!d.new_club && d.old_club) {
+                  return <><span> left </span><ClubTag tag={d.old_club} onClubClick={onClubClick} />.</>;
+              }
+              return <>
+                  <span> changed club from </span>
+                  {d.old_club ? <ClubTag tag={d.old_club} onClubClick={onClubClick} /> : <span className="italic">no club</span>}
+                  <span> to </span>
+                  {d.new_club ? <ClubTag tag={d.new_club} onClubClick={onClubClick} /> : <span className="italic">no club</span>}.
+              </>;
+            })()}
         </div>
       );
     }
@@ -233,3 +232,5 @@ export const EventCard = ({ event, onPlayerSearch, onClubClick, onGraphOpen, isM
 };
 
 EventCard.propTypes = EventCardProps;
+ClubTag.propTypes = EventCard_ClubTagProps;
+PlayerName.propTypes =EventCard_PlayerNameProps;

@@ -254,10 +254,22 @@ export const EventCardProps = {
   isMobile: PropTypes.bool.isRequired
 };
 
+export const EventCard_PlayerNameProps = {
+  name: PropTypes.string.isRequired,
+  onPlayerSearch: PropTypes.func.isRequired
+};
+
+export const EventCard_ClubTagProps = {
+  tag: PropTypes.string.isRequired,
+  onClubClick: PropTypes.func.isRequired
+};
+
 export const FilterToggleButtonProps = {
   label: PropTypes.string.isRequired,
   isActive: PropTypes.bool.isRequired,
   onClick: PropTypes.func.isRequired,
   Icon: PropTypes.elementType,
-  colorClass: PropTypes.string
+  colorClass: PropTypes.string,
+  textColorClass: PropTypes.string,
+  activeBorderClass: PropTypes.string
 };

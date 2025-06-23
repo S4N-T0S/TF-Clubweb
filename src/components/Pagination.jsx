@@ -8,7 +8,7 @@ export const Pagination = ({
   totalItems, 
   onPageChange,
   scrollRef,
-  className = ''
+  className = 'mt-4' // default is margin-top 4
 }) => {
   const handleScrollToTop = () => {
     if (scrollRef && scrollRef.current) {
@@ -27,7 +27,7 @@ export const Pagination = ({
   };
 
   return (
-    <div className={`mt-4 flex flex-col sm:flex-row justify-between items-center gap-4 ${className}`}>
+    <div className={`flex flex-col sm:flex-row justify-between items-center gap-4 ${className}`}>
       <div className="text-sm text-gray-400 text-center sm:text-left">
         Showing {totalItems === 0 ? 0 : (startIndex + 1).toLocaleString()}-
         {Math.min(endIndex, totalItems).toLocaleString()} of {totalItems.toLocaleString()} results
