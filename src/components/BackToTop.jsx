@@ -1,5 +1,6 @@
 import { ArrowUp } from 'lucide-react';
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { BackToTopProps } from '../types/propTypes';
 
 // Throttle function to limit how often a function can be called.
 const throttle = (func, limit) => {
@@ -13,7 +14,7 @@ const throttle = (func, limit) => {
   };
 };
 
-export const BackToTop = (isMobile) => {
+export const BackToTop = ({ isMobile }) => {
   const [isVisible, setIsVisible] = useState(false);
 
   // Cross-browser way to get scroll position
@@ -82,3 +83,5 @@ export const BackToTop = (isMobile) => {
     </button>
   );
 };
+
+BackToTop.propTypes = BackToTopProps;

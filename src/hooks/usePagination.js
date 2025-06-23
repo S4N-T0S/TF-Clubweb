@@ -74,15 +74,21 @@ export const usePagination = (items, itemsPerPage, isMobile) => {
         return item.tag.toLowerCase().includes(searchLower);
       }
       
-      // Handle player items
-      const displayName = item.clubTag ? `[${item.clubTag}] ${item.name}` : item.name;
-      
-      return (
-        displayName.toLowerCase().includes(searchLower) ||
-        (item.steamName && item.steamName.toLowerCase().includes(searchLower)) ||
-        (item.psnName && item.psnName.toLowerCase().includes(searchLower)) ||
-        (item.xboxName && item.xboxName.toLowerCase().includes(searchLower))
-      );
+      // Handle player items (items with 'name' property)
+      if (item.name) {
+        const displayName = item.clubTag ? `[${item.clubTag}] ${item.name}` : item.name;
+        
+        return (
+          displayName.toLowerCase().includes(searchLower) ||
+          (item.steamName && item.steamName.toLowerCase().includes(searchLower)) ||
+          (item.psnName && item.psnName.toLowerCase().includes(searchLower)) ||
+          (item.xboxName && item.xboxName.toLowerCase().includes(searchLower))
+        );
+      }
+
+      // If the item doesn't match known filterable structures (e.g., it's an event),
+      // let it pass through. The consuming component (EventsView) handles its own filtering.
+      return true;
     });
 
     // Then sort if needed

@@ -12,7 +12,9 @@ export const PlayerType = {
   leagueNumber: PropTypes.number,
   steamName: PropTypes.string,
   psnName: PropTypes.string,
-  xboxName: PropTypes.string
+  xboxName: PropTypes.string,
+  foundViaFallback: PropTypes.bool,
+  notFound: PropTypes.bool
 };
 
 export const ClubType = {
@@ -32,30 +34,27 @@ export const SortButtonProps = {
 };
 
 export const DashboardHeaderProps = {
-  currentSeason: PropTypes.string.isRequired,
-  selectedSeason: PropTypes.string.isRequired,
   isTopClub: PropTypes.bool.isRequired,
   unknownMembers: PropTypes.arrayOf(PropTypes.object).isRequired,
   view: PropTypes.oneOf(['members', 'clubs', 'global']).isRequired,
   setView: PropTypes.func.isRequired,
   onRefresh: PropTypes.func.isRequired,
   isRefreshing: PropTypes.bool.isRequired,
+  onOpenSearch: PropTypes.func.isRequired,
+  onOpenEvents: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired,
-  showFavourites: PropTypes.bool.isRequired,
-  setShowFavourites: PropTypes.func.isRequired,
-  showToast: PropTypes.func.isRequired
 };
 
 export const ViewButtonProps = {
-  active: PropTypes.bool.isRequired,
+  active: PropTypes.bool,
   onClick: PropTypes.func.isRequired,
   icon: PropTypes.element.isRequired,
-  text: PropTypes.string.isRequired
+  text: PropTypes.string
 };
 
 export const LeagueDisplayProps = {
   league: PropTypes.string,
-  score: PropTypes.number.isRequired,
+  score: PropTypes.number,
   leagueNumber: PropTypes.number,
   isMobile: PropTypes.bool.isRequired
 };
@@ -98,7 +97,10 @@ export const GlobalPlayerRowProps = {
   onGraphClick: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired,
   isCurrentSeason: PropTypes.bool.isRequired,
-  selectedSeason: PropTypes.string.isRequired
+  selectedSeason: PropTypes.string.isRequired,
+  isFavourite: PropTypes.func.isRequired,
+  addFavourite: PropTypes.func.isRequired,
+  removeFavourite: PropTypes.func.isRequired,
 };
 
 export const NoResultsMessageProps = {
@@ -158,7 +160,8 @@ export const ToastProps = {
   duration: PropTypes.number,
   showCloseButton: PropTypes.bool,
   isMobile: PropTypes.bool.isRequired,
-  onClose: PropTypes.func
+  onClose: PropTypes.func,
+  showMeta: PropTypes.bool,
 };
 
 export const SearchBarProps = {
@@ -187,7 +190,9 @@ export const PaginationProps = {
   startIndex: PropTypes.number.isRequired,
   endIndex: PropTypes.number.isRequired,
   totalItems: PropTypes.number.isRequired,
-  onPageChange: PropTypes.func.isRequired
+  onPageChange: PropTypes.func.isRequired,
+  scrollRef: PropTypes.object,
+  className: PropTypes.string
 };
 
 export const ErrorDisplayProps = {
@@ -219,10 +224,40 @@ export const PlayerGraphModalProps = {
   isMobile: PropTypes.bool.isRequired
 };
 
-export const FavouritesContextProps = {
+export const FavouritesProviderProps = {
   children: PropTypes.node.isRequired
 };
 
-export const ModalContextProps = {
+export const ModalProviderProps = {
   children: PropTypes.node.isRequired
+};
+
+export const BackToTopProps = {
+  isMobile: PropTypes.bool.isRequired,
+};
+
+export const EventsModalProps = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  isMobile: PropTypes.bool.isRequired,
+  onPlayerSearch: PropTypes.func.isRequired,
+  onClubClick: PropTypes.func.isRequired,
+  onGraphOpen: PropTypes.func.isRequired,
+  showToast: PropTypes.func.isRequired
+};
+
+export const EventCardProps = {
+  event: PropTypes.object.isRequired,
+  onPlayerSearch: PropTypes.func.isRequired,
+  onClubClick: PropTypes.func.isRequired,
+  onGraphOpen: PropTypes.func.isRequired,
+  isMobile: PropTypes.bool.isRequired
+};
+
+export const FilterToggleButtonProps = {
+  label: PropTypes.string.isRequired,
+  isActive: PropTypes.bool.isRequired,
+  onClick: PropTypes.func.isRequired,
+  Icon: PropTypes.elementType,
+  colorClass: PropTypes.string
 };

@@ -6,10 +6,9 @@ import { PlatformIcons } from './icons/Platforms';
 import { getLeagueInfo } from '../utils/leagueUtils';
 import { PlayerSearchModalProps } from '../types/propTypes';
 import { isValidEmbarkId, formatUsernameForUrl } from '../utils/urlHandler';
-import { useModal } from '../context/ModalContext';
+import { useModal } from '../context/ModalProvider';
 
 const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClubClick }) => {
-  const { setIsModalOpen, modalRef, setOnClose } = useModal();
   const [searchState, setSearchState] = useState({
     query: '',
     results: [],
@@ -84,6 +83,8 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
     initialSearchRef.current = false;
     onClose();
   }, [onClose]);
+
+  const modalRef = useModal(isOpen, handleClose);
 
   const updateSuggestions = useCallback((query) => {
     if (!currentSeasonData || !isPartialEmbarkId(query)) {
@@ -182,18 +183,6 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
       });
     }
   }, [isOpen, initialSearch, handleSearch]);
-
-  useEffect(() => {
-    if (isOpen) {
-      setIsModalOpen(isOpen);
-      setOnClose(() => handleClose);
-    }
-
-    return () => {
-      setIsModalOpen(false);
-      setOnClose(null);
-    };
-  }, [isOpen, setIsModalOpen, handleClose, setOnClose]);
 
   if (!isOpen) return null;
 

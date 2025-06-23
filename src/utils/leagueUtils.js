@@ -47,3 +47,30 @@ export const getLeagueInfo = (leagueNumber, league = null) => {
   
     return { name: 'Unknown', style: 'text-gray-600' };
   };
+
+/**
+ * Converts a player's rank and score into a numerical league index for filtering.
+ * @param {number | null} rank - The player's numerical rank.
+ * @param {number | null} score - The player's rank score.
+ * @returns {number | null} A numerical index (0-5) or null if unrankable.
+ * 0: Bronze, 1: Silver, 2: Gold, 3: Platinum, 4: Diamond, 5: Ruby
+ */
+export const getLeagueIndexForFilter = (rank, score) => {
+  // Ruby is top 500, which overrides any score.
+  if (rank !== null && rank > 0 && rank <= 500) {
+    return 5; // 5 = Ruby
+  }
+
+  // Score-based leagues
+  if (score === null || score === undefined) {
+    return null; // Cannot determine league from score
+  }
+  if (score >= 40000) return 4; // 4 = Diamond
+  if (score >= 30000) return 3; // 3 = Platinum
+  if (score >= 20000) return 2; // 2 = Gold
+  if (score >= 10000) return 1; // 1 = Silver
+  // Anything with a score below that is Bronze
+  if (score >= 0) return 0; // 0 = Bronze
+
+  return null; // Default case if score is negative or invalid
+};

@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Outlet } from 'react-router-dom';
+import { useParams, useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLeaderboard } from './hooks/useLeaderboard';
 import { MembersView } from './components/views/MembersView';
@@ -12,9 +12,9 @@ import { safeParseUsernameFromUrl, formatUsernameForUrl, parseMultipleUsernamesF
 import { useMobileDetect } from './hooks/useMobileDetect';
 import PlayerSearchModal from './components/PlayerSearchModal';
 import PlayerGraphModal from './components/PlayerGraphModal';
+import EventsModal from './components/EventsModal';
 import Toast from './components/Toast';
-import { FavouritesProvider } from './context/FavouritesContext';
-import { ModalProvider } from './context/ModalContext';
+import { ModalProvider } from './context/ModalProvider';
 
 // Storing last view selection in localStorage.
 const getStoredTab = () => {
@@ -28,8 +28,10 @@ const setStoredTab = (tab) => {
 const App = () => {
   const isMobile = useMobileDetect() || false;
   const navigate = useNavigate();
+  const location = useLocation();
   const { graph, history } = useParams();
   const [view, setView] = useState(() => getStoredTab());
+  const [eventsModalOpen, setEventsModalState] = useState(false);
   const [searchModalState, setSearchModalState] = useState({ 
     isOpen: false, 
     initialSearch: '',
@@ -98,10 +100,11 @@ const App = () => {
     setStoredTab(view);
   }, [view]);
 
-  // Reset selected season when view changes off global
+  // Reset states when view changes
   useEffect(() => {
     if (view !== 'global') {
       setSelectedSeason(currentSeason);
+      setShowFavourites(false);
     }
   }, [view, currentSeason]);
 
@@ -110,6 +113,7 @@ const App = () => {
     // Reset URL to root and close modals
     handleSearchModalClose();
     handleGraphModalClose();
+    handleEventsModalClose();
   
     setView('global');
     setGlobalSearchQuery(`[${clubTag}]`);
@@ -129,17 +133,21 @@ const App = () => {
     });
   };
 
+  // --- Modal Opening / Closing Handlers ---
+
+  const handleEventsModalOpen = () => navigate('/events', { replace: true });
+  const handleEventsModalClose = () => navigate('/', { replace: true });
+  
   // Handle search modal open/close
   const handleSearchModalClose = () => {
-    setSearchModalState({ isOpen: false, initialSearch: '', isMobile });
     navigate('/', { replace: true });
   };
 
   const handleSearchModalOpen = (initialSearch = '') => {
-    setSearchModalState({ isOpen: true, initialSearch, isMobile });
-    if (initialSearch) {
-      navigate(`/history/${formatUsernameForUrl(initialSearch)}`, { replace: true });
-    }
+    const path = initialSearch 
+      ? `/history/${formatUsernameForUrl(initialSearch)}` 
+      : '/history';
+    navigate(path, { replace: true });
   };
 
   // Handle search submission
@@ -153,7 +161,7 @@ const App = () => {
     navigate('/', { replace: true });
   };
 
-  // Handle graph modal open/close
+  // Handle graph modal open
   const handleGraphModalOpen = useCallback((embarkId, compareIds = []) => {
     const urlString = formatMultipleUsernamesForUrl(embarkId, compareIds);
     navigate(`/graph/${urlString}`, { replace: true });
@@ -195,124 +203,134 @@ const App = () => {
     }
   }, [graph, navigate, view, isMobile]);
 
-  useEffect(() =>  {
-    if (history) {
-      const parsed = safeParseUsernameFromUrl(history);
-      if (parsed) {
-        setSearchModalState({ isOpen: true, initialSearch: parsed, isMobile });
-      } else {
-        navigate('/');
-        return;
-      }
+  // Full control the search modal's state based on the URL
+  useEffect(() => {
+    const isHistoryPath = location.pathname.startsWith('/history');
+    const parsedSearch = history ? safeParseUsernameFromUrl(history) : '';
+
+    if (isHistoryPath) {
+      setSearchModalState({ isOpen: true, initialSearch: parsedSearch, isMobile });
+    } else {
+      setSearchModalState({ isOpen: false, initialSearch: '', isMobile });
     }
-  }, [history, navigate, isMobile]);
+  }, [location.pathname, history, isMobile]);
+
+
+  // --- URL-driven Modal State ---
+  useEffect(() => {
+    setEventsModalState(location.pathname.endsWith('/events'));
+  }, [location.pathname]);
 
   if (error) return <ErrorDisplay error={error} onRetry={refreshData} />;
   if (loading || clubMembersLoading) return <LoadingDisplay />;
 
   return (
     <div className="min-h-screen bg-gray-900 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
-      <FavouritesProvider>
-        <ModalProvider>
-          {toastMessage && (
-            <Toast 
-              message={toastMessage.message}
-              type={toastMessage.type}
-              timestamp={toastMessage.timestamp}
-              showMeta={toastMessage.showMeta}
-              ttl={toastMessage.ttl}
-              title={toastMessage.title}
-              icon={toastMessage.icon}
-              textSize={toastMessage.textSize || 'normal'}
-              position={toastMessage.position || 'top-right'}
-              duration={toastMessage.duration || 2500}
-              showCloseButton={toastMessage.showCloseButton}
+      <ModalProvider>
+        {toastMessage && (
+          <Toast 
+            message={toastMessage.message}
+            type={toastMessage.type}
+            timestamp={toastMessage.timestamp}
+            showMeta={toastMessage.showMeta}
+            ttl={toastMessage.ttl}
+            title={toastMessage.title}
+            icon={toastMessage.icon}
+            textSize={toastMessage.textSize || 'normal'}
+            position={toastMessage.position || 'top-right'}
+            duration={toastMessage.duration || 2500}
+            showCloseButton={toastMessage.showCloseButton}
+            isMobile={isMobile}
+            onClose={toastMessage.onClose}
+          />
+        )}
+        <div className="max-w-7xl mx-auto p-4">
+          <div className="bg-gray-800 rounded-lg shadow-xl p-6 mb-6">
+            <DashboardHeader
+              isTopClub={isTopClub}
+              unknownMembers={unknownMembers}
+              view={view}
+              setView={setView}
+              onRefresh={() => refreshData(false)}
+              isRefreshing={isRefreshing}
+              onOpenEvents={handleEventsModalOpen}
+              onOpenSearch={() => handleSearchModalOpen()}
               isMobile={isMobile}
-              onClose={toastMessage.onClose}
             />
-          )}
-          <div className="max-w-7xl mx-auto p-4">
-            <div className="bg-gray-800 rounded-lg shadow-xl p-6 mb-6">
-              <DashboardHeader
+
+            {view === 'members' && (
+              <MembersView 
+                clubMembers={clubMembers} 
+                totalMembers={clubMembersData.length} 
+                onPlayerSearch={(name) => handleSearchModalOpen(name)}
+                clubMembersData={clubMembersData} // Pass club members data to members view
+                onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
+                setView={setView}
+                setGlobalSearchQuery={setGlobalSearchQuery}
+                isMobile={isMobile}
+              />
+            )}
+            {view === 'clubs' && (
+              <ClubsView 
+                topClubs={topClubs} 
+                onClubClick={handleClubClick}
+                isMobile={isMobile}
+              />
+            )}
+            {view === 'global' && (
+              <GlobalView 
                 currentSeason={currentSeason}
                 selectedSeason={selectedSeason}
-                isTopClub={isTopClub}
-                unknownMembers={unknownMembers}
-                view={view}
-                setView={setView}
-                onRefresh={() => refreshData(false)}
-                isRefreshing={isRefreshing}
-                onOpenSearch={() => handleSearchModalOpen()}
+                setSelectedSeason={setSelectedSeason}
+                globalLeaderboard={globalLeaderboard}
+                rubyCutoff={rubyCutoff}
+                onPlayerSearch={(name) => handleSearchModalOpen(name)}
+                searchQuery={globalSearchQuery}
+                setSearchQuery={setGlobalSearchQuery}
+                onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
                 isMobile={isMobile}
                 showFavourites={showFavourites}
                 setShowFavourites={setShowFavourites}
                 showToast={showToast}
               />
-
-              {view === 'members' && (
-                <MembersView 
-                  clubMembers={clubMembers} 
-                  totalMembers={clubMembersData.length} 
-                  onPlayerSearch={(name) => handleSearchModalOpen(name)}
-                  clubMembersData={clubMembersData} // Pass club members data to members view
-                  onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
-                  setView={setView}
-                  setGlobalSearchQuery={setGlobalSearchQuery}
-                  isMobile={isMobile}
-                />
-              )}
-              {view === 'clubs' && (
-                <ClubsView 
-                  topClubs={topClubs} 
-                  onClubClick={handleClubClick}
-                  isMobile={isMobile}
-                />
-              )}
-              {view === 'global' && (
-                <GlobalView 
-                  currentSeason={currentSeason}
-                  selectedSeason={selectedSeason}
-                  setSelectedSeason={setSelectedSeason}
-                  globalLeaderboard={globalLeaderboard}
-                  rubyCutoff={rubyCutoff}
-                  onPlayerSearch={(name) => handleSearchModalOpen(name)}
-                  searchQuery={globalSearchQuery}
-                  setSearchQuery={setGlobalSearchQuery}
-                  onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
-                  isMobile={isMobile}
-                  showFavourites={showFavourites}
-                  setShowFavourites={setShowFavourites}
-                  showToast={showToast}
-                />
-              )}
-            </div>
+            )}
           </div>
+        </div>
 
-          <PlayerSearchModal 
-            isOpen={searchModalState.isOpen}
-            onClose={handleSearchModalClose}
-            initialSearch={searchModalState.initialSearch}
-            currentSeasonData={globalLeaderboard}
-            onSearch={handleSearchSubmit}
-            isMobile={isMobile}
-            onClubClick={handleClubClick}
+        <EventsModal
+          isOpen={eventsModalOpen}
+          onClose={handleEventsModalClose}
+          isMobile={isMobile}
+          onPlayerSearch={handleSearchModalOpen}
+          onClubClick={handleClubClick}
+          onGraphOpen={handleGraphModalOpen}
+          showToast={showToast}
+        />
+
+        <PlayerSearchModal 
+          isOpen={searchModalState.isOpen}
+          onClose={handleSearchModalClose}
+          initialSearch={searchModalState.initialSearch}
+          currentSeasonData={globalLeaderboard}
+          onSearch={handleSearchSubmit}
+          isMobile={isMobile}
+          onClubClick={handleClubClick}
+        />
+
+        {graphModalState.embarkId && (
+          <PlayerGraphModal
+            isOpen={graphModalState.isOpen}
+            onClose={handleGraphModalClose}
+            embarkId={graphModalState.embarkId}
+            compareIds={graphModalState.compareIds}
+            isClubView={graphModalState.isClubView}
+            globalLeaderboard={graphModalState.isClubView ? rankedClubMembers : globalLeaderboard}
+            onSwitchToGlobal={() => setView('global')}
+            isMobile={graphModalState.isMobile}
           />
-
-          {graphModalState.embarkId && (
-            <PlayerGraphModal
-              isOpen={graphModalState.isOpen}
-              onClose={handleGraphModalClose}
-              embarkId={graphModalState.embarkId}
-              compareIds={graphModalState.compareIds}
-              isClubView={graphModalState.isClubView}
-              globalLeaderboard={graphModalState.isClubView ? rankedClubMembers : globalLeaderboard}
-              onSwitchToGlobal={() => setView('global')}
-              isMobile={graphModalState.isMobile}
-            />
-          )}
-          <Outlet />
-        </ModalProvider>
-      </FavouritesProvider>
+        )}
+        <Outlet />
+      </ModalProvider>
     </div>
   );
 };

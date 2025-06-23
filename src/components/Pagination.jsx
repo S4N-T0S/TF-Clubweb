@@ -6,18 +6,35 @@ export const Pagination = ({
   startIndex, 
   endIndex, 
   totalItems, 
-  onPageChange 
+  onPageChange,
+  scrollRef,
+  className = ''
 }) => {
+  const handleScrollToTop = () => {
+    if (scrollRef && scrollRef.current) {
+      scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleScrollToBottom = () => {
+    if (scrollRef && scrollRef.current) {
+      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    } else {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+  };
 
   return (
-    <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+    <div className={`mt-4 flex flex-col sm:flex-row justify-between items-center gap-4 ${className}`}>
       <div className="text-sm text-gray-400 text-center sm:text-left">
         Showing {totalItems === 0 ? 0 : (startIndex + 1).toLocaleString()}-
         {Math.min(endIndex, totalItems).toLocaleString()} of {totalItems.toLocaleString()} results
       </div>
       <div className="flex gap-2 flex-wrap justify-center">
         <button
-          onClick={() => { onPageChange(1); window.scrollTo(0, 0); }}
+          onClick={() => { onPageChange(1); handleScrollToTop(); }}
           disabled={currentPage === 1}
           className={`px-3 py-1 rounded ${
             currentPage === 1 
@@ -50,7 +67,7 @@ export const Pagination = ({
           Next
         </button>
         <button
-          onClick={() => { onPageChange(totalPages); window.scrollTo(0, document.body.scrollHeight); }}
+          onClick={() => { onPageChange(totalPages); handleScrollToBottom(); }}
           disabled={currentPage === totalPages}
           className={`px-3 py-1 rounded ${
             currentPage === totalPages 

@@ -1,29 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock, X, Loader2, Info } from 'lucide-react';
 import { ToastProps } from '../types/propTypes';
-
-const formatTimestamp = (timestamp) => {
-  const date = new Date(timestamp);
-  const minutes = Math.floor((Date.now() - date) / 1000 / 60);
-
-  if (minutes == 0) return 'now';
-
-  if (minutes < 60) {
-    return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return `${hours} hour${hours === 1 ? '' : 's'} ago`;
-  }
-
-  const days = Math.floor(hours / 24);
-  if (days < 7) {
-    return `${days} day${days === 1 ? '' : 's'} ago`;
-  }
-
-  return date.toLocaleDateString();
-};
+import { formatTimeAgo } from '../utils/timeUtils';
 
 const formatTtl = (ttl, type) => {
   // Handle cases where TTL has expired or is zero.
@@ -153,7 +131,7 @@ const Toast = ({
 
   return (
     <div 
-      className={`fixed ${positionClass} z-50 transition-all duration-300 ${
+      className={`fixed ${positionClass} z-[60] transition-all duration-300 ${
         isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       } max-w-[90vw] sm:max-w-sm w-auto`}
     >
@@ -172,7 +150,7 @@ const Toast = ({
           {showMeta && (timestamp || typeof ttl === 'number') ? (
             <div className="mt-1">
               {timestamp && (
-                <p className="text-white/80 text-xs">Last updated {formatTimestamp(timestamp)}</p>
+                <p className="text-white/80 text-xs">Last updated {formatTimeAgo(timestamp)}</p>
               )}
               {typeof ttl === 'number' && (
                 <p className="text-white/80 text-xs">{formatTtl(ttl, type)}</p>

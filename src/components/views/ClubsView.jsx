@@ -6,7 +6,7 @@ import { useSwipe } from '../../hooks/useSwipe';
 import { ClubsViewProps, ClubRowProps, NoResultsMessageProps } from '../../types/propTypes';
 import { SortButton } from '../SortButton';
 import { useRef } from 'react';
-import { useModal } from '../../context/ModalContext';
+import { useModal } from '../../context/ModalProvider';
 
 const NoResultsMessage = () => {
   return (
@@ -129,7 +129,7 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
         placeholder="Search through clubs..."
         searchInputRef={searchInputRef}
       />
-      <div className="page-transition-container">
+      <div className="page-transition-container mt-4">
       <div className={`page-content ${slideDirection}`} key={currentPage}>
       <div className="table-container">
         {isMobile ? (

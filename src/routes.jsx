@@ -12,7 +12,15 @@ const router = createBrowserRouter([
         element: null // Handled by App component
       },
       {
+        path: 'history',
+        element: null // Handled by App component
+      },
+      {
         path: 'history/:history',
+        element: null // Handled by App component
+      },
+      {
+        path: 'events',
         element: null // Handled by App component
       }
     ]

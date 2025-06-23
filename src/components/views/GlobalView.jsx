@@ -10,10 +10,10 @@ import { GlobalViewProps, GlobalPlayerRowProps, RankChangeDisplayProps, RubyCuto
 import { PlatformIcons } from "../icons/Platforms";
 import { SortButton } from '../SortButton';
 import { Hexagon } from '../icons/Hexagon';
-import { useFavourites } from '../../context/FavouritesContext';
-import { useModal } from '../../context/ModalContext';
+import { useModal } from '../../context/ModalProvider';
 import { useOnHold } from '../../hooks/useOnHold';
 import { SEASONS, getSeasonLeaderboard, getAllSeasonsLeaderboard } from '../../services/historicalDataService';
+import { useFavouritesManager } from '../../hooks/useFavouritesManager';
 
 const NoResultsMessage = ({ selectedSeason, onSeasonChange }) => {
   return (
@@ -69,9 +69,8 @@ const RubyCutoffIndicator = ({ cutoff, onCutoffClick }) => {
   );
 };
 
-const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile, isCurrentSeason, selectedSeason }) => {
+const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile, isCurrentSeason, selectedSeason, isFavourite, addFavourite, removeFavourite }) => {
   const [username, discriminator] = player.name.split('#');
-  const { isFavourite, addFavourite, removeFavourite } = useFavourites();
   const { isHolding, holdProps, ref } = useOnHold(() => {
     if (isFavourite(player) || player.foundViaFallback) {
       removeFavourite(player);
@@ -327,7 +326,14 @@ export const GlobalView = ({
   const [isCurrentSeason, setIsCurrentSeason] = useState(currentSeason === selectedSeason);
   const { isModalOpen } = useModal();
   const searchInputRef = useRef(null);
-  const { getFavouritesWithFallback } = useFavourites();
+  const { 
+    favourites, 
+    addFavourite, 
+    removeFavourite, 
+    isFavourite, 
+    getFavouritesWithFallback 
+  } = useFavouritesManager();
+  
   const { slideDirection, showIndicator } = useSwipe(
     () => currentPage < totalPages && handlePageChange(currentPage + 1),
     () => currentPage > 1 && handlePageChange(currentPage - 1),
@@ -445,9 +451,64 @@ export const GlobalView = ({
     }
   }, [initialSearchQuery, isMobile]);
 
+  const FavouritesButton = () => {
+    const hasFavourites = favourites.length > 0;
+    const isHistoricalSeason = selectedSeason !== currentSeason;
+
+    const isDisabled = !hasFavourites || isHistoricalSeason;
+    const isActive = showFavourites && !isHistoricalSeason;
+    const buttonClass = `
+      px-4 py-2 rounded-lg flex items-center justify-center gap-2 text-white h-[42px]
+      whitespace-nowrap
+      ${isActive ? 'bg-yellow-500' : 'bg-gray-700 hover:bg-gray-600'} 
+      ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
+    `;
+
+    // This effect ensures the Favourites view is disabled if the conditions for it are no longer met.
+    useEffect(() => {
+      if (isHistoricalSeason || !hasFavourites) {
+        setShowFavourites(false);
+      }
+    }, [isHistoricalSeason, hasFavourites]);
+  
+    const handleClick = () => {
+      if (isDisabled) {
+        if (isHistoricalSeason) {
+          showToast({
+            message: 'Favourites are disabled in historical seasons.',
+            type: 'warning',
+            icon: Star,
+            duration: 2000
+          });
+        } else if (!hasFavourites) {
+          showToast({
+            title: `No Favourites yet!`,
+            message: isMobile
+              ? 'Long-press on a player to Favourite them. You can also swipe to switch pages.'
+              : 'Click the star next to a player to Favourite them.',
+            type: 'info',
+            icon: Star,
+            duration: 4000
+          });
+        }
+        return;
+      }
+      
+      setShowFavourites(!showFavourites);
+    };
+
+    // The button is not truly disabled, allowing the onClick to fire and show a toast.
+    return (
+      <button onClick={handleClick} className={buttonClass} aria-label="Toggle Favourites">
+        <Star className={`w-5 h-5 ${isActive ? 'fill-current' : ''}`} />
+      </button>
+    );
+  };
+
+
   return (
     <div>
-      <div className="flex flex-col sm:flex-row gap-0 sm:gap-2 mb-4 sm:mb-0">
+      <div className="flex flex-col sm:flex-row gap-2 mb-4 items-stretch sm:items-center">
         <div className="flex-1">
           <SearchBar 
             value={searchQuery} 
@@ -455,20 +516,23 @@ export const GlobalView = ({
             searchInputRef={searchInputRef}
           />
         </div>
-        <select
-          value={selectedSeason}
-          onChange={handleSeasonChange}
-          className={`bg-gray-700 text-gray-200 rounded-lg px-4 py-1.5 border ${
-            selectedSeason !== currentSeason ? 'border-blue-500 border-2' : 'border-gray-600'
-          } focus:ring-2 focus:ring-blue-500 focus-visible:ring-blue-500 focus-visible:border-blue-500 focus-visible:outline-none sm:w-48 flex-shrink-0 text-sm h-[42px]`}
-        >
-          {Object.entries(SEASONS).reverse().map(([key, season]) => 
-            key !== 'ALL' && (
-              <option key={key} value={key}>{season.label}</option>
-            )
-          )}
-          <option value="ALL">All Seasons</option>
-        </select>
+        <FavouritesButton />
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedSeason}
+            onChange={handleSeasonChange}
+            className={`w-full sm:w-48 bg-gray-700 text-gray-200 rounded-lg px-4 py-1.5 border ${
+              selectedSeason !== currentSeason ? 'border-blue-500 border-2' : 'border-gray-600'
+            } focus:ring-2 focus:ring-blue-500 focus-visible:ring-blue-500 focus-visible:border-blue-500 focus-visible:outline-none flex-shrink-0 text-sm h-[42px]`}
+          >
+            {Object.entries(SEASONS).reverse().map(([key, season]) => 
+              key !== 'ALL' && (
+                <option key={key} value={key}>{season.label}</option>
+              )
+            )}
+            <option value="ALL">All Seasons</option>
+          </select>
+        </div>
       </div>
       {!showFavourites && isCurrentSeason && rubyCutoff && (
         <RubyCutoffIndicator cutoff={rubyCutoff} onCutoffClick={handleCutoffClick} />
@@ -494,6 +558,9 @@ export const GlobalView = ({
                 isMobile={true}
                 isCurrentSeason={isCurrentSeason}
                 selectedSeason={selectedSeason}
+                isFavourite={isFavourite}
+                addFavourite={addFavourite}
+                removeFavourite={removeFavourite}
               />
             ))
           )}
@@ -568,6 +635,9 @@ export const GlobalView = ({
                       isMobile={false}
                       isCurrentSeason={isCurrentSeason}
                       selectedSeason={selectedSeason}
+                      isFavourite={isFavourite}
+                      addFavourite={addFavourite}
+                      removeFavourite={removeFavourite}
                     />
                   ))
                 )}

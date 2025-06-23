@@ -24,7 +24,7 @@ import 'chartjs-adapter-date-fns';
 import { fetchPlayerGraphData } from '../services/gp-api';
 import { formatMultipleUsernamesForUrl } from '../utils/urlHandler';
 import { PlayerGraphModalProps, ComparePlayerSearchProps } from '../types/propTypes';
-import { useModal } from '../context/ModalContext';
+import { useModal } from '../context/ModalProvider';
 
 ChartJS.register(
   CategoryScale,
@@ -281,7 +281,7 @@ const ComparePlayerSearch = ({ onSelect, mainEmbarkId, globalLeaderboard, onClos
 };
 
 const PlayerGraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = false, globalLeaderboard = [], onSwitchToGlobal, isMobile }) => {
-  const { setIsModalOpen, modalRef, setOnClose } = useModal();
+  const modalRef = useModal(isOpen, onClose);
   const [data, setData] = useState(null);
   const [mainPlayerGameCount, setMainPlayerGameCount] = useState(0);
   const [comparisonData, setComparisonData] = useState(new Map());
@@ -303,19 +303,6 @@ const PlayerGraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubVi
   const isLoadingRef = useRef(false);
   const loadedCompareIdsRef = useRef(new Set());
   const shouldFollowUrlRef = useRef(true);
-
-  // Detect if modal is open, if so do conditionals.
-  useEffect(() => {
-    if (isOpen) {
-      setIsModalOpen(isOpen);
-      setOnClose(() => onClose);
-    }
-  
-    return () => {
-      setIsModalOpen(false);
-      setOnClose(null);
-    };
-  }, [isOpen, onClose, setIsModalOpen, setOnClose]);
 
   // Reset state when modal is opened with new player
   useEffect(() => {

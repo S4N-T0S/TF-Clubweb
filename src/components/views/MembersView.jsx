@@ -9,7 +9,7 @@ import { Pagination } from '../Pagination';
 import { SortButton } from '../SortButton';
 import { useRef } from 'react';
 import { useSwipe } from '../../hooks/useSwipe';
-import { useModal } from '../../context/ModalContext';
+import { useModal } from '../../context/ModalProvider';
 
 const MembersNoResults = ({ searchQuery, onSwitchToGlobalSearch }) => (
   <div className="p-6 text-center text-gray-400">
