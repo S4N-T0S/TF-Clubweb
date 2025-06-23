@@ -13,7 +13,7 @@ import { useModal } from '../../context/ModalContext';
 
 const MembersNoResults = ({ searchQuery, onSwitchToGlobalSearch }) => (
   <div className="p-6 text-center text-gray-400">
-    <p>No members found for your search query: &quot;{searchQuery}&quot;</p>
+    <p>No OG club members found for your search query: &quot;{searchQuery}&quot;</p>
     <p className="mt-2">
       Perhaps you meant to search the global leaderboard?{' '}
       <span
