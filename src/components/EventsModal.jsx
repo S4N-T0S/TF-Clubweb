@@ -10,8 +10,8 @@ import { ErrorDisplay } from './ErrorDisplay';
 import { EventCard } from './EventCard';
 import { LeagueRangeSlider } from './LeagueRangeSlider';
 import { getLeagueIndexForFilter } from '../utils/leagueUtils';
-import { UserCheck, Gavel, ChevronsUpDown, Users, X, RefreshCw, SlidersHorizontal } from 'lucide-react';
-import { EventsModalProps, FilterToggleButtonProps } from '../types/propTypes';
+import { UserCheck, Gavel, ChevronsUpDown, Users, X, RefreshCw, SlidersHorizontal, Info } from 'lucide-react';
+import { EventsModalProps, FilterToggleButtonProps, EventsModal_InfoPopupProps } from '../types/propTypes';
 
 // Key for storing settings in localStorage
 const EVENTS_MODAL_SETTINGS_KEY = 'eventsModalSettings';
@@ -54,6 +54,45 @@ const FilterToggleButton = ({ label, isActive, onClick, Icon, colorClass, textCo
     );
 };
 
+// Helper component for the information pop-up
+const EventInfoPopup = ({ onClose }) => {
+  const infoModalRef = useModal(true, onClose); 
+
+  return (
+    <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center z-20 p-4">
+      <div ref={infoModalRef} className="bg-gray-800 rounded-lg p-6 max-w-lg w-full border border-gray-600 shadow-xl relative animate-fade-in-fast">
+        <h3 className="text-lg font-bold text-white mb-4">About The Events Feed</h3>
+        <p className="text-gray-400 mb-4 text-sm">
+          This feed highlights major changes on the current ranked leaderboard.
+          While we aim for accuracy, please note that all events are generated automatically and may not be 100% precise.
+          Additionally, since we only track changes within the ranked leaderboard, events outside of it will not appear here.
+        </p>
+        <div className="space-y-3 text-sm">
+          <div>
+            <strong className="text-indigo-400 flex items-center gap-2"><UserCheck className="w-4 h-4" /> Name Change:</strong>
+            <p className="text-gray-400 ml-8">Tracks when a player changes their in-game name.</p>
+          </div>
+          <div>
+            <strong className="text-red-500 flex items-center gap-2"><Gavel className="w-4 h-4" /> Suspected Ban:</strong>
+            <p className="text-gray-400 ml-8">Occurs when a player disappears from the leaderboard entirely, which is often an indication of a ban. This is an inference, not a confirmation.</p>
+          </div>
+          <div>
+            <strong className="text-yellow-400 flex items-center gap-2"><ChevronsUpDown className="w-4 h-4" /> Rank Score Adjustment:</strong>
+            <p className="text-gray-400 ml-8">Monitors significant gains or losses in a player&apos;s Rank Score (RS), including players falling off the leaderboard due to RS decay.</p>
+          </div>
+          <div>
+            <strong className="text-teal-400 flex items-center gap-2"><Users className="w-4 h-4" /> Club Event:</strong>
+            <p className="text-gray-400 ml-8">Records when a player joins, leaves, or changes their club affiliation.</p>
+          </div>
+        </div>
+        <button onClick={onClose} className="absolute top-3 right-3 p-1 text-gray-400 hover:text-white rounded-full">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const getRankInfoFromEvent = (event) => {
     const d = event.details;
     switch(event.event_type) {
@@ -73,19 +112,37 @@ const getRankInfoFromEvent = (event) => {
 };
 
 const isQueryInEvent = (event, query) => {
+    const lowerQuery = query.toLowerCase().trim();
+    if (!lowerQuery) return true;
+
     const d = event.details;
-    let lowerQuery = query.toLowerCase();
-    
-    if (lowerQuery.startsWith('[')) {
-        lowerQuery = lowerQuery.replace(/[[]]/g, '');
-        if (lowerQuery === '') return true;
-        
-        const clubTags = [ d.club_tag, d.old_club_tag, d.new_club_tag, d.last_known_club_tag, d.old_club, d.new_club ].filter(Boolean);
-        return clubTags.some(tag => tag.toLowerCase().includes(lowerQuery));
+
+    // Collect all relevant names and club tags from the event.
+    const eventNames = [ event.current_embark_id, d.old_name, d.new_name, d.last_known_name, d.name ].filter(Boolean).map(n => n.toLowerCase());
+    const eventClubTags = [ d.club_tag, d.old_club_tag, d.new_club_tag, d.last_known_club_tag, d.old_club, d.new_club ].filter(Boolean).map(t => t.toLowerCase());
+
+    // Handle exclusive club tag searches like `[tag]`
+    const clubSearchMatch = lowerQuery.match(/^\[(.*?)\]$/);
+    if (clubSearchMatch) {
+        const tagQuery = clubSearchMatch[1];
+        return eventClubTags.some(tag => tag.includes(tagQuery));
     }
     
-    const names = [ event.current_embark_id, d.old_name, d.new_name, d.last_known_name, d.name ].filter(Boolean);
-    return names.some(name => name.toLowerCase().includes(lowerQuery));
+    // For combined or general searches, construct all possible searchable strings.
+    const fullSearchableStrings = new Set();
+    eventNames.forEach(name => {
+        // Add the name by itself
+        fullSearchableStrings.add(name);
+        // Add all combinations of "[tag] name"
+        eventClubTags.forEach(tag => {
+            fullSearchableStrings.add(`[${tag}] ${name}`);
+        });
+    });
+
+    // Also add club tags by themselves to be searchable
+    eventClubTags.forEach(tag => fullSearchableStrings.add(`[${tag}]`));
+
+    return Array.from(fullSearchableStrings).some(s => s.includes(lowerQuery));
 };
 
 
@@ -97,6 +154,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   const [error, setError] = useState(null);
   const [cacheExpiresAt, setCacheExpiresAt] = useState(0);
   const [isAnimatingRefresh, setIsAnimatingRefresh] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   
   // States with persistence
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -280,11 +338,14 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
       <div 
         ref={modalRef} 
-        className={`bg-gray-900 rounded-lg w-full flex flex-col shadow-2xl overflow-hidden 
+        className={`bg-gray-900 rounded-lg w-full flex flex-col shadow-2xl overflow-hidden relative
           ${isMobile ? 'max-w-[95vw] h-[90vh]' : 'max-w-[60vw] h-[85vh]'}`}
       >
+        {showInfo && <EventInfoPopup onClose={() => setShowInfo(false)} />}
+        
         <header className="flex-shrink-0 bg-gray-800 p-4 border-b border-gray-700 flex items-center">
             <div className="flex-1">
+              <div className="flex items-center gap-2">
                 <button
                     onClick={toggleAutoRefresh}
                     className={`p-2 rounded-full transition-colors ${autoRefresh ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}`}
@@ -292,6 +353,14 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
                 >
                     <RefreshCw className={`w-5 h-5 ${isAnimatingRefresh ? 'animate-spin' : ''}`} />
                 </button>
+                <button
+                    onClick={() => setShowInfo(true)}
+                    className="p-2 rounded-full bg-gray-600 text-gray-300 hover:bg-gray-500 transition-colors"
+                    title="About Event Types"
+                >
+                    <Info className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             <h2 className="flex-shrink-0 text-xl font-bold text-white">{autoRefresh ? 'Live ' : ''}Events Feed</h2>
             <div className="flex-1 flex justify-end">
@@ -385,5 +454,6 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
 
 EventsModal.propTypes = EventsModalProps;
 FilterToggleButton.propTypes = FilterToggleButtonProps;
+EventInfoPopup.propTypes = EventsModal_InfoPopupProps;
 
 export default EventsModal;

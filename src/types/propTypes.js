@@ -260,6 +260,10 @@ export const EventsModalProps = {
   showToast: PropTypes.func.isRequired
 };
 
+export const EventsModal_InfoPopupProps = {
+  onClose: PropTypes.func.isRequired
+};
+
 export const EventCardProps = {
   event: PropTypes.object.isRequired,
   onPlayerSearch: PropTypes.func.isRequired,
