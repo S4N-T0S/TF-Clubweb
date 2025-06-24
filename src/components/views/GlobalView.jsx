@@ -6,7 +6,7 @@ import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
 import { useEffect, useRef, useState } from 'react';
-import { GlobalViewProps, GlobalPlayerRowProps, RankChangeDisplayProps, RubyCutoffIndicatorProps, NoResultsMessageProps } from '../../types/propTypes';
+import { GlobalViewProps, GlobalPlayerRowProps, RankChangeDisplayProps, RubyCutoffIndicatorProps, NoResultsMessageProps, FavouritesButtonProps } from '../../types/propTypes';
 import { PlatformIcons } from "../icons/Platforms";
 import { SortButton } from '../SortButton';
 import { Hexagon } from '../icons/Hexagon';
@@ -308,6 +308,60 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
   );
 };
 
+const FavouritesButton = ({ favourites, selectedSeason, currentSeason, showFavourites, setShowFavourites, showToast, isMobile }) => {
+  const hasFavourites = favourites.length > 0;
+  const isHistoricalSeason = selectedSeason !== currentSeason;
+
+  const isDisabled = !hasFavourites || isHistoricalSeason;
+  const isActive = showFavourites && !isHistoricalSeason;
+  const buttonClass = `
+    px-4 py-2 rounded-lg flex items-center justify-center gap-2 text-white h-[42px]
+    whitespace-nowrap
+    ${isActive ? 'bg-yellow-500' : 'bg-gray-700 hover:bg-gray-600'} 
+    ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
+  `;
+
+  // This effect ensures the Favourites view is disabled if the conditions for it are no longer met.
+  useEffect(() => {
+    if (isHistoricalSeason || !hasFavourites) {
+      setShowFavourites(false);
+    }
+  }, [isHistoricalSeason, hasFavourites, setShowFavourites]);
+
+  const handleClick = () => {
+    if (isDisabled) {
+      if (isHistoricalSeason) {
+        showToast({
+          message: 'Favourites are disabled in historical seasons.',
+          type: 'warning',
+          icon: Star,
+          duration: 2000
+        });
+      } else if (!hasFavourites) {
+        showToast({
+          title: `No Favourites yet!`,
+          message: isMobile
+            ? 'Long-press on a player to Favourite them. You can also swipe to switch pages.'
+            : 'Click the star next to a player to Favourite them.',
+          type: 'info',
+          icon: Star,
+          duration: 4000
+        });
+      }
+      return;
+    }
+    
+    setShowFavourites(!showFavourites);
+  };
+
+  // The button is not truly disabled, allowing the onClick to fire and show a toast.
+  return (
+    <button onClick={handleClick} className={buttonClass} aria-label="Toggle Favourites">
+      <Star className={`w-5 h-5 ${isActive ? 'fill-current' : ''}`} />
+    </button>
+  );
+};
+
 export const GlobalView = ({
   currentSeason,
   selectedSeason,
@@ -451,61 +505,6 @@ export const GlobalView = ({
     }
   }, [initialSearchQuery, isMobile]);
 
-  const FavouritesButton = () => {
-    const hasFavourites = favourites.length > 0;
-    const isHistoricalSeason = selectedSeason !== currentSeason;
-
-    const isDisabled = !hasFavourites || isHistoricalSeason;
-    const isActive = showFavourites && !isHistoricalSeason;
-    const buttonClass = `
-      px-4 py-2 rounded-lg flex items-center justify-center gap-2 text-white h-[42px]
-      whitespace-nowrap
-      ${isActive ? 'bg-yellow-500' : 'bg-gray-700 hover:bg-gray-600'} 
-      ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
-    `;
-
-    // This effect ensures the Favourites view is disabled if the conditions for it are no longer met.
-    useEffect(() => {
-      if (isHistoricalSeason || !hasFavourites) {
-        setShowFavourites(false);
-      }
-    }, [isHistoricalSeason, hasFavourites]);
-  
-    const handleClick = () => {
-      if (isDisabled) {
-        if (isHistoricalSeason) {
-          showToast({
-            message: 'Favourites are disabled in historical seasons.',
-            type: 'warning',
-            icon: Star,
-            duration: 2000
-          });
-        } else if (!hasFavourites) {
-          showToast({
-            title: `No Favourites yet!`,
-            message: isMobile
-              ? 'Long-press on a player to Favourite them. You can also swipe to switch pages.'
-              : 'Click the star next to a player to Favourite them.',
-            type: 'info',
-            icon: Star,
-            duration: 4000
-          });
-        }
-        return;
-      }
-      
-      setShowFavourites(!showFavourites);
-    };
-
-    // The button is not truly disabled, allowing the onClick to fire and show a toast.
-    return (
-      <button onClick={handleClick} className={buttonClass} aria-label="Toggle Favourites">
-        <Star className={`w-5 h-5 ${isActive ? 'fill-current' : ''}`} />
-      </button>
-    );
-  };
-
-
   return (
     <div>
       <div className="flex flex-col sm:flex-row gap-2 mb-4 items-stretch sm:items-center">
@@ -516,7 +515,15 @@ export const GlobalView = ({
             searchInputRef={searchInputRef}
           />
         </div>
-        <FavouritesButton />
+        <FavouritesButton 
+          favourites={favourites}
+          selectedSeason={selectedSeason}
+          currentSeason={currentSeason}
+          showFavourites={showFavourites}
+          setShowFavourites={setShowFavourites}
+          showToast={showToast}
+          isMobile={isMobile}
+        />
         <div className="flex items-center gap-2">
           <select
             value={selectedSeason}
@@ -669,3 +676,4 @@ PlayerRow.propTypes = GlobalPlayerRowProps;
 RankChangeDisplay.propTypes = RankChangeDisplayProps;
 RubyCutoffIndicator.propTypes = RubyCutoffIndicatorProps;
 NoResultsMessage.propTypes = NoResultsMessageProps;
+FavouritesButton.propTypes = FavouritesButtonProps;

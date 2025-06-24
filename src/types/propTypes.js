@@ -24,6 +24,14 @@ export const ClubType = {
   originalRank: PropTypes.number
 };
 
+export const FavouriteType = {
+  name: PropTypes.string.isRequired,
+  steamName: PropTypes.string,
+  psnName: PropTypes.string,
+  xboxName: PropTypes.string,
+  addedAt: PropTypes.number
+};
+
 export const SortButtonProps = {
   field: PropTypes.string.isRequired,
   sortConfig: PropTypes.shape({
@@ -72,6 +80,16 @@ export const ClubsViewProps = {
   })).isRequired,
   onClubClick: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired
+};
+
+export const FavouritesButtonProps = {
+    favourites: PropTypes.arrayOf(PropTypes.shape(FavouriteType)).isRequired,
+    selectedSeason: PropTypes.string.isRequired,
+    currentSeason: PropTypes.string.isRequired,
+    showFavourites: PropTypes.bool.isRequired,
+    setShowFavourites: PropTypes.func.isRequired,
+    showToast: PropTypes.func.isRequired,
+    isMobile: PropTypes.bool.isRequired,
 };
 
 export const GlobalViewProps = {
@@ -222,10 +240,6 @@ export const PlayerGraphModalProps = {
   globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)),
   onSwitchToGlobal: PropTypes.func,
   isMobile: PropTypes.bool.isRequired
-};
-
-export const FavouritesProviderProps = {
-  children: PropTypes.node.isRequired
 };
 
 export const ModalProviderProps = {
