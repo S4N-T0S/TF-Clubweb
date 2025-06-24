@@ -59,7 +59,15 @@ const getRankInfoFromEvent = (event) => {
     switch(event.event_type) {
         case 'NAME_CHANGE': return { rank: d.rank, score: d.rank_score };
         case 'SUSPECTED_BAN': return { rank: d.last_known_rank, score: d.last_known_rank_score };
-        case 'RS_ADJUSTMENT': return d.is_off_leaderboard ? { rank: d.old_rank, score: d.old_score } : { rank: d.new_rank, score: d.new_score };
+        case 'RS_ADJUSTMENT': {
+            // For score drops (including falling off leaderboard), filter by the player's old rank.
+            // For score gains, filter by their new rank. This is more intuitive for users.
+            const isLoss = d.is_off_leaderboard || (d.change && d.change < 0);
+            if (isLoss) {
+                return { rank: d.old_rank, score: d.old_score };
+            }
+            return { rank: d.new_rank, score: d.new_score };
+        }
         default: return { rank: null, score: null };
     }
 };

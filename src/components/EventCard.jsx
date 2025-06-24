@@ -79,7 +79,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
               <PlayerName name={d.new_name} onPlayerSearch={onPlayerSearch} />
             </div>
             <p className="text-sm text-gray-500 pt-1">
-              Rank #{d.rank} ({d.rank_score?.toLocaleString() ?? 'N/A'} RS)
+              Rank #{d.rank?.toLocaleString()} ({d.rank_score?.toLocaleString() ?? 'N/A'} RS)
             </p>
           </div>
         );
@@ -92,7 +92,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
           {d.new_club_tag && <ClubTag tag={d.new_club_tag} onClubClick={onClubClick} />}{' '}
           <PlayerName name={d.new_name} onPlayerSearch={onPlayerSearch} />
           <p className="text-sm text-gray-500 mt-1">
-            Rank #{d.rank} ({d.rank_score?.toLocaleString() ?? 'N/A'} RS)
+            Rank #{d.rank?.toLocaleString()} ({d.rank_score?.toLocaleString() ?? 'N/A'} RS)
           </p>
         </div>
       );
@@ -104,7 +104,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
           <PlayerName name={d.last_known_name} onPlayerSearch={onPlayerSearch} />
           <span> has disappeared from the leaderboard.</span>
           <p className="text-sm text-gray-500 mt-1">
-            Last seen at Rank #{d.last_known_rank} ({d.last_known_rank_score.toLocaleString()} RS)
+            Last seen at Rank #{d.last_known_rank?.toLocaleString()} ({d.last_known_rank_score.toLocaleString()} RS)
           </p>
         </div>
       );
@@ -115,7 +115,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
           <div className="text-gray-400 leading-relaxed">
             {d.club_tag && <ClubTag tag={d.club_tag} onClubClick={onClubClick} />}{' '}
             <PlayerName name={d.name} onPlayerSearch={onPlayerSearch} />
-            <span> fell off the leaderboard from Rank #{d.old_rank} ({d.old_score.toLocaleString()} RS). </span>
+            <span> fell off the leaderboard from Rank #{d.old_rank?.toLocaleString()} ({d.old_score.toLocaleString()} RS). </span>
             <span className="font-semibold text-red-400">Lost at least {d.minimum_loss.toLocaleString()} RS.</span>
           </div>
         );
@@ -130,7 +130,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
             {d.change > 0 ? '+' : ''}{d.change.toLocaleString()} RS
           </span>.
           <p className="text-sm text-gray-500 mt-1">
-            #{d.old_rank ?? 'N/A'} → #{d.new_rank ?? 'N/A'} ({d.new_score?.toLocaleString() ?? 'N/A'} RS)
+            #{d.old_rank?.toLocaleString() ?? 'N/A'} ({d.old_score?.toLocaleString() ?? 'N/A'} RS) → #{d.new_rank?.toLocaleString() ?? 'N/A'} ({d.new_score?.toLocaleString() ?? 'N/A'} RS)
           </p>
         </div>
       );
