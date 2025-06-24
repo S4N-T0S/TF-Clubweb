@@ -187,10 +187,11 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
   if (!isOpen) return null;
 
   return (
-  <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-2 sm:p-4">
+  <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
     <div 
       ref={modalRef} 
-      className="bg-gray-800 rounded-lg p-6 w-full max-h-[90vh] sm:w-2/3 sm:h-[80vh] m-4 flex flex-col"
+      className={`bg-gray-800 rounded-lg p-6 w-full flex flex-col 
+        ${isMobile ? 'max-w-[95vw] h-[90vh]' : 'max-w-[60vw] h-[85vh]'}`}
     >
         <div className="flex-shrink-0">
           <div className="flex items-center mb-4 relative">

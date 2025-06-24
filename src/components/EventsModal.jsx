@@ -269,8 +269,12 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-2 sm:p-4">
-      <div ref={modalRef} className="bg-gray-900 rounded-lg w-full sm:w-2/3 max-h-[95vh] sm:h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+      <div 
+        ref={modalRef} 
+        className={`bg-gray-900 rounded-lg w-full flex flex-col shadow-2xl overflow-hidden 
+          ${isMobile ? 'max-w-[95vw] h-[90vh]' : 'max-w-[60vw] h-[85vh]'}`}
+      >
         <header className="flex-shrink-0 bg-gray-800 p-4 border-b border-gray-700 flex items-center">
             <div className="flex-1">
                 <button
