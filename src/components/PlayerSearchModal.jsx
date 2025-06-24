@@ -187,12 +187,12 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
   if (!isOpen) return null;
 
   return (
-  <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-    <div 
-      ref={modalRef} 
-      className={`bg-gray-800 rounded-lg p-6 w-full flex flex-col 
-        ${isMobile ? 'max-w-[95vw] h-[90vh]' : 'max-w-[60vw] h-[85vh]'}`}
-    >
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+      <div 
+        ref={modalRef} 
+        className={`bg-gray-800 rounded-lg p-6 w-full flex flex-col 
+          ${isMobile ? 'max-w-[95vw] h-[90vh]' : 'max-w-[60vw] h-[85vh]'}`}
+      >
         <div className="flex-shrink-0">
           <div className="flex items-center mb-4 relative">
             <button 
@@ -205,7 +205,6 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
             </button>
             <h2 className="text-xl font-bold text-white w-full text-center">Player History Search</h2>
           </div>
-
           <div className="mb-4">
             <button 
               onClick={toggleExplanation}
@@ -214,7 +213,7 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
               <span className="text-sm">Tap to view search tool details</span>
               {isExplanationExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
             </button>
-            
+
             {/* Full explanation visible on desktop, conditional on mobile */}
             <div className={`
               bg-gray-700 rounded-lg text-gray-300 
@@ -226,7 +225,6 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
               <p>This tool searches the leaderboards for Open Beta and Seasons 1-5 using an Embark ID. It identifies any linked Steam, Xbox, or PSN usernames from these records and performs additional searches on those accounts to uncover more associated records. All linked accounts and results are displayed. Note: The autofill feature only works for players in the top 10k, but you can manually enter an Embark ID for inactive players.</p>
             </div>
           </div>
-
           <div className="relative mb-4">
             <div className="flex gap-2">
               <div className="relative flex-1">
@@ -269,14 +267,12 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
               </button>
             </div>
           </div>
-
           {searchState.error && (
             <div className="mb-4 p-3 bg-red-900 bg-opacity-20 border border-red-700 rounded-lg text-red-400">
               {searchState.error}
             </div>
           )}
         </div>
-
         <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {searchState.results.length === 0 && !searchState.error && !searchState.isSearching && searchState.query && (
@@ -284,7 +280,6 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
                 No results found
               </div>
             )}
-
             {searchState.results.map((result, index) => (
               <div 
                 key={`${result.season}-${index}`}
@@ -309,7 +304,6 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
                     </div>
                   )}
                 </div>
-
                 <div className="space-y-2 text-gray-300">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {result.name && (
