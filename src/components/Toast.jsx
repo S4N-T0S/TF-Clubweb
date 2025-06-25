@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock, X, Loader2, Info } from 'lucide-react';
 import { ToastProps } from '../types/propTypes';
-import { formatTimeAgo } from '../utils/timeUtils';
+import { formatTimeAgo, formatDuration } from '../utils/timeUtils';
 
 const formatTtl = (ttl, type) => {
   // Handle cases where TTL has expired or is zero.
@@ -18,14 +18,14 @@ const formatTtl = (ttl, type) => {
     return 'Retrying...';
   }
 
-  // If TTL is positive, calculate remaining minutes.
-  const minutes = Math.ceil(ttl / 60);
-  const minuteText = minutes === 1 ? '1 minute' : `${minutes} minutes`;
+  // If TTL is positive, use the centralized formatDuration function.
+  // We convert ttl from seconds to milliseconds for the function.
+  const durationString = formatDuration(ttl * 1000);
   
   if (type === 'success') {
-    return `Will check for update in ${minuteText}`;
+    return `Will check for update in ${durationString}`;
   }
-  return `Try again in ${minuteText}`;
+  return `Try again in ${durationString}`;
 };
 
 // Map of toast types to their default properties

@@ -9,7 +9,7 @@ import {
   TrendingUp,   // Added for RS adjustments
   TrendingDown, // Added for RS adjustments
 } from 'lucide-react';
-import { formatTimeAgo } from '../utils/timeUtils';
+import { formatTimeAgo, formatDuration } from '../utils/timeUtils';
 import { EventCardProps, EventCard_PlayerNameProps, EventCard_ClubTagProps } from '../types/propTypes';
 
 // Helper component for clickable player names
@@ -104,6 +104,8 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
     case 'SUSPECTED_BAN':
       // Case for resolved ban (player reappeared)
       if (event.endTimestamp) {
+        const durationMs = event.endTimestamp - event.startTimestamp;
+        const durationString = formatDuration(durationMs);
         return (
           <div className="text-gray-400 leading-relaxed space-y-1">
             <div>
@@ -117,8 +119,13 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
               </p>
               {d.reappeared_at_rank != null && (
                 <p>
-                  <span className="font-semibold text-gray-400">Reappeared at:</span> Rank #{d.reappeared_at_rank.toLocaleString() ?? 'N/A'} ({d.reappeared_at_rank_score?.toLocaleString() ?? 'N/A'} RS)
+                  <span className="font-semibold text-gray-400">Reappeared at:</span> Rank #{d.reappeared_at_rank.toLocaleString()} ({d.reappeared_at_rank_score?.toLocaleString() ?? 'N/A'} RS)
                 </p>
+              )}
+              {durationString && (
+                 <p>
+                    <span className="font-semibold text-gray-400">Duration:</span> Gone for {durationString}
+                 </p>
               )}
             </div>
           </div>
