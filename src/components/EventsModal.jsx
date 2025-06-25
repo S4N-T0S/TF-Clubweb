@@ -302,10 +302,10 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   }, [filters]);
 
   const filteredEvents = useMemo(() => {
-    // Sort events by their most recent timestamp (end_timestamp or start_timestamp)
+    // Sort events by their most recent timestamp (endTimestamp or startTimestamp)
     const sortedEvents = [...events].sort((a, b) => {
-        const timeA = a.end_timestamp || a.start_timestamp;
-        const timeB = b.end_timestamp || b.start_timestamp;
+        const timeA = a.endTimestamp || a.startTimestamp;
+        const timeB = b.endTimestamp || b.startTimestamp;
         return timeB - timeA; // Sort descending
     });
       

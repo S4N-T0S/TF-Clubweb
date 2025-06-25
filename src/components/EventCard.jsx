@@ -39,13 +39,13 @@ const ClubTag = ({ tag, onClubClick }) => (
 );
 
 const getEventConfig = (event) => {
-  const { event_type, details, end_timestamp } = event;
+  const { event_type, details, endTimestamp } = event;
   switch (event_type) {
     case 'NAME_CHANGE':
       return { Icon: UserCheck, title: 'Name Change', colorClass: 'text-blue-400' };
     case 'SUSPECTED_BAN':
       // If the event is resolved (player reappeared), change the icon and title.
-      if (end_timestamp) {
+      if (endTimestamp) {
         return { Icon: UserCheck, title: 'Player Reappeared', colorClass: 'text-green-400' };
       }
       return { Icon: Gavel, title: 'Suspected Ban', colorClass: 'text-red-500' };
@@ -103,7 +103,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
 
     case 'SUSPECTED_BAN':
       // Case for resolved ban (player reappeared)
-      if (event.end_timestamp) {
+      if (event.endTimestamp) {
         return (
           <div className="text-gray-400 leading-relaxed space-y-1">
             <div>
@@ -241,12 +241,12 @@ export const EventCard = ({ event, onPlayerSearch, onClubClick, onGraphOpen, isM
 
         {/* Footer: Timestamp aligned to the right */}
         <div className="flex justify-end">
-          {event.event_type === 'SUSPECTED_BAN' && event.end_timestamp ? (
+          {event.event_type === 'SUSPECTED_BAN' && event.endTimestamp ? (
             <span className="text-sm text-gray-500 text-right">
-                {formatTimeAgo(event.start_timestamp)} → {formatTimeAgo(event.end_timestamp)}
+                {formatTimeAgo(event.startTimestamp)} → {formatTimeAgo(event.endTimestamp)}
             </span>
           ) : (
-            <span className="text-sm text-gray-500">{formatTimeAgo(event.start_timestamp)}</span>
+            <span className="text-sm text-gray-500">{formatTimeAgo(event.startTimestamp)}</span>
           )}
         </div>
       </div>
