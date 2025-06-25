@@ -151,6 +151,10 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   const modalRef = useModal(isOpen, onClose);
   const scrollContainerRef = useRef(null); // Ref for the scrollable content area
   const [events, setEvents] = useState([]);
+  const eventsRef = useRef(events); // Create a ref to hold the current events
+  useEffect(() => {
+    eventsRef.current = events;
+  }, [events]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [cacheExpiresAt, setCacheExpiresAt] = useState(0);
@@ -219,13 +223,42 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
 
   const loadEvents = useCallback(async (forceRefresh = false) => {
     setLoading(true);
+    // Use ref to get current events without adding to dependency array
+    const oldEventsMap = new Map(eventsRef.current.map(e => [e.id, JSON.stringify(e)]));
+
     try {
       const result = await fetchRecentEvents(forceRefresh);
-      setEvents(result.data);
+      const newEvents = result.data;
+      setEvents(newEvents);
       setCacheExpiresAt(result.expiresAt || 0);
       setError(null);
       if (forceRefresh) {
-        showToast({ message: 'Events feed has been updated.', type: 'success' });
+        // Check for new or updated events to provide a more informative toast.
+        let newEventCount = 0;
+        let updatedEventCount = 0;
+
+        newEvents.forEach(newEvent => {
+          if (!oldEventsMap.has(newEvent.id)) {
+            newEventCount++;
+          } else {
+            // Compare stringified versions to detect changes.
+            if (oldEventsMap.get(newEvent.id) !== JSON.stringify(newEvent)) {
+              updatedEventCount++;
+            }
+          }
+        });
+        
+        if (newEventCount > 0 || updatedEventCount > 0) {
+          const parts = [];
+          if (newEventCount > 0) {
+            parts.push(`${newEventCount} new event${newEventCount > 1 ? 's' : ''}`);
+          }
+          if (updatedEventCount > 0) {
+            parts.push(`${updatedEventCount} updated event${updatedEventCount > 1 ? 's' : ''}`);
+          }
+          const message = `Events feed updated with ${parts.join(' and ')}.`;
+          showToast({ message, type: 'success' });
+        }
       }
     // eslint-disable-next-line no-unused-vars
     } catch (err) {
