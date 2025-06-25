@@ -74,7 +74,7 @@ const EventInfoPopup = ({ onClose }) => {
           </div>
           <div>
             <strong className="text-red-500 flex items-center gap-2"><Gavel className="w-4 h-4" /> Suspected Ban:</strong>
-            <p className="text-gray-400 ml-8">Occurs when a player disappears from the leaderboard entirely, which is often an indication of a ban. This is an inference, not a confirmation.</p>
+            <p className="text-gray-400 ml-8">Occurs when a player disappears from the leaderboard entirely, which is often an indication of a ban. This is an inference, not a confirmation. The event is updated if the player reappears, which can happen if a ban is reverted or they reclaim a leaderboard spot after a large Rank Score loss.</p>
           </div>
           <div>
             <strong className="text-yellow-400 flex items-center gap-2"><ChevronsUpDown className="w-4 h-4" /> Rank Score Adjustment:</strong>
@@ -107,6 +107,7 @@ const getRankInfoFromEvent = (event) => {
             }
             return { rank: d.new_rank, score: d.new_score };
         }
+        case 'CLUB_CHANGE': return { rank: d.rank, score: d.rank_score };
         default: return { rank: null, score: null };
     }
 };
@@ -301,7 +302,14 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   }, [filters]);
 
   const filteredEvents = useMemo(() => {
-    return events.filter(event => {
+    // Sort events by their most recent timestamp (end_timestamp or start_timestamp)
+    const sortedEvents = [...events].sort((a, b) => {
+        const timeA = a.end_timestamp || a.start_timestamp;
+        const timeB = b.end_timestamp || b.start_timestamp;
+        return timeB - timeA; // Sort descending
+    });
+      
+    return sortedEvents.filter(event => {
       if (
         (event.event_type === 'NAME_CHANGE' && !filters.showNameChange) ||
         (event.event_type === 'SUSPECTED_BAN' && !filters.showSuspectedBan) ||
@@ -310,6 +318,8 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
       ) return false;
       
       const { rank, score } = getRankInfoFromEvent(event);
+      // For some events (like old Club Changes), rank/score might not be available.
+      // If null, leagueIndex will also be null.
       const leagueIndex = getLeagueIndexForFilter(rank, score);
       
       // Filter by minimum league. If filter is active (minLeague > 0), hide events

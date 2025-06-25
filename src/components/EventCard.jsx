@@ -39,11 +39,15 @@ const ClubTag = ({ tag, onClubClick }) => (
 );
 
 const getEventConfig = (event) => {
-  const { event_type, details } = event;
+  const { event_type, details, end_timestamp } = event;
   switch (event_type) {
     case 'NAME_CHANGE':
       return { Icon: UserCheck, title: 'Name Change', colorClass: 'text-blue-400' };
     case 'SUSPECTED_BAN':
+      // If the event is resolved (player reappeared), change the icon and title.
+      if (end_timestamp) {
+        return { Icon: UserCheck, title: 'Player Reappeared', colorClass: 'text-green-400' };
+      }
       return { Icon: Gavel, title: 'Suspected Ban', colorClass: 'text-red-500' };
     case 'RS_ADJUSTMENT': {
       const isLoss = details.is_off_leaderboard || (details.change && details.change < 0);
@@ -98,6 +102,29 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
       );
 
     case 'SUSPECTED_BAN':
+      // Case for resolved ban (player reappeared)
+      if (event.end_timestamp) {
+        return (
+          <div className="text-gray-400 leading-relaxed space-y-1">
+            <div>
+              {d.last_known_club_tag && <ClubTag tag={d.last_known_club_tag} onClubClick={onClubClick} />}{' '}
+              <PlayerName name={event.current_embark_id} onPlayerSearch={onPlayerSearch} />
+              <span> has reappeared on the leaderboard.</span>
+            </div>
+            <div className="text-sm text-gray-500 pl-2 border-l-2 border-gray-600 space-y-0.5 mt-1">
+              <p>
+                <span className="font-semibold text-gray-400">Disappeared at:</span> Rank #{d.last_known_rank.toLocaleString()} ({d.last_known_rank_score.toLocaleString()} RS)
+              </p>
+              {d.reappeared_at_rank != null && (
+                <p>
+                  <span className="font-semibold text-gray-400">Reappeared at:</span> Rank #{d.reappeared_at_rank.toLocaleString() ?? 'N/A'} ({d.reappeared_at_rank_score?.toLocaleString() ?? 'N/A'} RS)
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      }
+      // Default case for an active suspected ban
       return (
         <div className="text-gray-400 leading-relaxed">
           {d.last_known_club_tag && <><ClubTag tag={d.last_known_club_tag} onClubClick={onClubClick} /> </>}
@@ -214,7 +241,13 @@ export const EventCard = ({ event, onPlayerSearch, onClubClick, onGraphOpen, isM
 
         {/* Footer: Timestamp aligned to the right */}
         <div className="flex justify-end">
-          <span className="text-sm text-gray-500">{formatTimeAgo(event.startTimestamp)}</span>
+          {event.event_type === 'SUSPECTED_BAN' && event.end_timestamp ? (
+            <span className="text-sm text-gray-500 text-right">
+                {formatTimeAgo(event.start_timestamp)} → {formatTimeAgo(event.end_timestamp)}
+            </span>
+          ) : (
+            <span className="text-sm text-gray-500">{formatTimeAgo(event.start_timestamp)}</span>
+          )}
         </div>
       </div>
       
