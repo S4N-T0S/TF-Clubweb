@@ -113,7 +113,11 @@ You are an expert frontend developer. Your task is to help build a web applicati
       id: number; // Unique ID for the event.
       event_type: 'NAME_CHANGE' | 'SUSPECTED_BAN' | 'RS_ADJUSTMENT' | 'CLUB_CHANGE';
       start_timestamp: number; // Unix timestamp when the event occurred.
-      end_timestamp: number | null; // Used for `SUSPECTED_BAN` to mark when a player returns (unbanned).
+      // For `SUSPECTED_BAN` events, this marks the time the player reappeared on the leaderboard.
+      // A non-null value indicates the ban/disappearance event is resolved. This could mean the
+      // player was unbanned, or they have climbed back onto the leaderboard after a significant
+      // rank score loss that was initially (and incorrectly) flagged as a ban.
+      end_timestamp: number | null;
       current_embark_id: string; // The player's current name.
       details: NameChangeDetails | SuspectedBanDetails | RsAdjustmentDetails | ClubChangeDetails;
     }
@@ -140,6 +144,8 @@ You are an expert frontend developer. Your task is to help build a web applicati
           last_known_rank_score: number;
           last_known_club_tag: string | null;
         }
+        // NOTE: An event of this type is considered "resolved" or "over" when its `end_timestamp`
+        // is set. This signifies the player has reappeared on the ranked leaderboard.
         ```
 
     3.  **`RS_ADJUSTMENT`**: **[UPDATED]** A player's Rank Score changed by an unusually large amount between updates. This can happen in two ways, distinguished by the `is_off_leaderboard` flag.
@@ -182,6 +188,8 @@ You are an expert frontend developer. Your task is to help build a web applicati
           name: string;
           old_club: string | null;
           new_club: string | null;
+          rank: number; // The player's rank at the time of the change.
+          rank_score: number; // The player's rank score at the time of the change.
           is_mass_change: boolean;
         }
         ```
