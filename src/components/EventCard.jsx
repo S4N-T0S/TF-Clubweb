@@ -119,7 +119,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
               </p>
               {d.reappeared_at_rank != null && (
                 <p>
-                  <span className="font-semibold text-gray-400">Reappeared at:</span> Rank #{d.reappeared_at_rank.toLocaleString()} ({d.reappeared_at_rank_score?.toLocaleString() ?? 'N/A'} RS)
+                  <span className="font-semibold text-gray-400">Reappeared at:</span> Rank #{d.reappeared_at_rank.toLocaleString() ?? 'N/A'} ({d.reappeared_at_rank_score?.toLocaleString() ?? 'N/A'} RS)
                 </p>
               )}
               {durationString && (
