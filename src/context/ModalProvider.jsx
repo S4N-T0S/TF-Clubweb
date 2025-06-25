@@ -20,6 +20,9 @@ export const ModalProvider = ({ children }) => {
       const topModal = modalStack[modalStack.length - 1];
       if (topModal.ref.current && !topModal.ref.current.contains(event.target)) {
         if (topModal.onClose) {
+          // Prevent text selection when clicking outside the modal to close it.
+          // This can happen if the user drags the mouse slightly during the click.
+          event.preventDefault();
           topModal.onClose();
         }
       }
