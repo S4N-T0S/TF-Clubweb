@@ -143,9 +143,13 @@ You are an expert frontend developer. Your task is to help build a web applicati
           last_known_rank: number;
           last_known_rank_score: number;
           last_known_club_tag: string | null;
+          // The following fields are ONLY present if the event is resolved (i.e., end_timestamp on the parent EventEntry is not null).
+          reappeared_at_rank?: number;
+          reappeared_at_rank_score?: number;
         }
         // NOTE: An event of this type is considered "resolved" or "over" when its `end_timestamp`
-        // is set. This signifies the player has reappeared on the ranked leaderboard.
+        // is set. This signifies the player has reappeared on the ranked leaderboard. When this happens,
+        // the `details` object is expanded with their rank and score upon returning.
         ```
 
     3.  **`RS_ADJUSTMENT`**: **[UPDATED]** A player's Rank Score changed by an unusually large amount between updates. This can happen in two ways, distinguished by the `is_off_leaderboard` flag.
