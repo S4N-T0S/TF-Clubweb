@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchLeaderboardData } from '../services/lb-api';
 import { processLeaderboardData } from '../utils/dataProcessing';
 
-const MAX_ACCEPTABLE_AGE = 30 * 60; // 30 minutes in seconds
+const MAX_ACCEPTABLE_AGE = 15 * 60; // 15 minutes in seconds, aligned with backend
+const MAX_STALE_AGE_FOR_ERROR = 45 * 60; // 45 minutes, beyond this is an error
 
 export const useLeaderboard = (clubMembersData) => {
   const [loading, setLoading] = useState(true);
@@ -49,33 +50,10 @@ export const useLeaderboard = (clubMembersData) => {
     }
   
     const dataAge = getDataAge(timestamp);
-    const isDataTooOld = dataAge > MAX_ACCEPTABLE_AGE;
+    const isStale = dataAge > MAX_ACCEPTABLE_AGE;
+    const isVeryStale = dataAge > MAX_STALE_AGE_FOR_ERROR;
   
-    switch (source) {
-      case 'kv-cache':
-      case 'client-cache':
-        return {
-          message: 'Everything is up to date.',
-          type: 'success',
-          timestamp,
-          showMeta: true,
-          duration: 3000,
-          ttl
-        };
-      case 'kv-cache-fallback':
-      case 'client-cache-fallback':
-        return {
-          message: isDataTooOld 
-            ? 'Leaderboard is significantly out of date.' 
-            : 'Leaderboard is using cached data.',
-          type: isDataTooOld 
-            ? 'error' 
-            : 'warning',
-          timestamp,
-          showMeta: true,
-          ttl
-        };
-      case 'client-cache-emergency':
+    if (source === 'client-cache-emergency') {
         return {
           message: 'Unable to connect to server, using emergency cache.',
           type: 'error',
@@ -83,16 +61,37 @@ export const useLeaderboard = (clubMembersData) => {
           showMeta: true,
           ttl
         };
-      default:
-        return {
-          title: 'Information',
-          message: `Data source: ${source}.`,
-          type: 'info',
-          timestamp,
-          showMeta: true,
-          ttl
-        };
     }
+    
+    if (isVeryStale) {
+      return {
+        message: 'Leaderboard is significantly out of date.',
+        type: 'error',
+        timestamp,
+        showMeta: true,
+        ttl
+      };
+    }
+
+    if (isStale) {
+      return {
+        message: 'Leaderboard is using cached data.',
+        type: 'warning',
+        timestamp,
+        showMeta: true,
+        ttl
+      };
+    }
+
+    // If we reach here, data is considered fresh.
+    return {
+      message: 'Everything is up to date.',
+      type: 'success',
+      timestamp,
+      showMeta: true,
+      duration: 3000,
+      ttl
+    };
   }, [getDataAge]);
 
   const refreshData = useCallback(async (isInitialLoad = false) => {
