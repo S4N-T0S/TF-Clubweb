@@ -78,7 +78,7 @@ const EventInfoPopup = ({ onClose }) => {
           </div>
           <div>
             <strong className="text-yellow-400 flex items-center gap-2"><ChevronsUpDown className="w-4 h-4" /> Rank Score Adjustment:</strong>
-            <p className="text-gray-400 ml-8">Monitors significant gains or losses in a player&apos;s Rank Score (RS), including players falling off the leaderboard due to RS decay.</p>
+            <p className="text-gray-400 ml-8">Monitors significant gains or losses in a player&apos;s Rank Score (RS), including players falling off the leaderboard entirely due to a RS adjustment.</p>
           </div>
           <div>
             <strong className="text-teal-400 flex items-center gap-2"><Users className="w-4 h-4" /> Club Event:</strong>
