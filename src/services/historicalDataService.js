@@ -90,10 +90,13 @@ const processResult = (result, seasonConfig, searchType, originalEmbarkId, seaso
   isTop500: (result.rank <= 500) && !seasonConfig.hasRuby
 });
 
-const getSeasonData = async (season, currentSeasonData) => {
-  if (season.isCurrent && !season.data) {
-    season.data = { data: currentSeasonData };
+const getSeasonData = (season, currentSeasonData) => {
+  if (season.isCurrent) {
+    // For the current season, always use the fresh data passed from the main app state.
+    // This prevents using stale data from a mutated global SEASONS object.
+    return currentSeasonData || [];
   }
+  // For historical seasons, use the statically imported JSON data.
   return season.data?.data || [];
 };
 
@@ -103,10 +106,10 @@ export const searchPlayerHistory = async (embarkId, currentSeasonData = null) =>
 
   // Process all seasons including current
   for (const [seasonKey, seasonConfig] of Object.entries(SEASONS)) {
-    const currentsSeason = await getSeasonData(seasonConfig, currentSeasonData);
+    const currentSeasonPlayers = getSeasonData(seasonConfig, currentSeasonData);
     
     // Search by Embark ID and collect platform names
-    const embarkResults = filterPlayers(currentsSeason, embarkId, 'embarkId');
+    const embarkResults = filterPlayers(currentSeasonPlayers, embarkId, 'embarkId');
     
     embarkResults.forEach(result => {
       if (result.steamName) platformNames.steam.add(result.steamName);
@@ -123,10 +126,10 @@ export const searchPlayerHistory = async (embarkId, currentSeasonData = null) =>
   // Search by platform names across all seasons
   const searchPlatformNames = async (names, type) => {
     for (const [seasonKey, seasonConfig] of Object.entries(SEASONS)) {
-      const currentsSeason = await getSeasonData(seasonConfig, currentSeasonData);
+      const currentSeasonPlayers = getSeasonData(seasonConfig, currentSeasonData);
       
       for (const name of names) {
-        const platformResults = filterPlayers(currentsSeason, name, type);
+        const platformResults = filterPlayers(currentSeasonPlayers, name, type);
         
         platformResults.forEach(result => {
           const resultKey = `${seasonConfig.label}-${result.name}-${result.steamName}-${result.psnName}-${result.xboxName}`;
