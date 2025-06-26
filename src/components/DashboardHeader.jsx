@@ -21,7 +21,8 @@ export const DashboardHeader = ({
   unknownMembers,
   view,
   setView,
-  onRefresh,
+  onToggleAutoRefresh,
+  autoRefresh,
   isRefreshing,
   onOpenSearch,
   onOpenEvents,
@@ -147,11 +148,15 @@ export const DashboardHeader = ({
                   <FileSearch className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={onRefresh}
-                  disabled={isRefreshing}
-                  className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 
-                    bg-gray-700 text-gray-300 hover:bg-gray-600 w-full sm:w-auto
+                  onClick={onToggleAutoRefresh}
+                  title={autoRefresh ? 'Auto-Refresh ON' : 'Auto-Refresh OFF'}
+                  className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 w-full sm:w-auto transition-colors
+                    ${autoRefresh 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }
                     ${isRefreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  disabled={isRefreshing}
                 >
                   <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 </button>
@@ -177,11 +182,15 @@ export const DashboardHeader = ({
                   <FileSearch className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={onRefresh}
-                  disabled={isRefreshing}
-                  className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 
-                    bg-gray-700 text-gray-300 hover:bg-gray-600
+                  onClick={onToggleAutoRefresh}
+                  title={autoRefresh ? 'Auto-Refresh ON' : 'Auto-Refresh OFF'}
+                  className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors
+                    ${autoRefresh 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }
                     ${isRefreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  disabled={isRefreshing}
                 >
                   <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 </button>

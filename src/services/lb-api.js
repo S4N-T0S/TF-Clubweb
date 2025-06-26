@@ -15,6 +15,7 @@ const getCachedData = () => {
       return {
         data,
         timestamp,
+        expiresAt,
         remainingTtl: Math.floor((expiresAt - now) / 1000),
         source
       };
@@ -23,6 +24,7 @@ const getCachedData = () => {
     return {
       data,
       timestamp,
+      expiresAt,
       isStale: true,
       source
     };
@@ -77,7 +79,8 @@ export const fetchLeaderboardData = async () => {
         data: transformData(cachedData.data),
         source,
         timestamp: cachedData.timestamp,
-        remainingTtl: cachedData.remainingTtl
+        remainingTtl: cachedData.remainingTtl,
+        expiresAt: cachedData.expiresAt,
       };
     }
 
@@ -93,8 +96,16 @@ export const fetchLeaderboardData = async () => {
     const transformedData = transformData(result.data);
     
     const timestampMs = result.timestamp * 1000;
-    const expiresAtMs = result.expiresAt * 1000;
-    const remainingTtl = Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
+    let expiresAtMs = result.expiresAt * 1000;
+    let remainingTtl;
+
+    // If the data source is a fallback, override the expiry to force a retry in 2 minutes.
+    // This prevents a stale 'expiresAt' from the fallback from halting the auto-refresh loop.
+    if (result.source === 'kv-cache-fallback') {
+      expiresAtMs = Date.now() + 120 * 1000;
+    }
+
+    remainingTtl = Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
 
     logApiCall(result.source, {
       groupName: 'Leaderboard',
@@ -103,13 +114,15 @@ export const fetchLeaderboardData = async () => {
       responseTime
     });
 
+    // Store data in client cache with the potentially overridden expiry time.
     setCacheData(result.data, timestampMs, expiresAtMs, result.source);
 
     return {
       data: transformedData,
       source: result.source,
       timestamp: timestampMs,
-      remainingTtl: remainingTtl
+      remainingTtl: remainingTtl,
+      expiresAt: expiresAtMs,
     };
 
   } catch (error) {
@@ -117,17 +130,22 @@ export const fetchLeaderboardData = async () => {
     console.error("Leaderboard fetch failed, checking for emergency cache.", error);
     const cachedData = getCachedData();
     if (cachedData) {
-      logApiCall('client-cache-emergency', { // This one was already correct
+      const source = 'client-cache-emergency';
+      const remainingTtl = 120; // 2 minutes (RETRY_DELAY_MS - edit in conjunction)
+      const newExpiresAt = Date.now() + remainingTtl * 1000;
+
+      logApiCall(source, {
         groupName: 'Leaderboard',
         timestamp: cachedData.timestamp,
-        remainingTtl: 120, // Assign a default TTL for emergency data
+        remainingTtl,
         responseTime: 0
       });
       return {
         data: transformData(cachedData.data),
-        source: 'client-cache-emergency',
+        source,
         timestamp: cachedData.timestamp,
-        remainingTtl: 120
+        remainingTtl,
+        expiresAt: newExpiresAt,
       };
     }
     

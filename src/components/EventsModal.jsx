@@ -297,18 +297,13 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     const delay = cacheExpiresAt > now ? cacheExpiresAt - now : 0;
     
     const timer = setTimeout(() => {
-      if (isOpen && autoRefresh) { // Double check in case state changed
-          //console.log('[EventsModal Refresh] Conditions met. Triggering force load with animation.');
-          forceLoadWithAnimation();
-      } else {
-          //console.log('[EventsModal Refresh] Conditions NOT met. Aborting refresh.');
-      }
+      // Double check in case state changed
+      if (isOpen && autoRefresh) forceLoadWithAnimation();
     }, delay + 1000);
 
     // This cleanup function is crucial. It runs when the component unmounts
     // or when any of its dependencies (like `isOpen`) change.
     return () => {
-        //console.log('[EventsModal Refresh] Cleaning up timer.');
         clearTimeout(timer);
     };
   }, [isOpen, autoRefresh, cacheExpiresAt, forceLoadWithAnimation]);

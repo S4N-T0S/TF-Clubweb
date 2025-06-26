@@ -17,12 +17,50 @@ import Toast from './components/Toast';
 import { ModalProvider } from './context/ModalProvider';
 
 // Storing last view selection in localStorage.
+const LAST_TAB_STORAGE_KEY = 'dashboard_tab';
+
 const getStoredTab = () => {
-  return localStorage.getItem('dashboard_tab') || 'global';
+  const storedTab = localStorage.getItem(LAST_TAB_STORAGE_KEY);
+  const validTabs = ['members', 'clubs', 'global'];
+  // If the stored tab is not one of the valid options, default to 'global'.
+  if (storedTab && validTabs.includes(storedTab)) {
+    return storedTab;
+  }
+  // If the value was invalid, remove it.
+  if (storedTab) {
+    localStorage.removeItem(LAST_TAB_STORAGE_KEY);
+  }
+  return 'global';
 };
 
 const setStoredTab = (tab) => {
-  localStorage.setItem('dashboard_tab', tab);
+  localStorage.setItem(LAST_TAB_STORAGE_KEY, tab);
+};
+
+// Storing auto-refresh setting in localStorage.
+const AUTO_REFRESH_STORAGE_KEY = 'dashboard_autoRefresh';
+
+const getStoredAutoRefresh = () => {
+  const storedValue = localStorage.getItem(AUTO_REFRESH_STORAGE_KEY);
+  if (storedValue === null) {
+    return true; // Default to ON if not set
+  }
+  try {
+    const parsed = JSON.parse(storedValue);
+    // Ensure the stored value is actually a boolean before returning
+    if (typeof parsed === 'boolean') {
+      return parsed;
+    }
+  } catch (error) {
+    console.error(`Error parsing auto-refresh setting:`, error);
+  }
+  // If value is invalid or parsing fails, remove it and return default
+  localStorage.removeItem(AUTO_REFRESH_STORAGE_KEY);
+  return true;
+};
+
+const setStoredAutoRefresh = (value) => {
+  localStorage.setItem(AUTO_REFRESH_STORAGE_KEY, JSON.stringify(value));
 };
 
 const App = () => {
@@ -30,7 +68,8 @@ const App = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { graph, history } = useParams();
-  const [view, setView] = useState(() => getStoredTab());
+  const [view, setView] = useState(getStoredTab);
+  const [autoRefresh, setAutoRefresh] = useState(getStoredAutoRefresh);
   const [eventsModalOpen, setEventsModalState] = useState(false);
   const [searchModalState, setSearchModalState] = useState({ 
     isOpen: false, 
@@ -65,7 +104,12 @@ const App = () => {
     refreshData,
     toastMessage,
     setToastMessage,
-  } = useLeaderboard(clubMembersData);
+  } = useLeaderboard(clubMembersData, autoRefresh);
+
+  // Save auto-refresh setting to storage when it changes
+  useEffect(() => {
+    setStoredAutoRefresh(autoRefresh);
+  }, [autoRefresh]);
 
   const showToast = useCallback((toastOptions) => {
     setToastMessage({
@@ -73,6 +117,24 @@ const App = () => {
       ...toastOptions
     });
   }, [setToastMessage]);
+
+  const handleToggleAutoRefresh = useCallback(() => {
+    setAutoRefresh(prev => {
+        const nextState = !prev;
+        showToast({
+            message: `Dashboard Auto-Update turned ${nextState ? 'ON' : 'OFF'}.`,
+            type: nextState ? 'success' : 'info'
+        });
+        // When turning auto-refresh ON, trigger an immediate refresh after a short delay.
+        // The delay gives the user time to read the confirmation toast.
+        if (nextState) {
+          setTimeout(() => {
+            refreshData(false);
+          }, 2500);
+        }
+        return nextState;
+    });
+  }, [refreshData, showToast]);
 
   // Load club members data once on page load
   useEffect(() => {
@@ -221,7 +283,7 @@ const App = () => {
     setEventsModalState(location.pathname.endsWith('/events'));
   }, [location.pathname]);
 
-  if (error) return <ErrorDisplay error={error} onRetry={refreshData} />;
+  if (error) return <ErrorDisplay error={error} onRetry={() => refreshData(true)} />;
   if (loading || clubMembersLoading) return <LoadingDisplay />;
 
   return (
@@ -251,7 +313,8 @@ const App = () => {
               unknownMembers={unknownMembers}
               view={view}
               setView={setView}
-              onRefresh={() => refreshData(false)}
+              onToggleAutoRefresh={handleToggleAutoRefresh}
+              autoRefresh={autoRefresh}
               isRefreshing={isRefreshing}
               onOpenEvents={handleEventsModalOpen}
               onOpenSearch={() => handleSearchModalOpen()}
