@@ -451,8 +451,8 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
             </fieldset>
           </div>
 
-            {loading && events.length === 0 ? <LoadingDisplay /> :
-             error ? <ErrorDisplay error={error} onRetry={forceLoadWithAnimation} /> :
+            {loading && events.length === 0 ? <LoadingDisplay variant="component" /> :
+             error ? <ErrorDisplay error={error} onRetry={forceLoadWithAnimation} variant="component" /> :
              <div className="page-transition-container">
                 <div className={`page-content ${slideDirection}`} key={currentPage}>
                     <div className="flex flex-col gap-2">
@@ -481,7 +481,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
                   totalItems={filteredItems.length} 
                   onPageChange={handlePageChange} 
                   scrollRef={scrollContainerRef}
-                  className="mt-0"
+                  variant="component"
                 />
             </footer>
         }

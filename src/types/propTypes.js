@@ -211,12 +211,17 @@ export const PaginationProps = {
   totalItems: PropTypes.number.isRequired,
   onPageChange: PropTypes.func.isRequired,
   scrollRef: PropTypes.object,
-  className: PropTypes.string
+  variant: PropTypes.string
 };
+
+export const LoadingDisplayProps = {
+  variant: PropTypes.string
+}
 
 export const ErrorDisplayProps = {
   error: PropTypes.string.isRequired,
-  onRetry: PropTypes.func.isRequired
+  onRetry: PropTypes.func.isRequired,
+  variant: PropTypes.string
 };
 
 export const HexagonProps = {

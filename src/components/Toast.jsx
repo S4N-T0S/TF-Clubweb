@@ -12,7 +12,7 @@ const formatTtl = (ttl, type) => {
     // Logic to handle the user-facing cooldown message for stale data warnings and errors.
     // This tells the user when they can try fetching fresh data again.
     if (type === 'warning' || type === 'error') {
-      return 'Try again in 2 minutes';
+      return 'Trying again in 2 minutes';
     }
     // A sensible fallback for other types, though unlikely to be used with a zero TTL.
     return 'Retrying...';
@@ -26,7 +26,7 @@ const formatTtl = (ttl, type) => {
   if (type === 'success') {
     return `Will check for update in ${minuteText}`;
   }
-  return `Try again in ${minuteText}`;
+  return `Trying again in ${minuteText}`;
 };
 
 // Map of toast types to their default properties
