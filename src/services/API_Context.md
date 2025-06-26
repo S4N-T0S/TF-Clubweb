@@ -58,14 +58,13 @@ You are an expert frontend developer. Your task is to help build a web applicati
     interface GraphResponse {
       // The player's most current known Embark ID for this season.
       currentEmbarkId: string;
-      
-      // A history of all names the player has used in this season.
-      nameHistory: {
-        embark_id: string;
-        start_date: number; // Unix timestamp
-        end_date: number | null; // Null if it's the current name
-      }[];
 
+      // [NEW] A chronological feed of all significant events for this player in this season.
+      // This includes 'NAME_CHANGE', 'CLUB_CHANGE', 'SUSPECTED_BAN', and 'RS_ADJUSTMENT' events.
+      // This field replaces the previous `nameHistory` field, as `NAME_CHANGE` events are now part of this array.
+      // The structure of each entry is identical to the `EventEntry` from the main `/events` endpoint.
+      events: EventEntry[];
+      
       // The season ID for which data is being returned.
       seasonId: number;
       
@@ -152,7 +151,7 @@ You are an expert frontend developer. Your task is to help build a web applicati
         // the `details` object is expanded with their rank and score upon returning.
         ```
 
-    3.  **`RS_ADJUSTMENT`**: **[UPDATED]** A player's Rank Score changed by an unusually large amount between updates. This can happen in two ways, distinguished by the `is_off_leaderboard` flag.
+    3.  **`RS_ADJUSTMENT`**: A player's Rank Score changed by an unusually large amount between updates. This can happen in two ways, distinguished by the `is_off_leaderboard` flag.
         ```typescript
         // A discriminated union is used for this event type.
         // Check for the existence and value of `is_off_leaderboard` to know which payload you received.
