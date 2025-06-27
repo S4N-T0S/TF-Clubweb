@@ -364,6 +364,31 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   
   const { currentItems, currentPage, totalPages, startIndex, endIndex, handlePageChange, filteredItems } = usePagination(filteredEvents, isMobile ? 10 : 15, isMobile);
 
+  // Effect to reset page to 1 and scroll to top when filters change.
+  useEffect(() => {
+    // On filter change, we want to go back to the first page of results.
+    handlePageChange(1);
+
+    // We also want to scroll the modal content back to the top.
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: 'auto' });
+    }
+    
+    // This effect should only run when a filter is changed by the user.
+    // handlePageChange is not included as a dependency because it can change
+    // when data is refreshed, which would undesirably reset the page.
+    // We also don't include currentPage because we want this to trigger
+    // the reset, not react to page changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    filters.searchQuery,
+    filters.minLeague,
+    filters.showNameChange,
+    filters.showSuspectedBan,
+    filters.showRsAdjustment,
+    filters.showClubChange,
+  ]);
+
   const { slideDirection, showIndicator } = useSwipe(
     () => currentPage < totalPages && handlePageChange(currentPage + 1),
     () => currentPage > 1 && handlePageChange(currentPage - 1),
