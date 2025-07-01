@@ -18,20 +18,19 @@ export const usePagination = (items, itemsPerPage, isMobile) => {
 
   // Scroll to a specific index new function
   const scrollToIndex = (index) => {
-    const targetPage = Math.ceil((index + 1) / itemsPerPage);
+    const targetPage = Math.ceil((index) / itemsPerPage);
     setCurrentPage(targetPage);
     
     setTimeout(() => {
       // For desktop, we account for the header row.
       // For mobile, we don't need an offset as each item is distinct.
-      const rowIndexInPage = index % itemsPerPage;
-      const targetRowIndex = isMobile ? rowIndexInPage : rowIndexInPage + 1; // +1 for table header on desktop
+      const rowIndex = (index % itemsPerPage) + itemsPerPage - (isMobile && 1);
       
       // Use more specific selectors for mobile and desktop to avoid conflicts
       const selector = isMobile ? '.player-row' : 'tr.player-row';
 
       const rows = document.querySelectorAll(selector);
-      const targetRow = rows[targetRowIndex];
+      const targetRow = rows[rowIndex];
       
       if (targetRow) {
         targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -40,7 +39,7 @@ export const usePagination = (items, itemsPerPage, isMobile) => {
           targetRow.classList.remove('highlight-animation');
         }, 2000);
       } else {
-        console.warn(`Could not find row at index ${targetRowIndex} to scroll to.`);
+        console.warn(`Could not find row at index ${rowIndex} to scroll to.`);
       }
     }, 100);
   };
