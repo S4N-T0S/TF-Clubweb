@@ -26,8 +26,8 @@ export const usePagination = (items, itemsPerPage, isMobile) => {
       // For mobile, we don't need an offset as each item is distinct.
       const rowIndex = (index % itemsPerPage) + itemsPerPage - (isMobile && 1);
       
-      // Use more specific selectors for mobile and desktop to avoid conflicts
-      const selector = isMobile ? '.player-row' : 'tr.player-row';
+      // Revert to older selectors
+      const selector = isMobile ? '[class*="player-row"]' : 'tr';
 
       const rows = document.querySelectorAll(selector);
       const targetRow = rows[rowIndex];
