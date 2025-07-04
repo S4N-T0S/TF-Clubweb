@@ -1,8 +1,39 @@
-### **Backend API Context for Frontend Development**
+## [JOIN] - How to Join OG
 
-You are an expert frontend developer. Your task is to help build a web application using the following backend API. The API provides leaderboard, player history, and event data for a game. Pay close attention to the data structures for the `/graph` and `/events` endpoints, as they have been significantly updated.
+The 'Original Goats' [OG] is a community of dedicated, high-skill players in The Finals. We are actively looking for members who share our passion for competitive play and good sportsmanship.
 
-#### **Core Concepts**
+### Minimum Requirements
+
+To be considered for membership, applicants should meet the following criteria:
+
+*   **Community Presence:** Be an active and known member within The Finals community.
+*   **Competitive Rank:** Have finished at least a Diamond rank within the last two competitive seasons.
+*   **Good Reputation:** Be known as a respectable and non-toxic player. The use of exploits or cheating is strictly forbidden.
+
+*An exception to the rank requirement may be made for established content creators, community leaders, or retired professional players.*
+
+### Community Expectations
+
+Please note the following rules of conduct, which apply to all members:
+
+1.  **Fair Play:** Members are not expected to "go easy" on other members in public matches. We believe in competitive integrity, regardless of who is on the opposing team.
+2.  **Perpetual Requirements:** The standards listed above are continuous. Failure to uphold them during your time in the club may result in removal.
+3.  **Vouching System:** While meeting the requirements makes you eligible, final acceptance often requires vouches from existing OG members.
+
+---
+
+### How to Apply
+
+If you meet these requirements and are interested in joining, please send a direct message on Discord to one of our recruiters.
+Discord username: **tsa.gov**
+
+In your message, please briefly introduce yourself and link to your profile on this dashboard.
+
+## [API] - API Documentation
+
+This dashboard is powered by a public API developed by us. Below are the details for developers who wish to interact with the data programmatically.
+
+#### Core Concepts
 
 *   **Seasons:** The API's data is partitioned by "seasons". Each season has a unique `id` and `name`. The frontend will need to allow users to select a season, especially for viewing player graphs. The current season is `7`. (as this is writen)
 *   **Player Identity:** A player is identified by an "Embark ID" (e.g., `Username#1234`). Players can change their Embark ID. The backend tracks these changes using a permanent, internal ID. API responses will always provide the player's *current* Embark ID, along with their name change history where relevant.
@@ -10,9 +41,7 @@ You are an expert frontend developer. Your task is to help build a web applicati
 
 ---
 
-### **Public API Endpoint Reference**
-
-#### **1. Get Leaderboard**
+#### 1. Get Leaderboard
 
 *   **Endpoint:** `GET /leaderboard`
 *   **Auth:** None.
@@ -40,7 +69,7 @@ You are an expert frontend developer. Your task is to help build a web applicati
     }
     ```
 
-#### **2. Get Player History Graph**
+#### 2. Get Player History Graph
 
 *   **Endpoint:** `POST /graph`
 *   **Auth:** Required.
@@ -48,7 +77,7 @@ You are an expert frontend developer. Your task is to help build a web applicati
 *   **Request Body:**
     ```json
     {
-      "embarkId": "PlayerName#1234", // A player's Embark ID (current or historical)
+      "embarkId": "00#0000", // A player's Embark ID (current or historical)
       "seasonId": 7, // Optional. Defaults to the current season if not provided.
       "token": "not-secret" // The required auth token.
     }
@@ -59,7 +88,7 @@ You are an expert frontend developer. Your task is to help build a web applicati
       // The player's most current known Embark ID for this season.
       currentEmbarkId: string;
 
-      // [NEW] A chronological feed of all significant events for this player in this season.
+      // A chronological feed of all significant events for this player in this season.
       // This includes 'NAME_CHANGE', 'CLUB_CHANGE', 'SUSPECTED_BAN', and 'RS_ADJUSTMENT' events.
       // This field replaces the previous `nameHistory` field, as `NAME_CHANGE` events are now part of this array.
       // The structure of each entry is identical to the `EventEntry` from the main `/events` endpoint.
@@ -94,7 +123,7 @@ You are an expert frontend developer. Your task is to help build a web applicati
     }
     ```
 
-#### **3. Get Recent Events**
+#### 3. Get Recent Events
 
 *   **Endpoint:** `GET /events`
 *   **Auth:** None.
@@ -198,3 +227,14 @@ You are an expert frontend developer. Your task is to help build a web applicati
           is_mass_change: boolean;
         }
         ```
+---
+
+## [SOURCE] - Open Source
+
+I believe in transparency and community collaboration. For this reason, the frontend of this web application is fully open source. The backend API remains private for security and stability reasons.
+
+You can view the code, report issues, or contribute on our GitHub repository:
+
+-   **Frontend Repository:** [GitHub](https://github.com/s4n-t0s/TF-Clubweb)
+
+I welcome and appreciate contributions from the community!

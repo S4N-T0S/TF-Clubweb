@@ -1,4 +1,5 @@
 import tailwindScrollbar from 'tailwind-scrollbar';
+import typography from '@tailwindcss/typography';
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -10,6 +11,7 @@ export default {
     extend: {}
   },
   plugins: [
+    typography,
     tailwindScrollbar({ nocompatible: true }),
   ],
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Trophy, Globe, RefreshCw, FileSearch, Zap } from 'lucide-react';
+import { Users, Trophy, Globe, RefreshCw, FileSearch, Zap, Info } from 'lucide-react';
 import { DashboardHeaderProps, ViewButtonProps } from '../types/propTypes';
 
 const ViewButton = ({ active, onClick, icon, text }) => (
@@ -25,7 +25,8 @@ export const DashboardHeader = ({
   isRefreshing,
   onOpenSearch,
   onOpenEvents,
-  isMobile
+  onOpenInfo,
+  isMobile,
 }) => {
   const [isScrolledToBottom, setIsScrolledToBottom] = useState(false);
   const [isAnimatingZap, setIsAnimatingZap] = useState(true);
@@ -93,8 +94,13 @@ export const DashboardHeader = ({
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
         <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 w-full">
           <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2">
-            <h1 className="text-2xl lg:text-3xl font-bold text-white whitespace-nowrap">OG Club Dashboard</h1>
-            {view === 'members' && unknownMembers && unknownMembers.length > 0 && (
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl lg:text-3xl font-bold text-white whitespace-nowrap">OG Club Dashboard</h1>
+              <button onClick={onOpenInfo} title="Information" className="text-gray-400 hover:text-white transition-colors">
+                <Info className="w-5 h-5"/>
+              </button>
+            </div>
+             {view === 'members' && unknownMembers && unknownMembers.length > 0 && (
             <p className={`text-sm ${unknownMembers.length < 10 ? 'text-yellow-400' : 'text-red-400'}`}>
               {unknownMembers.length < 10 
                 ? `${unknownMembers.length} member(s) in top 10k not found in clublist.`

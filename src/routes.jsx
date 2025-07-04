@@ -22,7 +22,11 @@ const router = createBrowserRouter([
       {
         path: 'events',
         element: null // Handled by App component
-      }
+      },
+      {
+        path: 'info',
+        element: null // Handled by App component
+      },
     ]
   },
   {

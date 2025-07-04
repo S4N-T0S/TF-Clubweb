@@ -50,6 +50,7 @@ export const DashboardHeaderProps = {
   isRefreshing: PropTypes.bool.isRequired,
   onOpenSearch: PropTypes.func.isRequired,
   onOpenEvents: PropTypes.func.isRequired,
+  onOpenInfo: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired,
 };
 
@@ -295,4 +296,15 @@ export const FilterToggleButtonProps = {
   colorClass: PropTypes.string,
   textColorClass: PropTypes.string,
   activeBorderClass: PropTypes.string
+};
+
+export const InfoModalProps = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  isMobile: PropTypes.bool,
+};
+
+export const LinkRendererProps = {
+  href: PropTypes.string.isRequired,
+  children: PropTypes.node.isRequired,
 };

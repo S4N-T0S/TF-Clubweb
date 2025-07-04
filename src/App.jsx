@@ -13,6 +13,7 @@ import { useMobileDetect } from './hooks/useMobileDetect';
 import SearchModal from './components/SearchModal';
 import GraphModal from './components/GraphModal';
 import EventsModal from './components/EventsModal';
+import InfoModal from './components/InfoModal';
 import Toast from './components/Toast';
 import { ModalProvider } from './context/ModalProvider';
 
@@ -232,6 +233,9 @@ const App = () => {
   }, [openModal]);
   const handleSearchModalClose = useCallback(() => closeModal(), [closeModal]);
 
+  const handleInfoModalOpen = useCallback(() => openModal('/info'), [openModal]);
+  const handleInfoModalClose = useCallback(() => closeModal(), [closeModal]);
+
   // Handle search submission
   const handleSearchSubmit = (query) => {
     navigate(`/history/${query}`, { replace: true });
@@ -349,6 +353,7 @@ const App = () => {
               isRefreshing={isRefreshing}
               onOpenEvents={handleEventsModalOpen}
               onOpenSearch={() => handleSearchModalOpen()}
+              onOpenInfo={handleInfoModalOpen}
               isMobile={isMobile}
             />
 
@@ -390,6 +395,12 @@ const App = () => {
             )}
           </div>
         </div>
+
+        <InfoModal
+          isOpen={location.pathname.startsWith('/info')}
+          onClose={handleInfoModalClose}
+          isMobile={isMobile}
+        />
 
         <EventsModal
           key={eventsModalKey}
