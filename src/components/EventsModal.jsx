@@ -271,11 +271,19 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   
   const forceLoadWithAnimation = useCallback(async () => {
     setIsAnimatingRefresh(true);
+    
+    // Create a promise that resolves after a minimum duration.
+    const minAnimationPromise = new Promise(resolve => setTimeout(resolve, 1000)); // 1000ms minimum spin time
+
     try {
-      await loadEvents(true);
-    } finally {
-      // Use a timeout to ensure the spin is visible for at least a moment.
-      setTimeout(() => setIsAnimatingRefresh(false), 2000);
+      // Wait for both the data fetch and the minimum animation time to complete.
+      await Promise.all([loadEvents(true), minAnimationPromise]);
+    } catch (err) {
+      // Errors will be caught and handled by loadEvents, but we catch here to ensure finally is always reached.
+      console.error("Error during forced event load:", err);
+    }
+    finally {
+      setIsAnimatingRefresh(false);
     }
   }, [loadEvents]);
 
