@@ -31,7 +31,6 @@ export const processLeaderboardData = (rawData, clubMembers) => {
       memberCount: data.members
     }))
     .sort((a, b) => b.totalScore - a.totalScore)
-    //.slice(0, 15);
 
   const ogMembersInLeaderboard = rawData.filter(player => 
     player?.clubTag === 'OG'
@@ -44,7 +43,6 @@ export const processLeaderboardData = (rawData, clubMembers) => {
   return {
     clubMembers: finalClubMembers,
     rankedClubMembers: ogMembersInLeaderboard,
-    isTopClub: topClubs[0]?.tag === 'OG',
     topClubs,
     unknownMembers,
     globalLeaderboard,

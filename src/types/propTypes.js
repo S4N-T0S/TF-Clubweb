@@ -42,7 +42,6 @@ export const SortButtonProps = {
 };
 
 export const DashboardHeaderProps = {
-  isTopClub: PropTypes.bool.isRequired,
   unknownMembers: PropTypes.arrayOf(PropTypes.object).isRequired,
   view: PropTypes.oneOf(['members', 'clubs', 'global']).isRequired,
   setView: PropTypes.func.isRequired,

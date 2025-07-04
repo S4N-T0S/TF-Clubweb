@@ -11,7 +11,6 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
   const [error, setError] = useState(null);
   const [data, setData] = useState({
     clubMembers: [],
-    isTopClub: false,
     topClubs: [],
     unknownMembers: [],
     globalLeaderboard: []
