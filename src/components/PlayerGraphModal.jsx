@@ -281,7 +281,7 @@ const ComparePlayerSearch = ({ onSelect, mainEmbarkId, globalLeaderboard, onClos
 };
 
 const PlayerGraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = false, globalLeaderboard = [], onSwitchToGlobal, isMobile }) => {
-  const modalRef = useModal(isOpen, onClose);
+  const { modalRef, isTopModal } = useModal(isOpen, onClose);
   const [data, setData] = useState(null);
   const [mainPlayerGameCount, setMainPlayerGameCount] = useState(0);
   const [comparisonData, setComparisonData] = useState(new Map());
@@ -1512,9 +1512,11 @@ const PlayerGraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubVi
   if (!isOpen || !embarkId) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      <div ref={modalRef} className={`bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden grid grid-rows-[auto_1fr] gap-4
-        ${isMobile ? 'max-w-[95vw] h-[95vh]' : 'max-w-[80vw] h-[85vh]'}`}>
+    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 ${!isTopModal ? 'pointer-events-none' : ''}`}>
+      <div ref={modalRef} className={`bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden grid grid-rows-[auto_1fr] gap-4 transition-transform duration-100 ease-out
+        ${isMobile ? 'max-w-[95vw] h-[95vh]' : 'max-w-[80vw] h-[85vh]'}
+        ${!isTopModal ? 'scale-90 opacity-0' : 'scale-100 opacity-100'}
+        `}>
         <div>
           <div className={`${isMobile ? 'flex flex-col gap-2' : 'flex justify-between items-center gap-4'}`}>
             <div className={`${isMobile ? 'w-full' : ''}`}>

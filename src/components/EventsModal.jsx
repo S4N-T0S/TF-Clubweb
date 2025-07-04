@@ -148,7 +148,7 @@ const isQueryInEvent = (event, query) => {
 
 
 export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubClick, onGraphOpen, showToast }) => {
-  const modalRef = useModal(isOpen, onClose);
+  const { modalRef, isTopModal } = useModal(isOpen, onClose);
   const scrollContainerRef = useRef(null); // Ref for the scrollable content area
   const [events, setEvents] = useState([]);
   const eventsRef = useRef(events); // Create a ref to hold the current events
@@ -297,8 +297,9 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
 
   // Auto-refresh timer: sets when modal opens, clears when it closes.
   useEffect(() => {
-    if (!isOpen || !autoRefresh || !cacheExpiresAt) {
-      return; // Do nothing if modal is closed, auto-refresh is off, or no expiry time.
+    // Only refresh if this is the top-most modal.
+    if (!isOpen || !isTopModal || !autoRefresh || !cacheExpiresAt) {
+      return; // Do nothing if modal is closed, not on top, auto-refresh is off, or no expiry time.
     }
 
     const now = Date.now();
@@ -306,15 +307,15 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     
     const timer = setTimeout(() => {
       // Double check in case state changed
-      if (isOpen && autoRefresh) forceLoadWithAnimation();
+      if (isOpen && isTopModal && autoRefresh) forceLoadWithAnimation();
     }, delay + 1000);
 
     // This cleanup function is crucial. It runs when the component unmounts
-    // or when any of its dependencies (like `isOpen`) change.
+    // or when any of its dependencies (like `isOpen` or `isTopModal`) change.
     return () => {
         clearTimeout(timer);
     };
-  }, [isOpen, autoRefresh, cacheExpiresAt, forceLoadWithAnimation]);
+  }, [isOpen, isTopModal, autoRefresh, cacheExpiresAt, forceLoadWithAnimation]);
 
   const toggleAutoRefresh = () => {
     const nextState = !autoRefresh;
@@ -400,17 +401,19 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   const { slideDirection, showIndicator } = useSwipe(
     () => currentPage < totalPages && handlePageChange(currentPage + 1),
     () => currentPage > 1 && handlePageChange(currentPage - 1),
-    { isSwipeActive: isOpen }
+    { isSwipeActive: isTopModal } // Only allow swipe on the top-most modal
   );
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 ${!isTopModal ? 'pointer-events-none' : ''}`}>
       <div 
         ref={modalRef} 
-        className={`bg-gray-900 rounded-lg w-full flex flex-col shadow-2xl overflow-hidden relative
-          ${isMobile ? 'max-w-[95vw] h-[90vh]' : 'max-w-[60vw] h-[85vh]'}`}
+        className={`bg-gray-900 rounded-lg w-full flex flex-col shadow-2xl overflow-hidden relative transition-transform duration-100 ease-out
+          ${isMobile ? 'max-w-[95vw] h-[90vh]' : 'max-w-[60vw] h-[85vh]'}
+          ${!isTopModal ? 'scale-90 opacity-0' : 'scale-100 opacity-100'}
+          `}
       >
         {showInfo && <EventInfoPopup onClose={() => setShowInfo(false)} />}
         

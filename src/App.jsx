@@ -68,6 +68,7 @@ const App = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { graph, history } = useParams();
+  const [modalHistory, setModalHistory] = useState([]);
   const [view, setView] = useState(getStoredTab);
   const [autoRefresh, setAutoRefresh] = useState(getStoredAutoRefresh);
   const [eventsModalOpen, setEventsModalState] = useState(false);
@@ -170,12 +171,32 @@ const App = () => {
     }
   }, [view, currentSeason]);
 
-  const handleClubClick = (clubTag, seasonKey = null) => {
-    seasonKey = seasonKey || currentSeason; // Mutate seasonKey if null
-    // Reset URL to root and close modals
-    handleSearchModalClose();
-    handleGraphModalClose();
-    handleEventsModalClose();
+  // --- Modal Navigation Handlers (Memoized) ---
+  const openModal = useCallback((newPath) => {
+    // Push the current path to our manual history stack before navigating
+    setModalHistory(prev => [...prev, location.pathname]);
+    // Replace the URL, so the browser's back button doesn't just cycle through modals
+    navigate(newPath, { replace: true });
+  }, [location.pathname, navigate]);
+
+  const closeModal = useCallback(() => {
+    // Pop the last path from our manual history stack
+    const newHistory = [...modalHistory];
+    const lastPath = newHistory.pop() || '/'; // Default to root if history is empty
+    setModalHistory(newHistory);
+    // Navigate back to the previous view
+    navigate(lastPath, { replace: true });
+  }, [modalHistory, navigate]);
+
+  const closeAllModals = useCallback(() => {
+    setModalHistory([]);
+    navigate('/', { replace: true });
+  }, [navigate]);
+
+  const handleClubClick = useCallback((clubTag, seasonKey = null) => {
+    seasonKey = seasonKey || currentSeason;
+    // Close all modals and reset history before changing view
+    closeAllModals();
   
     setView('global');
     setGlobalSearchQuery(`[${clubTag}]`);
@@ -193,41 +214,29 @@ const App = () => {
       textSize: 'normal',
       duration: 3500
     });
-  };
+  }, [closeAllModals, currentSeason, showToast]);
 
-  // --- Modal Opening / Closing Handlers ---
 
-  const handleEventsModalOpen = () => navigate('/events', { replace: true });
-  const handleEventsModalClose = () => navigate('/', { replace: true });
+  // --- Modal-specific Open/Close Handlers ---
+  const handleEventsModalOpen = useCallback(() => openModal('/events'), [openModal]);
+  const handleEventsModalClose = useCallback(() => closeModal(), [closeModal]);
   
-  // Handle search modal open/close
-  const handleSearchModalClose = () => {
-    navigate('/', { replace: true });
-  };
-
-  const handleSearchModalOpen = (initialSearch = '') => {
-    const path = initialSearch 
-      ? `/history/${formatUsernameForUrl(initialSearch)}` 
-      : '/history';
-    navigate(path, { replace: true });
-  };
+  const handleSearchModalOpen = useCallback((initialSearch = '') => {
+    const path = `/history${initialSearch ? `/${formatUsernameForUrl(initialSearch)}` : ''}`;
+    openModal(path);
+  }, [openModal]);
+  const handleSearchModalClose = useCallback(() => closeModal(), [closeModal]);
 
   // Handle search submission
   const handleSearchSubmit = (query) => {
-    window.history.replaceState(null, '', `/history/${query}`);
+    navigate(`/history/${query}`, { replace: true });
   };
-
-  // Handle graph modal close
-  const handleGraphModalClose = () => {
-    setGraphModalState({ isOpen: false, embarkId: null, compareIds: [], isClubView: false, isMobile });
-    navigate('/', { replace: true });
-  };
-
-  // Handle graph modal open
+  
   const handleGraphModalOpen = useCallback((embarkId, compareIds = []) => {
     const urlString = formatMultipleUsernamesForUrl(embarkId, compareIds);
-    navigate(`/graph/${urlString}`, { replace: true });
-  }, [navigate]);
+    openModal(`/graph/${urlString}`);
+  }, [openModal]);
+  const handleGraphModalClose = useCallback(() => closeModal(), [closeModal]);
 
   // Handle URL parameters on mount
   useEffect(() => {
@@ -262,6 +271,9 @@ const App = () => {
           isMobile
         };
       });
+    } else {
+      // When graph param is removed from URL, ensure modal state is closed.
+      setGraphModalState(prev => prev.isOpen ? { ...prev, isOpen: false } : prev);
     }
   }, [graph, navigate, view, isMobile]);
 
@@ -280,7 +292,7 @@ const App = () => {
 
   // --- URL-driven Modal State ---
   useEffect(() => {
-    setEventsModalState(location.pathname.endsWith('/events'));
+    setEventsModalState(location.pathname.startsWith('/events'));
   }, [location.pathname]);
 
   if (error) return <ErrorDisplay error={error} onRetry={() => refreshData(true)} />;
@@ -380,7 +392,7 @@ const App = () => {
           onClubClick={handleClubClick}
         />
 
-        {graphModalState.embarkId && (
+        {graphModalState.isOpen && (
           <PlayerGraphModal
             isOpen={graphModalState.isOpen}
             onClose={handleGraphModalClose}

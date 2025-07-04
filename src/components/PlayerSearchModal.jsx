@@ -9,6 +9,7 @@ import { isValidEmbarkId, formatUsernameForUrl } from '../utils/urlHandler';
 import { useModal } from '../context/ModalProvider';
 
 const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClubClick }) => {
+  const { modalRef, isTopModal } = useModal(isOpen, onClose);
   const [searchState, setSearchState] = useState({
     query: '',
     results: [],
@@ -70,21 +71,6 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
       }));
     }
   }, [currentSeasonData, onSearch]);
-
-  const handleClose = useCallback(() => {
-    setSearchState({
-      query: '',
-      results: [],
-      isSearching: false,
-      error: '',
-      suggestions: [],
-      selectedIndex: -1
-    });
-    initialSearchRef.current = false;
-    onClose();
-  }, [onClose]);
-
-  const modalRef = useModal(isOpen, handleClose);
 
   const updateSuggestions = useCallback((query) => {
     if (!currentSeasonData || !isPartialEmbarkId(query)) {
@@ -187,16 +173,18 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 ${!isTopModal ? 'pointer-events-none' : ''}`}>
       <div 
         ref={modalRef} 
-        className={`bg-gray-800 rounded-lg p-6 w-full flex flex-col 
-          ${isMobile ? 'max-w-[95vw] h-[90vh]' : 'max-w-[60vw] h-[85vh]'}`}
+        className={`bg-gray-800 rounded-lg p-6 w-full flex flex-col transition-transform duration-100 ease-out
+          ${isMobile ? 'max-w-[95vw] h-[90vh]' : 'max-w-[60vw] h-[85vh]'}
+          ${!isTopModal ? 'scale-90 opacity-0' : 'scale-100 opacity-100'}
+          `}
       >
         <div className="flex-shrink-0">
           <div className="flex items-center mb-4 relative">
             <button 
-              onClick={handleClose}
+              onClick={onClose}
               title="Close search"
               aria-label="Close search"
               className="sm:hidden absolute right-0 p-2 hover:bg-gray-700 rounded-lg"
