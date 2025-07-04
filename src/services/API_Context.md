@@ -145,6 +145,8 @@ You are an expert frontend developer. Your task is to help build a web applicati
           // The following fields are ONLY present if the event is resolved (i.e., end_timestamp on the parent EventEntry is not null).
           reappeared_at_rank?: number;
           reappeared_at_rank_score?: number;
+          // This field is ONLY present if the player reappeared with a different name.
+          reappeared_as_name?: string;
         }
         // NOTE: An event of this type is considered "resolved" or "over" when its `end_timestamp`
         // is set. This signifies the player has reappeared on the ranked leaderboard. When this happens,

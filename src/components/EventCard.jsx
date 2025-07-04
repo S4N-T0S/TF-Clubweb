@@ -106,6 +106,56 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
       if (event.endTimestamp) {
         const durationMs = event.endTimestamp - event.startTimestamp;
         const durationString = formatDuration(durationMs);
+
+        // A shared component for the detailed stats of the disappearance/reappearance.
+        const reappearanceDetails = (
+          <div className="text-sm text-gray-500 pl-2 border-l-2 border-gray-600 space-y-0.5 mt-1">
+            <p>
+              <span className="font-semibold text-gray-400">Disappeared at:</span> Rank #{d.last_known_rank.toLocaleString()} ({d.last_known_rank_score.toLocaleString()} RS)
+            </p>
+            {d.reappeared_at_rank != null && (
+              <p>
+                <span className="font-semibold text-gray-400">Reappeared at:</span> Rank #{d.reappeared_at_rank.toLocaleString() ?? 'N/A'} ({d.reappeared_at_rank_score?.toLocaleString() ?? 'N/A'} RS)
+              </p>
+            )}
+            {durationString && (
+              <p>
+                  <span className="font-semibold text-gray-400">Duration:</span> Gone for {durationString}
+              </p>
+            )}
+          </div>
+        );
+
+        // Handle the case where the player reappeared with a new name.
+        if (d.reappeared_as_name) {
+          if (isMobile) {
+            return (
+              <div className="text-gray-400 leading-relaxed space-y-1">
+                <div>
+                  <span className="text-gray-500 text-sm">Was:</span>{' '}
+                  {d.last_known_club_tag && <ClubTag tag={d.last_known_club_tag} onClubClick={onClubClick} />}{' '}
+                  <PlayerName name={d.last_known_name} onPlayerSearch={onPlayerSearch} />
+                </div>
+                <div>
+                  <span className="text-gray-500 text-sm">Reappeared as:</span>{' '}
+                  <PlayerName name={d.reappeared_as_name} onPlayerSearch={onPlayerSearch} />
+                </div>
+                {reappearanceDetails}
+              </div>
+            );
+          }
+          return (
+            <div className="text-gray-400 leading-relaxed">
+              {d.last_known_club_tag && <ClubTag tag={d.last_known_club_tag} onClubClick={onClubClick} />}{' '}
+              <PlayerName name={d.last_known_name} onPlayerSearch={onPlayerSearch} />
+              <span> has reappeared on the leaderboard as </span>
+              <PlayerName name={d.reappeared_as_name} onPlayerSearch={onPlayerSearch} />.
+              {reappearanceDetails}
+            </div>
+          );
+        }
+
+        // Default case for reappearance without a name change.
         return (
           <div className="text-gray-400 leading-relaxed space-y-1">
             <div>
@@ -113,21 +163,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
               <PlayerName name={event.current_embark_id} onPlayerSearch={onPlayerSearch} />
               <span> has reappeared on the leaderboard.</span>
             </div>
-            <div className="text-sm text-gray-500 pl-2 border-l-2 border-gray-600 space-y-0.5 mt-1">
-              <p>
-                <span className="font-semibold text-gray-400">Disappeared at:</span> Rank #{d.last_known_rank.toLocaleString()} ({d.last_known_rank_score.toLocaleString()} RS)
-              </p>
-              {d.reappeared_at_rank != null && (
-                <p>
-                  <span className="font-semibold text-gray-400">Reappeared at:</span> Rank #{d.reappeared_at_rank.toLocaleString() ?? 'N/A'} ({d.reappeared_at_rank_score?.toLocaleString() ?? 'N/A'} RS)
-                </p>
-              )}
-              {durationString && (
-                 <p>
-                    <span className="font-semibold text-gray-400">Duration:</span> Gone for {durationString}
-                 </p>
-              )}
-            </div>
+            {reappearanceDetails}
           </div>
         );
       }
