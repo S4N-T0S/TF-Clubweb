@@ -10,8 +10,8 @@ import { DashboardHeader } from './components/DashboardHeader';
 import { fetchClubMembers } from './services/mb-api';
 import { safeParseUsernameFromUrl, formatUsernameForUrl, parseMultipleUsernamesFromUrl, formatMultipleUsernamesForUrl } from './utils/urlHandler';
 import { useMobileDetect } from './hooks/useMobileDetect';
-import PlayerSearchModal from './components/PlayerSearchModal';
-import PlayerGraphModal from './components/PlayerGraphModal';
+import SearchModal from './components/SearchModal';
+import GraphModal from './components/GraphModal';
 import EventsModal from './components/EventsModal';
 import Toast from './components/Toast';
 import { ModalProvider } from './context/ModalProvider';
@@ -382,7 +382,7 @@ const App = () => {
           showToast={showToast}
         />
 
-        <PlayerSearchModal 
+        <SearchModal 
           isOpen={searchModalState.isOpen}
           onClose={handleSearchModalClose}
           initialSearch={searchModalState.initialSearch}
@@ -393,7 +393,7 @@ const App = () => {
         />
 
         {graphModalState.isOpen && (
-          <PlayerGraphModal
+          <GraphModal
             isOpen={graphModalState.isOpen}
             onClose={handleGraphModalClose}
             embarkId={graphModalState.embarkId}

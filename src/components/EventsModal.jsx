@@ -149,6 +149,7 @@ const isQueryInEvent = (event, query) => {
 
 export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubClick, onGraphOpen, showToast }) => {
   const { modalRef, isTopModal } = useModal(isOpen, onClose);
+  const [isActive, setIsActive] = useState(false);
   const scrollContainerRef = useRef(null); // Ref for the scrollable content area
   const [events, setEvents] = useState([]);
   const eventsRef = useRef(events); // Create a ref to hold the current events
@@ -172,6 +173,17 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     showRsAdjustment: true,
     showClubChange: true,
   });
+
+  useEffect(() => {
+    // Small timeout to ensure the initial state is rendered before animating.
+    // This fixes the intermittent animation issue on modal open.
+    if (isTopModal) {
+      const timer = setTimeout(() => setIsActive(true), 10);
+      return () => clearTimeout(timer);
+    } else {
+      setIsActive(false);
+    }
+  }, [isTopModal]);
 
   const handleFilterChange = useCallback((key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -410,9 +422,9 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 ${!isTopModal ? 'pointer-events-none' : ''}`}>
       <div 
         ref={modalRef} 
-        className={`bg-gray-900 rounded-lg w-full flex flex-col shadow-2xl overflow-hidden relative transition-transform duration-100 ease-out
+        className={`bg-gray-900 rounded-lg w-full flex flex-col shadow-2xl overflow-hidden relative transition-transform duration-75 ease-out
           ${isMobile ? 'max-w-[95vw] h-[90vh]' : 'max-w-[60vw] h-[85vh]'}
-          ${!isTopModal ? 'scale-90 opacity-0' : 'scale-100 opacity-100'}
+          ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
           `}
       >
         {showInfo && <EventInfoPopup onClose={() => setShowInfo(false)} />}

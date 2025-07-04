@@ -21,9 +21,9 @@ import { Line } from 'react-chartjs-2';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import 'chartjs-adapter-date-fns';
-import { fetchPlayerGraphData } from '../services/gp-api';
+import { fetchGraphData } from '../services/gp-api';
 import { formatMultipleUsernamesForUrl } from '../utils/urlHandler';
-import { PlayerGraphModalProps, ComparePlayerSearchProps } from '../types/propTypes';
+import { GraphModalProps, ComparePlayerSearchProps } from '../types/propTypes';
 import { useModal } from '../context/ModalProvider';
 
 ChartJS.register(
@@ -280,8 +280,9 @@ const ComparePlayerSearch = ({ onSelect, mainEmbarkId, globalLeaderboard, onClos
   );
 };
 
-const PlayerGraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = false, globalLeaderboard = [], onSwitchToGlobal, isMobile }) => {
+const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = false, globalLeaderboard = [], onSwitchToGlobal, isMobile }) => {
   const { modalRef, isTopModal } = useModal(isOpen, onClose);
+  const [isActive, setIsActive] = useState(false);
   const [data, setData] = useState(null);
   const [mainPlayerGameCount, setMainPlayerGameCount] = useState(0);
   const [comparisonData, setComparisonData] = useState(new Map());
@@ -303,6 +304,17 @@ const PlayerGraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubVi
   const isLoadingRef = useRef(false);
   const loadedCompareIdsRef = useRef(new Set());
   const shouldFollowUrlRef = useRef(true);
+
+  useEffect(() => {
+    // Small timeout to ensure the initial state is rendered before animating.
+    // This fixes the intermittent animation issue on modal open.
+    if (isTopModal) {
+      const timer = setTimeout(() => setIsActive(true), 10);
+      return () => clearTimeout(timer);
+    } else {
+      setIsActive(false);
+    }
+  }, [isTopModal]);
 
   // Reset state when modal is opened with new player
   useEffect(() => {
@@ -707,7 +719,7 @@ const PlayerGraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubVi
   // Now we can define loadComparisonData after interpolateDataPoints
   const loadComparisonData = useCallback(async (compareId) => {
     try {
-      const result = await fetchPlayerGraphData(compareId);
+      const result = await fetchGraphData(compareId);
       if (!result.data?.length) return null;
       
       // Filter for points with score changes
@@ -920,88 +932,6 @@ const PlayerGraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubVi
     return [Math.max(0, minScore - padding), maxScore + padding];
   }, [comparisonData, chartRef]);
 
-  /* - Not currently in use, Embark switched to often changing people's RS without any method to track without other systems in place which are out of scope for this project right now.
-  const getHighlightedPeriodAnnotation = useCallback((customTimeRange = null) => {
-    if (!data?.length) return null;
-
-    // RS Adjustment Period 1 S5
-    const startTime = Date.UTC(2025, 0, 14, 14, 45, 0); // 2025-01-14T14:45:00Z
-    const endTime = Date.UTC(2025, 0, 14, 16, 30, 0);   // 2025-01-14T16:30:00Z
-    
-    // Create Date objects from UTC timestamps (Time was set wrongly last time not accounting for locale timezone)
-    const startDate = new Date(startTime);
-    const endDate = new Date(endTime);
-    
-    // Only show the highlight if it's within the visible range
-    const min = customTimeRange?.min || viewWindow?.min;
-    const max = customTimeRange?.max || viewWindow?.max;
-    
-    if (!min || !max || 
-        (endDate < min) || 
-        (startDate > max)) {
-      return null;
-    }
-  
-    // Check for data points in both main dataset and comparison datasets
-    const hasDataPoints = (() => {
-      // Check main dataset if it exists
-      if (data?.some(point => {
-        const timestamp = point.timestamp;
-        return timestamp >= startDate && timestamp <= endDate;
-      })) {
-        return true;
-      }
-  
-      // Check comparison datasets
-      return Array.from(comparisonData.values()).some(({ data: compareData }) => 
-        compareData.some(point => {
-          const timestamp = point.timestamp;
-          return timestamp >= startDate && timestamp <= endDate;
-        })
-      );
-    })();
-    
-    // Don't show the highlight if there are no nearby data points in any dataset
-    if (!hasDataPoints) {
-      return null;
-    }
-  
-    // Calculate the width of the highlighted period in the current view
-    const totalViewDuration = max - min;
-    const highlightDuration = endDate - startDate;
-    const highlightWidthRatio = highlightDuration / totalViewDuration;
-  
-    // Show label if the highlighted period takes up more than 10% of the visible area
-    const showLabel = highlightWidthRatio > 0.1;
-  
-    return {
-      type: 'box',
-      xMin: startDate,
-      xMax: endDate,
-      backgroundColor: 'rgba(255, 193, 7, 0.1)',
-      borderColor: 'rgba(255, 193, 7, 0.5)',
-      borderWidth: 0,
-      drawTime: 'beforeDatasetsDraw',
-      label: {
-        content: 'RS Adjustments',
-        display: showLabel,
-        position: {
-          x: 'center',  // Center the label horizontally in the box
-          y: 'start'    // Place at the top of the box
-        },
-        color: '#FFC107',
-        font: {
-          size: 11
-        },
-        padding: {
-          top: 4,
-          bottom: 4
-        }
-      }
-    };
-  }, [data, comparisonData, viewWindow?.max, viewWindow?.min]);
-  */
-
   const getRankAnnotations = useCallback((customTimeRange = null) => {
     if (!data) return [];
     
@@ -1037,14 +967,6 @@ const PlayerGraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubVi
         }
       }));
 
-    /* - Line 931~ for explanation
-    // Add the highlighted period annotation if it exists
-    const highlightAnnotation = getHighlightedPeriodAnnotation(customTimeRange);
-    if (highlightAnnotation) {
-      annotations.push(highlightAnnotation);
-    }
-    */
-
     return annotations;
   }, [data, getDynamicYAxisDomain, selectedTimeRange, /* getHighlightedPeriodAnnotation */]);
 
@@ -1052,7 +974,7 @@ const PlayerGraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubVi
     setLoading(true);
     setError(null);
     try {
-      const result = await fetchPlayerGraphData(embarkId);
+      const result = await fetchGraphData(embarkId);
       if (!result.data?.length) {
         setError('No data available for this player, they may have recently changed their embarkId.');
         return;
@@ -1513,9 +1435,9 @@ const PlayerGraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubVi
 
   return (
     <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 ${!isTopModal ? 'pointer-events-none' : ''}`}>
-      <div ref={modalRef} className={`bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden grid grid-rows-[auto_1fr] gap-4 transition-transform duration-100 ease-out
+      <div ref={modalRef} className={`bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden grid grid-rows-[auto_1fr] gap-4 transition-transform duration-75 ease-out
         ${isMobile ? 'max-w-[95vw] h-[95vh]' : 'max-w-[80vw] h-[85vh]'}
-        ${!isTopModal ? 'scale-90 opacity-0' : 'scale-100 opacity-100'}
+        ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
         `}>
         <div>
           <div className={`${isMobile ? 'flex flex-col gap-2' : 'flex justify-between items-center gap-4'}`}>
@@ -1740,7 +1662,7 @@ const PlayerGraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubVi
   );
 };
 
-PlayerGraphModal.propTypes = PlayerGraphModalProps;
+GraphModal.propTypes = GraphModalProps;
 ComparePlayerSearch.propTypes = ComparePlayerSearchProps;
 
-export default PlayerGraphModal;
+export default GraphModal;

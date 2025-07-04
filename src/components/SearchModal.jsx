@@ -4,12 +4,13 @@ import { searchPlayerHistory } from '../services/historicalDataService';
 import { Hexagon } from './icons/Hexagon';
 import { PlatformIcons } from './icons/Platforms';
 import { getLeagueInfo } from '../utils/leagueUtils';
-import { PlayerSearchModalProps } from '../types/propTypes';
+import { SearchModalProps } from '../types/propTypes';
 import { isValidEmbarkId, formatUsernameForUrl } from '../utils/urlHandler';
 import { useModal } from '../context/ModalProvider';
 
-const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClubClick }) => {
+const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClubClick }) => {
   const { modalRef, isTopModal } = useModal(isOpen, onClose);
+  const [isActive, setIsActive] = useState(false);
   const [searchState, setSearchState] = useState({
     query: '',
     results: [],
@@ -22,6 +23,17 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
   const [isExplanationExpanded, setIsExplanationExpanded] = useState(false);
   const inputRef = useRef(null);
   const initialSearchRef = useRef(false);
+
+  useEffect(() => {
+    // Small timeout to ensure the initial state is rendered before animating.
+    // This fixes the intermittent animation issue on modal open.
+    if (isTopModal) {
+      const timer = setTimeout(() => setIsActive(true), 10);
+      return () => clearTimeout(timer);
+    } else {
+      setIsActive(false);
+    }
+  }, [isTopModal]);
 
   const toggleExplanation = () => {
     setIsExplanationExpanded(!isExplanationExpanded);
@@ -176,9 +188,9 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
     <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 ${!isTopModal ? 'pointer-events-none' : ''}`}>
       <div 
         ref={modalRef} 
-        className={`bg-gray-800 rounded-lg p-6 w-full flex flex-col transition-transform duration-100 ease-out
+        className={`bg-gray-800 rounded-lg p-6 w-full flex flex-col transition-transform duration-75 ease-out
           ${isMobile ? 'max-w-[95vw] h-[90vh]' : 'max-w-[60vw] h-[85vh]'}
-          ${!isTopModal ? 'scale-90 opacity-0' : 'scale-100 opacity-100'}
+          ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
           `}
       >
         <div className="flex-shrink-0">
@@ -365,6 +377,6 @@ const PlayerSearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, 
   );
 };
 
-PlayerSearchModal.propTypes = PlayerSearchModalProps;
+SearchModal.propTypes = SearchModalProps;
 
-export default PlayerSearchModal;
+export default SearchModal;

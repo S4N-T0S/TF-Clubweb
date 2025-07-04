@@ -193,7 +193,7 @@ export const SearchBarProps = {
   ])
 };
 
-export const PlayerSearchModalProps = {
+export const SearchModalProps = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   initialSearch: PropTypes.string,
@@ -237,7 +237,7 @@ export const ComparePlayerSearchProps = {
   className: PropTypes.string
 };
 
-export const PlayerGraphModalProps = {
+export const GraphModalProps = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   embarkId: PropTypes.string.isRequired,

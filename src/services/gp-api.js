@@ -4,7 +4,7 @@ import { apiFetch, logApiCall, API } from "./apiService";
 const graphCache = new Map();
 const CACHE_TTL_MS = 60 * 1000; // 1 minute TTL on client-side cache
 
-export const fetchPlayerGraphData = async (embarkId, seasonId = null) => {
+export const fetchGraphData = async (embarkId, seasonId = null) => {
   // A unique key for caching, including the season
   const cacheKey = seasonId ? `${embarkId}@${seasonId}` : embarkId;
 
