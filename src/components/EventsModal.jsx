@@ -426,7 +426,10 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   const { slideDirection, showIndicator } = useSwipe(
     () => currentPage < totalPages && handlePageChange(currentPage + 1),
     () => currentPage > 1 && handlePageChange(currentPage - 1),
-    { isSwipeActive: isTopModal } // Only allow swipe on the top-most modal
+    { 
+      isSwipeActive: isTopModal, // Only allow swipe on the top-most modal
+      targetRef: scrollContainerRef,
+    }
   );
 
   if (!isOpen) return null;

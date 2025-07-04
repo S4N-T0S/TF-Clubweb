@@ -12,10 +12,14 @@ export const useSwipe = (onSwipeLeft, onSwipeRight, options = {}) => {
     enableIndicator = true,
     onSwipeStart,
     onSwipeEnd,
-    isSwipeActive = true
+    isSwipeActive = true,
+    targetRef // Added to target a specific element
   } = options;
 
   useEffect(() => {
+    const targetElement = targetRef?.current;
+    if (!targetElement) return; // Only run if target element exists
+
     const onTouchStart = (e) => {
       if (!isSwipeActive) return;
 
@@ -78,16 +82,16 @@ export const useSwipe = (onSwipeLeft, onSwipeRight, options = {}) => {
       return null;
     };
 
-    document.addEventListener('touchstart', onTouchStart);
-    document.addEventListener('touchmove', onTouchMove);
-    document.addEventListener('touchend', onTouchEnd);
+    targetElement.addEventListener('touchstart', onTouchStart);
+    targetElement.addEventListener('touchmove', onTouchMove);
+    targetElement.addEventListener('touchend', onTouchEnd);
 
     return () => {
-      document.removeEventListener('touchstart', onTouchStart);
-      document.removeEventListener('touchmove', onTouchMove);
-      document.removeEventListener('touchend', onTouchEnd);
+      targetElement.removeEventListener('touchstart', onTouchStart);
+      targetElement.removeEventListener('touchmove', onTouchMove);
+      targetElement.removeEventListener('touchend', onTouchEnd);
     };
-  }, [onSwipeLeft, onSwipeRight, touchStart, touchEnd, isHorizontalScroll, minSwipeDistance, enableIndicator, onSwipeStart, onSwipeEnd, isSwipeActive]);
+  }, [onSwipeLeft, onSwipeRight, touchStart, touchEnd, isHorizontalScroll, minSwipeDistance, enableIndicator, onSwipeStart, onSwipeEnd, isSwipeActive, targetRef]);
 
   return {
     slideDirection,

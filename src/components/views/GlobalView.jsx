@@ -380,6 +380,7 @@ export const GlobalView = ({
   const [isCurrentSeason, setIsCurrentSeason] = useState(currentSeason === selectedSeason);
   const { isModalOpen } = useModal();
   const searchInputRef = useRef(null);
+  const viewContainerRef = useRef(null);
   const { 
     favourites, 
     addFavourite, 
@@ -399,7 +400,8 @@ export const GlobalView = ({
       onSwipeEnd: () => {
         // Optional callback
       },
-      isSwipeActive: !isModalOpen
+      isSwipeActive: !isModalOpen,
+      targetRef: viewContainerRef,
     }
   );
 
@@ -506,7 +508,7 @@ export const GlobalView = ({
   }, [initialSearchQuery, isMobile]);
 
   return (
-    <div>
+    <div ref={viewContainerRef}>
       <div className="flex flex-col sm:flex-row gap-2 mb-4 items-stretch sm:items-center">
         <div className="flex-1">
           <SearchBar 

@@ -86,6 +86,7 @@ const ClubRow = ({ club, onClubClick, isMobile }) => {
 export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
   const { isModalOpen } = useModal();
   const searchInputRef = useRef(null);
+  const viewContainerRef = useRef(null);
   const { slideDirection, showIndicator } = useSwipe(
     () => currentPage < totalPages && handlePageChange(currentPage + 1),
     () => currentPage > 1 && handlePageChange(currentPage - 1),
@@ -97,7 +98,8 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
       onSwipeEnd: () => {
         // Optional callback
       },
-      isSwipeActive: !isModalOpen
+      isSwipeActive: !isModalOpen,
+      targetRef: viewContainerRef,
     }
   );
 
@@ -122,7 +124,7 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
   } = usePagination(rankedClubs, isMobile ? 15 : 15); // Same items on mobile or desktop, but just added for future ref.
 
   return (
-    <div>
+    <div ref={viewContainerRef}>
       <SearchBar
         value={searchQuery}
         onChange={setSearchQuery}

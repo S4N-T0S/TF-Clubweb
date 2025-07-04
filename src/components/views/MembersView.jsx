@@ -192,6 +192,7 @@ export const MembersView = ({
 }) => {
   const searchInputRef = useRef(null);
   const { isModalOpen } = useModal();
+  const viewContainerRef = useRef(null);
   const {
     searchQuery,
     setSearchQuery,
@@ -209,7 +210,7 @@ export const MembersView = ({
   const { slideDirection, showIndicator } = useSwipe(
     () => currentPage < totalPages && handlePageChange(currentPage + 1),
     () => currentPage > 1 && handlePageChange(currentPage - 1),
-    { isSwipeActive: !isModalOpen }
+    { isSwipeActive: !isModalOpen, targetRef: viewContainerRef }
   );
 
   const handleSwitchToGlobalSearch = () => {
@@ -218,7 +219,7 @@ export const MembersView = ({
   };
 
   return (
-    <div>
+    <div ref={viewContainerRef}>
       <SearchBar
         value={searchQuery}
         onChange={setSearchQuery}

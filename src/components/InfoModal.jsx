@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -7,6 +7,7 @@ import { useModal } from '../context/ModalProvider';
 import { LoadingDisplay } from './LoadingDisplay';
 import { X, ExternalLink } from 'lucide-react';
 import { InfoModalProps, LinkRendererProps } from '../types/propTypes';
+import { useSwipe } from '../hooks/useSwipe';
 
 // Fetches and parses the markdown content file from the public folder.
 const fetchAndParseContent = async () => {
@@ -68,6 +69,7 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
   const [activeTabKey, setActiveTabKey] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const contentRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -93,6 +95,26 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
   const activeTab = useMemo(() => {
     return tabs.find(tab => tab.key === activeTabKey);
   }, [tabs, activeTabKey]);
+
+  // --- Swipe handlers for mobile ---
+  const handleNextTab = () => {
+    if (tabs.length < 2) return;
+    const currentIndex = tabs.findIndex(tab => tab.key === activeTabKey);
+    const nextIndex = (currentIndex + 1) % tabs.length; // Loop around
+    setActiveTabKey(tabs[nextIndex].key);
+  };
+
+  const handlePrevTab = () => {
+    if (tabs.length < 2) return;
+    const currentIndex = tabs.findIndex(tab => tab.key === activeTabKey);
+    const prevIndex = (currentIndex - 1 + tabs.length) % tabs.length; // Loop around
+    setActiveTabKey(tabs[prevIndex].key);
+  };
+  
+  const { slideDirection } = useSwipe(handleNextTab, handlePrevTab, {
+    isSwipeActive: isMobile && isOpen && tabs.length > 1,
+    targetRef: contentRef,
+  });
   
   const components = {
     a: LinkRenderer,
@@ -136,6 +158,12 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+      {/* Animation styles for swipe */}
+      <style>{`
+        .slide-left-enter { transform: translateX(25%); opacity: 0; }
+        .slide-right-enter { transform: translateX(-25%); opacity: 0; }
+        .slide-center { transform: translateX(0); opacity: 1; }
+      `}</style>
       <div
         ref={modalRef}
         className={`bg-gray-900 rounded-lg w-full flex flex-col shadow-2xl overflow-hidden relative transition-transform duration-75 ease-out
@@ -172,11 +200,11 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
           </nav>
           
           {/* Content */}
-          <main className="flex-grow p-4 md:p-6 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+          <main ref={contentRef} className="flex-grow p-4 md:p-6 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
             {loading ? <LoadingDisplay variant="component" /> :
              error ? <p className="text-red-400">{error}</p> :
              activeTab && (
-                <article className="prose prose-sm sm:prose-base prose-invert max-w-none prose-h2:text-xl prose-h2:mb-4 prose-h4:text-base prose-pre:bg-gray-800 prose-a:text-blue-400">
+                <article className={`prose prose-sm sm:prose-base prose-invert max-w-none prose-h2:text-xl prose-h2:mb-4 prose-h4:text-base prose-pre:bg-gray-800 prose-a:text-blue-400 transition-all duration-300 ease-in-out ${slideDirection}`}>
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={components}
