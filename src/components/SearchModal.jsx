@@ -9,8 +9,8 @@ import { isValidEmbarkId, formatUsernameForUrl } from '../utils/urlHandler';
 import { useModal } from '../context/ModalProvider';
 
 const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClubClick }) => {
-  const { modalRef, isTopModal } = useModal(isOpen, onClose);
-  const [isActive, setIsActive] = useState(false);
+  // `useModal` now also returns `isActive`, which handles animation state internally.
+  const { modalRef, isActive } = useModal(isOpen, onClose);
   const [searchState, setSearchState] = useState({
     query: '',
     results: [],
@@ -23,17 +23,6 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
   const [isExplanationExpanded, setIsExplanationExpanded] = useState(false);
   const inputRef = useRef(null);
   const initialSearchRef = useRef(false);
-
-  useEffect(() => {
-    // Small timeout to ensure the initial state is rendered before animating.
-    // This fixes the intermittent animation issue on modal open.
-    if (isTopModal) {
-      const timer = setTimeout(() => setIsActive(true), 10);
-      return () => clearTimeout(timer);
-    } else {
-      setIsActive(false);
-    }
-  }, [isTopModal]);
 
   const toggleExplanation = () => {
     setIsExplanationExpanded(!isExplanationExpanded);
@@ -185,7 +174,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
   if (!isOpen) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 ${!isTopModal ? 'pointer-events-none' : ''}`}>
+    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4`}>
       <div 
         ref={modalRef} 
         className={`bg-gray-800 rounded-lg p-6 w-full flex flex-col transition-transform duration-75 ease-out

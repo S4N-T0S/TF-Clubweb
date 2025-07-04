@@ -56,7 +56,9 @@ const FilterToggleButton = ({ label, isActive, onClick, Icon, colorClass, textCo
 
 // Helper component for the information pop-up
 const EventInfoPopup = ({ onClose }) => {
-  const infoModalRef = useModal(true, onClose); 
+  // Now destructure `modalRef` from `useModal` and pass an option to mark it as nested.
+  // This prevents the main EventsModal from fading out when this popup is open.
+  const { modalRef: infoModalRef } = useModal(true, onClose, { type: 'nested' }); 
 
   return (
     <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center z-20 p-4">
@@ -148,9 +150,11 @@ const isQueryInEvent = (event, query) => {
 
 
 export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubClick, onGraphOpen, showToast }) => {
-  const { modalRef, isTopModal } = useModal(isOpen, onClose);
-  const [isActive, setIsActive] = useState(false);
+  // `useModal` now also returns `isActive`, which handles animation state internally based on the modal stack.
+  const { modalRef, isTopModal, isActive } = useModal(isOpen, onClose);
   const scrollContainerRef = useRef(null); // Ref for the scrollable content area
+  const scrollPositionRef = useRef(0); // Ref to store the scroll position
+  const hasInitialized = useRef(false);
   const [events, setEvents] = useState([]);
   const eventsRef = useRef(events); // Create a ref to hold the current events
   useEffect(() => {
@@ -173,17 +177,6 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     showRsAdjustment: true,
     showClubChange: true,
   });
-
-  useEffect(() => {
-    // Small timeout to ensure the initial state is rendered before animating.
-    // This fixes the intermittent animation issue on modal open.
-    if (isTopModal) {
-      const timer = setTimeout(() => setIsActive(true), 10);
-      return () => clearTimeout(timer);
-    } else {
-      setIsActive(false);
-    }
-  }, [isTopModal]);
 
   const handleFilterChange = useCallback((key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -299,11 +292,31 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     }
   }, [loadEvents]);
 
-  // Fetch on open and clear search query
+  // Restoring scroll position when the modal becomes active again.
   useEffect(() => {
-    if (isOpen) {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    if (isActive) {
+      const timer = setTimeout(() => {
+        scrollContainer.scrollTo({ top: scrollPositionRef.current, behavior: 'auto' });
+      }, 50);
+      return () => clearTimeout(timer);
+    } else {
+      scrollPositionRef.current = scrollContainer.scrollTop;
+    }
+  }, [isActive]);
+
+  // Checks the `hasInitialized` ref to ensure it only runs ONCE per mount.
+  useEffect(() => {
+    // The `key` prop from App.jsx ensures this component is brand new on a "fresh" open.
+    // When it mounts, `hasInitialized.current` is false, so this block runs.
+    if (isOpen && !hasInitialized.current) {
         handleFilterChange('searchQuery', '');
         loadEvents(false);
+        // Then set the flag to true, so subsequent re-renders of this same instance
+        // (e.g., when a child modal opens) will not re-trigger this logic.
+        hasInitialized.current = true;
     }
   }, [isOpen, loadEvents, handleFilterChange]);
 

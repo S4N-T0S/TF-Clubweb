@@ -281,8 +281,7 @@ const ComparePlayerSearch = ({ onSelect, mainEmbarkId, globalLeaderboard, onClos
 };
 
 const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = false, globalLeaderboard = [], onSwitchToGlobal, isMobile }) => {
-  const { modalRef, isTopModal } = useModal(isOpen, onClose);
-  const [isActive, setIsActive] = useState(false);
+  const { modalRef, isActive } = useModal(isOpen, onClose);
   const [data, setData] = useState(null);
   const [mainPlayerGameCount, setMainPlayerGameCount] = useState(0);
   const [comparisonData, setComparisonData] = useState(new Map());
@@ -304,17 +303,6 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = f
   const isLoadingRef = useRef(false);
   const loadedCompareIdsRef = useRef(new Set());
   const shouldFollowUrlRef = useRef(true);
-
-  useEffect(() => {
-    // Small timeout to ensure the initial state is rendered before animating.
-    // This fixes the intermittent animation issue on modal open.
-    if (isTopModal) {
-      const timer = setTimeout(() => setIsActive(true), 10);
-      return () => clearTimeout(timer);
-    } else {
-      setIsActive(false);
-    }
-  }, [isTopModal]);
 
   // Reset state when modal is opened with new player
   useEffect(() => {
@@ -1434,7 +1422,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = f
   if (!isOpen || !embarkId) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 ${!isTopModal ? 'pointer-events-none' : ''}`}>
+    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4`}>
       <div ref={modalRef} className={`bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden grid grid-rows-[auto_1fr] gap-4 transition-transform duration-75 ease-out
         ${isMobile ? 'max-w-[95vw] h-[95vh]' : 'max-w-[80vw] h-[85vh]'}
         ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}

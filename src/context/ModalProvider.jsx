@@ -38,8 +38,9 @@ export const ModalProvider = ({ children }) => {
     };
   }, [isModalOpen, handleOutsideClick]);
 
-  const registerModal = useCallback((onClose, ref) => {
-    setModalStack(stack => [...stack, { onClose, ref }]);
+  const registerModal = useCallback((onClose, ref, options = {}) => {
+    const { type = 'main' } = options; // Default to 'main' modal type
+    setModalStack(stack => [...stack, { onClose, ref, type }]);
   }, []);
 
   const unregisterModal = useCallback(() => {
@@ -51,8 +52,27 @@ export const ModalProvider = ({ children }) => {
     if (modalStack.length === 0) return false;
     return modalStack[modalStack.length - 1].ref === ref;
   }, [modalStack]);
+  
+  const isEffectivelyTopModal = useCallback((ref) => {
+    if (modalStack.length === 0) return false;
+    
+    const modalIndex = modalStack.findIndex(m => m.ref === ref);
+    if (modalIndex === -1) return false; // Not in stack
 
-  const value = { registerModal, unregisterModal, isTopModal };
+    // It's effectively top if it's the top modal itself.
+    if (modalIndex === modalStack.length - 1) return true;
+
+    // Or if all modals stacked on top of it are of type 'nested'.
+    for (let i = modalIndex + 1; i < modalStack.length; i++) {
+      if (modalStack[i].type !== 'nested') {
+        return false; // Found a 'main' modal on top.
+      }
+    }
+    
+    return true; // All modals on top are nested.
+  }, [modalStack]);
+
+  const value = { registerModal, unregisterModal, isTopModal, isEffectivelyTopModal };
 
   return (
     <ModalContext.Provider value={value}>
@@ -62,25 +82,43 @@ export const ModalProvider = ({ children }) => {
 };
 
 // eslint-disable-next-line react-refresh/only-export-components
-export const useModal = (isOpen, onClose) => {
+export const useModal = (isOpen, onClose, options) => {
     const context = useContext(ModalContext);
     if (context === null) {
         throw new Error('useModal must be used within a ModalProvider');
     }
     
-    const { registerModal, unregisterModal, isTopModal } = context;
+    const { registerModal, unregisterModal, isTopModal, isEffectivelyTopModal } = context;
     const modalRef = useRef(null);
+    const [isActive, setIsActive] = useState(false);
+
+    // We calculate these on every render, as the modal stack could have changed.
+    const isCurrentlyTop = isTopModal(modalRef);
+    const isEffectivelyTop = isEffectivelyTopModal(modalRef);
 
     useEffect(() => {
         if (isOpen) {
-            registerModal(onClose, modalRef);
+            // Pass options to registerModal.
+            registerModal(onClose, modalRef, options);
             return () => {
                 unregisterModal();
             };
         }
-    }, [isOpen, onClose, modalRef, registerModal, unregisterModal]);
+    }, [isOpen, onClose, modalRef, options, registerModal, unregisterModal]);
 
-    return { modalRef, isTopModal: isTopModal(modalRef) };
+    // This effect manages the 'active' state for animations.
+    // It becomes active if it's "effectively" the top modal.
+    useEffect(() => {
+        // Use a short timeout to allow the modal to be rendered before applying the animation classes.
+        if (isEffectivelyTop) {
+            const timer = setTimeout(() => setIsActive(true), 10);
+            return () => clearTimeout(timer);
+        } else {
+            setIsActive(false);
+        }
+    }, [isEffectivelyTop]);
+
+    return { modalRef, isTopModal: isCurrentlyTop, isActive };
 };
 
 

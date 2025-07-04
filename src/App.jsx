@@ -72,6 +72,7 @@ const App = () => {
   const [view, setView] = useState(getStoredTab);
   const [autoRefresh, setAutoRefresh] = useState(getStoredAutoRefresh);
   const [eventsModalOpen, setEventsModalState] = useState(false);
+  const [eventsModalKey, setEventsModalKey] = useState(null);
   const [searchModalState, setSearchModalState] = useState({ 
     isOpen: false, 
     initialSearch: '',
@@ -218,7 +219,12 @@ const App = () => {
 
 
   // --- Modal-specific Open/Close Handlers ---
-  const handleEventsModalOpen = useCallback(() => openModal('/events'), [openModal]);
+  const handleEventsModalOpen = useCallback(() => {
+    // When opening the events modal fresh, set a new key.
+    // This forces React to create a new instance of the modal, resetting its state.
+    setEventsModalKey(Date.now()); 
+    openModal('/events');
+  }, [openModal]);
   const handleEventsModalClose = useCallback(() => closeModal(), [closeModal]);
   
   const handleSearchModalOpen = useCallback((initialSearch = '') => {
@@ -292,8 +298,23 @@ const App = () => {
 
   // --- URL-driven Modal State ---
   useEffect(() => {
-    setEventsModalState(location.pathname.startsWith('/events'));
-  }, [location.pathname]);
+    const path = location.pathname;
+    
+    // Check if the current path is for a modal that can be opened from the Events modal.
+    const isOverlayModalPath = path.startsWith('/history') || path.startsWith('/graph');
+
+    // The modal history tells us where we came from.
+    const lastPath = modalHistory.length > 0 ? modalHistory[modalHistory.length - 1] : '/';
+
+    // The Events modal should be considered "open" if:
+    // 1. The user is directly on the /events path.
+    // 2. The user has opened an overlay modal (like search or graph) *from* the /events path.
+    const shouldEventsBeOpen = 
+      path.startsWith('/events') || 
+      (isOverlayModalPath && lastPath.startsWith('/events'));
+
+    setEventsModalState(shouldEventsBeOpen);
+  }, [location.pathname, modalHistory]);
 
   if (error) return <ErrorDisplay error={error} onRetry={() => refreshData(true)} />;
   if (loading || clubMembersLoading) return <LoadingDisplay />;
@@ -373,6 +394,7 @@ const App = () => {
         </div>
 
         <EventsModal
+          key={eventsModalKey}
           isOpen={eventsModalOpen}
           onClose={handleEventsModalClose}
           isMobile={isMobile}
