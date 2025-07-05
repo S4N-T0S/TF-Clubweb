@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchGraphData } from '../services/gp-api';
 import { formatMultipleUsernamesForUrl } from '../utils/urlHandler';
 
-// Constants from GraphModal
+// Constants
 const RANKED_PLACEMENTS = 4;
 const MAX_COMPARISONS = 5;
 const COMPARISON_COLORS = [
@@ -14,12 +14,17 @@ const COMPARISON_COLORS = [
 ];
 const TIME = {
   MINUTE: 60 * 1000,
+  HOUR: 60 * 60 * 1000,
   WEEK: 7 * 24 * 60 * 60 * 1000,
 };
 TIME.MINUTES_15 = 15 * TIME.MINUTE;
+const GAP_THRESHOLD = 2 * TIME.HOUR;
+const NEW_LOGIC_TIMESTAMP_S = 1750436334;
+const NEW_LOGIC_TIMESTAMP_MS = NEW_LOGIC_TIMESTAMP_S * 1000;
 
-// Helper function moved from GraphModal
-const interpolateDataPoints = (rawData) => {
+
+// Processes legacy data points using the old interpolation method.
+const legacy_interpolateDataPoints = (rawData, isFinalSegment = true) => {
     if (!rawData?.length || rawData.length < 2) return rawData;
     
     const interpolatedData = [];
@@ -62,19 +67,120 @@ const interpolateDataPoints = (rawData) => {
     
     interpolatedData.push(rawData[rawData.length - 1]);
     
-    const lastPoint = rawData[rawData.length - 1];
-    const timeToNow = now - lastPoint.timestamp;
-    
-    if (timeToNow > TIME.MINUTES_15) {
-      interpolatedData.push({
-        ...lastPoint,
-        timestamp: new Date(now),
-        isInterpolated: true
-      });
+    if (isFinalSegment) {
+        const lastPoint = rawData[rawData.length - 1];
+        const timeToNow = now - lastPoint.timestamp;
+        
+        if (timeToNow > TIME.MINUTES_15) {
+          interpolatedData.push({
+            ...lastPoint,
+            timestamp: new Date(now),
+            isInterpolated: true
+          });
+        }
     }
     
     return interpolatedData;
 };
+
+// Processes the full dataset, applying legacy or new logic based on timestamp.
+const processGraphData = (rawData) => {
+    if (!rawData?.length) return [];
+
+    const parsedData = rawData.map(item => ({
+        ...item,
+        timestamp: new Date(item.timestamp * 1000)
+    })).sort((a, b) => a.timestamp - b.timestamp);
+
+    const legacyPoints = parsedData.filter(p => p.timestamp.getTime() < NEW_LOGIC_TIMESTAMP_MS);
+    const newPoints = parsedData.filter(p => p.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS);
+
+    const legacyScoreChanged = legacyPoints.filter(p => p.scoreChanged);
+    const hasNewData = newPoints.length > 0;
+    const processedLegacy = legacy_interpolateDataPoints(legacyScoreChanged, !hasNewData);
+
+    if (!hasNewData) {
+        return processedLegacy;
+    }
+
+    // Build the final array for the new period, handling gaps and staircases
+    const processedNew = [];
+    if (newPoints.length > 0) {
+        for (let i = 0; i < newPoints.length; i++) {
+            const previous = i > 0 ? newPoints[i - 1] : null;
+            const current = newPoints[i];
+
+            if (previous) {
+                const timeDiff = current.timestamp - previous.timestamp;
+
+                // A. Handle Gaps (> 2 hours)
+                if (timeDiff > GAP_THRESHOLD) {
+                    // Mark the last real point before the gap to make the line from it dashed.
+                    const lastAddedPoint = processedNew[processedNew.length - 1];
+                    if (lastAddedPoint) {
+                        lastAddedPoint.isFollowedByGap = true;
+                    }
+                    
+                    // Add a synthetic "bridge" point. It has the *previous* point's score
+                    // and a timestamp just before the current point. This creates the
+                    // horizontal dashed line across the gap.
+                    processedNew.push({
+                        ...previous,
+                        timestamp: new Date(current.timestamp.getTime() - TIME.MINUTES_15),
+                        isGapBridge: true,
+                        scoreChanged: false,
+                    });
+                }
+                // B. Handle back-to-back games (staircase)
+                else if (previous.scoreChanged && current.scoreChanged) {
+                    // Add a synthetic point to create the staircase step.
+                    processedNew.push({
+                        ...previous,
+                        timestamp: new Date(current.timestamp.getTime() - TIME.MINUTES_15),
+                        isStaircasePoint: true,
+                        scoreChanged: false,
+                    });
+                }
+            }
+
+            // Add the actual current point from the raw new data
+            processedNew.push(current);
+        }
+    }
+
+    let combined = [...processedLegacy, ...processedNew];
+    
+    // Handle gap between legacy and new data
+    if (legacyScoreChanged.length > 0 && newPoints.length > 0) {
+        const lastLegacyScoreChangedPoint = legacyScoreChanged[legacyScoreChanged.length - 1];
+        const firstNewPoint = newPoints[0];
+        if (firstNewPoint.timestamp - lastLegacyScoreChangedPoint.timestamp > GAP_THRESHOLD) {
+            // Find the original point in the combined array to flag it
+            const pointToFlag = combined.find(p => 
+                p.timestamp.getTime() === lastLegacyScoreChangedPoint.timestamp.getTime() && 
+                !p.isInterpolated && !p.isExtrapolated && !p.isStaircasePoint
+            );
+            if (pointToFlag) pointToFlag.isFollowedByGap = true;
+        }
+    }
+    
+    // Handle final interpolation to 'now' for the new data period
+    if (hasNewData) {
+        const now = new Date();
+        const lastRealPoint = newPoints[newPoints.length - 1];
+        if (now - lastRealPoint.timestamp > TIME.MINUTES_15) {
+            combined.push({
+                ...lastRealPoint,
+                timestamp: now,
+                isInterpolated: true,
+                scoreChanged: false,
+            });
+        }
+    }
+
+    return combined;
+};
+
 
 export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, globalLeaderboard) => {
   const [data, setData] = useState(null);
@@ -93,16 +199,12 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, globalLe
       if (!result.data?.length) return null;
       
       const activeData = result.data.filter(item => item.scoreChanged);
-      if (!activeData.length) return null;
-
       const gameCount = activeData.length + RANKED_PLACEMENTS;
-      const parsedData = activeData.map(item => ({
-        ...item,
-        timestamp: new Date(item.timestamp * 1000)
-      }));
       
-      const interpolatedData = interpolateDataPoints(parsedData);
-      return { data: interpolatedData, gameCount };
+      const processedData = processGraphData(result.data);
+      if (processedData.length < 2) return null;
+
+      return { data: processedData, gameCount };
     } catch (error) {
       console.error(`Failed to load comparison data for ${compareId}:`, error);
       return null;
@@ -177,27 +279,22 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, globalLe
       
       const activeData = result.data.filter(item => item.scoreChanged);
       
-      if (!activeData.length) {
+      if (activeData.length === 0) {
         setError('No games with rank score changes have been recorded for this player.');
         setLoading(false);
         return;
       }
       
-      if (activeData.length < 2) {
-        setError('Not enough data points with score changes to display a meaningful graph.');
+      const processedData = processGraphData(result.data);
+
+      if (processedData.length < 2) {
+        setError('Not enough data points to display a meaningful graph.');
         setLoading(false);
         return;
       }
   
       setMainPlayerGameCount(activeData.length + RANKED_PLACEMENTS);
-
-      const parsedData = activeData.map(item => ({
-        ...item,
-        timestamp: new Date(item.timestamp * 1000)
-      }));
-      
-      const interpolatedData = interpolateDataPoints(parsedData);
-      setData(interpolatedData);
+      setData(processedData);
       
     } catch (error) {
       setError(`Failed to load player history: ${error.message}`);

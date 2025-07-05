@@ -59,6 +59,9 @@ TIME.DISPLAY_FORMATS = {
   year: 'yyyy'
 };
 
+const NEW_LOGIC_TIMESTAMP_S = 1750436334;
+const NEW_LOGIC_TIMESTAMP_MS = NEW_LOGIC_TIMESTAMP_S * 1000;
+
 const getRankFromScore = (score) => {
   for (let i = RANKS.length - 1; i >= 0; i--) {
     if (score >= RANKS[i].y) {
@@ -98,6 +101,47 @@ const getOrCreateTooltip = (chart) => {
   return tooltipEl;
 };
 
+const getBorderColor = (ctx, defaultColor = '#FAF9F6') => {
+    if (!ctx.p0?.raw?.raw || !ctx.p1?.raw?.raw) return defaultColor;
+    
+    const p0 = ctx.p0.raw.raw;
+    const p1 = ctx.p1.raw.raw;
+
+    // A segment ending at a gap bridge is the horizontal part of a gap. Color it white.
+    if (p1.isGapBridge) return defaultColor;
+
+    if (p0.isExtrapolated || p1.isExtrapolated || p1.isStaircasePoint) return defaultColor;
+
+    // New data logic: color based on destination point's status
+    if (p1.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS) {
+        if (p1.scoreChanged) {
+            const curr = ctx.p0.parsed.y;
+            const next = ctx.p1.parsed.y;
+            return next > curr ? '#10B981' : next < curr ? '#EF4444' : defaultColor;
+        }
+        return defaultColor; // It's a tracking point, line is default color
+    }
+
+    // Legacy data logic: color if destination is not an interpolated point
+    if (p1.isInterpolated) return defaultColor;
+
+    const curr = ctx.p0.parsed.y;
+    const next = ctx.p1.parsed.y;
+    if (curr === next) return defaultColor;
+    return next > curr ? '#10B981' : '#EF4444';
+};
+
+const getBorderDash = (ctx) => {
+    if (!ctx.p0?.raw?.raw) return undefined;
+    const p0 = ctx.p0.raw.raw;
+    const p1 = ctx.p1?.raw?.raw;
+
+    if (p0.isFollowedByGap) return [5, 5];
+    if (p0.isExtrapolated || (p1 && p1.isExtrapolated)) return [5, 5];
+    
+    return undefined;
+};
+
 
 export const useChartConfig = ({
   data,
@@ -109,12 +153,26 @@ export const useChartConfig = ({
 }) => {
 
   const getPointRadius = useCallback((ctx) => {
-    if (!ctx.chart) return 3;
+    const pointData = ctx.raw?.raw;
+    if (!ctx.chart || !pointData) return 3;
+
+    // Hide synthetic staircase and gap bridge points
+    if (pointData.isStaircasePoint || pointData.isGapBridge) {
+        return 0;
+    }
+
+    // Hide points for tracking data in the new system (unless interpolated)
+    if (pointData.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS && !pointData.scoreChanged) {
+        if (!pointData.isInterpolated && !pointData.isExtrapolated) {
+            return 0;
+        }
+    }
+
     const timeRange = ctx.chart.scales.x.max - ctx.chart.scales.x.min;
-    if ((ctx.raw?.raw?.isInterpolated || ctx.raw?.raw?.isExtrapolated) && timeRange > TIME.SEVENTY_TWO_HOURS) {
+    if ((pointData.isInterpolated || pointData.isExtrapolated) && timeRange > TIME.SEVENTY_TWO_HOURS) {
       return 0;
     }
-    const initialSize = (ctx.raw?.raw?.isInterpolated || ctx.raw?.raw?.isExtrapolated) ? 2.6 : 3;
+    const initialSize = (pointData.isInterpolated || pointData.isExtrapolated) ? 2.6 : 3;
     if (timeRange <= TIME.DAY) {
       return initialSize;
     } else if (timeRange >= TIME.WEEK) {
@@ -129,12 +187,23 @@ export const useChartConfig = ({
     const { chart, tooltip } = context;
 
     if (tooltip.dataPoints?.[0]?.raw?.raw) {
+      const pointData = tooltip.dataPoints[0].raw.raw;
       const timeRange = chart.scales.x.max - chart.scales.x.min;
-      const isHiddenPoint = (tooltip.dataPoints[0].raw.raw.isInterpolated || 
-                            tooltip.dataPoints[0].raw.raw.isExtrapolated) && 
+      
+      const isHiddenInterpolatedPoint = (pointData.isInterpolated || pointData.isExtrapolated) && 
                             timeRange > TIME.SEVENTY_TWO_HOURS;
       
-      if (isHiddenPoint) {
+      const isHiddenTrackingPoint = pointData.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS && 
+                                    !pointData.scoreChanged && 
+                                    !pointData.isInterpolated && 
+                                    !pointData.isExtrapolated;
+      
+      const isStaircase = pointData.isStaircasePoint;
+      const isGapBridge = pointData.isGapBridge;
+
+      if (isHiddenInterpolatedPoint || isHiddenTrackingPoint || isStaircase || isGapBridge) {
+        const tooltipEl = chart.canvas.parentNode.querySelector('div.rank-tooltip');
+        if (tooltipEl) tooltipEl.style.opacity = 0;
         return;
       }
     }
@@ -222,12 +291,19 @@ export const useChartConfig = ({
       const scoreContainer = document.createElement('div');
       scoreContainer.appendChild(document.createTextNode(`Score: ${score.toLocaleString()}`));
       
-      if (!dataPoint.isInterpolated && !dataPoint.isExtrapolated) {
+      if (dataPoint.scoreChanged) {
         const dataIndex = tooltip.dataPoints[0].dataIndex;
-        const dataset = chart.data.datasets[datasetIndex].data.map(d => d.raw);
+        const dataset = chart.data.datasets[datasetIndex].data;
         
-        if (dataIndex > 0) {
-          const previousScore = dataset[dataIndex - 1].rankScore;
+        let previousScore = null;
+        for (let i = dataIndex - 1; i >= 0; i--) {
+            if (dataset[i].raw.scoreChanged) {
+                previousScore = dataset[i].raw.rankScore;
+                break;
+            }
+        }
+
+        if (previousScore !== null) {
           const scoreChange = score - previousScore;
           const scoreChangeText = document.createElement('span');
           scoreChangeText.style.fontWeight = '600';
@@ -256,12 +332,19 @@ export const useChartConfig = ({
       rankContainer.style.alignItems = 'center';
       rankContainer.style.gap = '6px';
       
-      if (!dataPoint.isInterpolated && !dataPoint.isExtrapolated) {
+      if (dataPoint.scoreChanged) {
         const dataIndex = tooltip.dataPoints[0].dataIndex;
-        const dataset = chart.data.datasets[datasetIndex].data.map(d => d.raw);
+        const dataset = chart.data.datasets[datasetIndex].data;
         
-        if (dataIndex > 0) {
-          const previousScore = dataset[dataIndex - 1].rankScore;
+        let previousScore = null;
+        for (let i = dataIndex - 1; i >= 0; i--) {
+            if (dataset[i].raw.scoreChanged) {
+                previousScore = dataset[i].raw.rankScore;
+                break;
+            }
+        }
+        
+        if (previousScore !== null) {
           const previousRank = getRankFromScore(previousScore);
           const rankIndex = RANKS.findIndex(r => r.label === rank.label);
           const previousRankIndex = RANKS.findIndex(r => r.label === previousRank.label);
@@ -650,19 +733,9 @@ export const useChartConfig = ({
           raw: d
       })),
       segment: {
-        borderColor: ctx => {
-          if (!ctx.p0?.raw || !ctx.p1?.raw) return '#FAF9F6';
-          if (ctx.p0.raw.isExtrapolated || ctx.p1.raw.isExtrapolated) return '#FAF9F6';
-          if (ctx.p0.raw.isInterpolated || ctx.p1.raw.isInterpolated) return '#FAF9F6';
-          const curr = ctx.p0.parsed.y;
-          const next = ctx.p1.parsed.y;
-          return next > curr ? '#10B981' : next < curr ? '#EF4444' : '#FAF9F6';
-        },
-        borderWidth: 2, // this function is currently a placeholder in case needed in future (if updated check comparedata borderwidth too)
-        borderDash: ctx => {
-          if (!ctx.p0?.raw.raw || !ctx.p1?.raw.raw) return undefined;
-          return (ctx.p0.raw.raw.isExtrapolated || ctx.p1.raw.raw.isExtrapolated) ? [5, 5] : undefined;
-        }
+        borderColor: (ctx) => getBorderColor(ctx, '#FAF9F6'),
+        borderWidth: 2,
+        borderDash: getBorderDash,
       },
       pointBackgroundColor: ctx => {
         if (ctx.raw.raw?.isExtrapolated) return '#7d7c7b';
@@ -685,13 +758,15 @@ export const useChartConfig = ({
         y: d.rankScore,
         raw: d
       })),
-      borderColor: color,
-      backgroundColor: color,
+      segment: {
+        borderColor: (ctx) => getBorderColor(ctx, color),
+        borderWidth: 2,
+        borderDash: getBorderDash,
+      },
       pointBackgroundColor: color,
       pointBorderColor: color,
       pointRadius: getPointRadius,
       pointHoverRadius: ctx => getPointRadius(ctx) * 1.5,
-      borderWidth: 2, // if updated, check segment function above
       tension: 0.01
     }))]
   } : null, [data, embarkId, comparisonData, getPointRadius]);
