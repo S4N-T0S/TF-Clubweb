@@ -404,7 +404,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
   if (!isOpen || !embarkId) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-40 p-4`}>
+    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4`}>
       <div ref={modalRef} className={`bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden grid grid-rows-[auto_1fr_auto] gap-4 transition-transform duration-75 ease-out
         ${isMobile ? 'max-w-[95vw] h-[95vh]' : 'max-w-[80vw] h-[85vh]'}
         ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
