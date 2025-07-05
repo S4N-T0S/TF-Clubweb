@@ -8,7 +8,11 @@ const router = createBrowserRouter([
     element: <App />,
     children: [
       {
-        path: 'graph/:graph',
+        path: 'graph/:season/:graph',
+        element: null // Handled by App component
+      },
+      {
+        path: 'graph/:graph', // Kept for backward compatibility with old links
         element: null // Handled by App component
       },
       {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchGraphData } from '../services/gp-api';
 import { formatMultipleUsernamesForUrl } from '../utils/urlHandler';
+import { SEASONS } from '../services/historicalDataService';
 
 // Constants
 const RANKED_PLACEMENTS = 4;
@@ -24,11 +25,11 @@ const NEW_LOGIC_TIMESTAMP_MS = NEW_LOGIC_TIMESTAMP_S * 1000;
 
 
 // Processes legacy data points using the old interpolation method.
-const legacy_interpolateDataPoints = (rawData, isFinalSegment = true) => {
+const legacy_interpolateDataPoints = (rawData, isFinalSegment = true, seasonEndDate = null) => {
     if (!rawData?.length || rawData.length < 2) return rawData;
     
     const interpolatedData = [];
-    const now = new Date();
+    const now = seasonEndDate ? new Date(seasonEndDate) : new Date();
     const sevenDaysAgo = new Date(now - TIME.WEEK);
     
     // Add extrapolation point at 7 days ago if first data point is more recent
@@ -74,8 +75,9 @@ const legacy_interpolateDataPoints = (rawData, isFinalSegment = true) => {
         if (timeToNow > TIME.MINUTES_15) {
           interpolatedData.push({
             ...lastPoint,
-            timestamp: new Date(now),
-            isInterpolated: true
+            timestamp: now,
+            isInterpolated: true,
+            isFinalInterpolation: true,
           });
         }
     }
@@ -84,7 +86,7 @@ const legacy_interpolateDataPoints = (rawData, isFinalSegment = true) => {
 };
 
 // Processes the full dataset, applying legacy or new logic based on timestamp.
-const processGraphData = (rawData) => {
+const processGraphData = (rawData, events = [], seasonEndDate = null) => {
     if (!rawData?.length) return [];
 
     const parsedData = rawData.map(item => ({
@@ -92,12 +94,43 @@ const processGraphData = (rawData) => {
         timestamp: new Date(item.timestamp * 1000)
     })).sort((a, b) => a.timestamp - b.timestamp);
 
+    // Attach point-specific events (RS_ADJUSTMENT, NAME_CHANGE, CLUB_CHANGE) to the closest data points
+    events.forEach(event => {
+        if (event.event_type !== 'RS_ADJUSTMENT' && event.event_type !== 'NAME_CHANGE' && event.event_type !== 'CLUB_CHANGE') {
+            return;
+        }
+
+        const eventTimestamp = event.start_timestamp * 1000;
+        let closestPoint = null;
+        let minDiff = Infinity;
+
+        // Find the closest point in time
+        parsedData.forEach(point => {
+            const diff = Math.abs(point.timestamp.getTime() - eventTimestamp);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closestPoint = point;
+            }
+        });
+
+        // Attach event if a close enough point is found (within 5 mins)
+        // For RS_ADJUSTMENT, only attach to points where the score actually changed.
+        if (event.event_type === 'RS_ADJUSTMENT' && !closestPoint.scoreChanged) return;
+
+        if (closestPoint && minDiff < 5 * TIME.MINUTE) {
+            if (!closestPoint.events) {
+                closestPoint.events = [];
+            }
+            closestPoint.events.push(event);
+        }
+    });
+
     const legacyPoints = parsedData.filter(p => p.timestamp.getTime() < NEW_LOGIC_TIMESTAMP_MS);
     const newPoints = parsedData.filter(p => p.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS);
 
     const legacyScoreChanged = legacyPoints.filter(p => p.scoreChanged);
     const hasNewData = newPoints.length > 0;
-    const processedLegacy = legacy_interpolateDataPoints(legacyScoreChanged, !hasNewData);
+    const processedLegacy = legacy_interpolateDataPoints(legacyScoreChanged, !hasNewData, seasonEndDate);
 
     if (!hasNewData) {
         return processedLegacy;
@@ -166,13 +199,23 @@ const processGraphData = (rawData) => {
     
     // Handle final interpolation to 'now' for the new data period
     if (hasNewData) {
-        const now = new Date();
+        const now = seasonEndDate ? new Date(seasonEndDate) : new Date();
         const lastRealPoint = newPoints[newPoints.length - 1];
-        if (now - lastRealPoint.timestamp > TIME.MINUTES_15) {
+        if (now - lastRealPoint.timestamp > GAP_THRESHOLD) {
+            // Find the last real point in the combined array to flag it for a dashed line
+            const pointToFlag = combined.find(p => 
+                p.timestamp.getTime() === lastRealPoint.timestamp.getTime() && 
+                !p.isInterpolated && !p.isExtrapolated && !p.isStaircasePoint && !p.isGapBridge
+            );
+            if (pointToFlag) {
+                pointToFlag.isFollowedByGap = true;
+            }
+
             combined.push({
                 ...lastRealPoint,
                 timestamp: now,
                 isInterpolated: true,
+                isFinalInterpolation: true,
                 scoreChanged: false,
             });
         }
@@ -182,8 +225,9 @@ const processGraphData = (rawData) => {
 };
 
 
-export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, globalLeaderboard) => {
+export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId) => {
   const [data, setData] = useState(null);
+  const [events, setEvents] = useState([]);
   const [mainPlayerGameCount, setMainPlayerGameCount] = useState(0);
   const [comparisonData, setComparisonData] = useState(new Map());
   const [error, setError] = useState(null);
@@ -193,23 +237,26 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, globalLe
   const loadedCompareIdsRef = useRef(new Set());
   const shouldFollowUrlRef = useRef(true);
 
+  const seasonConfig = Object.values(SEASONS).find(s => s.id === seasonId);
+  const seasonEndDate = seasonConfig?.endTimestamp ? seasonConfig.endTimestamp * 1000 : null;
+
   const loadComparisonData = useCallback(async (compareId) => {
     try {
-      const result = await fetchGraphData(compareId);
+      const result = await fetchGraphData(compareId, seasonId);
       if (!result.data?.length) return null;
       
       const activeData = result.data.filter(item => item.scoreChanged);
       const gameCount = activeData.length + RANKED_PLACEMENTS;
       
-      const processedData = processGraphData(result.data);
+      const processedData = processGraphData(result.data, result.events, seasonEndDate);
       if (processedData.length < 2) return null;
 
-      return { data: processedData, gameCount };
+      return { data: processedData, gameCount, events: result.events };
     } catch (error) {
       console.error(`Failed to load comparison data for ${compareId}:`, error);
       return null;
     }
-  }, []);
+  }, [seasonId, seasonEndDate]);
 
   const addComparison = useCallback(async (player) => {
     if (comparisonData.size >= MAX_COMPARISONS) {
@@ -220,25 +267,26 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, globalLe
     
     const loadedResult = await loadComparisonData(player.name);
     if (loadedResult) {
-      const { data: newData, gameCount: newGameCount } = loadedResult;
+      const { data: newData, gameCount: newGameCount, events: newEvents } = loadedResult;
       setComparisonData(prev => {
         const next = new Map(prev);
         next.set(player.name, {
           data: newData,
           color: COMPARISON_COLORS[next.size],
           gameCount: newGameCount,
+          events: newEvents,
         });
         
         loadedCompareIdsRef.current.add(player.name);
         
         const currentCompares = Array.from(next.keys());
         const urlString = formatMultipleUsernamesForUrl(embarkId, currentCompares);
-        window.history.replaceState(null, '', `/graph/${urlString}`);
+        window.history.replaceState(null, '', `/graph/${seasonId}/${urlString}`);
         
         return next;
       });
     }
-  }, [loadComparisonData, comparisonData.size, embarkId]);
+  }, [loadComparisonData, comparisonData.size, embarkId, seasonId]);
 
   const removeComparison = useCallback((compareEmbarkId) => {
     shouldFollowUrlRef.current = false;
@@ -249,27 +297,28 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, globalLe
       loadedCompareIdsRef.current.delete(compareEmbarkId);
       
       const entries = Array.from(next.entries());
-      entries.forEach(([id, {data, gameCount}], index) => {
-        next.set(id, {
-          data,
-          gameCount,
+      // Re-map to update colors correctly after removal
+      const updatedMap = new Map();
+      entries.forEach(([id, value], index) => {
+        updatedMap.set(id, {
+          ...value,
           color: COMPARISON_COLORS[index]
         });
       });
       
-      const currentCompares = Array.from(next.keys());
+      const currentCompares = Array.from(updatedMap.keys());
       const urlString = formatMultipleUsernamesForUrl(embarkId, currentCompares);
-      window.history.replaceState(null, '', `/graph/${urlString}`);
+      window.history.replaceState(null, '', `/graph/${seasonId}/${urlString}`);
       
-      return next;
+      return updatedMap;
     });
-  }, [embarkId]);
+  }, [embarkId, seasonId]);
 
   const loadMainData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await fetchGraphData(embarkId);
+      const result = await fetchGraphData(embarkId, seasonId);
 
       if (!result.data?.length) {
         setError('No data available for this player, they may have recently changed their embarkId.');
@@ -285,7 +334,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, globalLe
         return;
       }
       
-      const processedData = processGraphData(result.data);
+      const processedData = processGraphData(result.data, result.events, seasonEndDate);
 
       if (processedData.length < 2) {
         setError('Not enough data points to display a meaningful graph.');
@@ -295,19 +344,21 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, globalLe
   
       setMainPlayerGameCount(activeData.length + RANKED_PLACEMENTS);
       setData(processedData);
+      setEvents(result.events);
       
     } catch (error) {
       setError(`Failed to load player history: ${error.message}`);
     } finally {
       setLoading(false);
     }
-  }, [embarkId]);
+  }, [embarkId, seasonId, seasonEndDate]);
 
   useEffect(() => {
-    if (isOpen && embarkId) {
+    if (isOpen && embarkId && seasonId) {
       // Reset state for new player
       setData(null);
       setError(null);
+      setEvents([]);
       setMainPlayerGameCount(0);
       setComparisonData(new Map());
       loadedCompareIdsRef.current.clear();
@@ -316,7 +367,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, globalLe
 
       loadMainData();
     }
-  }, [isOpen, embarkId, loadMainData]);
+  }, [isOpen, embarkId, seasonId, loadMainData]);
 
   useEffect(() => {
     const loadedIds = loadedCompareIdsRef.current;
@@ -324,7 +375,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, globalLe
     let isLoading = isLoadingRef.current;
 
     const loadInitialComparisons = async () => {
-      if (!isOpen || !initialCompareIds?.length || !globalLeaderboard || 
+      if (!isOpen || !initialCompareIds?.length || 
           isLoading || !shouldFollowUrl) {
         return;
       }
@@ -349,6 +400,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, globalLe
             newComparisons.set(compareId, {
               data: comparisonResult.data,
               gameCount: comparisonResult.gameCount,
+              events: comparisonResult.events,
               color: COMPARISON_COLORS[index]
             });
             loadedIds.add(compareId);
@@ -373,10 +425,11 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, globalLe
         isLoadingRef.current = false;
       }
     };
-  }, [isOpen, initialCompareIds, globalLeaderboard, comparisonData, loadComparisonData]);
+  }, [isOpen, initialCompareIds, comparisonData, loadComparisonData]);
 
   return {
     data,
+    events,
     mainPlayerGameCount,
     comparisonData,
     loading,

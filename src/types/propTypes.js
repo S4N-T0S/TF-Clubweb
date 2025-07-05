@@ -115,7 +115,6 @@ export const GlobalPlayerRowProps = {
   onClubClick: PropTypes.func.isRequired,
   onGraphClick: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired,
-  isCurrentSeason: PropTypes.bool.isRequired,
   selectedSeason: PropTypes.string.isRequired,
   isFavourite: PropTypes.func.isRequired,
   addFavourite: PropTypes.func.isRequired,
@@ -228,12 +227,13 @@ export const HexagonProps = {
   className: PropTypes.string
 };
 
-export const ComparePlayerSearchProps = {
+export const ComparePlayerModalProps = {
   onSelect: PropTypes.func.isRequired,
   mainEmbarkId: PropTypes.string.isRequired,
-  globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)).isRequired,
+  leaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)).isRequired,
   onClose: PropTypes.func.isRequired,
   comparisonData: PropTypes.instanceOf(Map).isRequired,
+  mainPlayerLastDataPoint: PropTypes.object,
   className: PropTypes.string
 };
 
@@ -241,6 +241,7 @@ export const GraphModalProps = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   embarkId: PropTypes.string.isRequired,
+  seasonId: PropTypes.number.isRequired,
   compareIds: PropTypes.arrayOf(PropTypes.string),
   isClubView: PropTypes.bool,
   globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)),

@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react';
 import { Chart as ChartJS } from 'chart.js';
+import { SEASONS } from '../services/historicalDataService';
 
 // Constants from GraphModal
 const RANKS = [
@@ -61,6 +62,55 @@ TIME.DISPLAY_FORMATS = {
 
 const NEW_LOGIC_TIMESTAMP_S = 1750436334;
 const NEW_LOGIC_TIMESTAMP_MS = NEW_LOGIC_TIMESTAMP_S * 1000;
+
+// Create Image objects for custom point styles
+const nameChangeIcon = new Image(16, 16);
+nameChangeIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>');
+
+const clubChangeIcon = new Image(16, 16);
+clubChangeIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>');
+
+/**
+ * Helper to safely get an RS_ADJUSTMENT event from a point context.
+ * @param {import('chart.js').ScriptableContext<'line'>} ctx The chart context.
+ * @returns {object | null} The event object or null.
+ */
+const getRsEvent = (ctx) => {
+    const pointData = ctx.raw?.raw;
+    if (pointData?.events && !pointData.isInterpolated && !pointData.isExtrapolated) {
+        return pointData.events.find(e => e.event_type === 'RS_ADJUSTMENT');
+    }
+    return null;
+};
+
+/**
+ * Helper to check for a specific event type on a non-synthetic point.
+ * @param {import('chart.js').ScriptableContext<'line'>} ctx The chart context.
+ * @param {string} eventType The event type to check for.
+ * @returns {boolean} True if the point has the specified event.
+ */
+const hasVisibleEvent = (ctx, eventType) => {
+    const pointData = ctx.raw?.raw;
+    if (!pointData || pointData.isInterpolated || pointData.isExtrapolated || pointData.isStaircasePoint || pointData.isGapBridge) {
+        return false;
+    }
+    return pointData.events?.some(e => e.event_type === eventType);
+};
+
+/**
+ * Helper to check for multiple event types on a non-synthetic point.
+ * @param {import('chart.js').ScriptableContext<'line'>} ctx The chart context.
+ * @param {string[]} eventTypes Array of event types to check for.
+ * @returns {boolean} True if the point has any of the specified events.
+ */
+const hasAnyVisibleEvent = (ctx, eventTypes) => {
+    const pointData = ctx.raw?.raw;
+    if (!pointData || pointData.isInterpolated || pointData.isExtrapolated || pointData.isStaircasePoint || pointData.isGapBridge) {
+        return false;
+    }
+    if (!pointData.events) return false;
+    return pointData.events.some(e => eventTypes.includes(e.event_type));
+};
 
 /**
  * Determines the direction of score change for a new-logic data point.
@@ -184,19 +234,33 @@ const getBorderDash = (ctx) => {
 
 export const useChartConfig = ({
   data,
+  events,
   comparisonData,
   embarkId,
   selectedTimeRange,
   chartRef,
   onZoomPan,
+  showEvents,
+  seasonId,
 }) => {
+
+  const seasonConfig = useMemo(() => Object.values(SEASONS).find(s => s.id === seasonId), [seasonId]);
+  const seasonEndDate = useMemo(() => seasonConfig?.endTimestamp ? new Date(seasonConfig.endTimestamp * 1000) : null, [seasonConfig]);
 
   const getPointRadius = useCallback((ctx) => {
     const pointData = ctx.raw?.raw;
     if (!ctx.chart || !pointData) return 3;
 
-    // Hide synthetic staircase and gap bridge points
-    if (pointData.isStaircasePoint || pointData.isGapBridge) {
+    // Make event icon points visible and large
+    if (showEvents && hasAnyVisibleEvent(ctx, ['NAME_CHANGE', 'CLUB_CHANGE'])) {
+        return 10;
+    }
+
+    const rsEvent = getRsEvent(ctx);
+    if (showEvents && rsEvent) return 6; // Bigger radius for star
+
+    // Hide synthetic staircase, gap bridge, and final interpolated points
+    if (pointData.isStaircasePoint || pointData.isGapBridge || pointData.isFinalInterpolation) {
         return 0;
     }
 
@@ -224,7 +288,7 @@ export const useChartConfig = ({
       const zoomRatio = (timeRange - TIME.DAY) / (TIME.WEEK - TIME.DAY);
       return initialSize - ((initialSize * 2/3) * zoomRatio);
     }
-  }, []);
+  }, [showEvents]);
 
   const externalTooltipHandler = useCallback((context) => {
     const { chart, tooltip } = context;
@@ -265,6 +329,7 @@ export const useChartConfig = ({
       const rank = getRankFromScore(score);
       const datasetIndex = tooltip.dataPoints[0].datasetIndex;
       const dataPoint = tooltip.dataPoints[0].raw.raw;
+      const rsEvent = dataPoint.events?.find(e => e.event_type === 'RS_ADJUSTMENT');
         
       while (tooltipEl.firstChild) {
         tooltipEl.firstChild.remove();
@@ -334,7 +399,7 @@ export const useChartConfig = ({
       const scoreContainer = document.createElement('div');
       scoreContainer.appendChild(document.createTextNode(`Score: ${score.toLocaleString()}`));
       
-      if (dataPoint.scoreChanged) {
+      if (dataPoint.scoreChanged && !rsEvent) { // Don't show regular change if it's an adjustment event
         const dataIndex = tooltip.dataPoints[0].dataIndex;
         const dataset = chart.data.datasets[datasetIndex].data;
         
@@ -436,6 +501,31 @@ export const useChartConfig = ({
       rankCell.appendChild(rankContainer);
       rankRow.appendChild(rankCell);
       tableRoot.appendChild(rankRow);
+
+      if (rsEvent) {
+        const details = rsEvent.details;
+        
+        const hrRow = document.createElement('tr');
+        const hrCell = document.createElement('td');
+        hrCell.colSpan = 2;
+        hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
+        hrRow.appendChild(hrCell);
+        tableRoot.appendChild(hrRow);
+        
+        const eventTitleRow = document.createElement('tr');
+        eventTitleRow.innerHTML = '<td colspan="2" style="font-weight: bold; font-size: 13px; color: #facc15; padding-bottom: 4px;">RS Adjustment</td>';
+        tableRoot.appendChild(eventTitleRow);
+
+        const eventChangeRow = document.createElement('tr');
+        const change = details.change;
+        const changeColor = change > 0 ? '#10B981' : '#EF4444';
+        eventChangeRow.innerHTML = `<td colspan="2" style="font-size: 12px;">Change: <span style="font-weight: bold; color: ${changeColor};">${change > 0 ? '+' : ''}${change.toLocaleString()}</span></td>`;
+        tableRoot.appendChild(eventChangeRow);
+
+        const eventScoreRow = document.createElement('tr');
+        eventScoreRow.innerHTML = `<td colspan="2" style="font-size: 12px;">Score: ${details.old_score.toLocaleString()} → <span style="font-weight: bold;">${details.new_score.toLocaleString()}</span></td>`;
+        tableRoot.appendChild(eventScoreRow);
+      }
     }
   
     const { offsetLeft: positionX, offsetTop: positionY } = chart.canvas;
@@ -447,22 +537,46 @@ export const useChartConfig = ({
     tooltipEl.style.boxShadow = '0 2px 12px 0 rgba(0,0,0,0.4)';
   }, []);
 
-  const calculateViewWindow = useCallback((data, range) => {
+  const overallTimeDomain = useMemo(() => {
+    if (!data?.length) return { min: null, max: null };
+
+    let minTimestamp = data[0].timestamp.getTime();
+    let maxTimestamp = data[data.length - 1].timestamp.getTime();
+
+    if (comparisonData.size > 0) {
+        for (const { data: compareData } of comparisonData.values()) {
+            if (compareData?.length > 0) {
+                // The data is pre-sorted, so [0] is the earliest
+                // and [length-1] is the latest for that dataset.
+                minTimestamp = Math.min(minTimestamp, compareData[0].timestamp.getTime());
+                maxTimestamp = Math.max(maxTimestamp, compareData[compareData.length - 1].timestamp.getTime());
+            }
+        }
+    }
+
+    return {
+        min: new Date(minTimestamp),
+        max: new Date(maxTimestamp)
+    };
+  }, [data, comparisonData]);
+
+  const calculateViewWindow = useCallback((data, range, overallMinTimestamp) => {
     if (!data?.length) return null;
   
-    const now = new Date();
-    const endTime = new Date(now + TIME.TWO_HOURS);
+    const now = seasonEndDate || new Date();
+    const endTime = new Date(now.getTime() + TIME.HOUR);
     const timeRangeMs = TIME.RANGES[range];
     
     if (range === 'MAX') {
-      return { min: data[0].timestamp, max: endTime };
+      const min = overallMinTimestamp || data[0].timestamp;
+      return { min, max: endTime };
     }
     
-    const viewMin = new Date(now - timeRangeMs);
+    const viewMin = new Date(now.getTime() - timeRangeMs);
     return { min: viewMin, max: endTime };
-  }, []);
+  }, [seasonEndDate]);
 
-  const viewWindow = useMemo(() => calculateViewWindow(data, selectedTimeRange), [data, selectedTimeRange, calculateViewWindow]);
+  const viewWindow = useMemo(() => calculateViewWindow(data, selectedTimeRange, overallTimeDomain.min), [data, selectedTimeRange, calculateViewWindow, overallTimeDomain.min]);
 
   const calculateYAxisStepSize = useCallback((min, max) => {
     const range = max - min || 1;
@@ -593,6 +707,85 @@ export const useChartConfig = ({
     return [Math.max(0, minScore - padding), maxScore + padding];
   }, [comparisonData, chartRef]);
 
+  const getEventAnnotations = useCallback((viewWindow, yDomain) => {
+    if (!showEvents || !viewWindow || !yDomain) return [];
+    const annotations = [];
+
+    const processPlayerDataset = (playerData, playerEvents, playerName) => {
+        if (!playerData) return;
+
+        // Handle point-based events by iterating through the data points
+        playerData.forEach(point => {
+            if (point.isInterpolated || point.isExtrapolated || point.isStaircasePoint || point.isGapBridge || !point.events) {
+                return;
+            }
+
+            point.events.forEach(event => {
+                if (event.event_type === 'NAME_CHANGE' || event.event_type === 'CLUB_CHANGE') {
+                    let labelContent = [];
+                    if (event.event_type === 'NAME_CHANGE') {
+                         labelContent = [`Name Change:`, `${event.details.old_name} → ${event.details.new_name}`];
+                    } else { // CLUB_CHANGE
+                        const oldClub = event.details.old_club ? `[${event.details.old_club}]` : 'No Club';
+                        const newClub = event.details.new_club ? `[${event.details.new_club}]` : 'No Club';
+                        labelContent = ['Club Change:', `${oldClub} → ${newClub}`];
+                    }
+
+                    annotations.push({
+                        type: 'label',
+                        id: `label-point-event-${event.event_id}`, // Unique ID from event
+                        xValue: point.timestamp,
+                        yValue: point.rankScore,
+                        content: labelContent,
+                        font: { size: 11 },
+                        color: event.event_type === 'NAME_CHANGE' ? "#818cf8" : '#2dd4bf',
+                        backgroundColor: 'rgba(30, 41, 59, 0.85)',
+                        yAdjust: 25,
+                        padding: 6,
+                        borderRadius: 4,
+                    });
+                }
+            });
+        });
+
+        // Handle time-range based events by iterating through the event list
+        if (playerEvents) {
+            playerEvents.forEach(event => {
+                if (event.event_type === 'SUSPECTED_BAN') {
+                    const eventTimestamp = event.start_timestamp * 1000;
+                    const xMax = event.end_timestamp ? event.end_timestamp * 1000 : viewWindow.max;
+                    annotations.push({
+                        id: `sb-event-${event.event_id}`,
+                        type: 'box',
+                        xMin: eventTimestamp,
+                        xMax: xMax,
+                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                        borderColor: 'rgba(239, 68, 68, 0.1)',
+                        borderWidth: 1,
+                        label: {
+                            content: `Suspected Ban (${playerName})`,
+                            display: true,
+                            position: 'start',
+                            color: 'rgba(255, 150, 150, 0.9)',
+                            font: { size: 12, weight: 'bold' },
+                        }
+                    });
+                }
+            });
+        }
+    };
+    
+    // Process for main player
+    processPlayerDataset(data, events, embarkId);
+
+    // Process for comparison players
+    comparisonData.forEach((compare, id) => {
+        processPlayerDataset(compare.data, compare.events, id);
+    });
+
+    return annotations;
+  }, [data, events, comparisonData, embarkId, showEvents]);
+
   const getRankAnnotations = useCallback((customTimeRange = null) => {
     if (!data) return [];
     
@@ -654,14 +847,21 @@ export const useChartConfig = ({
     
     chart.options.scales.y.ticks.stepSize = calculateYAxisStepSize(newMin, newMax);
     
-    chart.options.plugins.annotation.annotations = getRankAnnotations(timeRange);
+    const rankAnnotations = getRankAnnotations(timeRange);
+    const eventAnnotations = getEventAnnotations(timeRange, { min: newMin, max: newMax });
+    chart.options.plugins.annotation.annotations = [...rankAnnotations, ...eventAnnotations];
 
-  }, [data, selectedTimeRange, getDynamicYAxisDomain, calculateYAxisStepSize, getRankAnnotations]);
+  }, [data, selectedTimeRange, getDynamicYAxisDomain, calculateYAxisStepSize, getRankAnnotations, getEventAnnotations]);
 
   const chartOptions = useMemo(() => {
     if (!data) return null;
 
+    const { min: overallMin, max: overallMax } = overallTimeDomain;
+
     const [initialMinY, initialMaxY] = getDynamicYAxisDomain(data, selectedTimeRange);
+    const yDomain = { min: initialMinY, max: initialMaxY };
+    const rankAnnotations = getRankAnnotations(null);
+    const eventAnnotations = getEventAnnotations(viewWindow, yDomain);
 
     return {
       responsive: true,
@@ -713,8 +913,8 @@ export const useChartConfig = ({
         zoom: {
           limits: {
             x: {
-              min: new Date(data[0].timestamp - TIME.TWO_HOURS),
-              max: new Date(data[data.length - 1].timestamp + TIME.TWO_HOURS),
+              min: overallMin ? new Date(overallMin.getTime() - TIME.TWO_HOURS) : undefined,
+              max: overallMax ? new Date(overallMax.getTime() + TIME.TWO_HOURS) : undefined,
               minRange: 5 * TIME.HOUR
             }
           },
@@ -734,7 +934,7 @@ export const useChartConfig = ({
           },
         },
         annotation: {
-          annotations: getRankAnnotations()
+          annotations: [...rankAnnotations, ...eventAnnotations]
         },
         tooltip: {
           enabled: false,
@@ -764,7 +964,49 @@ export const useChartConfig = ({
         }
       }
     };
-  }, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, selectedTimeRange, externalTooltipHandler, calculateYAxisStepSize, updateDynamicAxes, onZoomPan]);
+  }, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, getEventAnnotations, selectedTimeRange, externalTooltipHandler, calculateYAxisStepSize, updateDynamicAxes, onZoomPan, overallTimeDomain]);
+
+  const getPointStyle = useCallback((ctx) => {
+    if (showEvents) {
+      if (hasVisibleEvent(ctx, 'NAME_CHANGE')) return nameChangeIcon;
+      if (hasVisibleEvent(ctx, 'CLUB_CHANGE')) return clubChangeIcon;
+      const rsEvent = getRsEvent(ctx);
+      if (rsEvent) return 'star';
+    }
+    const direction = getNewLogicPointDirection(ctx);
+    return (direction === 'up' || direction === 'down') ? 'triangle' : 'circle';
+  }, [showEvents]);
+
+  const getPointRotation = useCallback((ctx) => {
+    if (showEvents && (hasVisibleEvent(ctx, 'NAME_CHANGE') || hasVisibleEvent(ctx, 'CLUB_CHANGE'))) {
+      return 0;
+    }
+    const direction = getNewLogicPointDirection(ctx);
+    return direction === 'down' ? 180 : 0;
+  }, [showEvents]);
+
+  const getPointBackgroundColor = useCallback((ctx, color) => {
+    if (showEvents) {
+      const rsEvent = getRsEvent(ctx);
+      if (rsEvent) return '#facc15';
+    }
+    if (ctx.raw.raw?.isExtrapolated || ctx.raw.raw?.isInterpolated) return '#7d7c7b';
+    const direction = getNewLogicPointDirection(ctx);
+    if (direction === 'up') return '#10B981';
+    if (direction === 'down') return '#EF4444';
+    return color;
+  }, [showEvents]);
+
+  const getPointBorderColor = useCallback((ctx, color) => {
+    if (showEvents) {
+      const rsEvent = getRsEvent(ctx);
+      if (rsEvent) return '#facc15';
+    }
+    if (ctx.raw.raw?.isExtrapolated || ctx.raw.raw?.isInterpolated) return '#8a8988';
+    const direction = getNewLogicPointDirection(ctx);
+    if (direction === 'up' || direction === 'down') return '#FAF9F6';
+    return color;
+  }, [showEvents]);
 
   const chartData = useMemo(() => data ? {
     labels: data.map(d => d.timestamp),
@@ -780,27 +1022,10 @@ export const useChartConfig = ({
         borderWidth: 2,
         borderDash: getBorderDash,
       },
-      pointStyle: (ctx) => {
-        const direction = getNewLogicPointDirection(ctx);
-        return (direction === 'up' || direction === 'down') ? 'triangle' : 'circle';
-      },
-      pointRotation: (ctx) => {
-        const direction = getNewLogicPointDirection(ctx);
-        return direction === 'down' ? 180 : 0;
-      },
-      pointBackgroundColor: ctx => {
-        if (ctx.raw.raw?.isExtrapolated || ctx.raw.raw?.isInterpolated) return '#7d7c7b';
-        const direction = getNewLogicPointDirection(ctx);
-        if (direction === 'up') return '#10B981';
-        if (direction === 'down') return '#EF4444';
-        return '#FAF9F6';
-      },
-      pointBorderColor: ctx => {
-        if (ctx.raw.raw?.isExtrapolated || ctx.raw.raw?.isInterpolated) return '#8a8988';
-        const direction = getNewLogicPointDirection(ctx);
-        if (direction === 'up' || direction === 'down') return '#FAF9F6';
-        return '#FAF9F6';
-      },
+      pointStyle: getPointStyle,
+      pointRotation: getPointRotation,
+      pointBackgroundColor: (ctx) => getPointBackgroundColor(ctx, '#FAF9F6'),
+      pointBorderColor: (ctx) => getPointBorderColor(ctx, '#FAF9F6'),
       pointBorderWidth: 0.9,
       pointRadius: getPointRadius,
       pointHoverRadius: ctx => getPointRadius(ctx) * 1.5,
@@ -818,27 +1043,16 @@ export const useChartConfig = ({
         borderWidth: 2,
         borderDash: getBorderDash,
       },
-      pointStyle: (ctx) => {
-        const direction = getNewLogicPointDirection(ctx);
-        return (direction === 'up' || direction === 'down') ? 'triangle' : 'circle';
-      },
-      pointRotation: (ctx) => {
-        const direction = getNewLogicPointDirection(ctx);
-        return direction === 'down' ? 180 : 0;
-      },
-      pointBackgroundColor: (ctx) => {
-        const direction = getNewLogicPointDirection(ctx);
-        if (direction === 'up') return '#10B981';
-        if (direction === 'down') return '#EF4444';
-        return color;
-      },
-      pointBorderColor: color,
+      pointStyle: getPointStyle,
+      pointRotation: getPointRotation,
+      pointBackgroundColor: (ctx) => getPointBackgroundColor(ctx, color),
+      pointBorderColor: (ctx) => getPointBorderColor(ctx, color),
       pointBorderWidth: 0.9,
       pointRadius: getPointRadius,
       pointHoverRadius: ctx => getPointRadius(ctx) * 1.5,
       tension: 0.01
     }))]
-  } : null, [data, embarkId, comparisonData, getPointRadius]);
+  } : null, [data, embarkId, comparisonData, getPointRadius, getPointStyle, getPointRotation, getPointBackgroundColor, getPointBorderColor]);
 
   return { chartOptions, chartData };
 };

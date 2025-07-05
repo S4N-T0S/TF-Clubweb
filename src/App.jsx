@@ -15,60 +15,15 @@ import GraphModal from './components/GraphModal';
 import EventsModal from './components/EventsModal';
 import InfoModal from './components/InfoModal';
 import Toast from './components/Toast';
+import { getStoredTab, setStoredTab, getStoredAutoRefresh, setStoredAutoRefresh } from './services/localStorageManager';
 import { ModalProvider } from './context/ModalProvider';
-
-// Storing last view selection in localStorage.
-const LAST_TAB_STORAGE_KEY = 'dashboard_tab';
-
-const getStoredTab = () => {
-  const storedTab = localStorage.getItem(LAST_TAB_STORAGE_KEY);
-  const validTabs = ['members', 'clubs', 'global'];
-  // If the stored tab is not one of the valid options, default to 'global'.
-  if (storedTab && validTabs.includes(storedTab)) {
-    return storedTab;
-  }
-  // If the value was invalid, remove it.
-  if (storedTab) {
-    localStorage.removeItem(LAST_TAB_STORAGE_KEY);
-  }
-  return 'global';
-};
-
-const setStoredTab = (tab) => {
-  localStorage.setItem(LAST_TAB_STORAGE_KEY, tab);
-};
-
-// Storing auto-refresh setting in localStorage.
-const AUTO_REFRESH_STORAGE_KEY = 'dashboard_autoRefresh';
-
-const getStoredAutoRefresh = () => {
-  const storedValue = localStorage.getItem(AUTO_REFRESH_STORAGE_KEY);
-  if (storedValue === null) {
-    return true; // Default to ON if not set
-  }
-  try {
-    const parsed = JSON.parse(storedValue);
-    // Ensure the stored value is actually a boolean before returning
-    if (typeof parsed === 'boolean') {
-      return parsed;
-    }
-  } catch (error) {
-    console.error(`Error parsing auto-refresh setting:`, error);
-  }
-  // If value is invalid or parsing fails, remove it and return default
-  localStorage.removeItem(AUTO_REFRESH_STORAGE_KEY);
-  return true;
-};
-
-const setStoredAutoRefresh = (value) => {
-  localStorage.setItem(AUTO_REFRESH_STORAGE_KEY, JSON.stringify(value));
-};
+import { SEASONS } from './services/historicalDataService';
 
 const App = () => {
   const isMobile = useMobileDetect() || false;
   const navigate = useNavigate();
   const location = useLocation();
-  const { graph, history } = useParams();
+  const { graph, season: seasonIdFromUrl, history } = useParams();
   const [modalHistory, setModalHistory] = useState([]);
   const [view, setView] = useState(getStoredTab);
   const [autoRefresh, setAutoRefresh] = useState(getStoredAutoRefresh);
@@ -83,6 +38,7 @@ const App = () => {
     isOpen: false,
     embarkId: null,
     compareIds: [],
+    seasonId: null,
     isClubView: false,
     isMobile
   });
@@ -229,8 +185,12 @@ const App = () => {
   
   const handleSearchModalOpen = useCallback((initialSearch = '') => {
     const path = `/history${initialSearch ? `/${formatUsernameForUrl(initialSearch)}` : ''}`;
+    // If the search modal is already open with the same search term, do nothing to prevent unnecessary navigation.
+    if (location.pathname.startsWith('/history') && history === formatUsernameForUrl(initialSearch)) {
+      return;
+    }
     openModal(path);
-  }, [openModal]);
+  }, [openModal, location.pathname, history]);
   const handleSearchModalClose = useCallback(() => closeModal(), [closeModal]);
 
   const handleInfoModalOpen = useCallback(() => openModal('/info'), [openModal]);
@@ -241,10 +201,21 @@ const App = () => {
     navigate(`/history/${query}`, { replace: true });
   };
   
-  const handleGraphModalOpen = useCallback((embarkId, compareIds = []) => {
+  const handleGraphModalOpen = useCallback((embarkId, compareIds = [], seasonKey = null) => {
+    // If no seasonKey is provided, default to the current season.
+    const effectiveSeasonKey = seasonKey || currentSeason;
+    const seasonId = SEASONS[effectiveSeasonKey]?.id;
+
+    if (!seasonId) {
+        console.error(`Could not find a valid season ID for key: ${effectiveSeasonKey}`);
+        showToast({ message: `Cannot open graph for season ${effectiveSeasonKey}. No data available.`, type: 'error' });
+        return;
+    }
+
     const urlString = formatMultipleUsernamesForUrl(embarkId, compareIds);
-    openModal(`/graph/${urlString}`);
-  }, [openModal]);
+    // Use the seasonId in the URL
+    openModal(`/graph/${seasonId}/${urlString}`);
+  }, [openModal, currentSeason, showToast]);
   const handleGraphModalClose = useCallback(() => closeModal(), [closeModal]);
 
   // Handle URL parameters on mount
@@ -257,6 +228,14 @@ const App = () => {
       }
       
       const isClubView = view === 'members';
+      const currentSeasonId = SEASONS[currentSeason].id;
+      const seasonId = seasonIdFromUrl ? parseInt(seasonIdFromUrl, 10) : currentSeasonId;
+      
+      if (isNaN(seasonId)) {
+        console.error("Invalid season ID in URL");
+        navigate('/'); // Or show an error
+        return;
+      }
   
       // Update the modal state only if the necessary props have changed.
       // This prevents re-renders and potential flickering when other state updates.
@@ -266,7 +245,8 @@ const App = () => {
           prev.embarkId !== main || 
           JSON.stringify(prev.compareIds) !== JSON.stringify(compare) ||
           prev.isClubView !== isClubView ||
-          prev.isMobile !== isMobile;
+          prev.isMobile !== isMobile ||
+          prev.seasonId !== seasonId;
 
         if (!hasChanged) {
           return prev; // No changes needed, return the existing state.
@@ -277,14 +257,15 @@ const App = () => {
           embarkId: main,
           compareIds: compare,
           isClubView: isClubView,
-          isMobile
+          isMobile,
+          seasonId: seasonId,
         };
       });
     } else {
       // When graph param is removed from URL, ensure modal state is closed.
-      setGraphModalState(prev => prev.isOpen ? { ...prev, isOpen: false } : prev);
+      setGraphModalState(prev => prev.isOpen ? { ...prev, isOpen: false, seasonId: null } : prev);
     }
-  }, [graph, navigate, view, isMobile]);
+  }, [graph, seasonIdFromUrl, navigate, view, isMobile, currentSeason]);
 
   // Full control the search modal's state based on the URL
   useEffect(() => {
@@ -386,7 +367,7 @@ const App = () => {
                 onPlayerSearch={(name) => handleSearchModalOpen(name)}
                 searchQuery={globalSearchQuery}
                 setSearchQuery={setGlobalSearchQuery}
-                onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
+                onGraphOpen={(embarkId, seasonKey) => handleGraphModalOpen(embarkId, [], seasonKey)}
                 isMobile={isMobile}
                 showFavourites={showFavourites}
                 setShowFavourites={setShowFavourites}
@@ -409,7 +390,7 @@ const App = () => {
           isMobile={isMobile}
           onPlayerSearch={handleSearchModalOpen}
           onClubClick={handleClubClick}
-          onGraphOpen={handleGraphModalOpen}
+          onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId, [], null)}
           showToast={showToast}
         />
 
@@ -429,6 +410,7 @@ const App = () => {
             onClose={handleGraphModalClose}
             embarkId={graphModalState.embarkId}
             compareIds={graphModalState.compareIds}
+            seasonId={graphModalState.seasonId}
             isClubView={graphModalState.isClubView}
             globalLeaderboard={graphModalState.isClubView ? rankedClubMembers : globalLeaderboard}
             onSwitchToGlobal={() => setView('global')}

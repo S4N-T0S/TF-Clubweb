@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { getStoredFavourites, setStoredFavourites } from '../services/localStorageManager';
 
 // Helper function to find a player by platform username
 const findPlayerByPlatform = (leaderboardPlayer, favouritePlayer) => {
@@ -10,16 +11,10 @@ const findPlayerByPlatform = (leaderboardPlayer, favouritePlayer) => {
 
 // Custom hook to manage player favourites logic
 export const useFavouritesManager = () => {
-  const [favourites, setFavourites] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('playerFavourites')) || [];
-    } catch {
-      return [];
-    }
-  });
+  const [favourites, setFavourites] = useState(getStoredFavourites);
 
   useEffect(() => {
-    localStorage.setItem('playerFavourites', JSON.stringify(favourites));
+    setStoredFavourites(favourites);
   }, [favourites]);
 
   const addFavourite = useCallback((player) => {

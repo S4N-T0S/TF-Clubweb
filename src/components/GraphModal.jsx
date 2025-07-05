@@ -4,8 +4,8 @@ working with chart.js so it's not coded in the best way possible, so I need all 
 to keep up with it's logic. I'm sorry for the mess.
 */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Plus, Search, Camera } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { X, Plus, Search, Camera, Zap } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -21,10 +21,13 @@ import { Line } from 'react-chartjs-2';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import 'chartjs-adapter-date-fns';
-import { GraphModalProps, ComparePlayerSearchProps } from '../types/propTypes';
+import { GraphModalProps, ComparePlayerModalProps } from '../types/propTypes';
 import { useModal } from '../context/ModalProvider';
 import { usePlayerGraphData } from '../hooks/usePlayerGraphData';
 import { useChartConfig } from '../hooks/useChartConfig';
+import { LoadingDisplay } from './LoadingDisplay';
+import { getGraphShowEvents, setGraphShowEvents } from '../services/localStorageManager';
+import { SEASONS, getSeasonLeaderboard } from '../services/historicalDataService';
 
 ChartJS.register(
   CategoryScale,
@@ -56,51 +59,54 @@ TIME.RANGES = {
   'MAX': Infinity
 };
 
-// Time format for tooltips and such.
-TIME.FORMAT = {
-  day: 'numeric',
-  month: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false
-};
-
-const ComparePlayerSearch = ({ onSelect, mainEmbarkId, globalLeaderboard, onClose, comparisonData, className = '' }) => {
+const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comparisonData, mainPlayerLastDataPoint }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredPlayers, setFilteredPlayers] = useState([]);
-  const searchRef = useRef(null);
+  
+  // Use the useModal hook to handle outside clicks and manage modal state.
+  // The 'nested' type ensures the underlying GraphModal doesn't fade out.
+  const { modalRef: modalContentRef } = useModal(true, onClose, { type: 'nested' });
 
   // Find main player's score from leaderboard
   const getClosestPlayers = useCallback(() => {
-    const mainPlayer = globalLeaderboard.find(p => p.name === mainEmbarkId);
-    if (!mainPlayer) return [];
-  
-    const mainRank = mainPlayer.rank;
+    const mainPlayer = leaderboard.find(p => p.name === mainEmbarkId);
     
     // Get all valid players (not the main player and not already in comparison)
-    const validPlayers = globalLeaderboard.filter(player => 
+    const validPlayers = leaderboard.filter(player => 
       player.name !== mainEmbarkId && 
       !Array.from(comparisonData.keys()).includes(player.name)
     );
     
-    // Sort all valid players by the absolute difference from main player's rank
-    const sortedByDistance = validPlayers
-      .map(player => ({
-        ...player,
-        distance: Math.abs(player.rank - mainRank)
-      }))
-      .sort((a, b) => a.distance - b.distance);
-  
-    // Take the 50 closest players
-    return sortedByDistance
+    let sortedPlayers;
+
+    if (mainPlayer) {
+      // Player is on the leaderboard, sort by rank distance
+      const mainRank = mainPlayer.rank;
+      sortedPlayers = validPlayers
+        .map(player => ({ ...player, distance: Math.abs(player.rank - mainRank) }))
+        .sort((a, b) => a.distance - b.distance);
+
+    } else if (mainPlayerLastDataPoint) {
+      // Player not on leaderboard, sort by rankScore distance to last known score
+      const lastKnownScore = mainPlayerLastDataPoint.rankScore;
+      sortedPlayers = validPlayers
+        .map(player => ({ ...player, distance: Math.abs(player.rankScore - lastKnownScore) }))
+        .sort((a, b) => a.distance - b.distance);
+        
+    } else {
+      return []; // No main player on leaderboard and no graph data available.
+    }
+    
+    // Take the 50 closest players and sort them by rank
+    return sortedPlayers
       .slice(0, 50)
       .sort((a, b) => a.rank - b.rank); // Final sort by rank ascending
-  }, [mainEmbarkId, globalLeaderboard, comparisonData]);
-
+  }, [mainEmbarkId, leaderboard, comparisonData, mainPlayerLastDataPoint]);
+  
   useEffect(() => {
     if (searchTerm) {
       // If there's a search term, filter by name/club tag
-      const filtered = globalLeaderboard
+      const filtered = leaderboard
         .filter(player => 
           player.name !== mainEmbarkId && 
           !Array.from(comparisonData.keys()).includes(player.name) &&
@@ -113,111 +119,140 @@ const ComparePlayerSearch = ({ onSelect, mainEmbarkId, globalLeaderboard, onClos
       // If no search term, show closest players
       setFilteredPlayers(getClosestPlayers());
     }
-  }, [searchTerm, mainEmbarkId, globalLeaderboard, comparisonData, getClosestPlayers]);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (searchRef.current && !searchRef.current.contains(event.target)) {
-        onClose();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [onClose]);
+  }, [searchTerm, mainEmbarkId, leaderboard, comparisonData, getClosestPlayers]);
 
   return (
-    <div ref={searchRef} className={`absolute right-0 top-12 w-96 bg-gray-800 rounded-lg shadow-lg p-4 z-50 ${className}`}>
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold text-white">Add Player to Compare</h3>
-        <button onClick={onClose} aria-label="Close comparisons" className="text-gray-400 hover:text-white sm:hidden">
-          <X className="w-5 h-5 text-gray-400" />
-        </button>
-      </div>
-     
-      <div className="relative mb-4">
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search players..."
-          className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
-          autoFocus
-        />
-        <Search className="absolute right-3 top-2.5 h-5 w-5 text-gray-400" />
-      </div>
-
-      <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-500 scrollbar-track-gray-800 scrollbar-thumb-rounded-full scrollbar-w-1.5 hover:scrollbar-thumb-gray-500">
-        {filteredPlayers.length === 0 && (
-          <div className="p-4 text-center text-gray-400 text-sm">
-            No matching players found
-            <div className="mt-1 text-xs">Try a different search term</div>
-          </div>
-        )}
-        {filteredPlayers.map((player) => {
-          const mainPlayer = globalLeaderboard.find(p => p.name === mainEmbarkId);
-          const scoreDiff = mainPlayer ? player.rankScore - mainPlayer.rankScore : 0;
-     
-          return (
-            <div
-              key={player.name}
-              className="flex items-center justify-between p-3 hover:bg-gray-700/50 rounded-xl cursor-pointer transition-colors duration-150 group"
-              onClick={() => onSelect(player)}
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-gray-400 flex-shrink-0">#{player.rank}</span>
-                <span className="text-white truncate">
-                {player.clubTag && (
-                  <span className="text-blue-300 font-medium">[{player.clubTag}] </span>
-                )}{player.name}
-                </span>
-                <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md flex-shrink-0
-                  ${scoreDiff > 0 ? 'bg-green-900/40 text-green-400' :
-                  scoreDiff < 0 ? 'bg-red-900/40 text-red-400' :
-                  'bg-gray-600/40 text-gray-300'}`}>
-                    {scoreDiff > 0 ? '↑' : '↓'} {Math.abs(scoreDiff).toLocaleString()}
-                </span>
-              </div>
-              <Plus className="w-5 h-5 text-gray-400 hover:text-white flex-shrink-0" />
-            </div>
-          );
-        })}
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
+      <div ref={modalContentRef} className="bg-gray-800 rounded-lg p-6 max-w-lg w-full border border-gray-600 shadow-xl relative flex flex-col max-h-[80vh]">
+        <div className="flex justify-between items-center mb-4 flex-shrink-0">
+          <h3 className="text-lg font-semibold text-white">Add Player to Compare</h3>
+          <button onClick={onClose} aria-label="Close comparisons" className="text-gray-400 hover:text-white">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="relative mb-4 flex-shrink-0">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search players..."
+            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+            autoFocus
+          />
+          <Search className="absolute right-3 top-2.5 h-5 w-5 text-gray-400" />
+        </div>
+        <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-500 scrollbar-track-gray-800 -mr-2 pr-2">
+          {filteredPlayers.length === 0 ? (
+            <div className="p-4 text-center text-gray-400 text-sm">No matching players found.</div>
+          ) : (
+            filteredPlayers.map((player) => {
+              const mainPlayer = leaderboard.find(p => p.name === mainEmbarkId);
+              const baseScore = mainPlayer?.rankScore ?? mainPlayerLastDataPoint?.rankScore;
+              const scoreDiff = baseScore !== undefined ? player.rankScore - baseScore : 0;
+              return (
+                <div
+                  key={player.name}
+                  className="flex items-center justify-between p-3 hover:bg-gray-700/50 rounded-xl cursor-pointer transition-colors duration-150 group"
+                  onClick={() => onSelect(player)}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-gray-400 w-10 flex-shrink-0">#{player.rank}</span>
+                    <span className="text-white truncate">
+                      {player.clubTag && <span className="text-blue-300 font-medium">[{player.clubTag}] </span>}
+                      {player.name}
+                    </span>
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md flex-shrink-0 ${scoreDiff > 0 ? 'bg-green-900/40 text-green-400' : scoreDiff < 0 ? 'bg-red-900/40 text-red-400' : 'bg-gray-600/40 text-gray-300'}`}>
+                      {scoreDiff > 0 ? '↑' : scoreDiff < 0 ? '↓' : '~'} {Math.abs(scoreDiff).toLocaleString()}
+                    </span>
+                  </div>
+                  <Plus className="w-5 h-5 text-gray-400 group-hover:text-white flex-shrink-0 transition-colors" />
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
-const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = false, globalLeaderboard = [], onSwitchToGlobal, isMobile }) => {
+const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isClubView = false, globalLeaderboard = [], onSwitchToGlobal, isMobile }) => {
   const { modalRef, isActive } = useModal(isOpen, onClose);
   const chartRef = useRef(null);
   
   // UI State
   const [selectedTimeRange, setSelectedTimeRange] = useState('24H');
-  const [showCompareSearch, setShowCompareSearch] = useState(false);
+  const [showCompareModal, setShowCompareModal] = useState(false);
   const [showCompareHint, setShowCompareHint] = useState(true);
   const [showZoomHint, setShowZoomHint] = useState(true);
   const [notifScreenshot, setNotifScreenshot] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const ssdropdownRef = useRef(null);
+  const [showEvents, setShowEvents] = useState(getGraphShowEvents);
+
+  const [comparisonLeaderboard, setComparisonLeaderboard] = useState([]);
+  const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(true);
+
+  const seasonConfig = useMemo(() => {
+    return Object.values(SEASONS).find(s => s.id === seasonId);
+  }, [seasonId]);
+  const isHistoricalSeason = useMemo(() => seasonConfig && !seasonConfig.isCurrent, [seasonConfig]);
+
+  useEffect(() => {
+      if (!isOpen) return;
+      setIsLeaderboardLoading(true);
+      
+      const seasonKey = Object.keys(SEASONS).find(key => SEASONS[key].id === seasonId);
+      
+      if (isClubView) {
+          // isClubView is always current season, globalLeaderboard prop contains rankedClubMembers
+          setComparisonLeaderboard(globalLeaderboard);
+      } else if (seasonKey && !SEASONS[seasonKey].isCurrent) {
+          // Historical season
+          const { leaderboard } = getSeasonLeaderboard(seasonKey);
+          setComparisonLeaderboard(leaderboard);
+      } else {
+          // Current season global view
+          setComparisonLeaderboard(globalLeaderboard);
+      }
+      setIsLeaderboardLoading(false);
+  }, [isOpen, seasonId, isClubView, globalLeaderboard]);
+
 
   // Custom hook for data fetching and management
   const {
     data,
+    events,
     mainPlayerGameCount,
     comparisonData,
     loading,
     error,
     addComparison,
     removeComparison,
-  } = usePlayerGraphData(isOpen, embarkId, compareIds, globalLeaderboard);
+  } = usePlayerGraphData(isOpen, embarkId, compareIds, seasonId);
+
+  const hasAnyEvents = useMemo(() => {
+    if (events?.length > 0) {
+        return true;
+    }
+    if (comparisonData.size > 0) {
+        for (const compare of comparisonData.values()) {
+            if (compare.events?.length > 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+  }, [events, comparisonData]);
 
   // Function to determine the appropriate default time range based on data points
   const determineDefaultTimeRange = useCallback((data) => {
     if (!data?.length) return '24H';
 
-    const now = new Date();
+    const seasonConfig = Object.values(SEASONS).find(s => s.id === seasonId);
+    const seasonEndDate = seasonConfig?.endTimestamp ? new Date(seasonConfig.endTimestamp * 1000) : null;
+    const now = seasonEndDate || new Date();
+
     const last24Hours = new Date(now - TIME.DAY);
     const last7Days = new Date(now - TIME.WEEK);
 
@@ -236,15 +271,19 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = f
     if (pointsIn7D >= 2) return '7D';
 
     return 'MAX';
-  }, []);
+  }, [seasonId]);
 
   // Set default time range when data loads
   useEffect(() => {
     if (data) {
-      const defaultRange = determineDefaultTimeRange(data);
-      setSelectedTimeRange(defaultRange);
+      if (isHistoricalSeason) {
+        setSelectedTimeRange('MAX');
+      } else {
+        const defaultRange = determineDefaultTimeRange(data);
+        setSelectedTimeRange(defaultRange);
+      }
     }
-  }, [data, determineDefaultTimeRange]);
+  }, [data, determineDefaultTimeRange, isHistoricalSeason]);
 
   // Handler for zoom/pan to hide hint
   const handleZoomPan = useCallback(() => {
@@ -256,11 +295,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = f
   // Custom hook for Chart.js configuration
   const { chartOptions, chartData } = useChartConfig({
     data,
+    events,
     comparisonData,
     embarkId,
     selectedTimeRange,
     chartRef,
     onZoomPan: handleZoomPan,
+    showEvents,
+    seasonId,
   });
 
   // UI Effects for hints and dropdowns
@@ -293,6 +335,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = f
       document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [showDropdown]);
+
+  const handleToggleShowEvents = useCallback(() => {
+    setShowEvents(prev => {
+      const newState = !prev;
+      setGraphShowEvents(newState);
+      return newState;
+    });
+  }, []);
 
   const handleScreenshot = async (withBackground = true) => {
     const canvas = chartRef.current?.canvas;
@@ -346,14 +396,32 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = f
     }
   };
 
+  const currentSeasonLabel = useMemo(() => {
+    const seasonKey = Object.keys(SEASONS).find(key => SEASONS[key].id === seasonId);
+    return seasonKey ? SEASONS[seasonKey].label : '';
+  }, [seasonId]);
+
   if (!isOpen || !embarkId) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4`}>
-      <div ref={modalRef} className={`bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden grid grid-rows-[auto_1fr] gap-4 transition-transform duration-75 ease-out
+    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-40 p-4`}>
+      <div ref={modalRef} className={`bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden grid grid-rows-[auto_1fr_auto] gap-4 transition-transform duration-75 ease-out
         ${isMobile ? 'max-w-[95vw] h-[95vh]' : 'max-w-[80vw] h-[85vh]'}
         ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
         `}>
+        {showCompareModal && !isLeaderboardLoading && (
+            <ComparePlayerModal
+                onSelect={(player) => {
+                    addComparison(player);
+                    setShowCompareModal(false);
+                }}
+                mainEmbarkId={embarkId}
+                leaderboard={comparisonLeaderboard}
+                onClose={() => setShowCompareModal(false)}
+                comparisonData={comparisonData}
+                mainPlayerLastDataPoint={data?.[data.length - 1]}
+            />
+        )}
         <div>
           <div className={`${isMobile ? 'flex flex-col gap-2' : 'flex justify-between items-center gap-4'}`}>
             <div className={`${isMobile ? 'w-full' : ''}`}>
@@ -362,6 +430,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = f
                   <h2 className={`font-bold text-white truncate ${isMobile ? 'text-lg' : 'text-xl'}`}>
                     {embarkId}
                   </h2>
+                  <span className="bg-gray-700 text-blue-300 text-xs font-semibold px-2 py-1 rounded-md">{currentSeasonLabel}</span>
                   {data && mainPlayerGameCount > 0 && (
                     <div className="relative group flex-shrink-0">
                       <div className="bg-gray-700 text-gray-300 text-xs font-medium px-2 py-1 rounded-md cursor-help">
@@ -385,7 +454,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = f
               </div>
               {data && (
                 <p className="text-sm text-gray-400 mt-1 truncate">
-                  {!isMobile ? 'Data available between ' : 'MAX: '} {`${new Date(data[0].timestamp).toLocaleDateString(undefined, TIME.FORMAT)} - ${new Date().toLocaleDateString(undefined, TIME.FORMAT)}`}
+                  {!isMobile ? 'Data available between ' : 'MAX: '} {`${new Date(data[0].timestamp).toLocaleDateString(undefined, TIME.FORMAT)} - ${new Date(data[data.length - 1].timestamp).toLocaleDateString(undefined, TIME.FORMAT)}`}
                 </p>
               )}
             </div>
@@ -444,11 +513,12 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = f
                 {comparisonData.size < MAX_COMPARISONS && (
                   <div className="relative">
                     <button 
-                      onClick={() => setShowCompareSearch(true)}
+                      onClick={() => setShowCompareModal(true)}
                       className={`p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative transition-all duration-200 group
                         ${isMobile ? 'mr-4' : ''}`}
                       title="Compare with another player"
                       aria-label="Compare with another player"
+                      disabled={isLeaderboardLoading}
                     >
                       <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
                       {showCompareHint && (
@@ -469,11 +539,16 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = f
                     <button
                       key={range}
                       aria-pressed={selectedTimeRange === range}
-                      onClick={() => setSelectedTimeRange(range)}
+                      onClick={() => !isHistoricalSeason && setSelectedTimeRange(range)}
+                      disabled={isHistoricalSeason}
+                      title={isHistoricalSeason ? 'Disabled for historical seasons' : 'Select time range'}
                       className={`px-3 py-1 text-sm rounded-md transition-colors ${
                         selectedTimeRange === range
                           ? 'bg-gray-600 text-white'
-                          : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                          : 'text-gray-400'
+                      } ${isHistoricalSeason
+                          ? 'cursor-not-allowed'
+                          : 'hover:text-white hover:bg-gray-700'
                       } ${isMobile ? 'flex-1' : ''}`}
                     >
                       {range}
@@ -481,19 +556,6 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = f
                   ))}
                 </div>
               </div>
-
-              {showCompareSearch && (
-                <ComparePlayerSearch
-                  onSelect={addComparison}
-                  mainEmbarkId={embarkId}
-                  globalLeaderboard={globalLeaderboard}
-                  comparisonData={comparisonData}
-                  onClose={() => setShowCompareSearch(false)}
-                  className={`${isMobile 
-                    ? 'absolute left-0 right-0 top-full mt-2 w-full max-w-[95vw] mx-auto' 
-                    : 'absolute right-0 top-12 w-96'}`}
-                />
-              )}
             </div>
           </div>
 
@@ -540,7 +602,9 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = f
 
         <div className="relative w-full min-h-0">
           {loading ? (
-            <div className="flex items-center justify-center h-full text-gray-400">Loading...</div>
+            <div className="flex items-center justify-center h-full">
+              <LoadingDisplay variant="component" />
+            </div>
           ) : error ? (
             <div className="flex items-center justify-center h-full text-gray-400">{error}</div>
           ) : (
@@ -572,12 +636,34 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], isClubView = f
             </>
           )}
         </div>
+        
+        <div className="flex items-center justify-start border-t border-gray-700 pt-3 -mb-1">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleToggleShowEvents}
+              disabled={!hasAnyEvents}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border
+                ${!hasAnyEvents
+                  ? 'bg-gray-700 text-gray-500 border-gray-600 cursor-not-allowed'
+                  : showEvents 
+                    ? 'bg-blue-600 text-white border-transparent hover:bg-blue-500' 
+                    : 'bg-red-900/50 text-red-300 border-red-800 hover:bg-red-900/80'
+                }`}
+              title={hasAnyEvents ? (showEvents ? 'Hide Events' : 'Show Events') : 'No events found'}
+            >
+              <Zap className="w-4 h-4" />
+              <span>Events</span>
+            </button>
+            <div className="h-6 w-px bg-gray-600"></div>
+            <span className="text-xs text-gray-500 font-mono select-none">Section Under Development</span>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
 GraphModal.propTypes = GraphModalProps;
-ComparePlayerSearch.propTypes = ComparePlayerSearchProps;
+ComparePlayerModal.propTypes = ComparePlayerModalProps;
 
 export default GraphModal;

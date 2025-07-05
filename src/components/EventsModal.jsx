@@ -10,11 +10,9 @@ import { ErrorDisplay } from './ErrorDisplay';
 import { EventCard } from './EventCard';
 import { LeagueRangeSlider } from './LeagueRangeSlider';
 import { getLeagueIndexForFilter } from '../utils/leagueUtils';
+import { getStoredEventsSettings, setStoredEventsSettings } from '../services/localStorageManager';
 import { UserCheck, Gavel, ChevronsUpDown, Users, X, RefreshCw, SlidersHorizontal, Info } from 'lucide-react';
 import { EventsModalProps, FilterToggleButtonProps, EventsModal_InfoPopupProps } from '../types/propTypes';
-
-// Key for storing settings in localStorage
-const EVENTS_MODAL_SETTINGS_KEY = 'eventsModalSettings';
 
 // Helper component for filter buttons, now with enhanced styling capabilities.
 const FilterToggleButton = ({ label, isActive, onClick, Icon, colorClass, textColorClass, activeBorderClass }) => {
@@ -165,10 +163,11 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   const [cacheExpiresAt, setCacheExpiresAt] = useState(0);
   const [isAnimatingRefresh, setIsAnimatingRefresh] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const initialSettings = getStoredEventsSettings();
   
   // States with persistence
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [isFilterSectionExpanded, setIsFilterSectionExpanded] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(initialSettings.autoRefresh);
+  const [isFilterSectionExpanded, setIsFilterSectionExpanded] = useState(initialSettings.isFilterSectionExpanded);
   const [filters, setFilters] = useState({
     searchQuery: '',
     minLeague: 0, // 0=Bronze, 1=Silver, ..., 5=Ruby
@@ -176,37 +175,11 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     showSuspectedBan: true,
     showRsAdjustment: true,
     showClubChange: true,
+    ...initialSettings.filters,
   });
 
   const handleFilterChange = useCallback((key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
-  }, []);
-
-  // Load settings from localStorage on initial mount
-  useEffect(() => {
-    const savedSettingsJSON = localStorage.getItem(EVENTS_MODAL_SETTINGS_KEY);
-    if (savedSettingsJSON) {
-      try {
-        const savedSettings = JSON.parse(savedSettingsJSON);
-        const { autoRefresh: savedAutoRefresh, filters: savedFilters, isFilterSectionExpanded: savedExpanded } = savedSettings;
-
-        if (typeof savedAutoRefresh === 'boolean') {
-          setAutoRefresh(savedAutoRefresh);
-        }
-        if (savedFilters) {
-          // Exclude old/obsolete filter keys by destructuring them out.
-          // eslint-disable-next-line no-unused-vars
-          const { rankRange, rankFilter, ...validFilters } = savedFilters;
-          setFilters(prev => ({ ...prev, ...validFilters }));
-        }
-        if (typeof savedExpanded === 'boolean') {
-          setIsFilterSectionExpanded(savedExpanded);
-        }
-      } catch (error) {
-        console.error('Error parsing events modal settings from localStorage:', error);
-        localStorage.removeItem(EVENTS_MODAL_SETTINGS_KEY);
-      }
-    }
   }, []);
 
   // Save settings to localStorage whenever they change (except for search query)
@@ -223,7 +196,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
         showClubChange,
       },
     };
-    localStorage.setItem(EVENTS_MODAL_SETTINGS_KEY, JSON.stringify(settings));
+    setStoredEventsSettings(settings);
   }, [autoRefresh, isFilterSectionExpanded, minLeague, showNameChange, showSuspectedBan, showRsAdjustment, showClubChange]);
 
   const loadEvents = useCallback(async (forceRefresh = false) => {

@@ -69,7 +69,7 @@ const RubyCutoffIndicator = ({ cutoff, onCutoffClick }) => {
   );
 };
 
-const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile, isCurrentSeason, selectedSeason, isFavourite, addFavourite, removeFavourite }) => {
+const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile, selectedSeason, isFavourite, addFavourite, removeFavourite }) => {
   const [username, discriminator] = player.name.split('#');
   const { isHolding, holdProps, ref } = useOnHold(() => {
     if (isFavourite(player) || player.foundViaFallback) {
@@ -78,6 +78,14 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
       addFavourite(player);
     }
   });
+
+  const isGraphableSeason = selectedSeason === 'ALL'
+    ? SEASONS[player.season]?.isGraphable
+    : SEASONS[selectedSeason]?.isGraphable;
+
+  const seasonToGraph = selectedSeason === 'ALL' ? player.season : selectedSeason;
+  const isCurrentSeason = SEASONS[seasonToGraph]?.isCurrent;
+
   const isFav = isFavourite(player);
   const animationClasses = isCurrentSeason && isMobile && isHolding
     ? isFav || player.foundViaFallback 
@@ -124,10 +132,10 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
               <RankChangeDisplay change={player.change} />
             )}
           </div>
-          {isCurrentSeason ? (
+          {isGraphableSeason ? (
             <LineChart
               className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer"
-              onClick={() => onGraphClick(player.name)}
+              onClick={() => onGraphClick(player.name, seasonToGraph)}
             />
           ) : (
             <span title="Not available for this season">
@@ -293,10 +301,10 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
         isMobile={isMobile}
       />
       <td className="px-4 py-2 text-center">
-        {isCurrentSeason ? (
+        {isGraphableSeason ? (
           <LineChart
             className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer mx-auto"
-            onClick={() => onGraphClick(player.name)}
+            onClick={() => onGraphClick(player.name, seasonToGraph)}
           />
         ) : (
           <span title="Not available for this season">
@@ -565,7 +573,6 @@ export const GlobalView = ({
                 onClubClick={handleLocalClubClick}
                 onGraphClick={onGraphOpen}
                 isMobile={true}
-                isCurrentSeason={isCurrentSeason}
                 selectedSeason={selectedSeason}
                 isFavourite={isFavourite}
                 addFavourite={addFavourite}
@@ -642,7 +649,6 @@ export const GlobalView = ({
                       onClubClick={handleLocalClubClick}
                       onGraphClick={onGraphOpen}
                       isMobile={false}
-                      isCurrentSeason={isCurrentSeason}
                       selectedSeason={selectedSeason}
                       isFavourite={isFavourite}
                       addFavourite={addFavourite}
