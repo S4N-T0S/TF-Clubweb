@@ -62,6 +62,45 @@ TIME.DISPLAY_FORMATS = {
 const NEW_LOGIC_TIMESTAMP_S = 1750436334;
 const NEW_LOGIC_TIMESTAMP_MS = NEW_LOGIC_TIMESTAMP_S * 1000;
 
+/**
+ * Determines the direction of score change for a new-logic data point.
+ * @param {import('chart.js').ScriptableContext<'line'>} ctx The chart context.
+ * @returns {'up' | 'down' | 'same' | 'first' | null}
+ */
+const getNewLogicPointDirection = (ctx) => {
+  // The chart context might not be fully available on the first pass
+  if (!ctx.chart?.data?.datasets || !ctx.raw?.raw) {
+      return null;
+  }
+
+  const pointData = ctx.raw.raw;
+  const datasetIndex = ctx.datasetIndex;
+  const dataIndex = ctx.dataIndex;
+  
+  if (pointData.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS && pointData.scoreChanged) {
+      const dataset = ctx.chart.data.datasets[datasetIndex].data;
+      const currentScore = pointData.rankScore;
+      
+      let previousScore = null;
+      for (let i = dataIndex - 1; i >= 0; i--) {
+          if (dataset[i].raw?.scoreChanged) {
+              previousScore = dataset[i].raw.rankScore;
+              break;
+          }
+      }
+      
+      if (previousScore !== null) {
+          const scoreChange = currentScore - previousScore;
+          if (scoreChange > 0) return 'up';
+          if (scoreChange < 0) return 'down';
+          return 'same';
+      }
+      return 'first'; // First game point, no previous to compare to
+  }
+
+  return null; // Not a new-logic, score-changed point
+};
+
 const getRankFromScore = (score) => {
   for (let i = RANKS.length - 1; i >= 0; i--) {
     if (score >= RANKS[i].y) {
@@ -172,7 +211,11 @@ export const useChartConfig = ({
     if ((pointData.isInterpolated || pointData.isExtrapolated) && timeRange > TIME.SEVENTY_TWO_HOURS) {
       return 0;
     }
-    const initialSize = (pointData.isInterpolated || pointData.isExtrapolated) ? 2.6 : 3;
+
+    const direction = getNewLogicPointDirection(ctx);
+    const isTriangle = direction === 'up' || direction === 'down';
+
+    const initialSize = (pointData.isInterpolated || pointData.isExtrapolated) ? 2.6 : (isTriangle ? 4.5 : 3);
     if (timeRange <= TIME.DAY) {
       return initialSize;
     } else if (timeRange >= TIME.WEEK) {
@@ -737,16 +780,28 @@ export const useChartConfig = ({
         borderWidth: 2,
         borderDash: getBorderDash,
       },
+      pointStyle: (ctx) => {
+        const direction = getNewLogicPointDirection(ctx);
+        return (direction === 'up' || direction === 'down') ? 'triangle' : 'circle';
+      },
+      pointRotation: (ctx) => {
+        const direction = getNewLogicPointDirection(ctx);
+        return direction === 'down' ? 180 : 0;
+      },
       pointBackgroundColor: ctx => {
-        if (ctx.raw.raw?.isExtrapolated) return '#7d7c7b';
-        if (ctx.raw.raw?.isInterpolated) return '#7d7c7b';
+        if (ctx.raw.raw?.isExtrapolated || ctx.raw.raw?.isInterpolated) return '#7d7c7b';
+        const direction = getNewLogicPointDirection(ctx);
+        if (direction === 'up') return '#10B981';
+        if (direction === 'down') return '#EF4444';
         return '#FAF9F6';
       },
       pointBorderColor: ctx => {
-        if (ctx.raw.raw?.isExtrapolated) return '#8a8988';
-        if (ctx.raw.raw?.isInterpolated) return '#8a8988';
+        if (ctx.raw.raw?.isExtrapolated || ctx.raw.raw?.isInterpolated) return '#8a8988';
+        const direction = getNewLogicPointDirection(ctx);
+        if (direction === 'up' || direction === 'down') return '#FAF9F6';
         return '#FAF9F6';
       },
+      pointBorderWidth: 0.9,
       pointRadius: getPointRadius,
       pointHoverRadius: ctx => getPointRadius(ctx) * 1.5,
       tension: 0.01
@@ -763,8 +818,22 @@ export const useChartConfig = ({
         borderWidth: 2,
         borderDash: getBorderDash,
       },
-      pointBackgroundColor: color,
+      pointStyle: (ctx) => {
+        const direction = getNewLogicPointDirection(ctx);
+        return (direction === 'up' || direction === 'down') ? 'triangle' : 'circle';
+      },
+      pointRotation: (ctx) => {
+        const direction = getNewLogicPointDirection(ctx);
+        return direction === 'down' ? 180 : 0;
+      },
+      pointBackgroundColor: (ctx) => {
+        const direction = getNewLogicPointDirection(ctx);
+        if (direction === 'up') return '#10B981';
+        if (direction === 'down') return '#EF4444';
+        return color;
+      },
       pointBorderColor: color,
+      pointBorderWidth: 0.9,
       pointRadius: getPointRadius,
       pointHoverRadius: ctx => getPointRadius(ctx) * 1.5,
       tension: 0.01
