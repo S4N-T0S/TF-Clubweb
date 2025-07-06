@@ -11,7 +11,7 @@ import { EventCard } from './EventCard';
 import { LeagueRangeSlider } from './LeagueRangeSlider';
 import { getLeagueIndexForFilter } from '../utils/leagueUtils';
 import { getStoredEventsSettings, setStoredEventsSettings } from '../services/localStorageManager';
-import { UserCheck, Gavel, ChevronsUpDown, Users, X, RefreshCw, SlidersHorizontal, Info } from 'lucide-react';
+import { UserPen, Gavel, ChevronsUpDown, Users, X, RefreshCw, SlidersHorizontal, Info } from 'lucide-react';
 import { EventsModalProps, FilterToggleButtonProps, EventsModal_InfoPopupProps } from '../types/propTypes';
 
 // Helper component for filter buttons, now with enhanced styling capabilities.
@@ -69,7 +69,7 @@ const EventInfoPopup = ({ onClose }) => {
         </p>
         <div className="space-y-3 text-sm">
           <div>
-            <strong className="text-indigo-400 flex items-center gap-2"><UserCheck className="w-4 h-4" /> Name Change:</strong>
+            <strong className="text-indigo-400 flex items-center gap-2"><UserPen className="w-4 h-4" /> Name Change:</strong>
             <p className="text-gray-400 ml-8">Tracks when a player changes their in-game name.</p>
           </div>
           <div>
@@ -470,7 +470,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-2">Event Types</label>
                         <div className="grid grid-cols-2 gap-2">
-                            <FilterToggleButton label="Name" Icon={UserCheck} isActive={filters.showNameChange} onClick={() => handleFilterChange('showNameChange', !filters.showNameChange)} textColorClass="text-indigo-400" activeBorderClass="border-indigo-400" />
+                            <FilterToggleButton label="Name" Icon={UserPen} isActive={filters.showNameChange} onClick={() => handleFilterChange('showNameChange', !filters.showNameChange)} textColorClass="text-indigo-400" activeBorderClass="border-indigo-400" />
                             <FilterToggleButton label="Bans" Icon={Gavel} isActive={filters.showSuspectedBan} onClick={() => handleFilterChange('showSuspectedBan', !filters.showSuspectedBan)} textColorClass="text-red-500" activeBorderClass="border-red-500" />
                             <FilterToggleButton label="Scores" Icon={ChevronsUpDown} isActive={filters.showRsAdjustment} onClick={() => handleFilterChange('showRsAdjustment', !filters.showRsAdjustment)} textColorClass="text-yellow-400" activeBorderClass="border-yellow-400" />
                             <FilterToggleButton label="Clubs" Icon={Users} isActive={filters.showClubChange} onClick={() => handleFilterChange('showClubChange', !filters.showClubChange)} textColorClass="text-teal-400" activeBorderClass="border-teal-400" />

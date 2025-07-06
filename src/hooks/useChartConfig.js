@@ -60,15 +60,15 @@ TIME.DISPLAY_FORMATS = {
   year: 'yyyy'
 };
 
-const NEW_LOGIC_TIMESTAMP_S = 1750436334;
-const NEW_LOGIC_TIMESTAMP_MS = NEW_LOGIC_TIMESTAMP_S * 1000;
+const NEW_LOGIC_TIMESTAMP_MS = 1750436334 * 1000;
 
 // Create Image objects for custom point styles
 const nameChangeIcon = new Image(16, 16);
-nameChangeIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>');
-
+nameChangeIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-pen-icon lucide-user-pen"><path d="M11.5 15H7a4 4 0 0 0-4 4v2"/><path d="M21.378 16.626a1 1 0 0 0-3.004-3.004l-4.01 4.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/><circle cx="10" cy="7" r="4"/></svg>');
 const clubChangeIcon = new Image(16, 16);
-clubChangeIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>');
+clubChangeIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-users-icon lucide-users"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>');
+const gavelIcon = new Image(16, 16);
+gavelIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-gavel-icon lucide-gavel"><path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/></svg>');
 
 /**
  * Helper to safely get an RS_ADJUSTMENT event from a point context.
@@ -76,11 +76,11 @@ clubChangeIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www
  * @returns {object | null} The event object or null.
  */
 const getRsEvent = (ctx) => {
-    const pointData = ctx.raw?.raw;
-    if (pointData?.events && !pointData.isInterpolated && !pointData.isExtrapolated && !pointData.isStaircasePoint) {
-        return pointData.events.find(e => e.event_type === 'RS_ADJUSTMENT');
-    }
-    return null;
+  const pointData = ctx.raw?.raw;
+  if (pointData?.events && !pointData.isInterpolated && !pointData.isExtrapolated && !pointData.isStaircasePoint) {
+    return pointData.events.find(e => e.event_type === 'RS_ADJUSTMENT');
+  }
+  return null;
 };
 
 /**
@@ -90,11 +90,11 @@ const getRsEvent = (ctx) => {
  * @returns {boolean} True if the point has the specified event.
  */
 const hasVisibleEvent = (ctx, eventType) => {
-    const pointData = ctx.raw?.raw;
-    if (!pointData || pointData.isInterpolated || pointData.isExtrapolated || pointData.isStaircasePoint || pointData.isGapBridge) {
-        return false;
-    }
-    return pointData.events?.some(e => e.event_type === eventType);
+  const pointData = ctx.raw?.raw;
+  if (!pointData || pointData.isInterpolated || pointData.isExtrapolated || pointData.isStaircasePoint || pointData.isGapBridge) {
+    return false;
+  }
+  return pointData.events?.some(e => e.event_type === eventType);
 };
 
 /**
@@ -104,12 +104,12 @@ const hasVisibleEvent = (ctx, eventType) => {
  * @returns {boolean} True if the point has any of the specified events.
  */
 const hasAnyVisibleEvent = (ctx, eventTypes) => {
-    const pointData = ctx.raw?.raw;
-    if (!pointData || pointData.isInterpolated || pointData.isExtrapolated || pointData.isStaircasePoint || pointData.isGapBridge) {
-        return false;
-    }
-    if (!pointData.events) return false;
-    return pointData.events.some(e => eventTypes.includes(e.event_type));
+  const pointData = ctx.raw?.raw;
+  if (!pointData || pointData.isInterpolated || pointData.isExtrapolated || pointData.isStaircasePoint || pointData.isGapBridge) {
+    return false;
+  }
+  if (!pointData.events) return false;
+  return pointData.events.some(e => eventTypes.includes(e.event_type));
 };
 
 /**
@@ -120,32 +120,32 @@ const hasAnyVisibleEvent = (ctx, eventTypes) => {
 const getNewLogicPointDirection = (ctx) => {
   // The chart context might not be fully available on the first pass
   if (!ctx.chart?.data?.datasets || !ctx.raw?.raw) {
-      return null;
+    return null;
   }
 
   const pointData = ctx.raw.raw;
   const datasetIndex = ctx.datasetIndex;
   const dataIndex = ctx.dataIndex;
-  
+
   if (pointData.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS && pointData.scoreChanged) {
-      const dataset = ctx.chart.data.datasets[datasetIndex].data;
-      const currentScore = pointData.rankScore;
-      
-      let previousScore = null;
-      for (let i = dataIndex - 1; i >= 0; i--) {
-          if (dataset[i].raw?.scoreChanged) {
-              previousScore = dataset[i].raw.rankScore;
-              break;
-          }
+    const dataset = ctx.chart.data.datasets[datasetIndex].data;
+    const currentScore = pointData.rankScore;
+
+    let previousScore = null;
+    for (let i = dataIndex - 1; i >= 0; i--) {
+      if (dataset[i].raw?.scoreChanged) {
+        previousScore = dataset[i].raw.rankScore;
+        break;
       }
-      
-      if (previousScore !== null) {
-          const scoreChange = currentScore - previousScore;
-          if (scoreChange > 0) return 'up';
-          if (scoreChange < 0) return 'down';
-          return 'same';
-      }
-      return 'first'; // First game point, no previous to compare to
+    }
+
+    if (previousScore !== null) {
+      const scoreChange = currentScore - previousScore;
+      if (scoreChange > 0) return 'up';
+      if (scoreChange < 0) return 'down';
+      return 'same';
+    }
+    return 'first'; // First game point, no previous to compare to
   }
 
   return null; // Not a new-logic, score-changed point
@@ -176,7 +176,7 @@ const createTooltip = (chart) => {
     padding: '12px',
     boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
   });
-  
+
   tooltipEl.appendChild(document.createElement('table'));
   chart.canvas.parentNode.appendChild(tooltipEl);
   return tooltipEl;
@@ -191,44 +191,44 @@ const getOrCreateTooltip = (chart) => {
 };
 
 const getBorderColor = (ctx, defaultColor = '#FAF9F6') => {
-    if (!ctx.p0?.raw?.raw || !ctx.p1?.raw?.raw) return defaultColor;
-    
-    const p0 = ctx.p0.raw.raw;
-    const p1 = ctx.p1.raw.raw;
+  if (!ctx.p0?.raw?.raw || !ctx.p1?.raw?.raw) return defaultColor;
 
-    // A segment ending at a gap bridge is the horizontal part of a gap. Color it white.
-    if (p1.isGapBridge) return defaultColor;
+  const p0 = ctx.p0.raw.raw;
+  const p1 = ctx.p1.raw.raw;
 
-    if (p0.isExtrapolated || p1.isExtrapolated || p1.isStaircasePoint) return defaultColor;
+  // A segment ending at a gap bridge is the horizontal part of a gap. Color it white.
+  if (p1.isGapBridge) return defaultColor;
 
-    // New data logic: color based on destination point's status
-    if (p1.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS) {
-        if (p1.scoreChanged) {
-            const curr = ctx.p0.parsed.y;
-            const next = ctx.p1.parsed.y;
-            return next > curr ? '#10B981' : next < curr ? '#EF4444' : defaultColor;
-        }
-        return defaultColor; // It's a tracking point, line is default color
+  if (p0.isExtrapolated || p1.isExtrapolated || p1.isStaircasePoint) return defaultColor;
+
+  // New data logic: color based on destination point's status
+  if (p1.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS) {
+    if (p1.scoreChanged) {
+      const curr = ctx.p0.parsed.y;
+      const next = ctx.p1.parsed.y;
+      return next > curr ? '#10B981' : next < curr ? '#EF4444' : defaultColor;
     }
+    return defaultColor; // It's a tracking point, line is default color
+  }
 
-    // Legacy data logic: color if destination is not an interpolated point
-    if (p1.isInterpolated) return defaultColor;
+  // Legacy data logic: color if destination is not an interpolated point
+  if (p1.isInterpolated) return defaultColor;
 
-    const curr = ctx.p0.parsed.y;
-    const next = ctx.p1.parsed.y;
-    if (curr === next) return defaultColor;
-    return next > curr ? '#10B981' : '#EF4444';
+  const curr = ctx.p0.parsed.y;
+  const next = ctx.p1.parsed.y;
+  if (curr === next) return defaultColor;
+  return next > curr ? '#10B981' : '#EF4444';
 };
 
 const getBorderDash = (ctx) => {
-    if (!ctx.p0?.raw?.raw) return undefined;
-    const p0 = ctx.p0.raw.raw;
-    const p1 = ctx.p1?.raw?.raw;
+  if (!ctx.p0?.raw?.raw) return undefined;
+  const p0 = ctx.p0.raw.raw;
+  const p1 = ctx.p1?.raw?.raw;
 
-    if (p0.isFollowedByGap) return [5, 5];
-    if (p0.isExtrapolated || (p1 && p1.isExtrapolated)) return [5, 5];
-    
-    return undefined;
+  if (p0.isFollowedByGap) return [5, 5];
+  if (p0.isExtrapolated || (p1 && p1.isExtrapolated)) return [5, 5];
+
+  return undefined;
 };
 
 
@@ -251,9 +251,12 @@ export const useChartConfig = ({
     const pointData = ctx.raw?.raw;
     if (!ctx.chart || !pointData) return 3;
 
+    // Make the ban anchor icon visible and large
+    if (pointData.isBanStartAnchor) return 10;
+
     // Make event icon points visible and large
     if (showEvents && hasAnyVisibleEvent(ctx, ['NAME_CHANGE', 'CLUB_CHANGE'])) {
-        return 10;
+      return 10;
     }
 
     const rsEvent = getRsEvent(ctx);
@@ -261,14 +264,14 @@ export const useChartConfig = ({
 
     // Hide synthetic staircase, gap bridge, and final interpolated points
     if (pointData.isStaircasePoint || pointData.isGapBridge || pointData.isFinalInterpolation) {
-        return 0;
+      return 0;
     }
 
     // Hide points for tracking data in the new system (unless interpolated)
     if (pointData.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS && !pointData.scoreChanged) {
-        if (!pointData.isInterpolated && !pointData.isExtrapolated) {
-            return 0;
-        }
+      if (!pointData.isInterpolated && !pointData.isExtrapolated) {
+        return 0;
+      }
     }
 
     const timeRange = ctx.chart.scales.x.max - ctx.chart.scales.x.min;
@@ -283,28 +286,66 @@ export const useChartConfig = ({
     if (timeRange <= TIME.DAY) {
       return initialSize;
     } else if (timeRange >= TIME.WEEK) {
-      return initialSize - (initialSize * 2/3);
+      return initialSize - (initialSize * 2 / 3);
     } else {
       const zoomRatio = (timeRange - TIME.DAY) / (TIME.WEEK - TIME.DAY);
-      return initialSize - ((initialSize * 2/3) * zoomRatio);
+      return initialSize - ((initialSize * 2 / 3) * zoomRatio);
     }
   }, [showEvents]);
 
   const externalTooltipHandler = useCallback((context) => {
     const { chart, tooltip } = context;
 
-    if (tooltip.dataPoints?.[0]?.raw?.raw) {
-      const pointData = tooltip.dataPoints[0].raw.raw;
+    const pointData = tooltip.dataPoints?.[0]?.raw?.raw;
+
+    // Handle special ban anchor tooltip first
+    if (pointData?.isBanStartAnchor) {
+      const tooltipEl = getOrCreateTooltip(chart);
+      const banEvent = pointData.events?.find(e => e.event_type === 'SUSPECTED_BAN');
+
+      if (tooltip.opacity === 0 || !banEvent) {
+        tooltipEl.style.opacity = 0;
+        return;
+      }
+
+      while (tooltipEl.firstChild) {
+        tooltipEl.firstChild.remove();
+      }
+
+      const tableRoot = document.createElement('table');
+      tableRoot.style.margin = '0px';
+
+      const titleRow = document.createElement('tr');
+      titleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: #ef4444; padding-bottom: 4px;">Suspected Ban</td>`;
+      tableRoot.appendChild(titleRow);
+
+      const dateRow = document.createElement('tr');
+      const date = new Date(banEvent.start_timestamp * 1000);
+      dateRow.innerHTML = `<td colspan="2" style="font-size: 12px; color: #9ca3af;">Started: ${date.toLocaleString(undefined, TIME.FORMAT)}</td>`;
+      tableRoot.appendChild(dateRow);
+
+      tooltipEl.appendChild(tableRoot);
+
+      const { offsetLeft: positionX, offsetTop: positionY } = chart.canvas;
+      tooltipEl.style.opacity = 1;
+      tooltipEl.style.left = positionX + tooltip.caretX + 'px';
+      tooltipEl.style.top = positionY + tooltip.caretY + 'px';
+      tooltipEl.style.font = tooltip.options.bodyFont.string;
+      tooltipEl.style.boxShadow = '0 2px 12px 0 rgba(0,0,0,0.4)';
+      return;
+    }
+
+    if (pointData) {
       const timeRange = chart.scales.x.max - chart.scales.x.min;
-      
-      const isHiddenInterpolatedPoint = (pointData.isInterpolated || pointData.isExtrapolated) && 
-                            timeRange > TIME.SEVENTY_TWO_HOURS;
-      
-      const isHiddenTrackingPoint = pointData.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS && 
-                                    !pointData.scoreChanged && 
-                                    !pointData.isInterpolated && 
-                                    !pointData.isExtrapolated;
-      
+
+      const isHiddenInterpolatedPoint = (pointData.isInterpolated || pointData.isExtrapolated) &&
+        timeRange > TIME.SEVENTY_TWO_HOURS;
+
+      const isHiddenTrackingPoint = pointData.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS &&
+        !pointData.scoreChanged &&
+        !pointData.isInterpolated &&
+        !pointData.isExtrapolated;
+
       const isStaircase = pointData.isStaircasePoint;
       const isGapBridge = pointData.isGapBridge;
 
@@ -316,12 +357,12 @@ export const useChartConfig = ({
     }
 
     const tooltipEl = getOrCreateTooltip(chart);
-  
+
     if (tooltip.opacity === 0) {
       tooltipEl.style.opacity = 0;
       return;
     }
-  
+
     if (tooltip.body) {
       const titleLines = tooltip.title || [];
       const bodyLines = tooltip.body.map(b => b.lines);
@@ -330,7 +371,7 @@ export const useChartConfig = ({
       const datasetIndex = tooltip.dataPoints[0].datasetIndex;
       const dataPoint = tooltip.dataPoints[0].raw.raw;
       const rsEvent = dataPoint.events?.find(e => e.event_type === 'RS_ADJUSTMENT');
-        
+
       while (tooltipEl.firstChild) {
         tooltipEl.firstChild.remove();
       }
@@ -340,9 +381,9 @@ export const useChartConfig = ({
       tooltipEl.appendChild(tableRoot);
 
       if (
-        dataPoint?.rank !== null && 
-        Number.isInteger(dataPoint?.rank) && 
-        !dataPoint.isExtrapolated && 
+        dataPoint?.rank !== null &&
+        Number.isInteger(dataPoint?.rank) &&
+        !dataPoint.isExtrapolated &&
         !dataPoint.isInterpolated
       ) {
         const rankBadge = document.createElement('div');
@@ -357,7 +398,7 @@ export const useChartConfig = ({
         rankBadge.style.borderRadius = '4px 0 4px 0';
         rankBadge.style.boxShadow = '0 1px 3px rgba(0,0,0,0.3)';
         rankBadge.textContent = `#${dataPoint.rank.toLocaleString()}`;
-      
+
         tooltipEl.appendChild(rankBadge);
       }
 
@@ -376,7 +417,7 @@ export const useChartConfig = ({
         playerNameRow.appendChild(playerNameCell);
         tableRoot.appendChild(playerNameRow);
       }
-  
+
       const headerRow = document.createElement('tr');
       headerRow.style.borderWidth = 0;
       const headerCell = document.createElement('th');
@@ -387,7 +428,7 @@ export const useChartConfig = ({
       headerCell.appendChild(headerText);
       headerRow.appendChild(headerCell);
       tableRoot.appendChild(headerRow);
-  
+
       const scoreRow = document.createElement('tr');
       scoreRow.style.borderWidth = 0;
       const scoreCell = document.createElement('td');
@@ -395,20 +436,20 @@ export const useChartConfig = ({
       scoreCell.style.fontSize = '14px';
       scoreCell.style.fontWeight = 'bold';
       scoreCell.style.paddingTop = '4px';
-      
+
       const scoreContainer = document.createElement('div');
       scoreContainer.appendChild(document.createTextNode(`Score: ${score.toLocaleString()}`));
-      
+
       if (dataPoint.scoreChanged && !rsEvent) { // Don't show regular change if it's an adjustment event
         const dataIndex = tooltip.dataPoints[0].dataIndex;
         const dataset = chart.data.datasets[datasetIndex].data;
-        
+
         let previousScore = null;
         for (let i = dataIndex - 1; i >= 0; i--) {
-            if (dataset[i].raw.scoreChanged) {
-                previousScore = dataset[i].raw.rankScore;
-                break;
-            }
+          if (dataset[i].raw.scoreChanged) {
+            previousScore = dataset[i].raw.rankScore;
+            break;
+          }
         }
 
         if (previousScore !== null) {
@@ -422,11 +463,11 @@ export const useChartConfig = ({
           scoreContainer.appendChild(scoreChangeText);
         }
       }
-      
+
       scoreCell.appendChild(scoreContainer);
       scoreRow.appendChild(scoreCell);
       tableRoot.appendChild(scoreRow);
-  
+
       const rankRow = document.createElement('tr');
       rankRow.style.borderWidth = 0;
       const rankCell = document.createElement('td');
@@ -434,29 +475,29 @@ export const useChartConfig = ({
       rankCell.style.fontSize = '14px';
       rankCell.style.fontWeight = 'bold';
       rankCell.style.paddingTop = '4px';
-      
+
       const rankContainer = document.createElement('div');
       rankContainer.style.display = 'flex';
       rankContainer.style.alignItems = 'center';
       rankContainer.style.gap = '6px';
-      
+
       if (dataPoint.scoreChanged) {
         const dataIndex = tooltip.dataPoints[0].dataIndex;
         const dataset = chart.data.datasets[datasetIndex].data;
-        
+
         let previousScore = null;
         for (let i = dataIndex - 1; i >= 0; i--) {
-            if (dataset[i].raw.scoreChanged) {
-                previousScore = dataset[i].raw.rankScore;
-                break;
-            }
+          if (dataset[i].raw.scoreChanged) {
+            previousScore = dataset[i].raw.rankScore;
+            break;
+          }
         }
-        
+
         if (previousScore !== null) {
           const previousRank = getRankFromScore(previousScore);
           const rankIndex = RANKS.findIndex(r => r.label === rank.label);
           const previousRankIndex = RANKS.findIndex(r => r.label === previousRank.label);
-          
+
           if (rankIndex !== previousRankIndex) {
             const isRankUp = rankIndex > previousRankIndex;
             const arrowSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -472,18 +513,18 @@ export const useChartConfig = ({
             arrowSvg.style.flexShrink = '0';
             arrowSvg.style.marginTop = '0';
             arrowSvg.style.marginBottom = '0';
-            
+
             arrowSvg.innerHTML = isRankUp
               ? '<path d="M12 19V5M5 12l7-7 7 7"/>'
               : '<path d="M12 5v14M5 12l7 7 7-7"/>';
-            
+
             rankContainer.appendChild(arrowSvg);
           }
         }
       }
-  
+
       rankContainer.appendChild(document.createTextNode(rank.label));
-      
+
       const hexagonSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       hexagonSvg.setAttribute('width', '14');
       hexagonSvg.setAttribute('height', '14');
@@ -491,27 +532,27 @@ export const useChartConfig = ({
       hexagonSvg.style.marginLeft = '0';
       hexagonSvg.style.flexShrink = '0';
       hexagonSvg.style.display = 'block';
-      
+
       const hexPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       hexPath.setAttribute('d', 'M12 2L22 8.5V15.5L12 22L2 15.5V8.5L12 2Z');
       hexPath.setAttribute('fill', rank.color);
       hexagonSvg.appendChild(hexPath);
       rankContainer.appendChild(hexagonSvg);
-      
+
       rankCell.appendChild(rankContainer);
       rankRow.appendChild(rankCell);
       tableRoot.appendChild(rankRow);
 
       if (rsEvent) {
         const details = rsEvent.details;
-        
+
         const hrRow = document.createElement('tr');
         const hrCell = document.createElement('td');
         hrCell.colSpan = 2;
         hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
         hrRow.appendChild(hrCell);
         tableRoot.appendChild(hrRow);
-        
+
         const eventTitleRow = document.createElement('tr');
         eventTitleRow.innerHTML = '<td colspan="2" style="font-weight: bold; font-size: 13px; color: #facc15; padding-bottom: 4px;">RS Adjustment</td>';
         tableRoot.appendChild(eventTitleRow);
@@ -527,9 +568,9 @@ export const useChartConfig = ({
         tableRoot.appendChild(eventScoreRow);
       }
     }
-  
+
     const { offsetLeft: positionX, offsetTop: positionY } = chart.canvas;
-  
+
     tooltipEl.style.opacity = 1;
     tooltipEl.style.left = positionX + tooltip.caretX + 'px';
     tooltipEl.style.top = positionY + tooltip.caretY + 'px';
@@ -544,34 +585,34 @@ export const useChartConfig = ({
     let maxTimestamp = data[data.length - 1].timestamp.getTime();
 
     if (comparisonData.size > 0) {
-        for (const { data: compareData } of comparisonData.values()) {
-            if (compareData?.length > 0) {
-                // The data is pre-sorted, so [0] is the earliest
-                // and [length-1] is the latest for that dataset.
-                minTimestamp = Math.min(minTimestamp, compareData[0].timestamp.getTime());
-                maxTimestamp = Math.max(maxTimestamp, compareData[compareData.length - 1].timestamp.getTime());
-            }
+      for (const { data: compareData } of comparisonData.values()) {
+        if (compareData?.length > 0) {
+          // The data is pre-sorted, so [0] is the earliest
+          // and [length-1] is the latest for that dataset.
+          minTimestamp = Math.min(minTimestamp, compareData[0].timestamp.getTime());
+          maxTimestamp = Math.max(maxTimestamp, compareData[compareData.length - 1].timestamp.getTime());
         }
+      }
     }
 
     return {
-        min: new Date(minTimestamp),
-        max: new Date(maxTimestamp)
+      min: new Date(minTimestamp),
+      max: new Date(maxTimestamp)
     };
   }, [data, comparisonData]);
 
   const calculateViewWindow = useCallback((data, range, overallMinTimestamp) => {
     if (!data?.length) return null;
-  
+
     const now = seasonEndDate || new Date();
     const endTime = new Date(now.getTime() + TIME.HOUR);
     const timeRangeMs = TIME.RANGES[range];
-    
+
     if (range === 'MAX') {
       const min = overallMinTimestamp || data[0].timestamp;
       return { min, max: endTime };
     }
-    
+
     const viewMin = new Date(now.getTime() - timeRangeMs);
     return { min: viewMin, max: endTime };
   }, [seasonEndDate]);
@@ -583,48 +624,48 @@ export const useChartConfig = ({
 
     const getVisibleAndNearestData = (dataset) => {
       if (customTimeRange) {
-        const visiblePoints = dataset.filter(d => 
-          d.timestamp >= customTimeRange.min && 
+        const visiblePoints = dataset.filter(d =>
+          d.timestamp >= customTimeRange.min &&
           d.timestamp <= customTimeRange.max
         );
-  
+
         if (visiblePoints.length === 0) {
           const lastPointBefore = dataset.reduce((nearest, point) => {
-            if (point.timestamp < customTimeRange.min && 
-                (!nearest || point.timestamp > nearest.timestamp)) {
+            if (point.timestamp < customTimeRange.min &&
+              (!nearest || point.timestamp > nearest.timestamp)) {
               return point;
             }
             return nearest;
           }, null);
-  
+
           const firstPointAfter = dataset.reduce((nearest, point) => {
-            if (point.timestamp > customTimeRange.max && 
-                (!nearest || point.timestamp < nearest.timestamp)) {
+            if (point.timestamp > customTimeRange.max &&
+              (!nearest || point.timestamp < nearest.timestamp)) {
               return point;
             }
             return nearest;
           }, null);
-  
+
           return [lastPointBefore, firstPointAfter].filter(Boolean);
         }
-  
+
         return visiblePoints;
       } else {
         const now = seasonEndDate || new Date();
         const windowStart = new Date(now - TIME.RANGES[timeWindow]);
-        return timeWindow === 'MAX' 
-          ? dataset 
+        return timeWindow === 'MAX'
+          ? dataset
           : dataset.filter(d => d.timestamp >= windowStart);
       }
     };
-  
+
     const chart = chartRef.current;
-    
+
     let visibleData = [];
     if (!chart || chart.getDatasetMeta(0).visible !== false) {
       visibleData = getVisibleAndNearestData(data);
     }
-    
+
     const comparisonVisibleData = Array.from(comparisonData.entries())
       // eslint-disable-next-line no-unused-vars
       .map(([_, { data: compareData }], index) => {
@@ -634,16 +675,16 @@ export const useChartConfig = ({
         return [];
       })
       .flat();
-    
+
     const allVisibleData = [...visibleData, ...comparisonVisibleData];
 
     let minScore, maxScore;
 
     if (!allVisibleData.length) {
       let lastKnownScore;
-      const rangeStart = customTimeRange?.min || 
+      const rangeStart = customTimeRange?.min ||
         (timeWindow === 'MAX' ? data[0].timestamp : new Date(new Date() - TIME.RANGES[timeWindow]));
-      
+
       const allDatasets = [
         chart?.getDatasetMeta(0).visible !== false ? data : [],
         ...Array.from(comparisonData.entries())
@@ -651,7 +692,7 @@ export const useChartConfig = ({
           // eslint-disable-next-line no-unused-vars
           .map(([_, { data: compareData }]) => compareData)
       ];
-  
+
       for (const dataset of allDatasets) {
         for (let i = dataset.length - 1; i >= 0; i--) {
           if (dataset[i].timestamp <= rangeStart) {
@@ -662,7 +703,7 @@ export const useChartConfig = ({
           }
         }
       }
-      
+
       if (lastKnownScore === undefined) {
         const visibleScores = [
           chart?.getDatasetMeta(0).visible !== false ? data[0]?.rankScore : undefined,
@@ -671,10 +712,10 @@ export const useChartConfig = ({
             // eslint-disable-next-line no-unused-vars
             .map(([_, { data: compareData }]) => compareData[0]?.rankScore)
         ].filter(score => score !== undefined);
-  
+
         lastKnownScore = visibleScores.length > 0 ? Math.max(...visibleScores) : undefined;
       }
-  
+
       if (lastKnownScore === undefined) {
         return { min: 0, max: 50000, stepSize: 10000 };
       }
@@ -682,14 +723,14 @@ export const useChartConfig = ({
       minScore = lastKnownScore;
       maxScore = lastKnownScore;
     } else {
-        minScore = Math.min(...allVisibleData.map(d => d.rankScore));
-        maxScore = Math.max(...allVisibleData.map(d => d.rankScore));
+      minScore = Math.min(...allVisibleData.map(d => d.rankScore));
+      maxScore = Math.max(...allVisibleData.map(d => d.rankScore));
     }
 
     if (minScore === maxScore) {
-        const buffer = Math.max(20, Math.round(minScore * 0.02) || 500);
-        minScore -= buffer;
-        maxScore += buffer;
+      const buffer = Math.max(20, Math.round(minScore * 0.02) || 500);
+      minScore -= buffer;
+      maxScore += buffer;
     }
 
     const range = maxScore - minScore;
@@ -699,10 +740,10 @@ export const useChartConfig = ({
     const paddedRange = paddedMax - paddedMin;
 
     if (paddedRange <= 0) {
-        const stepSize = Math.round(paddedMax * 0.1) || 100;
-        const newMin = Math.max(0, Math.floor((paddedMin - stepSize) / stepSize) * stepSize);
-        const newMax = Math.ceil((paddedMax + stepSize) / stepSize) * stepSize;
-        return { min: newMin, max: newMax || stepSize, stepSize };
+      const stepSize = Math.round(paddedMax * 0.1) || 100;
+      const newMin = Math.max(0, Math.floor((paddedMin - stepSize) / stepSize) * stepSize);
+      const newMax = Math.ceil((paddedMax + stepSize) / stepSize) * stepSize;
+      return { min: newMin, max: newMax || stepSize, stepSize };
     }
 
     const targetTicks = 8;
@@ -710,146 +751,146 @@ export const useChartConfig = ({
 
     const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
     const residual = roughStep / magnitude;
-    
+
     let stepSize;
     if (residual > 5) {
-        stepSize = 10 * magnitude;
+      stepSize = 10 * magnitude;
     } else if (residual > 2.5) {
-        stepSize = 5 * magnitude;
+      stepSize = 5 * magnitude;
     } else if (residual > 1) {
-        stepSize = 2 * magnitude;
+      stepSize = 2 * magnitude;
     } else {
-        stepSize = magnitude;
+      stepSize = magnitude;
     }
 
     const newMin = Math.floor(paddedMin / stepSize) * stepSize;
     const newMax = Math.ceil(paddedMax / stepSize) * stepSize;
 
     if (newMin === newMax) {
-        return { min: newMin - stepSize, max: newMax + stepSize, stepSize };
+      return { min: newMin - stepSize, max: newMax + stepSize, stepSize };
     }
 
     return { min: newMin, max: newMax, stepSize };
   }, [comparisonData, chartRef, seasonEndDate]);
 
-    const getEventAnnotations = useCallback(() => {
+  const getEventAnnotations = useCallback(() => {
     if (!showEvents) return [];
-    
+
     const annotations = [];
 
     const processPlayerDataset = (playerData, playerEvents, playerName) => {
-        if (!playerData) return;
+      if (!playerData) return;
 
-        // Handle point-based events (name/club changes)
-        playerData.forEach(point => {
-            if (point.isInterpolated || point.isExtrapolated || point.isStaircasePoint || point.isGapBridge || !point.events) {
-                return;
+      // Handle point-based events (name/club changes)
+      playerData.forEach(point => {
+        if (point.isInterpolated || point.isExtrapolated || point.isStaircasePoint || point.isGapBridge || !point.events) {
+          return;
+        }
+
+        point.events.forEach(event => {
+          if (event.event_type === 'NAME_CHANGE' || event.event_type === 'CLUB_CHANGE') {
+            // All labels are created upfront. Visibility and font size are handled dynamically
+            // by the plugin via scriptable options. This prevents replacing the annotations
+            // array on every pan/zoom, which is the cause of the visual glitch.
+
+            let labelContent = [];
+            if (event.event_type === 'NAME_CHANGE') {
+              labelContent = [`Name Change:`, `${event.details.old_name} → ${event.details.new_name}`];
+            } else { // CLUB_CHANGE
+              const oldClub = event.details.old_club ? `[${event.details.old_club}]` : 'No Club';
+              const newClub = event.details.new_club ? `[${event.details.new_club}]` : 'No Club';
+              labelContent = ['Club Change:', `${oldClub} → ${newClub}`];
             }
 
-            point.events.forEach(event => {
-                if (event.event_type === 'NAME_CHANGE' || event.event_type === 'CLUB_CHANGE') {
-                    // All labels are created upfront. Visibility and font size are handled dynamically
-                    // by the plugin via scriptable options. This prevents replacing the annotations
-                    // array on every pan/zoom, which is the cause of the visual glitch.
-                    
-                    let labelContent = [];
-                    if (event.event_type === 'NAME_CHANGE') {
-                        labelContent = [`Name Change:`, `${event.details.old_name} → ${event.details.new_name}`];
-                    } else { // CLUB_CHANGE
-                        const oldClub = event.details.old_club ? `[${event.details.old_club}]` : 'No Club';
-                        const newClub = event.details.new_club ? `[${event.details.new_club}]` : 'No Club';
-                        labelContent = ['Club Change:', `${oldClub} → ${newClub}`];
-                    }
+            annotations.push({
+              type: 'label',
+              id: `label-point-event-${event.event_id}`,
+              // The `display` property lets the plugin manage visibility internally.
+              display: (ctx) => {
+                const chart = ctx.chart;
+                if (!chart.scales?.x || !ctx.element?.options) return false;
+                const xValue = ctx.element.options.xValue;
+                // Use the chart's live scale min/max to determine visibility.
+                return xValue >= chart.scales.x.min && xValue <= chart.scales.x.max;
+              },
+              xValue: point.timestamp,
+              yValue: point.rankScore,
+              content: labelContent,
+              font: {
+                // Scriptable font size adapts to the current zoom level.
+                size: (ctx) => {
+                  const baseFontSize = 11;
+                  const chart = ctx.chart;
+                  // Guard against calls before the chart is fully initialized.
+                  if (!chart || !chart.scales.x || chart.scales.x.min === undefined) return baseFontSize;
 
-                    annotations.push({
-                        type: 'label',
-                        id: `label-point-event-${event.event_id}`,
-                        // The `display` property lets the plugin manage visibility internally.
-                        display: (ctx) => {
-                            const chart = ctx.chart;
-                            if (!chart.scales?.x || !ctx.element?.options) return false;
-                            const xValue = ctx.element.options.xValue;
-                            // Use the chart's live scale min/max to determine visibility.
-                            return xValue >= chart.scales.x.min && xValue <= chart.scales.x.max;
-                        },
-                        xValue: point.timestamp,
-                        yValue: point.rankScore,
-                        content: labelContent,
-                        font: { 
-                            // Scriptable font size adapts to the current zoom level.
-                            size: (ctx) => {
-                                const baseFontSize = 11;
-                                const chart = ctx.chart;
-                                // Guard against calls before the chart is fully initialized.
-                                if (!chart || !chart.scales.x || chart.scales.x.min === undefined) return baseFontSize;
-                                
-                                const viewDuration = chart.scales.x.max - chart.scales.x.min;
-                                
-                                if (viewDuration <= TIME.DAY * 3) return baseFontSize;
-                                if (viewDuration <= TIME.WEEK * 2) return baseFontSize - 1;
-                                return Math.max(8, baseFontSize - 2);
-                            }
-                        },
-                        color: event.event_type === 'NAME_CHANGE' ? "#818cf8" : '#2dd4bf',
-                        backgroundColor: 'rgba(30, 41, 59, 0.85)',
-                        yAdjust: 25,
-                        xAdjust: (ctx) => {
-                            // Clipping logic remains the same and will now be stable.
-                            if (!ctx.chart?.scales?.x || !ctx.element?.options) return 0;
-                            const chart = ctx.chart;
-                            const scale = chart.scales.x;
-                            const xPixel = scale.getPixelForValue(ctx.element.options.xValue);
-                            const chartRight = scale.getPixelForValue(scale.max);
-                            const chartLeft = scale.getPixelForValue(scale.min);
-                            const labelHalfWidth = 90;
-                            if (xPixel + labelHalfWidth > chartRight) return chartRight - (xPixel + labelHalfWidth) - 5;
-                            if (xPixel - labelHalfWidth < chartLeft) return chartLeft - (xPixel - labelHalfWidth) + 5;
-                            return 0;
-                        },
-                        padding: 6,
-                        borderRadius: 4,
-                    });
+                  const viewDuration = chart.scales.x.max - chart.scales.x.min;
+
+                  if (viewDuration <= TIME.DAY * 3) return baseFontSize;
+                  if (viewDuration <= TIME.WEEK * 2) return baseFontSize - 1;
+                  return Math.max(8, baseFontSize - 2);
                 }
+              },
+              color: event.event_type === 'NAME_CHANGE' ? "#818cf8" : '#2dd4bf',
+              backgroundColor: 'rgba(30, 41, 59, 0.85)',
+              yAdjust: 25,
+              xAdjust: (ctx) => {
+                // Clipping logic remains the same and will now be stable.
+                if (!ctx.chart?.scales?.x || !ctx.element?.options) return 0;
+                const chart = ctx.chart;
+                const scale = chart.scales.x;
+                const xPixel = scale.getPixelForValue(ctx.element.options.xValue);
+                const chartRight = scale.getPixelForValue(scale.max);
+                const chartLeft = scale.getPixelForValue(scale.min);
+                const labelHalfWidth = 90;
+                if (xPixel + labelHalfWidth > chartRight) return chartRight - (xPixel + labelHalfWidth) - 5;
+                if (xPixel - labelHalfWidth < chartLeft) return chartLeft - (xPixel - labelHalfWidth) + 5;
+                return 0;
+              },
+              padding: 6,
+              borderRadius: 4,
             });
+          }
         });
+      });
 
-        // Handle time-range based events (suspected ban)
-        if (playerEvents) {
-            playerEvents.forEach(event => {
-                if (event.event_type === 'SUSPECTED_BAN') {
-                    annotations.push({
-                        id: `sb-event-${event.event_id}`,
-                        type: 'box',
-                        xMin: event.start_timestamp * 1000,
-                        // xMax is now scriptable to extend to the edge of the visible chart area.
-                        xMax: (ctx) => event.end_timestamp ? event.end_timestamp * 1000 : ctx.chart.scales.x.max,
-                        backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                        borderColor: 'rgba(239, 68, 68, 0.1)',
-                        borderWidth: 1,
-                        label: {
-                            content: `Suspected Ban (${playerName})`,
-                            display: true,
-                            position: 'start',
-                            color: 'rgba(255, 150, 150, 0.9)',
-                            font: { weight: 'bold', size: 10 },
-                        }
-                    });
-                }
+      // Handle time-range based events (suspected ban)
+      if (playerEvents) {
+        playerEvents.forEach(event => {
+          if (event.event_type === 'SUSPECTED_BAN') {
+            annotations.push({
+              id: `sb-event-${event.event_id}`,
+              type: 'box',
+              xMin: event.start_timestamp * 1000,
+              // xMax is now scriptable to extend to the edge of the visible chart area.
+              xMax: (ctx) => event.end_timestamp ? event.end_timestamp * 1000 : ctx.chart.scales.x.max,
+              backgroundColor: 'rgba(239, 68, 68, 0.2)',
+              borderColor: 'rgba(239, 68, 68, 0.1)',
+              borderWidth: 1,
+              label: {
+                content: `Suspected Ban (${playerName})`,
+                display: true,
+                position: 'start',
+                color: 'rgba(255, 150, 150, 0.9)',
+                font: { weight: 'bold', size: 10 },
+              }
             });
-        }
+          }
+        });
+      }
     };
-    
+
     processPlayerDataset(data, events, embarkId);
     comparisonData.forEach((compare, id) => {
-        processPlayerDataset(compare.data, compare.events, id);
+      processPlayerDataset(compare.data, compare.events, id);
     });
 
     return annotations;
-}, [data, events, comparisonData, embarkId, showEvents]);
+  }, [data, events, comparisonData, embarkId, showEvents]);
 
   const getRankAnnotations = useCallback((minDomain, maxDomain) => {
     if (!data) return [];
-    
+
     return RANKS
       .filter(rank => rank.y >= minDomain && rank.y <= maxDomain)
       .map(rank => ({
@@ -896,29 +937,29 @@ export const useChartConfig = ({
       selectedTimeRange,
       timeRange
     );
-    
+
     chart.options.scales.y.min = newMin;
     chart.options.scales.y.max = newMax;
     chart.options.scales.y.ticks.stepSize = newStepSize;
-    
+
     // Regenerate rank annotations based on the new Y-axis.
     const newRankAnnotations = getRankAnnotations(newMin, newMax);
-    
+
     // Get a reference to the chart's live annotation options.
     const liveAnnotationOptions = chart.options.plugins.annotation;
 
     // Preserve the existing event annotations by filtering the live array.
     const currentEventAnnotations = liveAnnotationOptions.annotations.filter(
-        a => a.id && (a.id.startsWith('label-point-event-') || a.id.startsWith('sb-event-'))
+      a => a.id && (a.id.startsWith('label-point-event-') || a.id.startsWith('sb-event-'))
     );
-    
+
     // Mutate the array in-place to avoid breaking the plugin's internal references.
     liveAnnotationOptions.annotations.length = 0;
     liveAnnotationOptions.annotations.push(...newRankAnnotations, ...currentEventAnnotations);
 
-}, [data, selectedTimeRange, calculateYAxisBounds, getRankAnnotations]);
+  }, [data, selectedTimeRange, calculateYAxisBounds, getRankAnnotations]);
 
-    const chartOptions = useMemo(() => {
+  const chartOptions = useMemo(() => {
     if (!data) return null;
 
     const { min: overallMin, max: overallMax } = overallTimeDomain;
@@ -953,9 +994,9 @@ export const useChartConfig = ({
             maxTicksLimit: 20,
             padding: 4,
             align: 'end',
-            callback: function(value) {
+            callback: function (value) {
               const date = new Date(value);
-              return date.toLocaleDateString(undefined, TIME.FORMAT);
+              return date.toLocaleString(undefined, TIME.FORMAT);
             }
           },
           min: viewWindow?.min,
@@ -1031,6 +1072,8 @@ export const useChartConfig = ({
   }, [data, viewWindow, calculateYAxisBounds, getRankAnnotations, getEventAnnotations, selectedTimeRange, externalTooltipHandler, updateDynamicAxes, onZoomPan, overallTimeDomain]);
 
   const getPointStyle = useCallback((ctx) => {
+    const pointData = ctx.raw?.raw;
+    if (pointData?.isBanStartAnchor) return gavelIcon;
     if (showEvents) {
       if (hasVisibleEvent(ctx, 'NAME_CHANGE')) return nameChangeIcon;
       if (hasVisibleEvent(ctx, 'CLUB_CHANGE')) return clubChangeIcon;
@@ -1077,9 +1120,9 @@ export const useChartConfig = ({
     datasets: [{
       label: ` ${embarkId}`,
       data: data.map(d => ({
-          x: d.timestamp,
-          y: d.rankScore,
-          raw: d
+        x: d.timestamp,
+        y: d.rankScore,
+        raw: d
       })),
       segment: {
         borderColor: (ctx) => getBorderColor(ctx, '#FAF9F6'),

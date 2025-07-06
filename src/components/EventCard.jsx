@@ -1,5 +1,5 @@
 import {
-  UserCheck,
+  UserPen,
   Users,
   Gavel,
   ArrowRight, // Changed from ArrowRightLeft for clarity
@@ -42,11 +42,11 @@ const getEventConfig = (event) => {
   const { event_type, details, endTimestamp } = event;
   switch (event_type) {
     case 'NAME_CHANGE':
-      return { Icon: UserCheck, title: 'Name Change', colorClass: 'text-blue-400' };
+      return { Icon: UserPen, title: 'Name Change', colorClass: 'text-indigo-400' };
     case 'SUSPECTED_BAN':
       // If the event is resolved (player reappeared), change the icon and title.
       if (endTimestamp) {
-        return { Icon: UserCheck, title: 'Player Reappeared', colorClass: 'text-green-400' };
+        return { Icon: Gavel, title: 'Player Reappeared', colorClass: 'text-green-400' };
       }
       return { Icon: Gavel, title: 'Suspected Ban', colorClass: 'text-red-500' };
     case 'RS_ADJUSTMENT': {

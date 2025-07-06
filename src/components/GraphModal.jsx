@@ -50,6 +50,13 @@ const MAX_COMPARISONS = 5;
 const TIME = {
   DAY: 24 * 60 * 60 * 1000,
   WEEK: 7 * 24 * 60 * 60 * 1000,
+  FORMAT: {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }
 };
 
 // Time ranges for graph view
@@ -62,7 +69,7 @@ TIME.RANGES = {
 const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comparisonData, mainPlayerLastDataPoint }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredPlayers, setFilteredPlayers] = useState([]);
-  
+
   // Use the useModal hook to handle outside clicks and manage modal state.
   // The 'nested' type ensures the underlying GraphModal doesn't fade out.
   const { modalRef: modalContentRef } = useModal(true, onClose, { type: 'nested' });
@@ -70,13 +77,13 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
   // Find main player's score from leaderboard
   const getClosestPlayers = useCallback(() => {
     const mainPlayer = leaderboard.find(p => p.name === mainEmbarkId);
-    
+
     // Get all valid players (not the main player and not already in comparison)
-    const validPlayers = leaderboard.filter(player => 
-      player.name !== mainEmbarkId && 
+    const validPlayers = leaderboard.filter(player =>
+      player.name !== mainEmbarkId &&
       !Array.from(comparisonData.keys()).includes(player.name)
     );
-    
+
     let sortedPlayers;
 
     if (mainPlayer) {
@@ -92,23 +99,23 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
       sortedPlayers = validPlayers
         .map(player => ({ ...player, distance: Math.abs(player.rankScore - lastKnownScore) }))
         .sort((a, b) => a.distance - b.distance);
-        
+
     } else {
       return []; // No main player on leaderboard and no graph data available.
     }
-    
+
     // Take the 50 closest players and sort them by rank
     return sortedPlayers
       .slice(0, 50)
       .sort((a, b) => a.rank - b.rank); // Final sort by rank ascending
   }, [mainEmbarkId, leaderboard, comparisonData, mainPlayerLastDataPoint]);
-  
+
   useEffect(() => {
     if (searchTerm) {
       // If there's a search term, filter by name/club tag
       const filtered = leaderboard
-        .filter(player => 
-          player.name !== mainEmbarkId && 
+        .filter(player =>
+          player.name !== mainEmbarkId &&
           !Array.from(comparisonData.keys()).includes(player.name) &&
           (player.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
            (player.clubTag && `[${player.clubTag}]`.toLowerCase().includes(searchTerm.toLowerCase())))
@@ -179,7 +186,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
 const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isClubView = false, globalLeaderboard = [], onSwitchToGlobal, isMobile }) => {
   const { modalRef, isActive } = useModal(isOpen, onClose);
   const chartRef = useRef(null);
-  
+
   // UI State
   const [selectedTimeRange, setSelectedTimeRange] = useState('24H');
   const [showCompareModal, setShowCompareModal] = useState(false);
@@ -207,7 +214,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
       const timer = setTimeout(() => {
         if (chartRef.current) {
           // Use 'none' to prevent re-running animations, which could look jerky.
-          chartRef.current.update('none'); 
+          chartRef.current.update('none');
         }
       }, 5); // A small delay for the initial render to complete.
       return () => clearTimeout(timer);
@@ -215,23 +222,23 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
   }, [selectedTimeRange, showEvents]);
 
   useEffect(() => {
-      if (!isOpen) return;
-      setIsLeaderboardLoading(true);
-      
-      const seasonKey = Object.keys(SEASONS).find(key => SEASONS[key].id === seasonId);
-      
-      if (isClubView) {
-          // isClubView is always current season, globalLeaderboard prop contains rankedClubMembers
-          setComparisonLeaderboard(globalLeaderboard);
-      } else if (seasonKey && !SEASONS[seasonKey].isCurrent) {
-          // Historical season
-          const { leaderboard } = getSeasonLeaderboard(seasonKey);
-          setComparisonLeaderboard(leaderboard);
-      } else {
-          // Current season global view
-          setComparisonLeaderboard(globalLeaderboard);
-      }
-      setIsLeaderboardLoading(false);
+    if (!isOpen) return;
+    setIsLeaderboardLoading(true);
+
+    const seasonKey = Object.keys(SEASONS).find(key => SEASONS[key].id === seasonId);
+
+    if (isClubView) {
+      // isClubView is always current season, globalLeaderboard prop contains rankedClubMembers
+      setComparisonLeaderboard(globalLeaderboard);
+    } else if (seasonKey && !SEASONS[seasonKey].isCurrent) {
+      // Historical season
+      const { leaderboard } = getSeasonLeaderboard(seasonKey);
+      setComparisonLeaderboard(leaderboard);
+    } else {
+      // Current season global view
+      setComparisonLeaderboard(globalLeaderboard);
+    }
+    setIsLeaderboardLoading(false);
   }, [isOpen, seasonId, isClubView, globalLeaderboard]);
 
 
@@ -249,14 +256,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
 
   const hasAnyEvents = useMemo(() => {
     if (events?.length > 0) {
-        return true;
+      return true;
     }
     if (comparisonData.size > 0) {
-        for (const compare of comparisonData.values()) {
-            if (compare.events?.length > 0) {
-                return true;
-            }
+      for (const compare of comparisonData.values()) {
+        if (compare.events?.length > 0) {
+          return true;
         }
+      }
     }
     return false;
   }, [events, comparisonData]);
@@ -272,15 +279,15 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     const last24Hours = new Date(now - TIME.DAY);
     const last7Days = new Date(now - TIME.WEEK);
 
-    const pointsIn24H = data.filter(point => 
-      !point.isInterpolated && !point.isExtrapolated && 
+    const pointsIn24H = data.filter(point =>
+      !point.isInterpolated && !point.isExtrapolated &&
       point.timestamp >= last24Hours
     ).length;
 
     if (pointsIn24H >= 2) return '24H';
 
-    const pointsIn7D = data.filter(point => 
-      !point.isInterpolated && !point.isExtrapolated && 
+    const pointsIn7D = data.filter(point =>
+      !point.isInterpolated && !point.isExtrapolated &&
       point.timestamp >= last7Days
     ).length;
 
@@ -363,48 +370,48 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
   const handleScreenshot = async (withBackground = true) => {
     const canvas = chartRef.current?.canvas;
     if (!canvas) return;
- 
+
     try {
       const tempCanvas = document.createElement('canvas');
       const ctx = tempCanvas.getContext('2d');
-     
+
       tempCanvas.width = canvas.width;
       tempCanvas.height = canvas.height;
-     
+
       if (withBackground) {
         ctx.fillStyle = '#1a1f2e';
         ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
       }
-     
+
       ctx.drawImage(canvas, 0, 0);
-     
+
       ctx.save();
       ctx.globalAlpha = 0.15;
       ctx.font = 'bold 24px Arial';
       ctx.fillStyle = 'white';
-     
+
       const watermarkText = 'https://ogclub.s4nt0s.eu';
       const textMetrics = ctx.measureText(watermarkText);
-      
+
       ctx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
-      
+
       if (isMobile) {
         ctx.translate(tempCanvas.width / 8, tempCanvas.height / 4);
       }
-      
+
       ctx.rotate(-Math.PI / 6);
       ctx.fillText(watermarkText, -textMetrics.width / 2, 0);
       ctx.restore();
-     
+
       const blob = await new Promise(resolve => tempCanvas.toBlob(resolve, 'image/png'));
-     
+
       await navigator.clipboard.write([
         new ClipboardItem({ 'image/png': blob })
       ]);
-     
+
       setNotifScreenshot(true);
       setTimeout(() => setNotifScreenshot(false), 1000);
-      
+
       setShowDropdown(false);
     } catch (err) {
       console.error('Failed to copy chart:', err);
@@ -417,8 +424,8 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     if (!key) return { seasonKey: '', currentSeasonLabel: '' };
 
     return {
-        seasonKey: key,
-        currentSeasonLabel: SEASONS[key].label,
+      seasonKey: key,
+      currentSeasonLabel: SEASONS[key].label,
     };
   }, [seasonId]);
 
@@ -426,22 +433,27 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
 
   return (
     <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4`}>
-      <div ref={modalRef} className={`bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden grid grid-rows-[auto_1fr_auto] gap-4 transition-transform duration-75 ease-out
-        ${isMobile ? 'max-w-[95vw] h-[95vh]' : 'max-w-[80vw] h-[85vh]'}
-        ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
-        `}>
+      <div
+        ref={modalRef}
+        className={`
+          bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden grid grid-rows-[auto_1fr_auto] gap-4
+          transition-transform duration-75 ease-out
+          ${isMobile ? 'max-w-[95vw] h-[95vh]' : 'max-w-[80vw] h-[85vh]'}
+          ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
+        `}
+      >
         {showCompareModal && !isLeaderboardLoading && (
-            <ComparePlayerModal
-                onSelect={(player) => {
-                    addComparison(player);
-                    setShowCompareModal(false);
-                }}
-                mainEmbarkId={embarkId}
-                leaderboard={comparisonLeaderboard}
-                onClose={() => setShowCompareModal(false)}
-                comparisonData={comparisonData}
-                mainPlayerLastDataPoint={data?.[data.length - 1]}
-            />
+          <ComparePlayerModal
+            onSelect={(player) => {
+              addComparison(player);
+              setShowCompareModal(false);
+            }}
+            mainEmbarkId={embarkId}
+            leaderboard={comparisonLeaderboard}
+            onClose={() => setShowCompareModal(false)}
+            comparisonData={comparisonData}
+            mainPlayerLastDataPoint={data?.[data.length - 1]}
+          />
         )}
         <div>
           <div className={`${isMobile ? 'flex flex-col gap-2' : 'flex justify-between items-center gap-4'}`}>
@@ -453,12 +465,12 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                   </h2>
                   <div className="relative group flex-shrink-0">
                     <div className={`bg-gray-700 text-blue-300 text-xs font-semibold px-2 py-1 rounded-md ${isMobile ? 'cursor-help' : ''}`}>
-                        {isMobile ? seasonKey : currentSeasonLabel}
+                      {isMobile ? seasonKey : currentSeasonLabel}
                     </div>
                     {isMobile && (
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20 shadow-lg border border-gray-700 whitespace-normal">
-                            {currentSeasonLabel}
-                        </div>
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20 shadow-lg border border-gray-700 whitespace-normal">
+                        {currentSeasonLabel}
+                      </div>
                     )}
                   </div>
                   {data && mainPlayerGameCount > 0 && (
@@ -473,7 +485,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                   )}
                 </div>
                 {isMobile && (
-                  <button 
+                  <button
                     onClick={onClose}
                     aria-label="Close modal"
                     className="p-2 hover:bg-gray-700 rounded-lg flex-shrink-0"
@@ -484,7 +496,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
               </div>
               {data && (
                 <p className="text-sm text-gray-400 mt-1 truncate">
-                  {!isMobile ? 'Data available between ' : 'MAX: '} {`${new Date(data[0].timestamp).toLocaleDateString(undefined, TIME.FORMAT)} - ${new Date(data[data.length - 1].timestamp).toLocaleDateString(undefined, TIME.FORMAT)}`}
+                  {!isMobile ? 'Data available between ' : 'MAX: '} {`${new Date(data[0].timestamp).toLocaleString(undefined, TIME.FORMAT)} - ${new Date(data[data.length - 1].timestamp).toLocaleString(undefined, TIME.FORMAT)}`}
                 </p>
               )}
             </div>
@@ -542,7 +554,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                 </div>
                 {comparisonData.size < MAX_COMPARISONS && (
                   <div className="relative">
-                    <button 
+                    <button
                       onClick={() => setShowCompareModal(true)}
                       className={`p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative transition-all duration-200 group
                         ${isMobile ? 'mr-4' : ''}`}
@@ -591,18 +603,18 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
 
           {comparisonData.size > 0 && (
             <div className={`flex gap-2 mt-4 ${
-              isMobile 
-                ? 'flex-wrap max-h-[100px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600' 
+              isMobile
+                ? 'flex-wrap max-h-[100px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600'
                 : 'flex-wrap'
             }`}>
               {Array.from(comparisonData.entries()).map(([compareId, { color, gameCount }]) => (
-                <div 
+                <div
                   key={compareId}
-                  className={`flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1 
+                  className={`flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1
                     ${isMobile ? 'flex-basis-[140px]' : 'whitespace-nowrap'}`}
                 >
                   <span className="text-sm truncate" style={{ color: color }}>{compareId}</span>
-                  
+
                   {gameCount > 0 && (
                     isMobile ? (
                       <span className="text-gray-400 text-xs">({gameCount})</span>
@@ -640,21 +652,22 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
           ) : (
             <>
               {showZoomHint && (
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 
-                                bg-gray-800 bg-opacity-90 text-white px-4 py-2 rounded-lg 
-                                transition-opacity duration-300 cursor-pointer z-10 animate-fadeIn shadow-lg"
-                                onClick={() => setShowZoomHint(false)} style={{ backdropFilter: 'blur(2px)' }}>
+                <div
+                  className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800 bg-opacity-90 text-white px-4 py-2 rounded-lg transition-opacity duration-300 cursor-pointer z-10 animate-fadeIn shadow-lg"
+                  onClick={() => setShowZoomHint(false)}
+                  style={{ backdropFilter: 'blur(2px)' }}
+                >
                   <div className="flex flex-col items-center gap-2 text-sm">
                     <div className="flex items-center gap-2">
                       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                               d="M12 4v16m8-8H4" />
                       </svg>
                       <span>{isMobile ? 'Pinch to zoom' : 'Mouse wheel to zoom'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                               d="M17 8l4 4m0 0l-4 4m4-4H3" />
                       </svg>
                       <span>{isMobile ? 'Touch and drag to pan' : 'Click and drag to pan'}</span>
@@ -666,7 +679,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
             </>
           )}
         </div>
-        
+
         <div className="flex items-center justify-start border-t border-gray-700 pt-3 -mb-1">
           <div className="flex items-center gap-3">
             <button
@@ -675,8 +688,8 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border
                 ${!hasAnyEvents
                   ? 'bg-gray-700 text-gray-500 border-gray-600 cursor-not-allowed'
-                  : showEvents 
-                    ? 'bg-blue-600 text-white border-transparent hover:bg-blue-500' 
+                  : showEvents
+                    ? 'bg-blue-600 text-white border-transparent hover:bg-blue-500'
                     : 'bg-red-900/50 text-red-300 border-red-800 hover:bg-red-900/80'
                 }`}
               title={hasAnyEvents ? (showEvents ? 'Hide Events' : 'Show Events') : 'No events found'}

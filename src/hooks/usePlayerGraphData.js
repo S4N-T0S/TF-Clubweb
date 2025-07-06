@@ -19,198 +19,224 @@ const TIME = {
 };
 TIME.MINUTES_15 = 15 * TIME.MINUTE;
 const GAP_THRESHOLD = 2 * TIME.HOUR;
-const NEW_LOGIC_TIMESTAMP_S = 1750436334;
-const NEW_LOGIC_TIMESTAMP_MS = NEW_LOGIC_TIMESTAMP_S * 1000;
+const NEW_LOGIC_TIMESTAMP_MS = 1750436334 * 1000;
 
 
 // Processes legacy data points using the old interpolation method.
 const legacy_interpolateDataPoints = (rawData, isFinalSegment = true, seasonEndDate = null) => {
-    if (!rawData?.length || rawData.length < 2) return rawData;
-    
-    const interpolatedData = [];
-    const now = seasonEndDate ? new Date(seasonEndDate) : new Date();
-    
-    // Original interpolation logic for stairs
-    for (let i = 0; i < rawData.length - 1; i++) {
-      const currentPoint = rawData[i];
-      const nextPoint = rawData[i + 1];
-      
-      interpolatedData.push(currentPoint);
-      
-      const timeDiff = nextPoint.timestamp - currentPoint.timestamp;
-      
-      if (timeDiff > TIME.MINUTES_15) {
-        interpolatedData.push({
-          ...currentPoint,
-          timestamp: new Date(nextPoint.timestamp - TIME.MINUTES_15),
-          isInterpolated: true
-        });
-      }
+  if (!rawData?.length || rawData.length < 2) return rawData;
+
+  const interpolatedData = [];
+  const now = seasonEndDate ? new Date(seasonEndDate) : new Date();
+
+  // Original interpolation logic for stairs
+  for (let i = 0; i < rawData.length - 1; i++) {
+    const currentPoint = rawData[i];
+    const nextPoint = rawData[i + 1];
+
+    interpolatedData.push(currentPoint);
+
+    const timeDiff = nextPoint.timestamp - currentPoint.timestamp;
+
+    if (timeDiff > TIME.MINUTES_15) {
+      interpolatedData.push({
+        ...currentPoint,
+        timestamp: new Date(nextPoint.timestamp - TIME.MINUTES_15),
+        isInterpolated: true
+      });
     }
-    
-    interpolatedData.push(rawData[rawData.length - 1]);
-    
-    if (isFinalSegment) {
-        const lastPoint = rawData[rawData.length - 1];
-        const timeToNow = now - lastPoint.timestamp;
-        
-        if (timeToNow > TIME.MINUTES_15) {
-          interpolatedData.push({
-            ...lastPoint,
-            timestamp: now,
-            isInterpolated: true,
-            isFinalInterpolation: true,
-          });
-        }
+  }
+
+  interpolatedData.push(rawData[rawData.length - 1]);
+
+  if (isFinalSegment) {
+    const lastPoint = rawData[rawData.length - 1];
+    const timeToNow = now - lastPoint.timestamp;
+
+    if (timeToNow > TIME.MINUTES_15) {
+      interpolatedData.push({
+        ...lastPoint,
+        timestamp: now,
+        isInterpolated: true,
+        isFinalInterpolation: true,
+      });
     }
-    
-    return interpolatedData;
+  }
+
+  return interpolatedData;
 };
 
 // Processes the full dataset, applying legacy or new logic based on timestamp.
 const processGraphData = (rawData, events = [], seasonEndDate = null) => {
-    if (!rawData?.length) return [];
+  if (!rawData?.length) return [];
 
-    const parsedData = rawData.map(item => ({
-        ...item,
-        timestamp: new Date(item.timestamp * 1000)
-    })).sort((a, b) => a.timestamp - b.timestamp);
+  const parsedData = rawData.map(item => ({
+    ...item,
+    timestamp: new Date(item.timestamp * 1000)
+  })).sort((a, b) => a.timestamp - b.timestamp);
 
-    // Attach point-specific events (RS_ADJUSTMENT, NAME_CHANGE, CLUB_CHANGE) to the closest data points
-    events.forEach(event => {
-        if (event.event_type !== 'RS_ADJUSTMENT' && event.event_type !== 'NAME_CHANGE' && event.event_type !== 'CLUB_CHANGE') {
-            return;
-        }
+  // Attach point-specific events (RS_ADJUSTMENT, NAME_CHANGE, CLUB_CHANGE) to the closest data points
+  events.forEach(event => {
+    if (event.event_type !== 'RS_ADJUSTMENT' && event.event_type !== 'NAME_CHANGE' && event.event_type !== 'CLUB_CHANGE') {
+      return;
+    }
 
-        const eventTimestamp = event.start_timestamp * 1000;
-        let closestPoint = null;
-        let minDiff = Infinity;
+    const eventTimestamp = event.start_timestamp * 1000;
+    let closestPoint = null;
+    let minDiff = Infinity;
 
-        // Find the closest point in time
-        parsedData.forEach(point => {
-            const diff = Math.abs(point.timestamp.getTime() - eventTimestamp);
-            if (diff < minDiff) {
-                minDiff = diff;
-                closestPoint = point;
-            }
-        });
-
-        // Attach event if a close enough point is found (within 5 mins)
-        // For RS_ADJUSTMENT, only attach to points where the score actually changed.
-        if (event.event_type === 'RS_ADJUSTMENT' && !closestPoint.scoreChanged) return;
-
-        if (closestPoint && minDiff < 5 * TIME.MINUTE) {
-            if (!closestPoint.events) {
-                closestPoint.events = [];
-            }
-            closestPoint.events.push(event);
-        }
+    // Find the closest point in time
+    parsedData.forEach(point => {
+      const diff = Math.abs(point.timestamp.getTime() - eventTimestamp);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestPoint = point;
+      }
     });
 
-    const legacyPoints = parsedData.filter(p => p.timestamp.getTime() < NEW_LOGIC_TIMESTAMP_MS);
-    const newPoints = parsedData.filter(p => p.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS);
+    // Attach event if a close enough point is found (within 5 mins)
+    // For RS_ADJUSTMENT, only attach to points where the score actually changed.
+    if (event.event_type === 'RS_ADJUSTMENT' && !closestPoint.scoreChanged) return;
 
-    const legacyScoreChanged = legacyPoints.filter(p => p.scoreChanged);
-    const hasNewData = newPoints.length > 0;
-    const processedLegacy = legacy_interpolateDataPoints(legacyScoreChanged, !hasNewData, seasonEndDate);
-
-    if (!hasNewData) {
-        return processedLegacy;
+    if (closestPoint && minDiff < 5 * TIME.MINUTE) {
+      if (!closestPoint.events) {
+        closestPoint.events = [];
+      }
+      closestPoint.events.push(event);
     }
+  });
 
-    // Build the final array for the new period, handling gaps and staircases
-    const processedNew = [];
-    if (newPoints.length > 0) {
-        for (let i = 0; i < newPoints.length; i++) {
-            const previous = i > 0 ? newPoints[i - 1] : null;
-            const current = newPoints[i];
+  const legacyPoints = parsedData.filter(p => p.timestamp.getTime() < NEW_LOGIC_TIMESTAMP_MS);
+  const newPoints = parsedData.filter(p => p.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS);
 
-            if (previous) {
-                const timeDiff = current.timestamp - previous.timestamp;
+  const legacyScoreChanged = legacyPoints.filter(p => p.scoreChanged);
+  const hasNewData = newPoints.length > 0;
+  const processedLegacy = legacy_interpolateDataPoints(legacyScoreChanged, !hasNewData, seasonEndDate);
 
-                // A. Handle Gaps (> 2 hours)
-                if (timeDiff > GAP_THRESHOLD) {
-                    // Mark the last real point before the gap to make the line from it dashed.
-                    const lastAddedPoint = processedNew[processedNew.length - 1];
-                    if (lastAddedPoint) {
-                        lastAddedPoint.isFollowedByGap = true;
-                    }
-                    
-                    // Add a synthetic "bridge" point. It has the *previous* point's score
-                    // and a timestamp just before the current point. This creates the
-                    // horizontal dashed line across the gap.
-                    processedNew.push({
-                        ...previous,
-                        timestamp: new Date(current.timestamp.getTime() - TIME.MINUTES_15),
-                        isGapBridge: true,
-                        scoreChanged: false,
-                    });
-                }
-                // B. Handle back-to-back games (staircase)
-                else if (previous.scoreChanged && current.scoreChanged) {
-                    // Add a synthetic point to create the staircase step.
-                    processedNew.push({
-                        ...previous,
-                        timestamp: new Date(current.timestamp.getTime() - TIME.MINUTES_15),
-                        isStaircasePoint: true,
-                        scoreChanged: false,
-                    });
-                }
-            }
+  if (!hasNewData) {
+    return processedLegacy;
+  }
 
-            // Add the actual current point from the raw new data
-            processedNew.push(current);
+  // Build the final array for the new period, handling gaps and staircases
+  const processedNew = [];
+  if (newPoints.length > 0) {
+    for (let i = 0; i < newPoints.length; i++) {
+      const previous = i > 0 ? newPoints[i - 1] : null;
+      const current = newPoints[i];
+
+      if (previous) {
+        const timeDiff = current.timestamp - previous.timestamp;
+
+        // A. Handle Gaps (> 2 hours)
+        if (timeDiff > GAP_THRESHOLD) {
+          // Mark the last real point before the gap to make the line from it dashed.
+          const lastAddedPoint = processedNew[processedNew.length - 1];
+          if (lastAddedPoint) {
+            lastAddedPoint.isFollowedByGap = true;
+          }
+
+          // Add a synthetic "bridge" point. It has the *previous* point's score
+          // and a timestamp just before the current point. This creates the
+          // horizontal dashed line across the gap.
+          processedNew.push({
+            ...previous,
+            timestamp: new Date(current.timestamp.getTime() - TIME.MINUTES_15),
+            isGapBridge: true,
+            scoreChanged: false,
+          });
         }
-    }
-
-    let combined = [...processedLegacy, ...processedNew];
-    
-    // Handle gap between legacy and new data
-    if (legacyScoreChanged.length > 0 && newPoints.length > 0) {
-        const lastLegacyScoreChangedPoint = legacyScoreChanged[legacyScoreChanged.length - 1];
-        const firstNewPoint = newPoints[0];
-        if (firstNewPoint.timestamp - lastLegacyScoreChangedPoint.timestamp > GAP_THRESHOLD) {
-            // Find the original point in the combined array to flag it
-            const pointToFlag = combined.find(p => 
-                p.timestamp.getTime() === lastLegacyScoreChangedPoint.timestamp.getTime() && 
-                !p.isInterpolated && !p.isExtrapolated && !p.isStaircasePoint
-            );
-            if (pointToFlag) pointToFlag.isFollowedByGap = true;
+        // B. Handle back-to-back games (staircase)
+        else if (previous.scoreChanged && current.scoreChanged) {
+          // Add a synthetic point to create the staircase step.
+          processedNew.push({
+            ...previous,
+            timestamp: new Date(current.timestamp.getTime() - TIME.MINUTES_15),
+            isStaircasePoint: true,
+            scoreChanged: false,
+          });
         }
+      }
+
+      // Add the actual current point from the raw new data
+      processedNew.push(current);
     }
-    
-    // Handle final interpolation to 'now' for the new data period
-    if (hasNewData) {
-        const now = seasonEndDate ? new Date(seasonEndDate) : new Date();
-        const lastRealPoint = newPoints[newPoints.length - 1];
-        
-        // Check for an active suspected ban
-        const hasActiveBan = events.some(e => e.event_type === 'SUSPECTED_BAN' && !e.end_timestamp);
-        
-        // Condition to start drawing a dashed line to 'now'
-        const shouldDrawFinalDashedLine = (now - lastRealPoint.timestamp > GAP_THRESHOLD) || (hasActiveBan);
+  }
 
-        if (shouldDrawFinalDashedLine) {
-            // Find the last real point in the combined array to flag it for a dashed line
-            const pointToFlag = combined.find(p => 
-                p.timestamp.getTime() === lastRealPoint.timestamp.getTime() && 
-                !p.isInterpolated && !p.isExtrapolated && !p.isStaircasePoint && !p.isGapBridge
-            );
-            if (pointToFlag) {
-                pointToFlag.isFollowedByGap = true;
-            }
+  let combined = [...processedLegacy, ...processedNew];
 
-            combined.push({
-                ...lastRealPoint,
-                timestamp: now,
-                isInterpolated: true,
-                isFinalInterpolation: true,
-                scoreChanged: false,
-            });
+  // Handle gap between legacy and new data
+  if (legacyScoreChanged.length > 0 && newPoints.length > 0) {
+    const lastLegacyScoreChangedPoint = legacyScoreChanged[legacyScoreChanged.length - 1];
+    const firstNewPoint = newPoints[0];
+    if (firstNewPoint.timestamp - lastLegacyScoreChangedPoint.timestamp > GAP_THRESHOLD) {
+      // Find the original point in the combined array to flag it
+      const pointToFlag = combined.find(p =>
+        p.timestamp.getTime() === lastLegacyScoreChangedPoint.timestamp.getTime() &&
+        !p.isInterpolated && !p.isExtrapolated && !p.isStaircasePoint
+      );
+      if (pointToFlag) pointToFlag.isFollowedByGap = true;
+    }
+  }
+
+  // Handle final interpolation to 'now' for the new data period
+  if (hasNewData) {
+    const now = seasonEndDate ? new Date(seasonEndDate) : new Date();
+    const lastRealPoint = newPoints[newPoints.length - 1];
+
+    const activeBanEvent = events.find(e => e.event_type === 'SUSPECTED_BAN' && !e.end_timestamp);
+    const shouldDrawFinalDashedLine = (now - lastRealPoint.timestamp > GAP_THRESHOLD) || activeBanEvent;
+
+    if (shouldDrawFinalDashedLine) {
+      // If there's an active ban, we might need a special anchor point.
+      if (activeBanEvent) {
+        const banStartTimestamp = activeBanEvent.start_timestamp * 1000;
+
+        // Check if the ban starts after the last known data point.
+        if (banStartTimestamp > lastRealPoint.timestamp.getTime()) {
+          // Create a synthetic point where the ban starts.
+          // This point will be the start of the dashed line.
+          const banStartPoint = {
+            ...lastRealPoint,
+            timestamp: new Date(banStartTimestamp),
+            isInterpolated: true,
+            scoreChanged: false,
+            isFollowedByGap: true, // Make the line after this dashed
+            isBanStartAnchor: true,
+            events: [activeBanEvent], // Attach event for tooltip info
+          };
+          combined.push(banStartPoint);
+        } else {
+          // Ban starts before or at the last point, so just flag the last point.
+          const pointToFlag = combined.find(p =>
+            p.timestamp.getTime() === lastRealPoint.timestamp.getTime() &&
+            !p.isInterpolated && !p.isExtrapolated && !p.isStaircasePoint && !p.isGapBridge
+          );
+          if (pointToFlag) {
+            pointToFlag.isFollowedByGap = true;
+          }
         }
-    }
+      } else { // No active ban, just a gap to 'now'
+        const pointToFlag = combined.find(p =>
+          p.timestamp.getTime() === lastRealPoint.timestamp.getTime() &&
+          !p.isInterpolated && !p.isExtrapolated && !p.isStaircasePoint && !p.isGapBridge
+        );
+        if (pointToFlag) {
+          pointToFlag.isFollowedByGap = true;
+        }
+      }
 
-    return combined;
+      // Add the final point at 'now' to complete the dashed line.
+      combined.push({
+        ...lastRealPoint,
+        timestamp: now,
+        isInterpolated: true,
+        isFinalInterpolation: true,
+        scoreChanged: false,
+      });
+    }
+  }
+
+  return combined;
 };
 
 
@@ -233,10 +259,10 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     try {
       const result = await fetchGraphData(compareId, seasonId);
       if (!result.data?.length) return null;
-      
+
       const activeData = result.data.filter(item => item.scoreChanged);
       const gameCount = activeData.length + RANKED_PLACEMENTS;
-      
+
       const processedData = processGraphData(result.data, result.events, seasonEndDate);
       if (processedData.length < 2) return null;
 
@@ -251,9 +277,9 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     if (comparisonData.size >= MAX_COMPARISONS) {
       return;
     }
-    
+
     shouldFollowUrlRef.current = false;
-    
+
     const loadedResult = await loadComparisonData(player.name);
     if (loadedResult) {
       const { data: newData, gameCount: newGameCount, events: newEvents } = loadedResult;
@@ -265,13 +291,13 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
           gameCount: newGameCount,
           events: newEvents,
         });
-        
+
         loadedCompareIdsRef.current.add(player.name);
-        
+
         const currentCompares = Array.from(next.keys());
         const urlString = formatMultipleUsernamesForUrl(embarkId, currentCompares);
         window.history.replaceState(null, '', `/graph/${seasonId}/${urlString}`);
-        
+
         return next;
       });
     }
@@ -279,12 +305,12 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
 
   const removeComparison = useCallback((compareEmbarkId) => {
     shouldFollowUrlRef.current = false;
-    
+
     setComparisonData(prev => {
       const next = new Map(prev);
       next.delete(compareEmbarkId);
       loadedCompareIdsRef.current.delete(compareEmbarkId);
-      
+
       const entries = Array.from(next.entries());
       // Re-map to update colors correctly after removal
       const updatedMap = new Map();
@@ -294,11 +320,11 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
           color: COMPARISON_COLORS[index]
         });
       });
-      
+
       const currentCompares = Array.from(updatedMap.keys());
       const urlString = formatMultipleUsernamesForUrl(embarkId, currentCompares);
       window.history.replaceState(null, '', `/graph/${seasonId}/${urlString}`);
-      
+
       return updatedMap;
     });
   }, [embarkId, seasonId]);
@@ -314,15 +340,15 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         setLoading(false);
         return;
       }
-      
+
       const activeData = result.data.filter(item => item.scoreChanged);
-      
+
       if (activeData.length === 0) {
         setError('No games with rank score changes have been recorded for this player.');
         setLoading(false);
         return;
       }
-      
+
       const processedData = processGraphData(result.data, result.events, seasonEndDate);
 
       if (processedData.length < 2) {
@@ -330,11 +356,11 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         setLoading(false);
         return;
       }
-  
+
       setMainPlayerGameCount(activeData.length + RANKED_PLACEMENTS);
       setData(processedData);
       setEvents(result.events);
-      
+
     } catch (error) {
       setError(`Failed to load player history: ${error.message}`);
     } finally {
@@ -364,8 +390,8 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     let isLoading = isLoadingRef.current;
 
     const loadInitialComparisons = async () => {
-      if (!isOpen || !initialCompareIds?.length || 
-          isLoading || !shouldFollowUrl) {
+      if (!isOpen || !initialCompareIds?.length ||
+        isLoading || !shouldFollowUrl) {
         return;
       }
 
@@ -376,15 +402,15 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
 
       isLoading = true;
       isLoadingRef.current = true;
-      
+
       try {
         const newComparisons = new Map();
-        
+
         for (const [index, compareId] of initialCompareIds.entries()) {
           if (newComparisons.size >= MAX_COMPARISONS) break;
-          
+
           const comparisonResult = await loadComparisonData(compareId);
-          
+
           if (comparisonResult) {
             newComparisons.set(compareId, {
               data: comparisonResult.data,
@@ -395,7 +421,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
             loadedIds.add(compareId);
           }
         }
-        
+
         if (newComparisons.size > 0) {
           setComparisonData(newComparisons);
         }
@@ -406,7 +432,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     };
 
     loadInitialComparisons();
-    
+
     return () => {
       if (!isOpen) {
         loadedIds.clear();
