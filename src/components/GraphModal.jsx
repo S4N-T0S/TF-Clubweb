@@ -497,7 +497,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
       <div
         ref={modalRef}
         className={`
-          bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden grid grid-rows-[auto_1fr_auto] gap-4
+          bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden grid grid-rows-[auto_1fr] gap-4
           transition-transform duration-75 ease-out
           ${isMobile ? 'max-w-[95dvw] h-[95dvh]' : 'max-w-[80dvw] h-[85dvh]'}
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
@@ -580,8 +580,8 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                 </button>
               </div>
             )}
-            <div className={`relative flex flex-col ${isMobile ? 'w-full' : 'w-auto'}`}>
-              <div className={`flex items-center ${isMobile ? 'w-full justify-between' : 'w-full justify-end gap-2'}`}>
+            <div className={`relative flex flex-col ${isMobile ? 'w-full' : 'flex-shrink min-w-0'}`}>
+              <div className={`flex items-center flex-wrap ${isMobile ? 'w-full justify-between' : 'justify-end gap-2'}`}>
                 <div className="relative" ref={ssdropdownRef}>
                   <button
                     onClick={() => setShowDropdown(!showDropdown)}
@@ -650,7 +650,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                     </button>
                   </div>
                 )}
-                <div className={`flex gap-2 bg-gray-800 rounded-lg p-1 ${isMobile ? 'flex-1 justify-center ml-2' : 'justify-end'}`}>
+                <div className={`flex gap-2 bg-gray-800 rounded-lg p-1 ${isMobile ? 'flex-1 justify-center ml-2' : ''}`}>
                   {Object.keys(TIME.RANGES).map((range) => (
                     <button
                       key={range}
@@ -716,7 +716,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
           )}
         </div>
 
-        <div className="relative w-full min-h-0">
+        <div className="relative w-full min-h-0 min-w-0">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <LoadingDisplay variant="component" />
