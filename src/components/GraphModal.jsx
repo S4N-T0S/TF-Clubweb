@@ -212,7 +212,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
       }, 5); // A small delay for the initial render to complete.
       return () => clearTimeout(timer);
     }
-  }, [selectedTimeRange]); // Re-run this effect whenever the time range changes.
+  }, [selectedTimeRange, showEvents]);
 
   useEffect(() => {
       if (!isOpen) return;
