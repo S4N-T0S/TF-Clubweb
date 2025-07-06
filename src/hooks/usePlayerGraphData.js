@@ -351,7 +351,8 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       const processedData = processGraphData(result.data, result.events, seasonEndDate, eventSettings);
       if (processedData.length < 2) return null;
 
-      return { data: processedData, gameCount, events: result.events };
+      // Also return the current embark ID for sanitization purposes
+      return { data: processedData, gameCount, events: result.events, currentEmbarkId: result.currentEmbarkId };
     } catch (error) {
       console.error(`Failed to load comparison data for ${compareId}:`, error);
       return null;
@@ -359,7 +360,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
   }, [seasonId, seasonEndDate, eventSettings]);
 
   const addComparison = useCallback(async (player) => {
-    if (comparisonData.size >= MAX_COMPARISONS) {
+    if (comparisonData.size >= MAX_COMPARISONS || player.name === mainPlayerCurrentId || comparisonData.has(player.name)) {
       return;
     }
 
@@ -386,7 +387,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         return next;
       });
     }
-  }, [loadComparisonData, comparisonData.size, mainPlayerCurrentId, seasonId]);
+  }, [loadComparisonData, comparisonData, mainPlayerCurrentId, seasonId]);
 
   const removeComparison = useCallback((compareEmbarkId) => {
     shouldFollowUrlRef.current = false;
@@ -480,13 +481,18 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     let isLoading = isLoadingRef.current;
 
     const loadInitialComparisons = async () => {
-      if (!isOpen || !initialCompareIds?.length ||
-        isLoading || !shouldFollowUrl) {
+      if (!isOpen || isLoading || !shouldFollowUrl) {
         return;
       }
 
-      const currentCompareIds = Array.from(comparisonData.keys());
-      if (JSON.stringify(currentCompareIds) === JSON.stringify(initialCompareIds)) {
+      // Start with a unique list of IDs from the URL. We won't filter the main player yet,
+      // as their name might have changed. We'll handle all de-duplication after fetching.
+      const uniqueCompareIds = initialCompareIds?.length
+        ? [...new Set(initialCompareIds)]
+        : [];
+
+      // If there's nothing to load from the URL, and we have no comparisons, we're done.
+      if (uniqueCompareIds.length === 0 && comparisonData.size === 0) {
         return;
       }
 
@@ -494,27 +500,57 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       isLoadingRef.current = true;
 
       try {
+        // Fetch all comparison players' data in parallel to wait for all results before processing.
+        const promises = uniqueCompareIds.map(id =>
+          loadComparisonData(id).then(result => ({
+            requestedId: id,
+            result,
+          }))
+        );
+        const results = await Promise.all(promises);
+
         const newComparisons = new Map();
+        // The set of loaded IDs starts with the main player's current ID to avoid adding them as a comparison.
+        const loadedEmbarkIds = new Set([mainPlayerCurrentId]);
+        const finalCompareIds = [];
 
-        for (const [index, compareId] of initialCompareIds.entries()) {
-          if (newComparisons.size >= MAX_COMPARISONS) break;
+        // Process all results to build a sanitized list of comparisons.
+        for (const { result } of results) {
+          if (!result || !result.currentEmbarkId) continue;
 
-          const comparisonResult = await loadComparisonData(compareId);
+          const { currentEmbarkId } = result;
 
-          if (comparisonResult) {
-            newComparisons.set(compareId, {
-              data: comparisonResult.data,
-              gameCount: comparisonResult.gameCount,
-              events: comparisonResult.events,
-              color: COMPARISON_COLORS[index]
+          // Check for duplicates (including main player) and max comparison limit.
+          if (!loadedEmbarkIds.has(currentEmbarkId) && newComparisons.size < MAX_COMPARISONS) {
+            loadedEmbarkIds.add(currentEmbarkId);
+            finalCompareIds.push(currentEmbarkId);
+
+            newComparisons.set(currentEmbarkId, {
+              data: result.data,
+              gameCount: result.gameCount,
+              events: result.events,
+              color: COMPARISON_COLORS[newComparisons.size],
             });
-            loadedIds.add(compareId);
+            loadedIds.add(currentEmbarkId);
           }
         }
 
-        if (newComparisons.size > 0) {
+        const currentComparisonKeys = Array.from(comparisonData.keys()).sort();
+        const newComparisonKeys = Array.from(newComparisons.keys()).sort();
+
+        // If the final set of players is identical to what's already loaded, we don't need to set state.
+        // This prevents re-renders and re-fetches if the only change was resolving an old name in the URL.
+        if (JSON.stringify(currentComparisonKeys) !== JSON.stringify(newComparisonKeys)) {
           setComparisonData(newComparisons);
         }
+
+        // Always ensure the URL is up-to-date with the correct, sanitized list of player IDs.
+        const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, newComparisonKeys);
+        const newUrl = `/graph/${seasonId}/${urlString}`;
+        if (window.location.pathname !== newUrl) {
+          window.history.replaceState(null, '', newUrl);
+        }
+
       } finally {
         isLoading = false;
         isLoadingRef.current = false;
@@ -530,7 +566,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         isLoadingRef.current = false;
       }
     };
-  }, [isOpen, initialCompareIds, comparisonData, loadComparisonData]);
+  }, [isOpen, initialCompareIds, comparisonData, loadComparisonData, mainPlayerCurrentId, seasonId]);
 
   useEffect(() => {
     // This effect updates the URL if a name change was detected on load.

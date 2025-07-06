@@ -112,8 +112,8 @@ const hasVisibleEvent = (ctx, eventType) => {
  * @returns {'up' | 'down' | 'same' | 'first' | null}
  */
 const getNewLogicPointDirection = (ctx) => {
-  // The chart context might not be fully available on the first pass
-  if (!ctx.chart?.data?.datasets || !ctx.raw?.raw) {
+  // The chart context might not be fully available on the first pass, or datasetIndex could be stale.
+  if (!ctx.chart?.data?.datasets || !ctx.raw?.raw || !ctx.chart.data.datasets[ctx.datasetIndex]) {
     return null;
   }
 
@@ -311,12 +311,20 @@ export const useChartConfig = ({
 
   const externalTooltipHandler = useCallback((context) => {
     const { chart, tooltip } = context;
+    const tooltipEl = getOrCreateTooltip(chart);
+
+    // Guard against stale datasetIndex when a dataset is removed. If the tooltip tries
+    // to render for a non-existent dataset, hide it and bail to prevent a crash.
+    const datasetIndexFromTooltip = tooltip.dataPoints?.[0]?.datasetIndex;
+    if (datasetIndexFromTooltip !== undefined && chart.data.datasets[datasetIndexFromTooltip] === undefined) {
+      tooltipEl.style.opacity = 0;
+      return;
+    }
 
     const pointData = tooltip.dataPoints?.[0]?.raw?.raw;
 
     // Handle special ban anchor tooltip first
     if (eventSettings.showSuspectedBan && pointData?.isBanStartAnchor) {
-      const tooltipEl = getOrCreateTooltip(chart);
       const banEvent = pointData.events?.find(e => e.event_type === 'SUSPECTED_BAN');
 
       if (tooltip.opacity === 0 || !banEvent) {
@@ -353,7 +361,6 @@ export const useChartConfig = ({
 
     // Handle unban anchor tooltip
     if (eventSettings.showSuspectedBan && pointData?.isBanEndAnchor) {
-      const tooltipEl = getOrCreateTooltip(chart);
       const banEvent = pointData.events?.find(e => e.event_type === 'SUSPECTED_BAN');
 
       if (tooltip.opacity === 0 || !banEvent || !banEvent.end_timestamp) {
@@ -408,13 +415,10 @@ export const useChartConfig = ({
       const isGapBridge = pointData.isGapBridge;
 
       if (isHiddenInterpolatedPoint || isHiddenTrackingPoint || isStaircase || isGapBridge) {
-        const tooltipEl = chart.canvas.parentNode.querySelector('div.rank-tooltip');
-        if (tooltipEl) tooltipEl.style.opacity = 0;
+        tooltipEl.style.opacity = 0;
         return;
       }
     }
-
-    const tooltipEl = getOrCreateTooltip(chart);
 
     if (tooltip.opacity === 0) {
       tooltipEl.style.opacity = 0;
