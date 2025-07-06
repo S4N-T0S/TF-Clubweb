@@ -578,21 +578,9 @@ export const useChartConfig = ({
 
   const viewWindow = useMemo(() => calculateViewWindow(data, selectedTimeRange, overallTimeDomain.min), [data, selectedTimeRange, calculateViewWindow, overallTimeDomain.min]);
 
-  const calculateYAxisStepSize = useCallback((min, max) => {
-    const range = max - min || 1;
-    const niceSteps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
-    const targetTicks = 5;
-    
-    const fallbackStep = Math.ceil(range / targetTicks);
-    return niceSteps.find(step => {
-      const numTicks = range / step;
-      return numTicks >= targetTicks && numTicks <= targetTicks * 2;
-    }) || fallbackStep;
-  }, []);
+  const calculateYAxisBounds = useCallback((data, timeWindow, customTimeRange = null) => {
+    if (!data?.length) return { min: 0, max: 50000, stepSize: 10000 };
 
-  const getDynamicYAxisDomain = useCallback((data, timeWindow, customTimeRange = null) => {
-    if (!data?.length) return [0, 50000];
-    
     const getVisibleAndNearestData = (dataset) => {
       if (customTimeRange) {
         const visiblePoints = dataset.filter(d => 
@@ -622,7 +610,7 @@ export const useChartConfig = ({
   
         return visiblePoints;
       } else {
-        const now = new Date();
+        const now = seasonEndDate || new Date();
         const windowStart = new Date(now - TIME.RANGES[timeWindow]);
         return timeWindow === 'MAX' 
           ? dataset 
@@ -648,7 +636,9 @@ export const useChartConfig = ({
       .flat();
     
     const allVisibleData = [...visibleData, ...comparisonVisibleData];
-    
+
+    let minScore, maxScore;
+
     if (!allVisibleData.length) {
       let lastKnownScore;
       const rangeStart = customTimeRange?.min || 
@@ -665,7 +655,7 @@ export const useChartConfig = ({
       for (const dataset of allDatasets) {
         for (let i = dataset.length - 1; i >= 0; i--) {
           if (dataset[i].timestamp <= rangeStart) {
-            if (!lastKnownScore || dataset[i].rankScore > lastKnownScore) {
+            if (lastKnownScore === undefined || dataset[i].rankScore > lastKnownScore) {
               lastKnownScore = dataset[i].rankScore;
             }
             break;
@@ -675,37 +665,72 @@ export const useChartConfig = ({
       
       if (lastKnownScore === undefined) {
         const visibleScores = [
-          chart?.getDatasetMeta(0).visible !== false ? data[0].rankScore : -Infinity,
+          chart?.getDatasetMeta(0).visible !== false ? data[0]?.rankScore : undefined,
           ...Array.from(comparisonData.entries())
             .filter((_, index) => chart?.getDatasetMeta(index + 1).visible !== false)
             // eslint-disable-next-line no-unused-vars
-            .map(([_, { data: compareData }]) => compareData[0].rankScore)
-        ].filter(score => score !== -Infinity);
+            .map(([_, { data: compareData }]) => compareData[0]?.rankScore)
+        ].filter(score => score !== undefined);
   
-        lastKnownScore = Math.max(...visibleScores);
+        lastKnownScore = visibleScores.length > 0 ? Math.max(...visibleScores) : undefined;
       }
   
-      const buffer = Math.round(lastKnownScore * 0.1);
-      return [
-        Math.max(0, lastKnownScore - buffer),
-        lastKnownScore + buffer
-      ];
+      if (lastKnownScore === undefined) {
+        return { min: 0, max: 50000, stepSize: 10000 };
+      }
+
+      minScore = lastKnownScore;
+      maxScore = lastKnownScore;
+    } else {
+        minScore = Math.min(...allVisibleData.map(d => d.rankScore));
+        maxScore = Math.max(...allVisibleData.map(d => d.rankScore));
     }
-    
-    const minScore = Math.min(...allVisibleData.map(d => d.rankScore));
-    const maxScore = Math.max(...allVisibleData.map(d => d.rankScore));
-    
-    if (minScore === maxScore || (maxScore - minScore) < 10) {
-      const buffer = Math.max(10, Math.round(minScore * 0.01));
-      return [
-        Math.max(0, minScore - buffer),
-        maxScore + buffer
-      ];
+
+    if (minScore === maxScore) {
+        const buffer = Math.max(20, Math.round(minScore * 0.02) || 500);
+        minScore -= buffer;
+        maxScore += buffer;
     }
+
+    const range = maxScore - minScore;
+    const padding = Math.max(range * 0.1, 20);
+    const paddedMin = Math.max(0, minScore - padding);
+    const paddedMax = maxScore + padding;
+    const paddedRange = paddedMax - paddedMin;
+
+    if (paddedRange <= 0) {
+        const stepSize = Math.round(paddedMax * 0.1) || 100;
+        const newMin = Math.max(0, Math.floor((paddedMin - stepSize) / stepSize) * stepSize);
+        const newMax = Math.ceil((paddedMax + stepSize) / stepSize) * stepSize;
+        return { min: newMin, max: newMax || stepSize, stepSize };
+    }
+
+    const targetTicks = 8;
+    const roughStep = paddedRange / targetTicks;
+
+    const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
+    const residual = roughStep / magnitude;
     
-    const padding = Math.round((maxScore - minScore) * 0.10);
-    return [Math.max(0, minScore - padding), maxScore + padding];
-  }, [comparisonData, chartRef]);
+    let stepSize;
+    if (residual > 5) {
+        stepSize = 10 * magnitude;
+    } else if (residual > 2.5) {
+        stepSize = 5 * magnitude;
+    } else if (residual > 1) {
+        stepSize = 2 * magnitude;
+    } else {
+        stepSize = magnitude;
+    }
+
+    const newMin = Math.floor(paddedMin / stepSize) * stepSize;
+    const newMax = Math.ceil(paddedMax / stepSize) * stepSize;
+
+    if (newMin === newMax) {
+        return { min: newMin - stepSize, max: newMax + stepSize, stepSize };
+    }
+
+    return { min: newMin, max: newMax, stepSize };
+  }, [comparisonData, chartRef, seasonEndDate]);
 
     const getEventAnnotations = useCallback(() => {
     if (!showEvents) return [];
@@ -822,14 +847,8 @@ export const useChartConfig = ({
     return annotations;
 }, [data, events, comparisonData, embarkId, showEvents]);
 
-  const getRankAnnotations = useCallback((customTimeRange = null) => {
+  const getRankAnnotations = useCallback((minDomain, maxDomain) => {
     if (!data) return [];
-    
-    const [minDomain, maxDomain] = getDynamicYAxisDomain(
-      data,
-      selectedTimeRange,
-      customTimeRange
-    );
     
     return RANKS
       .filter(rank => rank.y >= minDomain && rank.y <= maxDomain)
@@ -854,7 +873,7 @@ export const useChartConfig = ({
           }
         }
       }));
-  }, [data, getDynamicYAxisDomain, selectedTimeRange]);
+  }, [data]);
 
   const updateDynamicAxes = useCallback((chart) => {
     if (!chart || !data) return;
@@ -872,7 +891,7 @@ export const useChartConfig = ({
       }
     }
 
-    const [newMin, newMax] = getDynamicYAxisDomain(
+    const { min: newMin, max: newMax, stepSize: newStepSize } = calculateYAxisBounds(
       data,
       selectedTimeRange,
       timeRange
@@ -880,11 +899,10 @@ export const useChartConfig = ({
     
     chart.options.scales.y.min = newMin;
     chart.options.scales.y.max = newMax;
-    
-    chart.options.scales.y.ticks.stepSize = calculateYAxisStepSize(newMin, newMax);
+    chart.options.scales.y.ticks.stepSize = newStepSize;
     
     // Regenerate rank annotations based on the new Y-axis.
-    const newRankAnnotations = getRankAnnotations(timeRange);
+    const newRankAnnotations = getRankAnnotations(newMin, newMax);
     
     // Get a reference to the chart's live annotation options.
     const liveAnnotationOptions = chart.options.plugins.annotation;
@@ -898,15 +916,15 @@ export const useChartConfig = ({
     liveAnnotationOptions.annotations.length = 0;
     liveAnnotationOptions.annotations.push(...newRankAnnotations, ...currentEventAnnotations);
 
-}, [data, selectedTimeRange, getDynamicYAxisDomain, calculateYAxisStepSize, getRankAnnotations]);
+}, [data, selectedTimeRange, calculateYAxisBounds, getRankAnnotations]);
 
     const chartOptions = useMemo(() => {
     if (!data) return null;
 
     const { min: overallMin, max: overallMax } = overallTimeDomain;
 
-    const [initialMinY, initialMaxY] = getDynamicYAxisDomain(data, selectedTimeRange);
-    const rankAnnotations = getRankAnnotations(null);
+    const { min: initialMinY, max: initialMaxY, stepSize: initialStepSize } = calculateYAxisBounds(data, selectedTimeRange);
+    const rankAnnotations = getRankAnnotations(initialMinY, initialMaxY);
     const eventAnnotations = getEventAnnotations();
 
     return {
@@ -950,7 +968,7 @@ export const useChartConfig = ({
           ticks: {
             color: '#cecfd3',
             callback: value => Math.round(value).toLocaleString(),
-            stepSize: calculateYAxisStepSize(initialMinY, initialMaxY),
+            stepSize: initialStepSize,
             maxTicksLimit: 15,
           },
         }
@@ -1010,7 +1028,7 @@ export const useChartConfig = ({
         }
       }
     };
-  }, [data, viewWindow, getDynamicYAxisDomain, getRankAnnotations, getEventAnnotations, selectedTimeRange, externalTooltipHandler, calculateYAxisStepSize, updateDynamicAxes, onZoomPan, overallTimeDomain]);
+  }, [data, viewWindow, calculateYAxisBounds, getRankAnnotations, getEventAnnotations, selectedTimeRange, externalTooltipHandler, updateDynamicAxes, onZoomPan, overallTimeDomain]);
 
   const getPointStyle = useCallback((ctx) => {
     if (showEvents) {
