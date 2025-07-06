@@ -77,7 +77,7 @@ const EventInfoPopup = ({ onClose }) => {
             While we aim for accuracy, please note that all events are generated automatically and may not be 100% precise.
             Additionally, since we only track changes within the ranked leaderboard, events outside of it will not appear here.
           </p>
-          <div className="space-y-3 text-sm">
+          <div className="space-y-4 text-sm">
             <div>
               <strong className="text-indigo-400 flex items-center gap-2"><UserPen className="w-4 h-4" /> Name Change:</strong>
               <p className="text-gray-400 ml-8">Tracks when a player changes their in-game name.</p>
@@ -93,6 +93,26 @@ const EventInfoPopup = ({ onClose }) => {
             <div>
               <strong className="text-teal-400 flex items-center gap-2"><Users className="w-4 h-4" /> Club Event:</strong>
               <p className="text-gray-400 ml-8">Records when a player joins, leaves, or changes their club affiliation.</p>
+            </div>
+            <div>
+              <strong className="text-gray-200 flex items-center gap-2"><SlidersHorizontal className="w-4 h-4" /> Filter Status:</strong>
+              <p className="text-gray-400 ml-8">
+                This button shows if filters are currently active. When gray, filters are in their default state, showing all events. It turns green to signal that you have activated a filter, which is now modifying the list of events shown.
+              </p>
+              <div className="flex items-center gap-4 ml-8 mt-2">
+                <div className="flex flex-col items-center">
+                  <div className="p-2 rounded-lg flex items-center bg-gray-700 text-gray-300">
+                    <SlidersHorizontal className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs text-gray-400 mt-1">Default</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <div className="p-2 rounded-lg flex items-center bg-green-600 text-white">
+                    <SlidersHorizontal className="w-5 h-5" />
+                  </div>
+                  <span className="text-xs text-gray-400 mt-1">Filtered</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

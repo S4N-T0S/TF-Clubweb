@@ -109,6 +109,25 @@ const GraphSettingsModal = ({ settings, onSettingsChange, onClose, hasAnyEvents 
             <FilterToggleButton label="Bans" Icon={Gavel} isActive={settings.showSuspectedBan} onClick={() => handleFilterChange('showSuspectedBan', !settings.showSuspectedBan)} textColorClass="text-red-500" activeBorderClass="border-red-500" />
           </div>
         )}
+        <div className="mt-5 pt-4 border-t border-gray-700">
+          <p className="text-sm text-gray-400 text-center mb-3">
+            The settings button turns green to indicate that one or more event types are hidden from the graph.
+          </p>
+          <div className="flex items-center justify-center gap-6">
+            <div className="flex flex-col items-center gap-1">
+              <div className="p-2 rounded-lg flex items-center bg-gray-700 text-gray-300">
+                <SlidersHorizontal className="w-5 h-5" />
+              </div>
+              <span className="text-xs text-gray-400">Default</span>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <div className="p-2 rounded-lg flex items-center bg-green-600 text-white">
+                <SlidersHorizontal className="w-5 h-5" />
+              </div>
+              <span className="text-xs text-gray-400">Filtered</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -257,6 +276,11 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
   // Persist settings when they change
   useEffect(() => {
     setStoredGraphSettings(eventSettings);
+  }, [eventSettings]);
+
+  const areFiltersActive = useMemo(() => {
+    // Filters are active if any event type is turned off (not the default state).
+    return !eventSettings.showNameChange || !eventSettings.showClubChange || !eventSettings.showRsAdjustment || !eventSettings.showSuspectedBan;
   }, [eventSettings]);
 
   useEffect(() => {
@@ -621,7 +645,11 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                 </div>
                  <button
                     onClick={() => setShowSettingsModal(true)}
-                    className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white"
+                    className={`p-2 rounded-lg transition-colors ${
+                      areFiltersActive 
+                        ? 'bg-green-600 text-white hover:bg-green-500' 
+                        : 'hover:bg-gray-700 text-gray-400 hover:text-white'
+                    }`}
                     title="Event Settings"
                 >
                     <SlidersHorizontal className="w-5 h-5" />
