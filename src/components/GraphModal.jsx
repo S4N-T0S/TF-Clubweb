@@ -114,7 +114,7 @@ const GraphSettingsModal = ({ settings, onSettingsChange, onClose, hasAnyEvents 
   );
 };
 
-const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comparisonData, mainPlayerLastDataPoint }) => {
+const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comparisonData, mainPlayerLastDataPoint, isMobile }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredPlayers, setFilteredPlayers] = useState([]);
   
@@ -192,7 +192,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search players..."
             className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
-            autoFocus
+            autoFocus={!isMobile}
           />
           <Search className="absolute right-3 top-2.5 h-5 w-5 text-gray-400" />
         </div>
@@ -511,6 +511,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
             onClose={handleCloseCompareModal}
             comparisonData={comparisonData}
             mainPlayerLastDataPoint={data?.[data.length - 1]}
+            isMobile={isMobile}
           />
         )}
         {showSettingsModal && (

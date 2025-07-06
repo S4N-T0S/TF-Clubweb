@@ -239,7 +239,8 @@ export const ComparePlayerModalProps = {
   onClose: PropTypes.func.isRequired,
   comparisonData: PropTypes.instanceOf(Map).isRequired,
   mainPlayerLastDataPoint: PropTypes.object,
-  className: PropTypes.string
+  className: PropTypes.string,
+  isMobile: PropTypes.bool.isRequired
 };
 
 export const GraphModalProps = {
