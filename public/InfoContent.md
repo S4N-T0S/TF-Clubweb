@@ -85,7 +85,7 @@ This dashboard is powered by a public API developed by us. Below are the details
 *   **Success (200 OK) Response Structure:**
     ```typescript
     interface GraphResponse {
-      // The player's most current known Embark ID for this season.
+      // The player's most current known Embark ID for the *requested* season.
       currentEmbarkId: string;
 
       // A chronological feed of all significant events for this player in this season.
@@ -101,6 +101,9 @@ This dashboard is powered by a public API developed by us. Below are the details
       availableSeasons: {
         id: number;
         name: string;
+        // The player's most current Embark ID for THAT specific season.
+        // Use this ID when making a subsequent graph request for that season.
+        embarkId: string;
       }[];
       
       // The core time-series data for the graph.
@@ -119,7 +122,13 @@ This dashboard is powered by a public API developed by us. Below are the details
       error: string; // e.g., "Not Found: Player has no data recorded for Season 7."
       embarkId: string; // The ID that was searched for.
       seasonId: number; // The season that was searched for.
-      availableSeasons: { id: number; name: string; }[]; // List of other seasons player was found in.
+      availableSeasons: {
+        id: number;
+        name: string;
+        // The player's most current Embark ID for THAT specific season.
+        // Use this ID when making a subsequent graph request for that season.
+        embarkId: string;
+      }[];
     }
     ```
 

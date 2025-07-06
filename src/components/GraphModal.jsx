@@ -255,6 +255,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
   const chartRef = useRef(null);
 
   // UI State
+  const [currentSeasonId, setCurrentSeasonId] = useState(seasonId);
   const [selectedTimeRange, setSelectedTimeRange] = useState('24H');
   const [showCompareModal, setShowCompareModal] = useState(false);
   const [showCompareHint, setShowCompareHint] = useState(true);
@@ -262,15 +263,24 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
   const [notifScreenshot, setNotifScreenshot] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const ssdropdownRef = useRef(null);
+  const [showSeasonDropdown, setShowSeasonDropdown] = useState(false);
+  const seasonDropdownRef = useRef(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [eventSettings, setEventSettings] = useState(getStoredGraphSettings);
 
   const [comparisonLeaderboard, setComparisonLeaderboard] = useState([]);
   const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(true);
 
+  // When modal is opened for a different player or base season, reset local state
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentSeasonId(seasonId);
+    }
+  }, [isOpen, seasonId]);
+
   const seasonConfig = useMemo(() => {
-    return Object.values(SEASONS).find(s => s.id === seasonId);
-  }, [seasonId]);
+    return Object.values(SEASONS).find(s => s.id === currentSeasonId);
+  }, [currentSeasonId]);
   const isHistoricalSeason = useMemo(() => seasonConfig && !seasonConfig.isCurrent, [seasonConfig]);
 
   // Persist settings when they change
@@ -303,7 +313,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     if (!isOpen) return;
     setIsLeaderboardLoading(true);
 
-    const seasonKey = Object.keys(SEASONS).find(key => SEASONS[key].id === seasonId);
+    const seasonKey = Object.keys(SEASONS).find(key => SEASONS[key].id === currentSeasonId);
 
     if (isClubView) {
       // isClubView is always current season, globalLeaderboard prop contains rankedClubMembers
@@ -317,7 +327,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
       setComparisonLeaderboard(globalLeaderboard);
     }
     setIsLeaderboardLoading(false);
-  }, [isOpen, seasonId, isClubView, globalLeaderboard]);
+  }, [isOpen, currentSeasonId, isClubView, globalLeaderboard]);
 
 
   // Custom hook for data fetching and management
@@ -325,30 +335,17 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     data,
     events,
     mainPlayerGameCount,
+    mainPlayerAvailableSeasons,
     comparisonData,
     loading,
     error,
     addComparison,
     removeComparison,
+    switchSeason,
     mainPlayerCurrentId,
   } = usePlayerGraphData(isOpen, embarkId, compareIds, seasonId, eventSettings);
 
-  const [displayedEmbarkId, setDisplayedEmbarkId] = useState(embarkId);
-
-  useEffect(() => {
-    // When the modal is opened/re-opened, reset the displayed name to the initial prop.
-    if (isOpen) {
-      setDisplayedEmbarkId(embarkId);
-    }
-  }, [isOpen, embarkId]);
-
-  useEffect(() => {
-    // Once the player data is fetched, update the displayed name if a newer one exists.
-    if (mainPlayerCurrentId) {
-      setDisplayedEmbarkId(mainPlayerCurrentId);
-    }
-  }, [mainPlayerCurrentId]);
-
+  const displayedEmbarkId = mainPlayerCurrentId || embarkId;
 
   // --- Stabilized Callbacks for Nested Modals ---
   const handleSelectPlayer = useCallback((player) => {
@@ -363,6 +360,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
   const handleCloseSettingsModal = useCallback(() => {
       setShowSettingsModal(false);
   }, []);
+
+  const handleSeasonChange = useCallback((newSeasonId) => {
+    if (newSeasonId !== currentSeasonId) {
+      setCurrentSeasonId(newSeasonId);
+      switchSeason(newSeasonId);
+    }
+    setShowSeasonDropdown(false);
+  }, [currentSeasonId, switchSeason]);
 
 
   const hasAnyEvents = useMemo(() => {
@@ -383,7 +388,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
   const determineDefaultTimeRange = useCallback((data) => {
     if (!data?.length) return '24H';
 
-    const seasonConfig = Object.values(SEASONS).find(s => s.id === seasonId);
+    const seasonConfig = Object.values(SEASONS).find(s => s.id === currentSeasonId);
     const seasonEndDate = seasonConfig?.endTimestamp ? new Date(seasonConfig.endTimestamp * 1000) : null;
     const now = seasonEndDate || new Date();
 
@@ -405,7 +410,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     if (pointsIn7D >= 2) return '7D';
 
     return 'MAX';
-  }, [seasonId]);
+  }, [currentSeasonId]);
 
   // Set default time range when data loads
   useEffect(() => {
@@ -436,7 +441,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     chartRef,
     onZoomPan: handleZoomPan,
     eventSettings,
-    seasonId,
+    seasonId: currentSeasonId,
   });
 
   // UI Effects for hints and dropdowns
@@ -459,8 +464,11 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
       if (ssdropdownRef.current && !ssdropdownRef.current.contains(event.target)) {
         setShowDropdown(false);
       }
+      if (seasonDropdownRef.current && !seasonDropdownRef.current.contains(event.target)) {
+        setShowSeasonDropdown(false);
+      }
     };
-    if (showDropdown) {
+    if (showDropdown || showSeasonDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('touchstart', handleClickOutside);
     }
@@ -468,7 +476,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
     };
-  }, [showDropdown]);
+  }, [showDropdown, showSeasonDropdown]);
 
   const handleScreenshot = async (withBackground = true) => {
     const canvas = chartRef.current?.canvas;
@@ -523,14 +531,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
   };
 
   const { seasonKey, currentSeasonLabel } = useMemo(() => {
-    const key = Object.keys(SEASONS).find(k => SEASONS[k].id === seasonId);
+    const key = Object.keys(SEASONS).find(k => SEASONS[k].id === currentSeasonId);
     if (!key) return { seasonKey: '', currentSeasonLabel: '' };
 
     return {
       seasonKey: key,
       currentSeasonLabel: SEASONS[key].label,
     };
-  }, [seasonId]);
+  }, [currentSeasonId]);
 
   if (!isOpen || !embarkId) return null;
 
@@ -572,13 +580,32 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                   <h2 className={`font-bold text-white truncate ${isMobile ? 'text-lg' : 'text-xl'}`}>
                     {displayedEmbarkId}
                   </h2>
-                  <div className="relative group flex-shrink-0">
-                    <div className={`bg-gray-700 text-blue-300 text-xs font-semibold px-2 py-1 rounded-md ${isMobile ? 'cursor-help' : ''}`}>
-                      {isMobile ? seasonKey : currentSeasonLabel}
-                    </div>
-                    {isMobile && (
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20 shadow-lg border border-gray-700 whitespace-normal">
-                        {currentSeasonLabel}
+                  <div ref={seasonDropdownRef} className="relative group flex-shrink-0">
+                    <button
+                      onClick={() => setShowSeasonDropdown(p => !p)}
+                      disabled={loading || mainPlayerAvailableSeasons.length <= 1}
+                      className="flex items-center gap-1.5 bg-gray-700 text-blue-300 text-xs font-semibold px-2 py-1 rounded-md disabled:opacity-70 disabled:cursor-not-allowed hover:bg-gray-600 transition-colors"
+                      title="Switch season"
+                    >
+                      <span>{isMobile ? seasonKey : currentSeasonLabel}</span>
+                      {mainPlayerAvailableSeasons.length > 1 && <ChevronsUpDown className="w-3 h-3"/>}
+                    </button>
+                    {showSeasonDropdown && (
+                      <div className="absolute top-full left-0 mt-2 w-max min-w-full bg-gray-800 border border-gray-600 rounded-md shadow-lg z-20 animate-fade-in-fast overflow-hidden">
+                        {mainPlayerAvailableSeasons
+                          .sort((a,b) => b.id - a.id)
+                          .map(season => (
+                          <button
+                            key={season.id}
+                            onClick={() => handleSeasonChange(season.id)}
+                            className={`w-full text-left px-3 py-2 text-sm transition-colors flex flex-col items-start ${currentSeasonId === season.id ? 'bg-blue-600 text-white' : 'text-gray-200 hover:bg-gray-700'}`}
+                          >
+                            <span className="font-medium">{season.name}</span>
+                            <span className={`text-[11px] mt-0.5 ${currentSeasonId === season.id ? 'text-blue-200' : 'text-gray-400'}`}>
+                                as {season.embarkId}
+                            </span>
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>

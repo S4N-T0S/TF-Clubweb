@@ -329,35 +329,41 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
   const [events, setEvents] = useState([]);
   const [mainPlayerCurrentId, setMainPlayerCurrentId] = useState(embarkId);
   const [mainPlayerGameCount, setMainPlayerGameCount] = useState(0);
+  const [mainPlayerAvailableSeasons, setMainPlayerAvailableSeasons] = useState([]);
   const [comparisonData, setComparisonData] = useState(new Map());
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Internal state to track the currently viewed season, initialized with the prop.
+  const [currentSeasonId, setCurrentSeasonId] = useState(seasonId);
 
   const isLoadingRef = useRef(false);
   const loadedCompareIdsRef = useRef(new Set());
   const shouldFollowUrlRef = useRef(true);
 
-  const seasonConfig = Object.values(SEASONS).find(s => s.id === seasonId);
-  const seasonEndDate = seasonConfig?.endTimestamp ? seasonConfig.endTimestamp * 1000 : null;
+  const getSeasonEndDate = useCallback((sId) => {
+    const seasonConfig = Object.values(SEASONS).find(s => s.id === sId);
+    return seasonConfig?.endTimestamp ? seasonConfig.endTimestamp * 1000 : null;
+  }, []);
 
-  const loadComparisonData = useCallback(async (compareId) => {
+  const loadComparisonData = useCallback(async (compareId, targetSeasonId) => {
     try {
-      const result = await fetchGraphData(compareId, seasonId);
+      const result = await fetchGraphData(compareId, targetSeasonId);
       if (!result.data?.length) return null;
 
       const activeData = result.data.filter(item => item.scoreChanged);
       const gameCount = activeData.length + RANKED_PLACEMENTS;
 
-      const processedData = processGraphData(result.data, result.events, seasonEndDate, eventSettings);
+      const targetSeasonEndDate = getSeasonEndDate(targetSeasonId);
+      const processedData = processGraphData(result.data, result.events, targetSeasonEndDate, eventSettings);
       if (processedData.length < 2) return null;
 
-      // Also return the current embark ID for sanitization purposes
-      return { data: processedData, gameCount, events: result.events, currentEmbarkId: result.currentEmbarkId };
+      return { data: processedData, gameCount, events: result.events, currentEmbarkId: result.currentEmbarkId, availableSeasons: result.availableSeasons };
     } catch (error) {
       console.error(`Failed to load comparison data for ${compareId}:`, error);
       return null;
     }
-  }, [seasonId, seasonEndDate, eventSettings]);
+  }, [eventSettings, getSeasonEndDate]);
 
   const addComparison = useCallback(async (player) => {
     if (comparisonData.size >= MAX_COMPARISONS || player.name === mainPlayerCurrentId || comparisonData.has(player.name)) {
@@ -366,9 +372,9 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
 
     shouldFollowUrlRef.current = false;
 
-    const loadedResult = await loadComparisonData(player.name);
+    const loadedResult = await loadComparisonData(player.name, currentSeasonId);
     if (loadedResult) {
-      const { data: newData, gameCount: newGameCount, events: newEvents } = loadedResult;
+      const { data: newData, gameCount: newGameCount, events: newEvents, availableSeasons: newAvailableSeasons } = loadedResult;
       setComparisonData(prev => {
         const next = new Map(prev);
         next.set(player.name, {
@@ -376,18 +382,19 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
           color: COMPARISON_COLORS[next.size],
           gameCount: newGameCount,
           events: newEvents,
+          availableSeasons: newAvailableSeasons,
         });
 
         loadedCompareIdsRef.current.add(player.name);
 
         const currentCompares = Array.from(next.keys());
         const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, currentCompares);
-        window.history.replaceState(null, '', `/graph/${seasonId}/${urlString}`);
+        window.history.replaceState(null, '', `/graph/${currentSeasonId}/${urlString}`);
 
         return next;
       });
     }
-  }, [loadComparisonData, comparisonData, mainPlayerCurrentId, seasonId]);
+  }, [loadComparisonData, comparisonData, mainPlayerCurrentId, currentSeasonId]);
 
   const removeComparison = useCallback((compareEmbarkId) => {
     shouldFollowUrlRef.current = false;
@@ -409,11 +416,11 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
 
       const currentCompares = Array.from(updatedMap.keys());
       const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, currentCompares);
-      window.history.replaceState(null, '', `/graph/${seasonId}/${urlString}`);
+      window.history.replaceState(null, '', `/graph/${currentSeasonId}/${urlString}`);
 
       return updatedMap;
     });
-  }, [mainPlayerCurrentId, seasonId]);
+  }, [mainPlayerCurrentId, currentSeasonId]);
 
   const loadMainData = useCallback(async () => {
     setLoading(true);
@@ -439,6 +446,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         return;
       }
 
+      const seasonEndDate = getSeasonEndDate(seasonId);
       const processedData = processGraphData(result.data, result.events, seasonEndDate, eventSettings);
 
       if (processedData.length < 2) {
@@ -450,13 +458,14 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       setMainPlayerGameCount(activeData.length + RANKED_PLACEMENTS);
       setData(processedData);
       setEvents(result.events);
+      setMainPlayerAvailableSeasons(result.availableSeasons);
 
     } catch (error) {
       setError(`Failed to load player history: ${error.message}`);
     } finally {
       setLoading(false);
     }
-  }, [embarkId, seasonId, seasonEndDate, eventSettings]);
+  }, [embarkId, seasonId, eventSettings, getSeasonEndDate]);
 
   useEffect(() => {
     if (isOpen && embarkId && seasonId) {
@@ -466,7 +475,9 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       setEvents([]);
       setMainPlayerCurrentId(embarkId);
       setMainPlayerGameCount(0);
+      setMainPlayerAvailableSeasons([]);
       setComparisonData(new Map());
+      setCurrentSeasonId(seasonId); // Reset internal season state
       loadedCompareIdsRef.current.clear();
       shouldFollowUrlRef.current = true;
       isLoadingRef.current = false;
@@ -502,7 +513,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       try {
         // Fetch all comparison players' data in parallel to wait for all results before processing.
         const promises = uniqueCompareIds.map(id =>
-          loadComparisonData(id).then(result => ({
+          loadComparisonData(id, currentSeasonId).then(result => ({
             requestedId: id,
             result,
           }))
@@ -529,6 +540,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
               data: result.data,
               gameCount: result.gameCount,
               events: result.events,
+              availableSeasons: result.availableSeasons,
               color: COMPARISON_COLORS[newComparisons.size],
             });
             loadedIds.add(currentEmbarkId);
@@ -546,7 +558,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
 
         // Always ensure the URL is up-to-date with the correct, sanitized list of player IDs.
         const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, newComparisonKeys);
-        const newUrl = `/graph/${seasonId}/${urlString}`;
+        const newUrl = `/graph/${currentSeasonId}/${urlString}`;
         if (window.location.pathname !== newUrl) {
           window.history.replaceState(null, '', newUrl);
         }
@@ -566,7 +578,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         isLoadingRef.current = false;
       }
     };
-  }, [isOpen, initialCompareIds, comparisonData, loadComparisonData, mainPlayerCurrentId, seasonId]);
+  }, [isOpen, initialCompareIds, comparisonData, loadComparisonData, mainPlayerCurrentId, currentSeasonId]);
 
   useEffect(() => {
     // This effect updates the URL if a name change was detected on load.
@@ -583,22 +595,110 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
 
     const compareIdsFromState = Array.from(comparisonData.keys());
     const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, compareIdsFromState);
-    const newUrl = `/graph/${seasonId}/${urlString}`;
+    const newUrl = `/graph/${currentSeasonId}/${urlString}`;
 
     if (window.location.pathname !== newUrl) {
       window.history.replaceState(null, '', newUrl);
     }
-  }, [isOpen, embarkId, seasonId, mainPlayerCurrentId, comparisonData]);
+  }, [isOpen, embarkId, currentSeasonId, mainPlayerCurrentId, comparisonData]);
+
+  const switchSeason = useCallback(async (newSeasonId) => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
+    setLoading(true);
+    setError(null);
+
+    try {
+      // 1. Fetch main player for the new season using the season-specific embark ID
+      const mainPlayerSeasonInfo = mainPlayerAvailableSeasons.find(s => s.id === newSeasonId);
+      if (!mainPlayerSeasonInfo) {
+        throw new Error("Season information not found for main player.");
+      }
+      const mainPlayerIdForNewSeason = mainPlayerSeasonInfo.embarkId;
+      const mainPlayerResult = await fetchGraphData(mainPlayerIdForNewSeason, newSeasonId);
+
+      if (mainPlayerResult.data?.length) {
+        const seasonEndDate = getSeasonEndDate(newSeasonId);
+        const processedMainData = processGraphData(mainPlayerResult.data, mainPlayerResult.events, seasonEndDate, eventSettings);
+        setData(processedMainData);
+        setEvents(mainPlayerResult.events);
+        setMainPlayerGameCount(mainPlayerResult.data.filter(i => i.scoreChanged).length + RANKED_PLACEMENTS);
+        setMainPlayerCurrentId(mainPlayerResult.currentEmbarkId);
+        setMainPlayerAvailableSeasons(mainPlayerResult.availableSeasons);
+      } else {
+        throw new Error(`Player has no data for the selected season.`);
+      }
+
+      // 2. Filter and re-fetch comparison players using their season-specific embark IDs
+      const newComparisonMap = new Map();
+      const promises = [];
+      const currentCompares = Array.from(comparisonData.values());
+
+      for (const compareValue of currentCompares) {
+        const seasonInfo = compareValue.availableSeasons?.find(s => s.id === newSeasonId);
+        if (seasonInfo) {
+          const embarkIdForNewSeason = seasonInfo.embarkId;
+          promises.push(
+            loadComparisonData(embarkIdForNewSeason, newSeasonId).then(result => ({ id: embarkIdForNewSeason, result }))
+          );
+        }
+      }
+
+      const results = await Promise.all(promises);
+      const finalCompareIds = [];
+
+      results.forEach(({ id, result }) => {
+        if (result && result.data?.length) {
+          const key = result.currentEmbarkId || id;
+          if (!finalCompareIds.includes(key)) {
+            finalCompareIds.push(key);
+            newComparisonMap.set(key, {
+              data: result.data,
+              gameCount: result.gameCount,
+              events: result.events,
+              availableSeasons: result.availableSeasons,
+              color: '' // Placeholder, will be re-colored next
+            });
+          }
+        }
+      });
+      
+      // 3. Update comparison state with new data and re-assigned colors
+      const recoloredComparisons = new Map();
+      Array.from(newComparisonMap.entries()).forEach(([id, value], index) => {
+        recoloredComparisons.set(id, { ...value, color: COMPARISON_COLORS[index] });
+      });
+      setComparisonData(recoloredComparisons);
+      
+      // 4. Update the internal season state to the new season ID
+      setCurrentSeasonId(newSeasonId);
+
+      // 5. Update URL with the new main player ID and filtered comparison IDs
+      const urlString = formatMultipleUsernamesForUrl(mainPlayerResult.currentEmbarkId, finalCompareIds);
+      window.history.replaceState(null, '', `/graph/${newSeasonId}/${urlString}`);
+
+    } catch (err) {
+        setError(`Failed to switch season: ${err.message}`);
+        setData(null);
+        setEvents([]);
+        setComparisonData(new Map());
+    } finally {
+        setLoading(false);
+        isLoadingRef.current = false;
+    }
+  }, [mainPlayerAvailableSeasons, comparisonData, loadComparisonData, eventSettings, getSeasonEndDate]);
 
   return {
     data,
     events,
     mainPlayerCurrentId,
     mainPlayerGameCount,
+    mainPlayerAvailableSeasons,
     comparisonData,
     loading,
     error,
     addComparison,
     removeComparison,
+    switchSeason,
   };
 };
