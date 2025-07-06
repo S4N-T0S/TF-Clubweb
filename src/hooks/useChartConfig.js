@@ -836,7 +836,7 @@ export const useChartConfig = ({
   const getEventAnnotations = useCallback(() => {
     const annotations = [];
 
-    const processPlayerDataset = (playerData, playerEvents, _playerName) => {
+    const processPlayerDataset = (playerData, playerEvents, _playerName, datasetIndex) => {
       if (!playerData) return;
 
       // Handle point-based events (name/club changes)
@@ -868,6 +868,12 @@ export const useChartConfig = ({
               display: (ctx) => {
                 const chart = ctx.chart;
                 if (!chart.scales?.x || !ctx.element?.options) return false;
+
+                // Check if the associated dataset is visible before rendering the annotation.
+                if (!chart.isDatasetVisible(datasetIndex)) {
+                  return false;
+                }
+
                 const xValue = ctx.element.options.xValue;
                 // Use the chart's live scale min/max to determine visibility.
                 return xValue >= chart.scales.x.min && xValue <= chart.scales.x.max;
@@ -926,9 +932,12 @@ export const useChartConfig = ({
       }
     };
 
-    processPlayerDataset(data, events, embarkId);
-    comparisonData.forEach((compare, id) => {
-      processPlayerDataset(compare.data, compare.events, id);
+    // Main player is dataset at index 0
+    processPlayerDataset(data, events, embarkId, 0);
+
+    // Comparison players are subsequent datasets
+    Array.from(comparisonData.entries()).forEach(([id, compare], index) => {
+      processPlayerDataset(compare.data, compare.events, id, index + 1);
     });
 
     return annotations;
