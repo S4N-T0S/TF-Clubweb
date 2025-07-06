@@ -16,7 +16,6 @@ const COMPARISON_COLORS = [
 const TIME = {
   MINUTE: 60 * 1000,
   HOUR: 60 * 60 * 1000,
-  WEEK: 7 * 24 * 60 * 60 * 1000,
 };
 TIME.MINUTES_15 = 15 * TIME.MINUTE;
 const GAP_THRESHOLD = 2 * TIME.HOUR;
@@ -30,25 +29,8 @@ const legacy_interpolateDataPoints = (rawData, isFinalSegment = true, seasonEndD
     
     const interpolatedData = [];
     const now = seasonEndDate ? new Date(seasonEndDate) : new Date();
-    const sevenDaysAgo = new Date(now - TIME.WEEK);
     
-    // Add extrapolation point at 7 days ago if first data point is more recent
-    if (rawData[0].timestamp > sevenDaysAgo) {
-      interpolatedData.push({
-        ...rawData[0],
-        timestamp: sevenDaysAgo,
-        isExtrapolated: true
-      });
-      
-      // Add point just before the first real data point
-      interpolatedData.push({
-        ...rawData[0],
-        timestamp: new Date(rawData[0].timestamp - TIME.MINUTES_15),
-        isExtrapolated: true
-      });
-    }
-    
-    // Original interpolation logic
+    // Original interpolation logic for stairs
     for (let i = 0; i < rawData.length - 1; i++) {
       const currentPoint = rawData[i];
       const nextPoint = rawData[i + 1];
