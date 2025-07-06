@@ -132,6 +132,7 @@ const Toast = ({
 
   return (
     <div 
+      data-toast-container="true"
       className={`fixed ${positionClass} z-[60] transition-all duration-300 ${
         isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       } max-w-[90vw] sm:max-w-sm w-auto`}

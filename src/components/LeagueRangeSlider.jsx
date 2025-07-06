@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Hexagon } from './icons/Hexagon';
+import { LeagueRangeSliderProps } from '../types/propTypes';
 
 // Added hex values for creating a CSS gradient for the track
 const leagues = [
@@ -123,3 +124,5 @@ export const LeagueRangeSlider = ({ value, onChange }) => {
     </div>
   );
 };
+
+LeagueRangeSlider.propTypes = LeagueRangeSliderProps;

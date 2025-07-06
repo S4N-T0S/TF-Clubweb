@@ -18,6 +18,12 @@ export const ModalProvider = ({ children }) => {
   const handleOutsideClick = useCallback((event) => {
     if (modalStack.length > 0) {
       const topModal = modalStack[modalStack.length - 1];
+
+      // Ignore clicks on toast notifications, which are rendered outside the modal DOM tree.
+      if (event.target.closest('[data-toast-container="true"]')) {
+        return;
+      }
+      
       if (topModal.ref.current && !topModal.ref.current.contains(event.target)) {
         if (topModal.onClose) {
           // Prevent text selection when clicking outside the modal to close it.

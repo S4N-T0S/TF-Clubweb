@@ -135,6 +135,11 @@ export const RubyCutoffIndicatorProps = {
   onCutoffClick: PropTypes.func
 };
 
+export const LeagueRangeSliderProps = {
+  value: PropTypes.number.isRequired,
+  onChange: PropTypes.func.isRequired,
+};
+
 export const MembersViewProps = {
   clubMembers: PropTypes.arrayOf(PropTypes.shape(PlayerType)).isRequired,
   totalMembers: PropTypes.number.isRequired,

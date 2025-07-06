@@ -1,8 +1,8 @@
 // --- Configuration ---
-const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
+const useLocalApi = import.meta.env.MODE === 'dev_local';
 
 export const API = {
-  BASE_URL: isDev ? 'http://localhost:3000' : 'https://api.ogclub.s4nt0s.eu',
+  BASE_URL: useLocalApi ? 'http://localhost:3000' : 'https://api.ogclub.s4nt0s.eu',
   AUTH_TOKEN: 'not-secret',
 };
 
