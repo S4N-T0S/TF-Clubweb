@@ -66,7 +66,7 @@ const transparentBgTheme = {
 export const InfoModal = ({ isOpen, onClose, isMobile }) => {
   const { modalRef, isActive } = useModal(isOpen, onClose);
   const [tabs, setTabs] = useState([]);
-  const [activeTabKey, setActiveTabKey] = useState(null);
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const contentRef = useRef(null);
@@ -74,12 +74,13 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
   useEffect(() => {
     if (isOpen) {
       setLoading(true);
+      // Fetch and parse the markdown file to dynamically create tabs.
+      // The number of tabs is determined by the content of the file.
       fetchAndParseContent()
         .then(parsedTabs => {
           setTabs(parsedTabs);
-          if (parsedTabs.length > 0) {
-            setActiveTabKey(parsedTabs[0].key);
-          }
+          // Always reset to the first tab when content is loaded or reloaded.
+          setActiveTabIndex(0);
           setError(null);
         })
         .catch(err => {
@@ -93,25 +94,31 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
   }, [isOpen]);
 
   const activeTab = useMemo(() => {
-    return tabs.find(tab => tab.key === activeTabKey);
-  }, [tabs, activeTabKey]);
+    // This will be undefined if tabs are not yet loaded, which is handled in the JSX.
+    return tabs[activeTabIndex];
+  }, [tabs, activeTabIndex]);
 
   // --- Swipe handlers for mobile ---
+  // A more robust implementation using a numeric index and functional updates.
+  // This avoids potential issues with stale state and simplifies the logic.
   const handleNextTab = () => {
+    // This is a guard clause, not a hardcoded value. It disables swiping
+    // if there is only one tab (or fewer), as there's nowhere to swipe to.
+    // `tabs.length` is determined dynamically from the fetched markdown file.
     if (tabs.length < 2) return;
-    const currentIndex = tabs.findIndex(tab => tab.key === activeTabKey);
-    const nextIndex = (currentIndex + 1) % tabs.length; // Loop around
-    setActiveTabKey(tabs[nextIndex].key);
+    setActiveTabIndex(prevIndex => (prevIndex + 1) % tabs.length);
   };
 
   const handlePrevTab = () => {
+    // This is a guard clause, not a hardcoded value. It disables swiping
+    // if there is only one tab (or fewer), as there's nowhere to swipe to.
+    // `tabs.length` is determined dynamically from the fetched markdown file.
     if (tabs.length < 2) return;
-    const currentIndex = tabs.findIndex(tab => tab.key === activeTabKey);
-    const prevIndex = (currentIndex - 1 + tabs.length) % tabs.length; // Loop around
-    setActiveTabKey(tabs[prevIndex].key);
+    setActiveTabIndex(prevIndex => (prevIndex - 1 + tabs.length) % tabs.length);
   };
   
   const { slideDirection } = useSwipe(handleNextTab, handlePrevTab, {
+    // Swiping is only active on mobile when there is more than one tab to swipe between.
     isSwipeActive: isMobile && isOpen && tabs.length > 1,
     targetRef: contentRef,
   });
@@ -182,12 +189,12 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
           {/* Tab Navigation */}
           <nav className="flex-shrink-0 md:w-48 bg-gray-800 p-2 md:p-4 border-b md:border-b-0 md:border-r border-gray-700 overflow-x-auto md:overflow-y-auto">
             <ul className="flex flex-row md:flex-col gap-2">
-              {tabs.map(tab => (
+              {tabs.map((tab, index) => (
                 <li key={tab.key}>
                   <button
-                    onClick={() => setActiveTabKey(tab.key)}
+                    onClick={() => setActiveTabIndex(index)}
                     className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                      activeTabKey === tab.key
+                      activeTabIndex === index
                         ? 'bg-blue-600 text-white font-semibold'
                         : 'text-gray-300 hover:bg-gray-700'
                     }`}
