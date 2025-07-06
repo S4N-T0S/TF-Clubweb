@@ -71,7 +71,7 @@ const MemberRow = ({
         <div className="flex justify-between items-start">
           <div className="flex flex-col min-w-0 flex-1 mr-3">
             <div className="flex items-center gap-2 min-w-0">
-              <span className={`truncate ${member.notInLeaderboard ? 'text-red-400' : 'text-gray-500'}`}>
+              <span className={`truncate ${member.notInLeaderboard ? 'text-red-400' : 'text-gray-300'}`}>
                 {username}
                 <span className={`${member.notInLeaderboard ? 'text-red-400' : 'text-gray-500'}`}>#{discriminator}</span>
               </span>

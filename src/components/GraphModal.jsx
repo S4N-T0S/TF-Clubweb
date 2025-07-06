@@ -412,9 +412,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     }
   };
 
-  const currentSeasonLabel = useMemo(() => {
-    const seasonKey = Object.keys(SEASONS).find(key => SEASONS[key].id === seasonId);
-    return seasonKey ? SEASONS[seasonKey].label : '';
+  const { seasonKey, currentSeasonLabel } = useMemo(() => {
+    const key = Object.keys(SEASONS).find(k => SEASONS[k].id === seasonId);
+    if (!key) return { seasonKey: '', currentSeasonLabel: '' };
+
+    return {
+        seasonKey: key,
+        currentSeasonLabel: SEASONS[key].label,
+    };
   }, [seasonId]);
 
   if (!isOpen || !embarkId) return null;
@@ -446,13 +451,22 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                   <h2 className={`font-bold text-white truncate ${isMobile ? 'text-lg' : 'text-xl'}`}>
                     {embarkId}
                   </h2>
-                  <span className="bg-gray-700 text-blue-300 text-xs font-semibold px-2 py-1 rounded-md">{currentSeasonLabel}</span>
+                  <div className="relative group flex-shrink-0">
+                    <div className={`bg-gray-700 text-blue-300 text-xs font-semibold px-2 py-1 rounded-md ${isMobile ? 'cursor-help' : ''}`}>
+                        {isMobile ? seasonKey : currentSeasonLabel}
+                    </div>
+                    {isMobile && (
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20 shadow-lg border border-gray-700 whitespace-normal">
+                            {currentSeasonLabel}
+                        </div>
+                    )}
+                  </div>
                   {data && mainPlayerGameCount > 0 && (
                     <div className="relative group flex-shrink-0">
                       <div className="bg-gray-700 text-gray-300 text-xs font-medium px-2 py-1 rounded-md cursor-help">
                         {mainPlayerGameCount} games
                       </div>
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20 shadow-lg border border-gray-700 whitespace-normal">
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[80vw] sm:max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20 shadow-lg border border-gray-700 whitespace-normal">
                         {GAME_COUNT_TOOLTIP}
                       </div>
                     </div>
@@ -462,7 +476,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                   <button 
                     onClick={onClose}
                     aria-label="Close modal"
-                    className="p-2 hover:bg-gray-700 rounded-lg"
+                    className="p-2 hover:bg-gray-700 rounded-lg flex-shrink-0"
                   >
                     <X className="w-5 h-5 text-gray-400" />
                   </button>
@@ -544,7 +558,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                       {showCompareHint && (
                         <div className={`absolute top-full mt-2 whitespace-nowrap bg-gray-800 text-white text-xs py-1 px-2 rounded fade-out pointer-events-none
                           ${isMobile ? 'left-0' : 'left-1/2 -translate-x-1/2'}`}>
-                          Try comparing players!
+                          Try comparing!
                         </div>
                       )}
                     </button>
@@ -595,7 +609,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                     ) : (
                       <div className="relative group">
                         <span className="text-gray-400 text-xs cursor-help">({gameCount})</span>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20 shadow-lg border border-gray-700 whitespace-normal">
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[80vw] sm:max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20 shadow-lg border border-gray-700 whitespace-normal">
                           {GAME_COUNT_TOOLTIP}
                         </div>
                       </div>
@@ -604,8 +618,8 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
 
                   <button
                     onClick={() => removeComparison(compareId)}
-                    title={`Remove ${compareId} from comparison`}
-                    aria-label={`Remove ${compareId} from comparison`}
+                    title={`Remove ${compareId}`}
+                    aria-label={`Remove ${compareId}`}
                     className="text-gray-400 hover:text-white flex-shrink-0"
                   >
                     <X className="w-4 h-4" />

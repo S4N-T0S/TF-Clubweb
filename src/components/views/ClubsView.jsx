@@ -29,12 +29,10 @@ const ClubRow = ({ club, onClubClick, isMobile }) => {
           <span className="text-gray-300 font-bold">
             #{club.originalRank.toLocaleString()}
           </span>
-          <span 
-            className={`text-gray-300 hover:text-blue-400 cursor-pointer ${
-              club.tag === 'OG' ? 'text-blue-500' : ''
-            }`}
-            onClick={() => onClubClick(club.tag)}
-          >
+          <span
+          className={`hover:text-blue-400 cursor-pointer ${club.tag === 'OG' ? 'text-blue-500' : 'text-gray-300'}`}
+          onClick={() => onClubClick(club.tag)}
+        >
             [{club.tag}]
           </span>
         </div>
@@ -67,7 +65,7 @@ const ClubRow = ({ club, onClubClick, isMobile }) => {
       </td>
       <td className="px-4 py-2">
         <span
-          className="text-gray-300 hover:text-blue-400 cursor-pointer"
+          className={`hover:text-blue-400 cursor-pointer ${club.tag === 'OG' ? 'text-blue-500' : 'text-gray-300'}`}
           onClick={() => onClubClick(club.tag)}
         >
           [{club.tag}]
