@@ -330,7 +330,25 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     error,
     addComparison,
     removeComparison,
+    mainPlayerCurrentId,
   } = usePlayerGraphData(isOpen, embarkId, compareIds, seasonId, eventSettings);
+
+  const [displayedEmbarkId, setDisplayedEmbarkId] = useState(embarkId);
+
+  useEffect(() => {
+    // When the modal is opened/re-opened, reset the displayed name to the initial prop.
+    if (isOpen) {
+      setDisplayedEmbarkId(embarkId);
+    }
+  }, [isOpen, embarkId]);
+
+  useEffect(() => {
+    // Once the player data is fetched, update the displayed name if a newer one exists.
+    if (mainPlayerCurrentId) {
+      setDisplayedEmbarkId(mainPlayerCurrentId);
+    }
+  }, [mainPlayerCurrentId]);
+
 
   // --- Stabilized Callbacks for Nested Modals ---
   const handleSelectPlayer = useCallback((player) => {
@@ -413,7 +431,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     data,
     events,
     comparisonData,
-    embarkId,
+    embarkId: displayedEmbarkId,
     selectedTimeRange,
     chartRef,
     onZoomPan: handleZoomPan,
@@ -530,7 +548,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
         {showCompareModal && !isLeaderboardLoading && (
           <ComparePlayerModal
             onSelect={handleSelectPlayer}
-            mainEmbarkId={embarkId}
+            mainEmbarkId={displayedEmbarkId}
             leaderboard={comparisonLeaderboard}
             onClose={handleCloseCompareModal}
             comparisonData={comparisonData}
@@ -552,7 +570,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
               <div className="flex items-center justify-between">
                 <div className={`flex items-center gap-2.5 ${isMobile ? 'min-w-0' : ''}`}>
                   <h2 className={`font-bold text-white truncate ${isMobile ? 'text-lg' : 'text-xl'}`}>
-                    {embarkId}
+                    {displayedEmbarkId}
                   </h2>
                   <div className="relative group flex-shrink-0">
                     <div className={`bg-gray-700 text-blue-300 text-xs font-semibold px-2 py-1 rounded-md ${isMobile ? 'cursor-help' : ''}`}>

@@ -327,6 +327,7 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
 export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId, eventSettings) => {
   const [data, setData] = useState(null);
   const [events, setEvents] = useState([]);
+  const [mainPlayerCurrentId, setMainPlayerCurrentId] = useState(embarkId);
   const [mainPlayerGameCount, setMainPlayerGameCount] = useState(0);
   const [comparisonData, setComparisonData] = useState(new Map());
   const [error, setError] = useState(null);
@@ -379,13 +380,13 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         loadedCompareIdsRef.current.add(player.name);
 
         const currentCompares = Array.from(next.keys());
-        const urlString = formatMultipleUsernamesForUrl(embarkId, currentCompares);
+        const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, currentCompares);
         window.history.replaceState(null, '', `/graph/${seasonId}/${urlString}`);
 
         return next;
       });
     }
-  }, [loadComparisonData, comparisonData.size, embarkId, seasonId]);
+  }, [loadComparisonData, comparisonData.size, mainPlayerCurrentId, seasonId]);
 
   const removeComparison = useCallback((compareEmbarkId) => {
     shouldFollowUrlRef.current = false;
@@ -406,18 +407,22 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       });
 
       const currentCompares = Array.from(updatedMap.keys());
-      const urlString = formatMultipleUsernamesForUrl(embarkId, currentCompares);
+      const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, currentCompares);
       window.history.replaceState(null, '', `/graph/${seasonId}/${urlString}`);
 
       return updatedMap;
     });
-  }, [embarkId, seasonId]);
+  }, [mainPlayerCurrentId, seasonId]);
 
   const loadMainData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const result = await fetchGraphData(embarkId, seasonId);
+
+      if (result.currentEmbarkId) {
+        setMainPlayerCurrentId(result.currentEmbarkId);
+      }
 
       if (!result.data?.length) {
         setError('No data available for this player, they may have recently changed their embarkId.');
@@ -458,6 +463,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       setData(null);
       setError(null);
       setEvents([]);
+      setMainPlayerCurrentId(embarkId);
       setMainPlayerGameCount(0);
       setComparisonData(new Map());
       loadedCompareIdsRef.current.clear();
@@ -526,9 +532,32 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     };
   }, [isOpen, initialCompareIds, comparisonData, loadComparisonData]);
 
+  useEffect(() => {
+    // This effect updates the URL if a name change was detected on load.
+    // It's designed to prevent flickering by waiting for initial compares to finish loading.
+    if (!isOpen || !mainPlayerCurrentId || mainPlayerCurrentId === embarkId) {
+      return; // Only run if modal is open and a name change was detected.
+    }
+
+    // isLoadingRef.current is true while initial comparison players are being fetched.
+    // We wait for that process to finish (by re-running when comparisonData updates) before touching the URL.
+    if (isLoadingRef.current) {
+      return;
+    }
+
+    const compareIdsFromState = Array.from(comparisonData.keys());
+    const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, compareIdsFromState);
+    const newUrl = `/graph/${seasonId}/${urlString}`;
+
+    if (window.location.pathname !== newUrl) {
+      window.history.replaceState(null, '', newUrl);
+    }
+  }, [isOpen, embarkId, seasonId, mainPlayerCurrentId, comparisonData]);
+
   return {
     data,
     events,
+    mainPlayerCurrentId,
     mainPlayerGameCount,
     comparisonData,
     loading,
