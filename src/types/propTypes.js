@@ -304,6 +304,18 @@ export const FilterToggleButtonProps = {
   activeBorderClass: PropTypes.string
 };
 
+export const GraphSettingsModalProps = {
+  settings: PropTypes.shape({
+    showNameChange: PropTypes.bool.isRequired,
+    showClubChange: PropTypes.bool.isRequired,
+    showRsAdjustment: PropTypes.bool.isRequired,
+    showSuspectedBan: PropTypes.bool.isRequired,
+  }).isRequired,
+  onSettingsChange: PropTypes.func.isRequired,
+  onClose: PropTypes.func.isRequired,
+  hasAnyEvents: PropTypes.bool.isRequired,
+};
+
 export const InfoModalProps = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,

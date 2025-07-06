@@ -1,6 +1,7 @@
 import { useMemo, useCallback } from 'react';
 import { Chart as ChartJS } from 'chart.js';
 import { SEASONS } from '../services/historicalDataService';
+import { formatDuration } from '../utils/timeUtils';
 
 // Constants from GraphModal
 const RANKS = [
@@ -69,6 +70,8 @@ const clubChangeIcon = new Image(16, 16);
 clubChangeIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-users-icon lucide-users"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>');
 const gavelIcon = new Image(16, 16);
 gavelIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-gavel-icon lucide-gavel"><path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/></svg>');
+const unbanIcon = new Image(16, 16);
+unbanIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(24, 0) scale(-1, 1)"><path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/></g></svg>');
 
 /**
  * Helper to safely get an RS_ADJUSTMENT event from a point context.
@@ -95,21 +98,6 @@ const hasVisibleEvent = (ctx, eventType) => {
     return false;
   }
   return pointData.events?.some(e => e.event_type === eventType);
-};
-
-/**
- * Helper to check for multiple event types on a non-synthetic point.
- * @param {import('chart.js').ScriptableContext<'line'>} ctx The chart context.
- * @param {string[]} eventTypes Array of event types to check for.
- * @returns {boolean} True if the point has any of the specified events.
- */
-const hasAnyVisibleEvent = (ctx, eventTypes) => {
-  const pointData = ctx.raw?.raw;
-  if (!pointData || pointData.isInterpolated || pointData.isExtrapolated || pointData.isStaircasePoint || pointData.isGapBridge) {
-    return false;
-  }
-  if (!pointData.events) return false;
-  return pointData.events.some(e => eventTypes.includes(e.event_type));
 };
 
 /**
@@ -190,11 +178,26 @@ const getOrCreateTooltip = (chart) => {
   return tooltipEl;
 };
 
-const getBorderColor = (ctx, defaultColor = '#FAF9F6') => {
+const getBorderColor = (ctx, defaultColor = '#FAF9F6', eventSettings = {}) => {
   if (!ctx.p0?.raw?.raw || !ctx.p1?.raw?.raw) return defaultColor;
 
   const p0 = ctx.p0.raw.raw;
   const p1 = ctx.p1.raw.raw;
+
+  // Check for ban segment first if enabled
+  if (eventSettings.showSuspectedBan && p0.isBanStartAnchor) {
+    const banEvent = p0.events?.find(e => e.event_type === 'SUSPECTED_BAN');
+    if (banEvent) {
+      // Dashed red line during a completed ban
+      if (p1.isBanEndAnchor) {
+        return '#EF4444'; // red
+      }
+      // Dashed red line for an ongoing ban
+      if (!banEvent.end_timestamp && p1.isFinalInterpolation) {
+        return '#EF4444'; // red
+      }
+    }
+  }
 
   // A segment ending at a gap bridge is the horizontal part of a gap. Color it white.
   if (p1.isGapBridge) return defaultColor;
@@ -220,10 +223,18 @@ const getBorderColor = (ctx, defaultColor = '#FAF9F6') => {
   return next > curr ? '#10B981' : '#EF4444';
 };
 
-const getBorderDash = (ctx) => {
+const getBorderDash = (ctx, eventSettings = {}) => {
   if (!ctx.p0?.raw?.raw) return undefined;
   const p0 = ctx.p0.raw.raw;
   const p1 = ctx.p1?.raw?.raw;
+
+  if (eventSettings.showSuspectedBan && p0.isBanStartAnchor && p1) {
+    const banEvent = p0.events?.find(e => e.event_type === 'SUSPECTED_BAN');
+    if (banEvent) {
+      if (p1.isBanEndAnchor) return [5, 5];
+      if (!banEvent.end_timestamp && p1.isFinalInterpolation) return [5, 5];
+    }
+  }
 
   if (p0.isFollowedByGap) return [5, 5];
   if (p0.isExtrapolated || (p1 && p1.isExtrapolated)) return [5, 5];
@@ -240,7 +251,7 @@ export const useChartConfig = ({
   selectedTimeRange,
   chartRef,
   onZoomPan,
-  showEvents,
+  eventSettings,
   seasonId,
 }) => {
 
@@ -251,16 +262,15 @@ export const useChartConfig = ({
     const pointData = ctx.raw?.raw;
     if (!ctx.chart || !pointData) return 3;
 
-    // Make the ban anchor icon visible and large
-    if (pointData.isBanStartAnchor) return 10;
+    // Make the ban anchor icons visible and large if enabled
+    if (eventSettings.showSuspectedBan && (pointData.isBanStartAnchor || pointData.isBanEndAnchor)) return 8;
 
-    // Make event icon points visible and large
-    if (showEvents && hasAnyVisibleEvent(ctx, ['NAME_CHANGE', 'CLUB_CHANGE'])) {
-      return 10;
-    }
+    // Make event icon points visible and large if enabled
+    if (eventSettings.showNameChange && hasVisibleEvent(ctx, 'NAME_CHANGE')) return 8;
+    if (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE')) return 8;
 
     const rsEvent = getRsEvent(ctx);
-    if (showEvents && rsEvent) return 6; // Bigger radius for star
+    if (eventSettings.showRsAdjustment && rsEvent) return 6; // Bigger radius for star
 
     // Hide synthetic staircase, gap bridge, and final interpolated points
     if (pointData.isStaircasePoint || pointData.isGapBridge || pointData.isFinalInterpolation) {
@@ -291,7 +301,7 @@ export const useChartConfig = ({
       const zoomRatio = (timeRange - TIME.DAY) / (TIME.WEEK - TIME.DAY);
       return initialSize - ((initialSize * 2 / 3) * zoomRatio);
     }
-  }, [showEvents]);
+  }, [eventSettings]);
 
   const externalTooltipHandler = useCallback((context) => {
     const { chart, tooltip } = context;
@@ -299,7 +309,7 @@ export const useChartConfig = ({
     const pointData = tooltip.dataPoints?.[0]?.raw?.raw;
 
     // Handle special ban anchor tooltip first
-    if (pointData?.isBanStartAnchor) {
+    if (eventSettings.showSuspectedBan && pointData?.isBanStartAnchor) {
       const tooltipEl = getOrCreateTooltip(chart);
       const banEvent = pointData.events?.find(e => e.event_type === 'SUSPECTED_BAN');
 
@@ -323,6 +333,48 @@ export const useChartConfig = ({
       const date = new Date(banEvent.start_timestamp * 1000);
       dateRow.innerHTML = `<td colspan="2" style="font-size: 12px; color: #9ca3af;">Started: ${date.toLocaleString(undefined, TIME.FORMAT)}</td>`;
       tableRoot.appendChild(dateRow);
+
+      tooltipEl.appendChild(tableRoot);
+
+      const { offsetLeft: positionX, offsetTop: positionY } = chart.canvas;
+      tooltipEl.style.opacity = 1;
+      tooltipEl.style.left = positionX + tooltip.caretX + 'px';
+      tooltipEl.style.top = positionY + tooltip.caretY + 'px';
+      tooltipEl.style.font = tooltip.options.bodyFont.string;
+      tooltipEl.style.boxShadow = '0 2px 12px 0 rgba(0,0,0,0.4)';
+      return;
+    }
+
+    // Handle unban anchor tooltip
+    if (eventSettings.showSuspectedBan && pointData?.isBanEndAnchor) {
+      const tooltipEl = getOrCreateTooltip(chart);
+      const banEvent = pointData.events?.find(e => e.event_type === 'SUSPECTED_BAN');
+
+      if (tooltip.opacity === 0 || !banEvent || !banEvent.end_timestamp) {
+        tooltipEl.style.opacity = 0;
+        return;
+      }
+
+      while (tooltipEl.firstChild) {
+        tooltipEl.firstChild.remove();
+      }
+
+      const tableRoot = document.createElement('table');
+      tableRoot.style.margin = '0px';
+
+      const titleRow = document.createElement('tr');
+      titleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: #4ade80; padding-bottom: 4px;">Player Reappeared</td>`;
+      tableRoot.appendChild(titleRow);
+
+      const dateRow = document.createElement('tr');
+      const date = new Date(banEvent.end_timestamp * 1000);
+      dateRow.innerHTML = `<td colspan="2" style="font-size: 12px; color: #9ca3af; padding-bottom: 4px;">Ended: ${date.toLocaleString(undefined, TIME.FORMAT)}</td>`;
+      tableRoot.appendChild(dateRow);
+
+      const durationMs = (banEvent.end_timestamp - banEvent.start_timestamp) * 1000;
+      const durationRow = document.createElement('tr');
+      durationRow.innerHTML = `<td colspan="2" style="font-size: 12px; color: #9ca3af;">Duration: ${formatDuration(durationMs)}</td>`;
+      tableRoot.appendChild(durationRow);
 
       tooltipEl.appendChild(tableRoot);
 
@@ -543,7 +595,7 @@ export const useChartConfig = ({
       rankRow.appendChild(rankCell);
       tableRoot.appendChild(rankRow);
 
-      if (rsEvent) {
+      if (eventSettings.showRsAdjustment && rsEvent) {
         const details = rsEvent.details;
 
         const hrRow = document.createElement('tr');
@@ -576,7 +628,7 @@ export const useChartConfig = ({
     tooltipEl.style.top = positionY + tooltip.caretY + 'px';
     tooltipEl.style.font = tooltip.options.bodyFont.string;
     tooltipEl.style.boxShadow = '0 2px 12px 0 rgba(0,0,0,0.4)';
-  }, []);
+  }, [eventSettings]);
 
   const overallTimeDomain = useMemo(() => {
     if (!data?.length) return { min: null, max: null };
@@ -667,7 +719,6 @@ export const useChartConfig = ({
     }
 
     const comparisonVisibleData = Array.from(comparisonData.entries())
-      // eslint-disable-next-line no-unused-vars
       .map(([_, { data: compareData }], index) => {
         if (!chart || chart.getDatasetMeta(index + 1).visible !== false) {
           return getVisibleAndNearestData(compareData);
@@ -689,7 +740,6 @@ export const useChartConfig = ({
         chart?.getDatasetMeta(0).visible !== false ? data : [],
         ...Array.from(comparisonData.entries())
           .filter((_, index) => chart?.getDatasetMeta(index + 1).visible !== false)
-          // eslint-disable-next-line no-unused-vars
           .map(([_, { data: compareData }]) => compareData)
       ];
 
@@ -709,7 +759,6 @@ export const useChartConfig = ({
           chart?.getDatasetMeta(0).visible !== false ? data[0]?.rankScore : undefined,
           ...Array.from(comparisonData.entries())
             .filter((_, index) => chart?.getDatasetMeta(index + 1).visible !== false)
-            // eslint-disable-next-line no-unused-vars
             .map(([_, { data: compareData }]) => compareData[0]?.rankScore)
         ].filter(score => score !== undefined);
 
@@ -774,11 +823,9 @@ export const useChartConfig = ({
   }, [comparisonData, chartRef, seasonEndDate]);
 
   const getEventAnnotations = useCallback(() => {
-    if (!showEvents) return [];
-
     const annotations = [];
 
-    const processPlayerDataset = (playerData, playerEvents, playerName) => {
+    const processPlayerDataset = (playerData, playerEvents, _playerName) => {
       if (!playerData) return;
 
       // Handle point-based events (name/club changes)
@@ -788,7 +835,8 @@ export const useChartConfig = ({
         }
 
         point.events.forEach(event => {
-          if (event.event_type === 'NAME_CHANGE' || event.event_type === 'CLUB_CHANGE') {
+          if ((event.event_type === 'NAME_CHANGE' && eventSettings.showNameChange) ||
+              (event.event_type === 'CLUB_CHANGE' && eventSettings.showClubChange)) {
             // All labels are created upfront. Visibility and font size are handled dynamically
             // by the plugin via scriptable options. This prevents replacing the annotations
             // array on every pan/zoom, which is the cause of the visual glitch.
@@ -854,28 +902,15 @@ export const useChartConfig = ({
         });
       });
 
-      // Handle time-range based events (suspected ban)
+      // Handle time-range based events
       if (playerEvents) {
         playerEvents.forEach(event => {
           if (event.event_type === 'SUSPECTED_BAN') {
-            annotations.push({
-              id: `sb-event-${event.event_id}`,
-              type: 'box',
-              xMin: event.start_timestamp * 1000,
-              // xMax is now scriptable to extend to the edge of the visible chart area.
-              xMax: (ctx) => event.end_timestamp ? event.end_timestamp * 1000 : ctx.chart.scales.x.max,
-              backgroundColor: 'rgba(239, 68, 68, 0.2)',
-              borderColor: 'rgba(239, 68, 68, 0.1)',
-              borderWidth: 1,
-              label: {
-                content: `Suspected Ban (${playerName})`,
-                display: true,
-                position: 'start',
-                color: 'rgba(255, 150, 150, 0.9)',
-                font: { weight: 'bold', size: 10 },
-              }
-            });
+            // No longer creating box annotations for bans.
+            // This is now visualized with icons on the data line.
+            return;
           }
+          // Keep this structure for any other future time-range events.
         });
       }
     };
@@ -886,7 +921,7 @@ export const useChartConfig = ({
     });
 
     return annotations;
-  }, [data, events, comparisonData, embarkId, showEvents]);
+  }, [data, events, comparisonData, embarkId, eventSettings]);
 
   const getRankAnnotations = useCallback((minDomain, maxDomain) => {
     if (!data) return [];
@@ -1018,8 +1053,8 @@ export const useChartConfig = ({
         zoom: {
           limits: {
             x: {
-              min: overallMin ? new Date(overallMin.getTime() - TIME.TWO_HOURS) : undefined,
-              max: overallMax ? new Date(overallMax.getTime() + TIME.TWO_HOURS) : undefined,
+              min: overallMin ? overallMin.getTime() - TIME.TWO_HOURS : undefined,
+              max: overallMax ? overallMax.getTime() + TIME.TWO_HOURS : undefined,
               minRange: 5 * TIME.HOUR
             }
           },
@@ -1073,27 +1108,31 @@ export const useChartConfig = ({
 
   const getPointStyle = useCallback((ctx) => {
     const pointData = ctx.raw?.raw;
-    if (pointData?.isBanStartAnchor) return gavelIcon;
-    if (showEvents) {
-      if (hasVisibleEvent(ctx, 'NAME_CHANGE')) return nameChangeIcon;
-      if (hasVisibleEvent(ctx, 'CLUB_CHANGE')) return clubChangeIcon;
+    if (eventSettings.showSuspectedBan) {
+      if (pointData?.isBanStartAnchor) return gavelIcon;
+      if (pointData?.isBanEndAnchor) return unbanIcon;
+    }
+    if (eventSettings.showNameChange && hasVisibleEvent(ctx, 'NAME_CHANGE')) return nameChangeIcon;
+    if (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE')) return clubChangeIcon;
+    if (eventSettings.showRsAdjustment) {
       const rsEvent = getRsEvent(ctx);
       if (rsEvent) return 'star';
     }
     const direction = getNewLogicPointDirection(ctx);
     return (direction === 'up' || direction === 'down') ? 'triangle' : 'circle';
-  }, [showEvents]);
+  }, [eventSettings]);
 
   const getPointRotation = useCallback((ctx) => {
-    if (showEvents && (hasVisibleEvent(ctx, 'NAME_CHANGE') || hasVisibleEvent(ctx, 'CLUB_CHANGE'))) {
+    if ((eventSettings.showNameChange && hasVisibleEvent(ctx, 'NAME_CHANGE')) ||
+        (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE'))) {
       return 0;
     }
     const direction = getNewLogicPointDirection(ctx);
     return direction === 'down' ? 180 : 0;
-  }, [showEvents]);
+  }, [eventSettings]);
 
   const getPointBackgroundColor = useCallback((ctx, color) => {
-    if (showEvents) {
+    if (eventSettings.showRsAdjustment) {
       const rsEvent = getRsEvent(ctx);
       if (rsEvent) return '#facc15';
     }
@@ -1102,10 +1141,10 @@ export const useChartConfig = ({
     if (direction === 'up') return '#10B981';
     if (direction === 'down') return '#EF4444';
     return color;
-  }, [showEvents]);
+  }, [eventSettings]);
 
   const getPointBorderColor = useCallback((ctx, color) => {
-    if (showEvents) {
+    if (eventSettings.showRsAdjustment) {
       const rsEvent = getRsEvent(ctx);
       if (rsEvent) return '#facc15';
     }
@@ -1113,7 +1152,7 @@ export const useChartConfig = ({
     const direction = getNewLogicPointDirection(ctx);
     if (direction === 'up' || direction === 'down') return '#FAF9F6';
     return color;
-  }, [showEvents]);
+  }, [eventSettings]);
 
   const chartData = useMemo(() => data ? {
     labels: data.map(d => d.timestamp),
@@ -1125,9 +1164,9 @@ export const useChartConfig = ({
         raw: d
       })),
       segment: {
-        borderColor: (ctx) => getBorderColor(ctx, '#FAF9F6'),
+        borderColor: (ctx) => getBorderColor(ctx, '#FAF9F6', eventSettings),
         borderWidth: 2,
-        borderDash: getBorderDash,
+        borderDash: (ctx) => getBorderDash(ctx, eventSettings),
       },
       pointStyle: getPointStyle,
       pointRotation: getPointRotation,
@@ -1146,9 +1185,9 @@ export const useChartConfig = ({
         raw: d
       })),
       segment: {
-        borderColor: (ctx) => getBorderColor(ctx, color),
+        borderColor: (ctx) => getBorderColor(ctx, color, eventSettings),
         borderWidth: 2,
-        borderDash: getBorderDash,
+        borderDash: (ctx) => getBorderDash(ctx, eventSettings),
       },
       pointStyle: getPointStyle,
       pointRotation: getPointRotation,
@@ -1159,7 +1198,7 @@ export const useChartConfig = ({
       pointHoverRadius: ctx => getPointRadius(ctx) * 1.5,
       tension: 0.01
     }))]
-  } : null, [data, embarkId, comparisonData, getPointRadius, getPointStyle, getPointRotation, getPointBackgroundColor, getPointBorderColor]);
+  } : null, [data, embarkId, comparisonData, eventSettings, getPointRadius, getPointStyle, getPointRotation, getPointBackgroundColor, getPointBorderColor]);
 
   return { chartOptions, chartData };
 };

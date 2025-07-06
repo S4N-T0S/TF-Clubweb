@@ -62,10 +62,25 @@ const isBoolean = (value) => typeof value === 'boolean';
 export const getStoredAutoRefresh = () => getStoredJsonItem(AUTO_REFRESH_KEY, true, isBoolean);
 export const setStoredAutoRefresh = (value) => setStoredJsonItem(AUTO_REFRESH_KEY, value);
 
-// Graph "Show Events" Toggle (stores a boolean)
-const GRAPH_SHOW_EVENTS_KEY = 'graphShowEvents';
-export const getGraphShowEvents = () => getStoredJsonItem(GRAPH_SHOW_EVENTS_KEY, true, isBoolean);
-export const setGraphShowEvents = (value) => setStoredJsonItem(GRAPH_SHOW_EVENTS_KEY, value);
+// Graph Modal Settings
+const GRAPH_MODAL_SETTINGS_KEY = 'graphModalSettings';
+// Validator for graph settings to ensure data integrity.
+const areValidGraphSettings = (value) => {
+    if (typeof value !== 'object' || value === null) return false;
+    const hasNameChange = typeof value.showNameChange === 'boolean';
+    const hasClubChange = typeof value.showClubChange === 'boolean';
+    const hasRsAdjustment = typeof value.showRsAdjustment === 'boolean';
+    const hasSuspectedBan = typeof value.showSuspectedBan === 'boolean';
+    return hasNameChange && hasClubChange && hasRsAdjustment && hasSuspectedBan;
+};
+const defaultGraphSettings = {
+    showNameChange: true,
+    showClubChange: true,
+    showRsAdjustment: true,
+    showSuspectedBan: true,
+};
+export const getStoredGraphSettings = () => getStoredJsonItem(GRAPH_MODAL_SETTINGS_KEY, defaultGraphSettings, areValidGraphSettings);
+export const setStoredGraphSettings = (value) => setStoredJsonItem(GRAPH_MODAL_SETTINGS_KEY, value);
 
 // Favourites (stores an array of objects)
 const FAVOURITES_KEY = 'playerFavourites';

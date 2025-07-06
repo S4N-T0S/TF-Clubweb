@@ -5,7 +5,7 @@ to keep up with it's logic. I'm sorry for the mess.
 */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { X, Plus, Search, Camera, Zap } from 'lucide-react';
+import { X, Plus, Search, Camera, SlidersHorizontal, UserPen, Gavel, ChevronsUpDown, Users } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -21,12 +21,12 @@ import { Line } from 'react-chartjs-2';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import 'chartjs-adapter-date-fns';
-import { GraphModalProps, ComparePlayerModalProps } from '../types/propTypes';
+import { GraphModalProps, ComparePlayerModalProps, GraphSettingsModalProps, FilterToggleButtonProps } from '../types/propTypes';
 import { useModal } from '../context/ModalProvider';
 import { usePlayerGraphData } from '../hooks/usePlayerGraphData';
 import { useChartConfig } from '../hooks/useChartConfig';
 import { LoadingDisplay } from './LoadingDisplay';
-import { getGraphShowEvents, setGraphShowEvents } from '../services/localStorageManager';
+import { getStoredGraphSettings, setStoredGraphSettings } from '../services/localStorageManager';
 import { SEASONS, getSeasonLeaderboard } from '../services/historicalDataService';
 
 ChartJS.register(
@@ -64,6 +64,54 @@ TIME.RANGES = {
   '24H': TIME.DAY,
   '7D': TIME.WEEK,
   'MAX': Infinity
+};
+
+const FilterToggleButton = ({ label, isActive, onClick, Icon, textColorClass, activeBorderClass }) => {
+    const baseClasses = "flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors w-full border";
+    const dynamicClasses = isActive
+        ? `${activeBorderClass || 'border-blue-500'} bg-gray-700`
+        : 'border-transparent bg-gray-700 hover:bg-gray-600';
+
+    return (
+        <button
+            onClick={onClick}
+            className={`${baseClasses} ${dynamicClasses}`}
+        >
+            {Icon && <Icon className={`w-4 h-4 ${textColorClass}`} />}
+            <span className={textColorClass}>{label}</span>
+        </button>
+    );
+};
+
+const GraphSettingsModal = ({ settings, onSettingsChange, onClose, hasAnyEvents }) => {
+    const { modalRef } = useModal(true, onClose, { type: 'nested' });
+
+    const handleFilterChange = (key, value) => {
+        onSettingsChange(prev => ({ ...prev, [key]: value }));
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
+            <div ref={modalRef} className="bg-gray-800 rounded-lg p-6 max-w-sm w-full border border-gray-600 shadow-xl relative">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-white">Graph Event Settings</h3>
+                    <button onClick={onClose} aria-label="Close settings" className="text-gray-400 hover:text-white">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+                {!hasAnyEvents ? (
+                    <div className="p-4 text-center text-gray-400 text-sm">No events found in the current datasets.</div>
+                ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                        <FilterToggleButton label="Name" Icon={UserPen} isActive={settings.showNameChange} onClick={() => handleFilterChange('showNameChange', !settings.showNameChange)} textColorClass="text-indigo-400" activeBorderClass="border-indigo-400" />
+                        <FilterToggleButton label="Clubs" Icon={Users} isActive={settings.showClubChange} onClick={() => handleFilterChange('showClubChange', !settings.showClubChange)} textColorClass="text-teal-400" activeBorderClass="border-teal-400" />
+                        <FilterToggleButton label="Scores" Icon={ChevronsUpDown} isActive={settings.showRsAdjustment} onClick={() => handleFilterChange('showRsAdjustment', !settings.showRsAdjustment)} textColorClass="text-yellow-400" activeBorderClass="border-yellow-400" />
+                        <FilterToggleButton label="Bans" Icon={Gavel} isActive={settings.showSuspectedBan} onClick={() => handleFilterChange('showSuspectedBan', !settings.showSuspectedBan)} textColorClass="text-red-500" activeBorderClass="border-red-500" />
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 };
 
 const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comparisonData, mainPlayerLastDataPoint }) => {
@@ -195,7 +243,8 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
   const [notifScreenshot, setNotifScreenshot] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const ssdropdownRef = useRef(null);
-  const [showEvents, setShowEvents] = useState(getGraphShowEvents);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [eventSettings, setEventSettings] = useState(getStoredGraphSettings);
 
   const [comparisonLeaderboard, setComparisonLeaderboard] = useState([]);
   const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(true);
@@ -204,6 +253,11 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     return Object.values(SEASONS).find(s => s.id === seasonId);
   }, [seasonId]);
   const isHistoricalSeason = useMemo(() => seasonConfig && !seasonConfig.isCurrent, [seasonConfig]);
+
+  // Persist settings when they change
+  useEffect(() => {
+    setStoredGraphSettings(eventSettings);
+  }, [eventSettings]);
 
   useEffect(() => {
     // This effect addresses a timing issue in Chart.js where label positions
@@ -216,10 +270,10 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
           // Use 'none' to prevent re-running animations, which could look jerky.
           chartRef.current.update('none');
         }
-      }, 5); // A small delay for the initial render to complete.
+      }, 50); // A small delay for the initial render to complete.
       return () => clearTimeout(timer);
     }
-  }, [selectedTimeRange, showEvents]);
+  }, [selectedTimeRange, eventSettings]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -252,15 +306,15 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     error,
     addComparison,
     removeComparison,
-  } = usePlayerGraphData(isOpen, embarkId, compareIds, seasonId);
+  } = usePlayerGraphData(isOpen, embarkId, compareIds, seasonId, eventSettings);
 
   const hasAnyEvents = useMemo(() => {
-    if (events?.length > 0) {
+    if (events?.some(e => ['NAME_CHANGE', 'CLUB_CHANGE', 'RS_ADJUSTMENT', 'SUSPECTED_BAN'].includes(e.event_type))) {
       return true;
     }
     if (comparisonData.size > 0) {
       for (const compare of comparisonData.values()) {
-        if (compare.events?.length > 0) {
+        if (compare.events?.some(e => ['NAME_CHANGE', 'CLUB_CHANGE', 'RS_ADJUSTMENT', 'SUSPECTED_BAN'].includes(e.event_type))) {
           return true;
         }
       }
@@ -324,7 +378,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     selectedTimeRange,
     chartRef,
     onZoomPan: handleZoomPan,
-    showEvents,
+    eventSettings,
     seasonId,
   });
 
@@ -358,14 +412,6 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
       document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [showDropdown]);
-
-  const handleToggleShowEvents = useCallback(() => {
-    setShowEvents(prev => {
-      const newState = !prev;
-      setGraphShowEvents(newState);
-      return newState;
-    });
-  }, []);
 
   const handleScreenshot = async (withBackground = true) => {
     const canvas = chartRef.current?.canvas;
@@ -454,6 +500,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
             comparisonData={comparisonData}
             mainPlayerLastDataPoint={data?.[data.length - 1]}
           />
+        )}
+        {showSettingsModal && (
+            <GraphSettingsModal
+                settings={eventSettings}
+                onSettingsChange={setEventSettings}
+                onClose={() => setShowSettingsModal(false)}
+                hasAnyEvents={hasAnyEvents}
+            />
         )}
         <div>
           <div className={`${isMobile ? 'flex flex-col gap-2' : 'flex justify-between items-center gap-4'}`}>
@@ -552,6 +606,13 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                     </div>
                   )}
                 </div>
+                 <button
+                    onClick={() => setShowSettingsModal(true)}
+                    className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white"
+                    title="Event Settings"
+                >
+                    <SlidersHorizontal className="w-5 h-5" />
+                </button>
                 {comparisonData.size < MAX_COMPARISONS && (
                   <div className="relative">
                     <button
@@ -679,28 +740,6 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
             </>
           )}
         </div>
-
-        <div className="flex items-center justify-start border-t border-gray-700 pt-3 -mb-1">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleToggleShowEvents}
-              disabled={!hasAnyEvents}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border
-                ${!hasAnyEvents
-                  ? 'bg-gray-700 text-gray-500 border-gray-600 cursor-not-allowed'
-                  : showEvents
-                    ? 'bg-blue-600 text-white border-transparent hover:bg-blue-500'
-                    : 'bg-red-900/50 text-red-300 border-red-800 hover:bg-red-900/80'
-                }`}
-              title={hasAnyEvents ? (showEvents ? 'Hide Events' : 'Show Events') : 'No events found'}
-            >
-              <Zap className="w-4 h-4" />
-              <span>Events</span>
-            </button>
-            <div className="h-6 w-px bg-gray-600"></div>
-            <span className="text-xs text-gray-500 font-mono select-none">Section Under Development</span>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -708,5 +747,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
 
 GraphModal.propTypes = GraphModalProps;
 ComparePlayerModal.propTypes = ComparePlayerModalProps;
+GraphSettingsModal.propTypes = GraphSettingsModalProps;
+FilterToggleButton.propTypes = FilterToggleButtonProps;
 
 export default GraphModal;

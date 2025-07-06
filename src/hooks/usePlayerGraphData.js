@@ -67,7 +67,7 @@ const legacy_interpolateDataPoints = (rawData, isFinalSegment = true, seasonEndD
 };
 
 // Processes the full dataset, applying legacy or new logic based on timestamp.
-const processGraphData = (rawData, events = [], seasonEndDate = null) => {
+const processGraphData = (rawData, events = [], seasonEndDate = null, eventSettings = {}) => {
   if (!rawData?.length) return [];
 
   const parsedData = rawData.map(item => ({
@@ -178,60 +178,144 @@ const processGraphData = (rawData, events = [], seasonEndDate = null) => {
     }
   }
 
-  // Handle final interpolation to 'now' for the new data period
-  if (hasNewData) {
-    const now = seasonEndDate ? new Date(seasonEndDate) : new Date();
-    const lastRealPoint = newPoints[newPoints.length - 1];
+  // Inject synthetic points for all ban events if enabled in settings
+  const banEvents = events.filter(e => e.event_type === 'SUSPECTED_BAN');
+  if (eventSettings.showSuspectedBan && banEvents.length > 0) {
+    banEvents.sort((a, b) => a.start_timestamp - b.start_timestamp); // Process chronologically
 
-    const activeBanEvent = events.find(e => e.event_type === 'SUSPECTED_BAN' && !e.end_timestamp);
-    const shouldDrawFinalDashedLine = (now - lastRealPoint.timestamp > GAP_THRESHOLD) || activeBanEvent;
+    banEvents.forEach(event => {
+      const banStartTs = event.start_timestamp * 1000;
+      let insertionIndex = combined.findIndex(p => p.timestamp.getTime() > banStartTs);
+      if (insertionIndex === -1) {
+        insertionIndex = combined.length;
+      }
 
-    if (shouldDrawFinalDashedLine) {
-      // If there's an active ban, we might need a special anchor point.
-      if (activeBanEvent) {
-        const banStartTimestamp = activeBanEvent.start_timestamp * 1000;
-
-        // Check if the ban starts after the last known data point.
-        if (banStartTimestamp > lastRealPoint.timestamp.getTime()) {
-          // Create a synthetic point where the ban starts.
-          // This point will be the start of the dashed line.
-          const banStartPoint = {
-            ...lastRealPoint,
-            timestamp: new Date(banStartTimestamp),
-            isInterpolated: true,
-            scoreChanged: false,
-            isFollowedByGap: true, // Make the line after this dashed
-            isBanStartAnchor: true,
-            events: [activeBanEvent], // Attach event for tooltip info
-          };
-          combined.push(banStartPoint);
-        } else {
-          // Ban starts before or at the last point, so just flag the last point.
-          const pointToFlag = combined.find(p =>
-            p.timestamp.getTime() === lastRealPoint.timestamp.getTime() &&
-            !p.isInterpolated && !p.isExtrapolated && !p.isStaircasePoint && !p.isGapBridge
-          );
-          if (pointToFlag) {
-            pointToFlag.isFollowedByGap = true;
-          }
-        }
-      } else { // No active ban, just a gap to 'now'
-        const pointToFlag = combined.find(p =>
-          p.timestamp.getTime() === lastRealPoint.timestamp.getTime() &&
-          !p.isInterpolated && !p.isExtrapolated && !p.isStaircasePoint && !p.isGapBridge
-        );
-        if (pointToFlag) {
-          pointToFlag.isFollowedByGap = true;
+      let lastKnownPoint = null;
+      for (let i = insertionIndex - 1; i >= 0; i--) {
+        const p = combined[i];
+        if (!p.isBanStartAnchor && !p.isBanEndAnchor) {
+          lastKnownPoint = p;
+          break;
         }
       }
 
-      // Add the final point at 'now' to complete the dashed line.
+      if (lastKnownPoint) {
+        // The ban event we are adding will visually represent any subsequent data gap.
+        // Therefore, we must remove the `isFollowedByGap` flag from the last point
+        // before the ban to ensure the line leading to the ban start icon is solid.
+        if (lastKnownPoint.isFollowedByGap) {
+          lastKnownPoint.isFollowedByGap = false;
+        }
+
+        // Create a clean start point, not inheriting any flags from lastKnownPoint.
+        const banStartPoint = {
+          rankScore: lastKnownPoint.rankScore,
+          league: lastKnownPoint.league,
+          rank: lastKnownPoint.rank,
+          timestamp: new Date(banStartTs),
+          isInterpolated: true,
+          scoreChanged: false,
+          isBanStartAnchor: true,
+          events: [event],
+        };
+        combined.splice(insertionIndex, 0, banStartPoint);
+
+        if (event.end_timestamp) {
+          const banEndTs = event.end_timestamp * 1000;
+
+          // Try to find the actual data point that marks the player's reappearance.
+          // An "actual" point is not synthetic (interpolated, gap bridge, etc.).
+          const reappearanceIndex = combined.findIndex((p, idx) =>
+            idx > insertionIndex && // Must be after the ban start anchor
+            p.timestamp.getTime() >= banEndTs &&
+            !p.isInterpolated &&
+            !p.isGapBridge &&
+            !p.isStaircasePoint
+          );
+
+          if (reappearanceIndex !== -1) {
+            // If we found the reappearance point, attach the unban info to it.
+            const pointToModify = combined[reappearanceIndex];
+            pointToModify.isBanEndAnchor = true;
+            if (!pointToModify.events) {
+              pointToModify.events = [];
+            }
+            pointToModify.events.push(event);
+
+            // Remove any gap bridge points that are now obsolete because they
+            // fall within the completed ban period. This allows the chart to
+            // draw a single, correctly styled line for the ban.
+            // Iterate backwards to safely use splice.
+            for (let i = reappearanceIndex - 1; i > insertionIndex; i--) {
+              if (combined[i].isGapBridge) {
+                combined.splice(i, 1);
+              }
+            }
+          } else {
+            // Fallback for when no data point is found after the unban timestamp.
+            let endInsertionIndex = combined.findIndex((p, idx) => idx > insertionIndex && p.timestamp.getTime() > banEndTs);
+            if (endInsertionIndex === -1) {
+              endInsertionIndex = combined.length;
+            }
+
+            const banEndPoint = {
+              rankScore: lastKnownPoint.rankScore,
+              league: lastKnownPoint.league,
+              rank: lastKnownPoint.rank,
+              timestamp: new Date(banEndTs),
+              isInterpolated: true,
+              scoreChanged: false,
+              isBanEndAnchor: true,
+              events: [event],
+            };
+            combined.splice(endInsertionIndex, 0, banEndPoint);
+
+            // Also remove gap bridges in this fallback case.
+            for (let i = endInsertionIndex - 1; i > insertionIndex; i--) {
+              if (combined[i].isGapBridge) {
+                combined.splice(i, 1);
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+
+  // Handle final interpolation to 'now'
+  const now = seasonEndDate ? new Date(seasonEndDate) : new Date();
+  if (combined.length > 0) {
+    const lastPoint = combined[combined.length - 1];
+
+    const isActiveBanAnchor = lastPoint.isBanStartAnchor && lastPoint.events?.some(e => e.event_type === 'SUSPECTED_BAN' && !e.end_timestamp);
+    const timeToNow = now - lastPoint.timestamp;
+
+    // Draw a line to 'now' if there's an active ban or a normal long gap in data
+    if (isActiveBanAnchor || (!lastPoint.isBanStartAnchor && !lastPoint.isBanEndAnchor && timeToNow > GAP_THRESHOLD)) {
+      if (!isActiveBanAnchor) {
+        // It's a normal gap to 'now', not a ban, so flag for a white dashed line.
+        lastPoint.isFollowedByGap = true;
+      }
+
+      // Base for the new point. If it's an active ban, we create a clean object to avoid
+      // spreading unwanted flags like `isBanStartAnchor`. Otherwise, we use the last point.
+      const newPointBase = isActiveBanAnchor ? {
+        rankScore: lastPoint.rankScore,
+        league: lastPoint.league,
+        rank: lastPoint.rank,
+        events: lastPoint.events,
+      } : lastPoint;
+
       combined.push({
-        ...lastRealPoint,
+        ...newPointBase,
         timestamp: now,
         isInterpolated: true,
         isFinalInterpolation: true,
         scoreChanged: false,
+        // Explicitly ensure the 'now' point is never an anchor itself.
+        isBanStartAnchor: false,
+        isBanEndAnchor: false,
       });
     }
   }
@@ -240,7 +324,7 @@ const processGraphData = (rawData, events = [], seasonEndDate = null) => {
 };
 
 
-export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId) => {
+export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId, eventSettings) => {
   const [data, setData] = useState(null);
   const [events, setEvents] = useState([]);
   const [mainPlayerGameCount, setMainPlayerGameCount] = useState(0);
@@ -263,7 +347,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       const activeData = result.data.filter(item => item.scoreChanged);
       const gameCount = activeData.length + RANKED_PLACEMENTS;
 
-      const processedData = processGraphData(result.data, result.events, seasonEndDate);
+      const processedData = processGraphData(result.data, result.events, seasonEndDate, eventSettings);
       if (processedData.length < 2) return null;
 
       return { data: processedData, gameCount, events: result.events };
@@ -271,7 +355,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       console.error(`Failed to load comparison data for ${compareId}:`, error);
       return null;
     }
-  }, [seasonId, seasonEndDate]);
+  }, [seasonId, seasonEndDate, eventSettings]);
 
   const addComparison = useCallback(async (player) => {
     if (comparisonData.size >= MAX_COMPARISONS) {
@@ -349,7 +433,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         return;
       }
 
-      const processedData = processGraphData(result.data, result.events, seasonEndDate);
+      const processedData = processGraphData(result.data, result.events, seasonEndDate, eventSettings);
 
       if (processedData.length < 2) {
         setError('Not enough data points to display a meaningful graph.');
@@ -366,7 +450,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     } finally {
       setLoading(false);
     }
-  }, [embarkId, seasonId, seasonEndDate]);
+  }, [embarkId, seasonId, seasonEndDate, eventSettings]);
 
   useEffect(() => {
     if (isOpen && embarkId && seasonId) {

@@ -238,8 +238,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
           showToast({ message, type: 'success' });
         }
       }
-    // eslint-disable-next-line no-unused-vars
-    } catch (err) {
+    } catch (_err) {
       setError('Failed to load recent events.');
       showToast({ message: 'Could not fetch recent events.', type: 'error' });
     } finally {

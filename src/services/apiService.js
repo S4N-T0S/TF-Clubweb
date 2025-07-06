@@ -47,7 +47,6 @@ export async function apiFetch(endpoint, options = {}) {
       // Try to parse a JSON error response from the backend
       const errorData = await response.json();
       errorDetails = errorData.message || errorData.error || JSON.stringify(errorData);
-    // eslint-disable-next-line no-unused-vars
     } catch (_e) {
       // Fallback if the error response isn't JSON
       errorDetails = await response.text();

@@ -65,7 +65,6 @@ export const fetchRecentEvents = async (forceRefresh = false) => {
         const errorData = await response.json();
         errorDetails = errorData.message || errorData.error || JSON.stringify(errorData);
 
-      // eslint-disable-next-line no-unused-vars
       } catch (_err) {
         errorDetails = await response.text();
       }
