@@ -65,13 +65,19 @@ const NEW_LOGIC_TIMESTAMP_MS = 1750436334 * 1000;
 
 // Create Image objects for custom point styles
 const nameChangeIcon = new Image(16, 16);
-nameChangeIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user-pen-icon lucide-user-pen"><path d="M11.5 15H7a4 4 0 0 0-4 4v2"/><path d="M21.378 16.626a1 1 0 0 0-3.004-3.004l-4.01 4.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/><circle cx="10" cy="7" r="4"/></svg>');
+nameChangeIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.5 15H7a4 4 0 0 0-4 4v2"/><path d="M21.378 16.626a1 1 0 0 0-3.004-3.004l-4.01 4.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/><circle cx="10" cy="7" r="4"/></svg>');
 const clubChangeIcon = new Image(16, 16);
-clubChangeIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-users-icon lucide-users"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>');
+clubChangeIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg>');
 const gavelIcon = new Image(16, 16);
-gavelIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-gavel-icon lucide-gavel"><path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/></svg>');
+gavelIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/></svg>');
 const unbanIcon = new Image(16, 16);
 unbanIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(24, 0) scale(-1, 1)"><path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/></g></svg>');
+
+const starSvgForRs = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg>';
+const rsUpIcon = new Image(16, 16);
+rsUpIcon.src = 'data:image/svg+xml;base64,' + btoa(starSvgForRs.replace('currentColor', '#4ade80'));
+const rsDownIcon = new Image(16, 16);
+rsDownIcon.src = 'data:image/svg+xml;base64,' + btoa(starSvgForRs.replace('currentColor', '#ef4444'));
 
 /**
  * Helper to safely get an RS_ADJUSTMENT event from a point context.
@@ -270,7 +276,7 @@ export const useChartConfig = ({
     if (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE')) return 8;
 
     const rsEvent = getRsEvent(ctx);
-    if (eventSettings.showRsAdjustment && rsEvent) return 6; // Bigger radius for star
+    if (eventSettings.showRsAdjustment && rsEvent) return 8;
 
     // Hide synthetic staircase, gap bridge, and final interpolated points
     if (pointData.isStaircasePoint || pointData.isGapBridge || pointData.isFinalInterpolation) {
@@ -606,7 +612,8 @@ export const useChartConfig = ({
         tableRoot.appendChild(hrRow);
 
         const eventTitleRow = document.createElement('tr');
-        eventTitleRow.innerHTML = '<td colspan="2" style="font-weight: bold; font-size: 13px; color: #facc15; padding-bottom: 4px;">RS Adjustment</td>';
+        const titleColor = details.change > 0 ? '#4ade80' : '#f87171';
+        eventTitleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: ${titleColor}; padding-bottom: 4px;">RS Adjustment</td>`;
         tableRoot.appendChild(eventTitleRow);
 
         const eventChangeRow = document.createElement('tr');
@@ -1116,43 +1123,41 @@ export const useChartConfig = ({
     if (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE')) return clubChangeIcon;
     if (eventSettings.showRsAdjustment) {
       const rsEvent = getRsEvent(ctx);
-      if (rsEvent) return 'star';
+      if (rsEvent) {
+        return rsEvent.details.change > 0 ? rsUpIcon : rsDownIcon;
+      }
     }
     const direction = getNewLogicPointDirection(ctx);
     return (direction === 'up' || direction === 'down') ? 'triangle' : 'circle';
   }, [eventSettings]);
 
   const getPointRotation = useCallback((ctx) => {
+    // Events with custom directional icons (name, club, RS adjustment) should not be rotated.
     if ((eventSettings.showNameChange && hasVisibleEvent(ctx, 'NAME_CHANGE')) ||
-        (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE'))) {
+        (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE')) ||
+        (eventSettings.showRsAdjustment && getRsEvent(ctx))) {
       return 0;
     }
+
+    // For regular score change points (which use a triangle), rotate it if the score went down.
     const direction = getNewLogicPointDirection(ctx);
     return direction === 'down' ? 180 : 0;
   }, [eventSettings]);
 
   const getPointBackgroundColor = useCallback((ctx, color) => {
-    if (eventSettings.showRsAdjustment) {
-      const rsEvent = getRsEvent(ctx);
-      if (rsEvent) return '#facc15';
-    }
     if (ctx.raw.raw?.isExtrapolated || ctx.raw.raw?.isInterpolated) return '#7d7c7b';
     const direction = getNewLogicPointDirection(ctx);
     if (direction === 'up') return '#10B981';
     if (direction === 'down') return '#EF4444';
     return color;
-  }, [eventSettings]);
+  }, []);
 
   const getPointBorderColor = useCallback((ctx, color) => {
-    if (eventSettings.showRsAdjustment) {
-      const rsEvent = getRsEvent(ctx);
-      if (rsEvent) return '#facc15';
-    }
     if (ctx.raw.raw?.isExtrapolated || ctx.raw.raw?.isInterpolated) return '#8a8988';
     const direction = getNewLogicPointDirection(ctx);
     if (direction === 'up' || direction === 'down') return '#FAF9F6';
     return color;
-  }, [eventSettings]);
+  }, []);
 
   const chartData = useMemo(() => data ? {
     labels: data.map(d => d.timestamp),
