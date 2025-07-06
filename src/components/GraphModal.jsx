@@ -406,7 +406,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     return false;
   }, [events, comparisonData]);
 
-  // Function to determine the appropriate default time range based on data points
+  // Function to determine the appropriate default time range based on actual game data points
   const determineDefaultTimeRange = useCallback((data) => {
     if (!data?.length) return '24H';
 
@@ -418,6 +418,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     const last7Days = new Date(now - TIME.WEEK);
 
     const pointsIn24H = data.filter(point =>
+      point.scoreChanged && // Only count actual game points (score changed), not tracking or synthetic points.
       !point.isInterpolated && !point.isExtrapolated &&
       point.timestamp >= last24Hours
     ).length;
@@ -425,6 +426,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     if (pointsIn24H >= 2) return '24H';
 
     const pointsIn7D = data.filter(point =>
+      point.scoreChanged && // Only count actual game points (score changed), not tracking or synthetic points.
       !point.isInterpolated && !point.isExtrapolated &&
       point.timestamp >= last7Days
     ).length;
