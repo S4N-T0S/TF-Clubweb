@@ -84,43 +84,43 @@ const FilterToggleButton = ({ label, isActive, onClick, Icon, textColorClass, ac
 };
 
 const GraphSettingsModal = ({ settings, onSettingsChange, onClose, hasAnyEvents }) => {
-    const { modalRef } = useModal(true, onClose, { type: 'nested' });
-
-    const handleFilterChange = (key, value) => {
-        onSettingsChange(prev => ({ ...prev, [key]: value }));
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
-            <div ref={modalRef} className="bg-gray-800 rounded-lg p-6 max-w-sm w-full border border-gray-600 shadow-xl relative">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-white">Graph Event Settings</h3>
-                    <button onClick={onClose} aria-label="Close settings" className="text-gray-400 hover:text-white">
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
-                {!hasAnyEvents ? (
-                    <div className="p-4 text-center text-gray-400 text-sm">No events found in the current datasets.</div>
-                ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                        <FilterToggleButton label="Name" Icon={UserPen} isActive={settings.showNameChange} onClick={() => handleFilterChange('showNameChange', !settings.showNameChange)} textColorClass="text-indigo-400" activeBorderClass="border-indigo-400" />
-                        <FilterToggleButton label="Clubs" Icon={Users} isActive={settings.showClubChange} onClick={() => handleFilterChange('showClubChange', !settings.showClubChange)} textColorClass="text-teal-400" activeBorderClass="border-teal-400" />
-                        <FilterToggleButton label="Scores" Icon={ChevronsUpDown} isActive={settings.showRsAdjustment} onClick={() => handleFilterChange('showRsAdjustment', !settings.showRsAdjustment)} textColorClass="text-yellow-400" activeBorderClass="border-yellow-400" />
-                        <FilterToggleButton label="Bans" Icon={Gavel} isActive={settings.showSuspectedBan} onClick={() => handleFilterChange('showSuspectedBan', !settings.showSuspectedBan)} textColorClass="text-red-500" activeBorderClass="border-red-500" />
-                    </div>
-                )}
-            </div>
+  // Stabilize options with useMemo to prevent re-renders in useModal.
+  const modalOptions = useMemo(() => ({ type: 'nested' }), []);
+  const { modalRef } = useModal(true, onClose, modalOptions);
+  const handleFilterChange = (key, value) => {
+      onSettingsChange(prev => ({ ...prev, [key]: value }));
+  };
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
+      <div ref={modalRef} className="bg-gray-800 rounded-lg p-6 max-w-sm w-full border border-gray-600 shadow-xl relative">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-white">Graph Event Settings</h3>
+          <button onClick={onClose} aria-label="Close settings" className="text-gray-400 hover:text-white">
+            <X className="w-5 h-5" />
+          </button>
         </div>
-    );
+        {!hasAnyEvents ? (
+          <div className="p-4 text-center text-gray-400 text-sm">No events found in the current datasets.</div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <FilterToggleButton label="Name" Icon={UserPen} isActive={settings.showNameChange} onClick={() => handleFilterChange('showNameChange', !settings.showNameChange)} textColorClass="text-indigo-400" activeBorderClass="border-indigo-400" />
+            <FilterToggleButton label="Clubs" Icon={Users} isActive={settings.showClubChange} onClick={() => handleFilterChange('showClubChange', !settings.showClubChange)} textColorClass="text-teal-400" activeBorderClass="border-teal-400" />
+            <FilterToggleButton label="Scores" Icon={ChevronsUpDown} isActive={settings.showRsAdjustment} onClick={() => handleFilterChange('showRsAdjustment', !settings.showRsAdjustment)} textColorClass="text-yellow-400" activeBorderClass="border-yellow-400" />
+            <FilterToggleButton label="Bans" Icon={Gavel} isActive={settings.showSuspectedBan} onClick={() => handleFilterChange('showSuspectedBan', !settings.showSuspectedBan)} textColorClass="text-red-500" activeBorderClass="border-red-500" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
 
 const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comparisonData, mainPlayerLastDataPoint }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredPlayers, setFilteredPlayers] = useState([]);
-
-  // Use the useModal hook to handle outside clicks and manage modal state.
-  // The 'nested' type ensures the underlying GraphModal doesn't fade out.
-  const { modalRef: modalContentRef } = useModal(true, onClose, { type: 'nested' });
+  
+  // Stabilize options with useMemo to prevent re-renders in useModal.
+  const modalOptions = useMemo(() => ({ type: 'nested' }), []);
+  const { modalRef: modalContentRef } = useModal(true, onClose, modalOptions);
 
   // Find main player's score from leaderboard
   const getClosestPlayers = useCallback(() => {
@@ -308,6 +308,21 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     removeComparison,
   } = usePlayerGraphData(isOpen, embarkId, compareIds, seasonId, eventSettings);
 
+  // --- Stabilized Callbacks for Nested Modals ---
+  const handleSelectPlayer = useCallback((player) => {
+      addComparison(player);
+      setShowCompareModal(false);
+  }, [addComparison]);
+
+  const handleCloseCompareModal = useCallback(() => {
+      setShowCompareModal(false);
+  }, []);
+
+  const handleCloseSettingsModal = useCallback(() => {
+      setShowSettingsModal(false);
+  }, []);
+
+
   const hasAnyEvents = useMemo(() => {
     if (events?.some(e => ['NAME_CHANGE', 'CLUB_CHANGE', 'RS_ADJUSTMENT', 'SUSPECTED_BAN'].includes(e.event_type))) {
       return true;
@@ -490,13 +505,10 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
       >
         {showCompareModal && !isLeaderboardLoading && (
           <ComparePlayerModal
-            onSelect={(player) => {
-              addComparison(player);
-              setShowCompareModal(false);
-            }}
+            onSelect={handleSelectPlayer}
             mainEmbarkId={embarkId}
             leaderboard={comparisonLeaderboard}
-            onClose={() => setShowCompareModal(false)}
+            onClose={handleCloseCompareModal}
             comparisonData={comparisonData}
             mainPlayerLastDataPoint={data?.[data.length - 1]}
           />
@@ -505,7 +517,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
             <GraphSettingsModal
                 settings={eventSettings}
                 onSettingsChange={setEventSettings}
-                onClose={() => setShowSettingsModal(false)}
+                onClose={handleCloseSettingsModal}
                 hasAnyEvents={hasAnyEvents}
             />
         )}

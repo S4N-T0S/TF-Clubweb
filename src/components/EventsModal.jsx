@@ -54,40 +54,48 @@ const FilterToggleButton = ({ label, isActive, onClick, Icon, colorClass, textCo
 
 // Helper component for the information pop-up
 const EventInfoPopup = ({ onClose }) => {
-  // Now destructure `modalRef` from `useModal` and pass an option to mark it as nested.
-  // This prevents the main EventsModal from fading out when this popup is open.
-  const { modalRef: infoModalRef } = useModal(true, onClose, { type: 'nested' }); 
+  // Stabilize the options object with useMemo to prevent re-renders in the useModal hook.
+  const modalOptions = useMemo(() => ({ type: 'nested' }), []);
+  const { modalRef: infoModalRef } = useModal(true, onClose, modalOptions); 
 
   return (
-    <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center z-20 p-4">
-      <div ref={infoModalRef} className="bg-gray-800 rounded-lg p-6 max-w-lg w-full border border-gray-600 shadow-xl relative animate-fade-in-fast">
-        <h3 className="text-lg font-bold text-white mb-4">About The Events Feed</h3>
-        <p className="text-gray-400 mb-4 text-sm">
-          This feed highlights major changes on the current ranked leaderboard.
-          While we aim for accuracy, please note that all events are generated automatically and may not be 100% precise.
-          Additionally, since we only track changes within the ranked leaderboard, events outside of it will not appear here.
-        </p>
-        <div className="space-y-3 text-sm">
-          <div>
-            <strong className="text-indigo-400 flex items-center gap-2"><UserPen className="w-4 h-4" /> Name Change:</strong>
-            <p className="text-gray-400 ml-8">Tracks when a player changes their in-game name.</p>
-          </div>
-          <div>
-            <strong className="text-red-500 flex items-center gap-2"><Gavel className="w-4 h-4" /> Suspected Ban:</strong>
-            <p className="text-gray-400 ml-8">Occurs when a player disappears from the leaderboard entirely, which is often an indication of a ban. This is an inference, not a confirmation. The event is updated if the player reappears, which can happen if a ban is reverted or they reclaim a leaderboard spot after a large Rank Score loss.</p>
-          </div>
-          <div>
-            <strong className="text-yellow-400 flex items-center gap-2"><ChevronsUpDown className="w-4 h-4" /> Rank Score Adjustment:</strong>
-            <p className="text-gray-400 ml-8">Monitors significant gains or losses in a player&apos;s Rank Score (RS), including players falling off the leaderboard entirely due to a RS adjustment.</p>
-          </div>
-          <div>
-            <strong className="text-teal-400 flex items-center gap-2"><Users className="w-4 h-4" /> Club Event:</strong>
-            <p className="text-gray-400 ml-8">Records when a player joins, leaves, or changes their club affiliation.</p>
+    <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+      <div 
+        ref={infoModalRef} 
+        className="bg-gray-800 rounded-lg max-w-lg w-full border border-gray-600 shadow-xl animate-fade-in-fast flex flex-col max-h-[90dvh]"
+      >
+        <header className="p-6 pb-4 flex-shrink-0 border-b border-gray-700 flex justify-between items-center">
+          <h3 className="text-lg font-bold text-white">About The Events Feed</h3>
+          <button onClick={onClose} className="p-1 text-gray-400 hover:text-white rounded-full">
+            <X className="w-5 h-5" />
+          </button>
+        </header>
+
+        <div className="p-6 pt-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+          <p className="text-gray-400 mb-4 text-sm">
+            This feed highlights major changes on the current ranked leaderboard.
+            While we aim for accuracy, please note that all events are generated automatically and may not be 100% precise.
+            Additionally, since we only track changes within the ranked leaderboard, events outside of it will not appear here.
+          </p>
+          <div className="space-y-3 text-sm">
+            <div>
+              <strong className="text-indigo-400 flex items-center gap-2"><UserPen className="w-4 h-4" /> Name Change:</strong>
+              <p className="text-gray-400 ml-8">Tracks when a player changes their in-game name.</p>
+            </div>
+            <div>
+              <strong className="text-red-500 flex items-center gap-2"><Gavel className="w-4 h-4" /> Suspected Ban:</strong>
+              <p className="text-gray-400 ml-8">Occurs when a player disappears from the leaderboard entirely, which is often an indication of a ban. This is an inference, not a confirmation. The event is updated if the player reappears, which can happen if a ban is reverted or they reclaim a leaderboard spot after a large Rank Score loss.</p>
+            </div>
+            <div>
+              <strong className="text-yellow-400 flex items-center gap-2"><ChevronsUpDown className="w-4 h-4" /> Rank Score Adjustment:</strong>
+              <p className="text-gray-400 ml-8">Monitors significant gains or losses in a player&apos;s Rank Score (RS), including players falling off the leaderboard entirely due to a RS adjustment.</p>
+            </div>
+            <div>
+              <strong className="text-teal-400 flex items-center gap-2"><Users className="w-4 h-4" /> Club Event:</strong>
+              <p className="text-gray-400 ml-8">Records when a player joins, leaves, or changes their club affiliation.</p>
+            </div>
           </div>
         </div>
-        <button onClick={onClose} className="absolute top-3 right-3 p-1 text-gray-400 hover:text-white rounded-full">
-          <X className="w-5 h-5" />
-        </button>
       </div>
     </div>
   );
@@ -325,6 +333,11 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
 
   const toggleFilterSection = () => setIsFilterSectionExpanded(prev => !prev);
 
+  // Stabilize the callback with useCallback to prevent re-renders
+  const handleCloseInfo = useCallback(() => {
+    setShowInfo(false);
+  }, []);
+
   const areFiltersActive = useMemo(() => {
     return (
       filters.minLeague > 0 ||
@@ -407,16 +420,15 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   if (!isOpen) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 ${!isTopModal ? 'pointer-events-none' : ''}`}>
+    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4`}>
       <div 
         ref={modalRef} 
         className={`bg-gray-900 rounded-lg w-full flex flex-col shadow-2xl overflow-hidden relative transition-transform duration-75 ease-out
           ${isMobile ? 'max-w-[95vw] h-[90dvh]' : 'max-w-[60vw] h-[85dvh]'}
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
+          ${!isTopModal ? 'pointer-events-none' : ''}
           `}
       >
-        {showInfo && <EventInfoPopup onClose={() => setShowInfo(false)} />}
-        
         <header className="flex-shrink-0 bg-gray-800 p-4 border-b border-gray-700 flex items-center">
             <div className="flex-1">
               <div className="flex items-center gap-2">
@@ -522,6 +534,9 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
             </footer>
         }
       </div>
+      
+      {/* The info popup is now a sibling to the main modal container, preventing pointer-events issues */}
+      {showInfo && <EventInfoPopup onClose={handleCloseInfo} />}
     </div>
   );
 };
