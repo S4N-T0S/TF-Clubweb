@@ -178,7 +178,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
-      <div ref={modalContentRef} className="bg-gray-800 rounded-lg p-6 max-w-lg w-full border border-gray-600 shadow-xl relative flex flex-col max-h-[80vh]">
+      <div ref={modalContentRef} className="bg-gray-800 rounded-lg p-6 max-w-lg w-full border border-gray-600 shadow-xl relative flex flex-col max-h-[80dvh]">
         <div className="flex justify-between items-center mb-4 flex-shrink-0">
           <h3 className="text-lg font-semibold text-white">Add Player to Compare</h3>
           <button onClick={onClose} aria-label="Close comparisons" className="text-gray-400 hover:text-white">
@@ -484,7 +484,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
         className={`
           bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden grid grid-rows-[auto_1fr_auto] gap-4
           transition-transform duration-75 ease-out
-          ${isMobile ? 'max-w-[95vw] h-[95vh]' : 'max-w-[80vw] h-[85vh]'}
+          ${isMobile ? 'max-w-[95dvw] h-[95dvh]' : 'max-w-[80dvw] h-[85dvh]'}
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
         `}
       >

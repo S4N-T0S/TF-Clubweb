@@ -167,7 +167,7 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
       <div
         ref={modalRef}
         className={`bg-gray-900 rounded-lg w-full flex flex-col shadow-2xl overflow-hidden relative transition-transform duration-75 ease-out
-          ${isMobile ? 'max-w-[95vw] h-[90vh]' : 'max-w-[60vw] h-[85vh]'}
+          ${isMobile ? 'max-w-[95dvw] h-[90dvh]' : 'max-w-[60dvw] h-[85dvh]'}
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
         `}
       >

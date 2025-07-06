@@ -178,7 +178,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
       <div 
         ref={modalRef} 
         className={`bg-gray-800 rounded-lg p-6 w-full flex flex-col transition-transform duration-75 ease-out
-          ${isMobile ? 'max-w-[95vw] h-[90vh]' : 'max-w-[60vw] h-[85vh]'}
+          ${isMobile ? 'max-w-[95dvw] h-[90dvh]' : 'max-w-[60dvw] h-[85dvh]'}
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
           `}
       >
