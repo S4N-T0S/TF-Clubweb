@@ -293,9 +293,44 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     return !eventSettings.showNameChange || !eventSettings.showClubChange || !eventSettings.showRsAdjustment || !eventSettings.showSuspectedBan;
   }, [eventSettings]);
 
+  // Custom hook for data fetching and management
+  const {
+    data,
+    events,
+    mainPlayerGameCount,
+    mainPlayerAvailableSeasons,
+    comparisonData,
+    loading,
+    error,
+    addComparison,
+    removeComparison,
+    switchSeason,
+    mainPlayerCurrentId,
+  } = usePlayerGraphData(isOpen, embarkId, compareIds, seasonId, eventSettings);
+
+  // Handler for zoom/pan to hide hint
+  const handleZoomPan = useCallback(() => {
+    if (showZoomHint) {
+      setShowZoomHint(false);
+    }
+  }, [showZoomHint]);
+
+  // Custom hook for Chart.js configuration
+  const { chartOptions, chartData } = useChartConfig({
+    data,
+    events,
+    comparisonData,
+    embarkId: mainPlayerCurrentId || embarkId,
+    selectedTimeRange,
+    chartRef,
+    onZoomPan: handleZoomPan,
+    eventSettings,
+    seasonId: currentSeasonId,
+  });
+
   useEffect(() => {
     // This effect addresses a timing issue in Chart.js where label positions
-    // might not update correctly immediately after a time range change.
+    // might not update correctly on initial load or after a time range change.
     // By forcing a second update after a short delay, we ensure the chart's
     // internal scales and coordinates are fully synchronized before the final render.
     if (chartRef.current) {
@@ -304,10 +339,12 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
           // Use 'none' to prevent re-running animations, which could look jerky.
           chartRef.current.update('none');
         }
-      }, 50); // A small delay for the initial render to complete.
+      }, 75); // A small delay for the initial render to complete.
       return () => clearTimeout(timer);
     }
-  }, [selectedTimeRange, eventSettings]);
+    // By including chartData, this effect now also runs on the initial data load,
+    // fixing the issue where annotation labels might not appear until the first zoom/pan.
+  }, [selectedTimeRange, eventSettings, chartData]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -329,21 +366,6 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     setIsLeaderboardLoading(false);
   }, [isOpen, currentSeasonId, isClubView, globalLeaderboard]);
 
-
-  // Custom hook for data fetching and management
-  const {
-    data,
-    events,
-    mainPlayerGameCount,
-    mainPlayerAvailableSeasons,
-    comparisonData,
-    loading,
-    error,
-    addComparison,
-    removeComparison,
-    switchSeason,
-    mainPlayerCurrentId,
-  } = usePlayerGraphData(isOpen, embarkId, compareIds, seasonId, eventSettings);
 
   const displayedEmbarkId = mainPlayerCurrentId || embarkId;
 
@@ -423,26 +445,6 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
       }
     }
   }, [data, determineDefaultTimeRange, isHistoricalSeason]);
-
-  // Handler for zoom/pan to hide hint
-  const handleZoomPan = useCallback(() => {
-    if (showZoomHint) {
-      setShowZoomHint(false);
-    }
-  }, [showZoomHint]);
-
-  // Custom hook for Chart.js configuration
-  const { chartOptions, chartData } = useChartConfig({
-    data,
-    events,
-    comparisonData,
-    embarkId: displayedEmbarkId,
-    selectedTimeRange,
-    chartRef,
-    onZoomPan: handleZoomPan,
-    eventSettings,
-    seasonId: currentSeasonId,
-  });
 
   // UI Effects for hints and dropdowns
   useEffect(() => {
