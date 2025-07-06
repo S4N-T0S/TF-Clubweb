@@ -201,7 +201,14 @@ const processGraphData = (rawData, events = [], seasonEndDate = null) => {
     if (hasNewData) {
         const now = seasonEndDate ? new Date(seasonEndDate) : new Date();
         const lastRealPoint = newPoints[newPoints.length - 1];
-        if (now - lastRealPoint.timestamp > GAP_THRESHOLD) {
+        
+        // Check for an active suspected ban
+        const hasActiveBan = events.some(e => e.event_type === 'SUSPECTED_BAN' && !e.end_timestamp);
+        
+        // Condition to start drawing a dashed line to 'now'
+        const shouldDrawFinalDashedLine = (now - lastRealPoint.timestamp > GAP_THRESHOLD) || (hasActiveBan);
+
+        if (shouldDrawFinalDashedLine) {
             // Find the last real point in the combined array to flag it for a dashed line
             const pointToFlag = combined.find(p => 
                 p.timestamp.getTime() === lastRealPoint.timestamp.getTime() && 
