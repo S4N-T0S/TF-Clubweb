@@ -77,7 +77,7 @@ clubChangeIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www
  */
 const getRsEvent = (ctx) => {
     const pointData = ctx.raw?.raw;
-    if (pointData?.events && !pointData.isInterpolated && !pointData.isExtrapolated) {
+    if (pointData?.events && !pointData.isInterpolated && !pointData.isExtrapolated && !pointData.isStaircasePoint) {
         return pointData.events.find(e => e.event_type === 'RS_ADJUSTMENT');
     }
     return null;
@@ -707,14 +707,15 @@ export const useChartConfig = ({
     return [Math.max(0, minScore - padding), maxScore + padding];
   }, [comparisonData, chartRef]);
 
-  const getEventAnnotations = useCallback((viewWindow, yDomain) => {
-    if (!showEvents || !viewWindow || !yDomain) return [];
+    const getEventAnnotations = useCallback(() => {
+    if (!showEvents) return [];
+    
     const annotations = [];
 
     const processPlayerDataset = (playerData, playerEvents, playerName) => {
         if (!playerData) return;
 
-        // Handle point-based events by iterating through the data points
+        // Handle point-based events (name/club changes)
         playerData.forEach(point => {
             if (point.isInterpolated || point.isExtrapolated || point.isStaircasePoint || point.isGapBridge || !point.events) {
                 return;
@@ -722,9 +723,13 @@ export const useChartConfig = ({
 
             point.events.forEach(event => {
                 if (event.event_type === 'NAME_CHANGE' || event.event_type === 'CLUB_CHANGE') {
+                    // All labels are created upfront. Visibility and font size are handled dynamically
+                    // by the plugin via scriptable options. This prevents replacing the annotations
+                    // array on every pan/zoom, which is the cause of the visual glitch.
+                    
                     let labelContent = [];
                     if (event.event_type === 'NAME_CHANGE') {
-                         labelContent = [`Name Change:`, `${event.details.old_name} → ${event.details.new_name}`];
+                        labelContent = [`Name Change:`, `${event.details.old_name} → ${event.details.new_name}`];
                     } else { // CLUB_CHANGE
                         const oldClub = event.details.old_club ? `[${event.details.old_club}]` : 'No Club';
                         const newClub = event.details.new_club ? `[${event.details.new_club}]` : 'No Club';
@@ -733,14 +738,49 @@ export const useChartConfig = ({
 
                     annotations.push({
                         type: 'label',
-                        id: `label-point-event-${event.event_id}`, // Unique ID from event
+                        id: `label-point-event-${event.event_id}`,
+                        // The `display` property lets the plugin manage visibility internally.
+                        display: (ctx) => {
+                            const chart = ctx.chart;
+                            if (!chart.scales?.x || !ctx.element?.options) return false;
+                            const xValue = ctx.element.options.xValue;
+                            // Use the chart's live scale min/max to determine visibility.
+                            return xValue >= chart.scales.x.min && xValue <= chart.scales.x.max;
+                        },
                         xValue: point.timestamp,
                         yValue: point.rankScore,
                         content: labelContent,
-                        font: { size: 11 },
+                        font: { 
+                            // Scriptable font size adapts to the current zoom level.
+                            size: (ctx) => {
+                                const baseFontSize = 11;
+                                const chart = ctx.chart;
+                                // Guard against calls before the chart is fully initialized.
+                                if (!chart || !chart.scales.x || chart.scales.x.min === undefined) return baseFontSize;
+                                
+                                const viewDuration = chart.scales.x.max - chart.scales.x.min;
+                                
+                                if (viewDuration <= TIME.DAY * 3) return baseFontSize;
+                                if (viewDuration <= TIME.WEEK * 2) return baseFontSize - 1;
+                                return Math.max(8, baseFontSize - 2);
+                            }
+                        },
                         color: event.event_type === 'NAME_CHANGE' ? "#818cf8" : '#2dd4bf',
                         backgroundColor: 'rgba(30, 41, 59, 0.85)',
                         yAdjust: 25,
+                        xAdjust: (ctx) => {
+                            // Clipping logic remains the same and will now be stable.
+                            if (!ctx.chart?.scales?.x || !ctx.element?.options) return 0;
+                            const chart = ctx.chart;
+                            const scale = chart.scales.x;
+                            const xPixel = scale.getPixelForValue(ctx.element.options.xValue);
+                            const chartRight = scale.getPixelForValue(scale.max);
+                            const chartLeft = scale.getPixelForValue(scale.min);
+                            const labelHalfWidth = 90;
+                            if (xPixel + labelHalfWidth > chartRight) return chartRight - (xPixel + labelHalfWidth) - 5;
+                            if (xPixel - labelHalfWidth < chartLeft) return chartLeft - (xPixel - labelHalfWidth) + 5;
+                            return 0;
+                        },
                         padding: 6,
                         borderRadius: 4,
                     });
@@ -748,17 +788,16 @@ export const useChartConfig = ({
             });
         });
 
-        // Handle time-range based events by iterating through the event list
+        // Handle time-range based events (suspected ban)
         if (playerEvents) {
             playerEvents.forEach(event => {
                 if (event.event_type === 'SUSPECTED_BAN') {
-                    const eventTimestamp = event.start_timestamp * 1000;
-                    const xMax = event.end_timestamp ? event.end_timestamp * 1000 : viewWindow.max;
                     annotations.push({
                         id: `sb-event-${event.event_id}`,
                         type: 'box',
-                        xMin: eventTimestamp,
-                        xMax: xMax,
+                        xMin: event.start_timestamp * 1000,
+                        // xMax is now scriptable to extend to the edge of the visible chart area.
+                        xMax: (ctx) => event.end_timestamp ? event.end_timestamp * 1000 : ctx.chart.scales.x.max,
                         backgroundColor: 'rgba(239, 68, 68, 0.2)',
                         borderColor: 'rgba(239, 68, 68, 0.1)',
                         borderWidth: 1,
@@ -767,7 +806,7 @@ export const useChartConfig = ({
                             display: true,
                             position: 'start',
                             color: 'rgba(255, 150, 150, 0.9)',
-                            font: { size: 12, weight: 'bold' },
+                            font: { weight: 'bold', size: 10 },
                         }
                     });
                 }
@@ -775,16 +814,13 @@ export const useChartConfig = ({
         }
     };
     
-    // Process for main player
     processPlayerDataset(data, events, embarkId);
-
-    // Process for comparison players
     comparisonData.forEach((compare, id) => {
         processPlayerDataset(compare.data, compare.events, id);
     });
 
     return annotations;
-  }, [data, events, comparisonData, embarkId, showEvents]);
+}, [data, events, comparisonData, embarkId, showEvents]);
 
   const getRankAnnotations = useCallback((customTimeRange = null) => {
     if (!data) return [];
@@ -847,21 +883,31 @@ export const useChartConfig = ({
     
     chart.options.scales.y.ticks.stepSize = calculateYAxisStepSize(newMin, newMax);
     
-    const rankAnnotations = getRankAnnotations(timeRange);
-    const eventAnnotations = getEventAnnotations(timeRange, { min: newMin, max: newMax });
-    chart.options.plugins.annotation.annotations = [...rankAnnotations, ...eventAnnotations];
+    // Regenerate rank annotations based on the new Y-axis.
+    const newRankAnnotations = getRankAnnotations(timeRange);
+    
+    // Get a reference to the chart's live annotation options.
+    const liveAnnotationOptions = chart.options.plugins.annotation;
 
-  }, [data, selectedTimeRange, getDynamicYAxisDomain, calculateYAxisStepSize, getRankAnnotations, getEventAnnotations]);
+    // Preserve the existing event annotations by filtering the live array.
+    const currentEventAnnotations = liveAnnotationOptions.annotations.filter(
+        a => a.id && (a.id.startsWith('label-point-event-') || a.id.startsWith('sb-event-'))
+    );
+    
+    // Mutate the array in-place to avoid breaking the plugin's internal references.
+    liveAnnotationOptions.annotations.length = 0;
+    liveAnnotationOptions.annotations.push(...newRankAnnotations, ...currentEventAnnotations);
 
-  const chartOptions = useMemo(() => {
+}, [data, selectedTimeRange, getDynamicYAxisDomain, calculateYAxisStepSize, getRankAnnotations]);
+
+    const chartOptions = useMemo(() => {
     if (!data) return null;
 
     const { min: overallMin, max: overallMax } = overallTimeDomain;
 
     const [initialMinY, initialMaxY] = getDynamicYAxisDomain(data, selectedTimeRange);
-    const yDomain = { min: initialMinY, max: initialMaxY };
     const rankAnnotations = getRankAnnotations(null);
-    const eventAnnotations = getEventAnnotations(viewWindow, yDomain);
+    const eventAnnotations = getEventAnnotations();
 
     return {
       responsive: true,
