@@ -62,7 +62,7 @@ const EventInfoPopup = ({ onClose }) => {
     <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
       <div 
         ref={infoModalRef} 
-        className="bg-gray-800 rounded-lg max-w-lg w-full border border-gray-600 shadow-xl animate-fade-in-fast flex flex-col max-h-[90dvh]"
+        className="bg-gray-800 rounded-lg w-full max-w-xl lg:max-w-3xl border border-gray-600 shadow-xl animate-fade-in-fast flex flex-col max-h-[90dvh]"
       >
         <header className="p-6 pb-4 flex-shrink-0 border-b border-gray-700 flex justify-between items-center">
           <h3 className="text-lg font-bold text-white">About The Events Feed</h3>
