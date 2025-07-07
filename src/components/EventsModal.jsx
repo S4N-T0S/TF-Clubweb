@@ -80,7 +80,7 @@ const EventInfoPopup = ({ onClose }) => {
           <div className="space-y-4 text-sm">
             <div>
               <strong className="text-indigo-400 flex items-center gap-2"><UserPen className="w-4 h-4" /> Name Change:</strong>
-              <p className="text-gray-400 ml-8">Tracks when a player changes their in-game name.</p>
+              <p className="text-gray-400 ml-8">Tracks when a player changes their in-game name. Embark also changes inappropriate names to &quot;Player#1234&quot; and other generic names.</p>
             </div>
             <div>
               <strong className="text-red-500 flex items-center gap-2"><Gavel className="w-4 h-4" /> Suspected Ban:</strong>
@@ -92,7 +92,7 @@ const EventInfoPopup = ({ onClose }) => {
             </div>
             <div>
               <strong className="text-teal-400 flex items-center gap-2"><Users className="w-4 h-4" /> Club Event:</strong>
-              <p className="text-gray-400 ml-8">Records when a player joins, leaves, or changes their club affiliation.</p>
+              <p className="text-gray-400 ml-8">Records when a player joins, leaves, or changes their club affiliation. When a player leaves and joins a club within one event, it could be that they truly left the club or that their club was renamed. We try to tag mass club changes (when it&apos;s more likely to be a rename), but if only one person from the club is on the leaderboard, we won&apos;t catch it. Furthermore, Embark changes inappropriate club names to a random 1 letter 4 number club name, such as I3037 F9029.</p>
             </div>
             <div>
               <strong className="text-gray-200 flex items-center gap-2"><SlidersHorizontal className="w-4 h-4" /> Filter Status:</strong>
