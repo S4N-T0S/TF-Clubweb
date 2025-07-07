@@ -1,7 +1,7 @@
 export const processLeaderboardData = (rawData, clubMembers) => {
   // Find Ruby cutoff score
   const rubyPlayers = rawData.filter(player => player.leagueNumber === 21); // Ruby League remember to change if API changes
-  const rubyCutoff = rubyPlayers.length > 0 ? rubyPlayers.reduce((lowest, player) => 
+  const currentRubyCutoff = rubyPlayers.length > 0 ? rubyPlayers.reduce((lowest, player) => // Either returns RS of lowest ruby player or false if no ruby players
     player.rankScore < lowest ? player.rankScore : lowest,
     Infinity
   ) : false;
@@ -46,7 +46,7 @@ export const processLeaderboardData = (rawData, clubMembers) => {
     topClubs,
     unknownMembers,
     globalLeaderboard,
-    rubyCutoff
+    currentRubyCutoff
   };
 };
 

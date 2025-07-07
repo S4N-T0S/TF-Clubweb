@@ -105,7 +105,7 @@ export const GlobalViewProps = {
   isMobile: PropTypes.bool.isRequired,
   showFavourites: PropTypes.bool.isRequired,
   setShowFavourites: PropTypes.func.isRequired,
-  rubyCutoff: PropTypes.oneOfType([PropTypes.number, PropTypes.bool]),
+  currentRubyCutoff: PropTypes.oneOfType([PropTypes.number, PropTypes.bool]),
   showToast: PropTypes.func.isRequired
 };
 
@@ -252,6 +252,7 @@ export const GraphModalProps = {
   isClubView: PropTypes.bool,
   globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)),
   onSwitchToGlobal: PropTypes.func,
+  currentRubyCutoff: PropTypes.oneOfType([PropTypes.number, PropTypes.bool]),
   isMobile: PropTypes.bool.isRequired
 };
 

@@ -262,7 +262,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
   );
 };
 
-const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isClubView = false, globalLeaderboard = [], onSwitchToGlobal, isMobile }) => {
+const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isClubView = false, globalLeaderboard = [], onSwitchToGlobal, currentRubyCutoff, isMobile }) => {
   const { modalRef, isActive } = useModal(isOpen, onClose);
   const chartRef = useRef(null);
 
@@ -327,6 +327,16 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     }
   }, [showZoomHint]);
 
+  // Determine the correct ruby cutoff to display based on the currently viewed season.
+  const rubyCutoffForChart = useMemo(() => {
+    if (!seasonConfig || !seasonConfig.hasRuby) {
+      return undefined; // No ruby rank for this season
+    }
+    // If it's the current season, use the dynamic prop.
+    // Otherwise, use the static historical value from the SEASONS object.
+    return seasonConfig.isCurrent ? currentRubyCutoff : seasonConfig.rubyCutoff;
+  }, [seasonConfig, currentRubyCutoff]);
+
   // Custom hook for Chart.js configuration
   const { chartOptions, chartData } = useChartConfig({
     data,
@@ -338,6 +348,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     onZoomPan: handleZoomPan,
     eventSettings,
     seasonId: currentSeasonId,
+    rubyCutoff: rubyCutoffForChart,
   });
 
   useEffect(() => {
@@ -362,14 +373,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     if (!isOpen) return;
     setIsLeaderboardLoading(true);
 
-    const seasonKey = Object.keys(SEASONS).find(key => SEASONS[key].id === currentSeasonId);
+    const seasonKeyForLeaderboard = Object.keys(SEASONS).find(key => SEASONS[key].id === currentSeasonId);
 
     if (isClubView) {
       // isClubView is always current season, globalLeaderboard prop contains rankedClubMembers
       setComparisonLeaderboard(globalLeaderboard);
-    } else if (seasonKey && !SEASONS[seasonKey].isCurrent) {
+    } else if (seasonKeyForLeaderboard && !SEASONS[seasonKeyForLeaderboard].isCurrent) {
       // Historical season
-      const { leaderboard } = getSeasonLeaderboard(seasonKey);
+      const { leaderboard } = getSeasonLeaderboard(seasonKeyForLeaderboard);
       setComparisonLeaderboard(leaderboard);
     } else {
       // Current season global view
@@ -421,10 +432,8 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
   // Function to determine the appropriate default time range based on actual game data points
   const determineDefaultTimeRange = useCallback((data) => {
     if (!data?.length) return '24H';
-
-    const seasonConfig = Object.values(SEASONS).find(s => s.id === currentSeasonId);
-    const seasonEndDate = seasonConfig?.endTimestamp ? new Date(seasonConfig.endTimestamp * 1000) : null;
-    const now = seasonEndDate || new Date();
+    // Set now to the end of the season if available (historical), otherwise use current time
+    const now = seasonConfig?.endTimestamp ? new Date(seasonConfig.endTimestamp * 1000) : new Date();
 
     const last24Hours = new Date(now - TIME.DAY);
     const last7Days = new Date(now - TIME.WEEK);
@@ -446,7 +455,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     if (pointsIn7D >= 2) return '7D';
 
     return 'MAX';
-  }, [currentSeasonId]);
+  }, [seasonConfig]);
 
   // Set default time range when data loads
   useEffect(() => {

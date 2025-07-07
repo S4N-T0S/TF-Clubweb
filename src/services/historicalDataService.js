@@ -11,11 +11,11 @@ export const SEASONS = {
   OB: { id: 0, data: OBData, label: 'Open Beta', hasRuby: false, hasRankScore: true, scoreKey: 'fame', isGraphable: false },
   S1: { id: 1, data: S1Data, label: 'Season 1', hasRuby: false, hasRankScore: true, scoreKey: 'fame', isGraphable: false },
   S2: { id: 2, data: S2Data, label: 'Season 2', hasRuby: false, hasRankScore: false, isGraphable: false },
-  S3: { id: 3, data: S3Data, label: 'Season 3', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: false },
-  S4: { id: 4, data: S4Data, label: 'Season 4', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: false },
-  S5: { id: 5, data: S5Data, label: 'Season 5', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1735429827, endTimestamp: 1742498648 },
-  S6: { id: 6, data: S6Data, label: 'Season 6', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1742502488, endTimestamp: 1749721922 },
-  S7: { id: 7, data: null, label: 'Season 7', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isCurrent: true, isGraphable: true, startTimestamp: 1749734705, endTimestamp: null }
+  S3: { id: 3, data: S3Data, label: 'Season 3', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: false, rubyCutoff: 63929 },
+  S4: { id: 4, data: S4Data, label: 'Season 4', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: false, rubyCutoff: 46543 },
+  S5: { id: 5, data: S5Data, label: 'Season 5', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1735429827, endTimestamp: 1742498648, rubyCutoff: 49750 },
+  S6: { id: 6, data: S6Data, label: 'Season 6', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1742502488, endTimestamp: 1749721922, rubyCutoff: 50347 },
+  S7: { id: 7, data: null, label: 'Season 7', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isCurrent: true, isGraphable: true, startTimestamp: 1749734705, endTimestamp: null, rubyCutoff: null },
 };
 
 export const getSeasonLeaderboard = (seasonKey) => {

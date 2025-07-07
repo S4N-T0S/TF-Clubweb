@@ -55,7 +55,7 @@ const App = () => {
     topClubs,
     unknownMembers,
     globalLeaderboard,
-    rubyCutoff,
+    currentRubyCutoff,
     loading,
     error,
     isRefreshing,
@@ -363,7 +363,7 @@ const App = () => {
                 selectedSeason={selectedSeason}
                 setSelectedSeason={setSelectedSeason}
                 globalLeaderboard={globalLeaderboard}
-                rubyCutoff={rubyCutoff}
+                currentRubyCutoff={currentRubyCutoff}
                 onPlayerSearch={(name) => handleSearchModalOpen(name)}
                 searchQuery={globalSearchQuery}
                 setSearchQuery={setGlobalSearchQuery}
@@ -414,6 +414,7 @@ const App = () => {
             isClubView={graphModalState.isClubView}
             globalLeaderboard={graphModalState.isClubView ? rankedClubMembers : globalLeaderboard}
             onSwitchToGlobal={() => setView('global')}
+            currentRubyCutoff={currentRubyCutoff}
             isMobile={graphModalState.isMobile}
           />
         )}

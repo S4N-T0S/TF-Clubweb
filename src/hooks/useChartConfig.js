@@ -259,6 +259,7 @@ export const useChartConfig = ({
   onZoomPan,
   eventSettings,
   seasonId,
+  rubyCutoff,
 }) => {
 
   const seasonConfig = useMemo(() => Object.values(SEASONS).find(s => s.id === seasonId), [seasonId]);
@@ -946,7 +947,7 @@ export const useChartConfig = ({
   const getRankAnnotations = useCallback((minDomain, maxDomain) => {
     if (!data) return [];
 
-    return RANKS
+    const annotations = RANKS
       .filter(rank => rank.y >= minDomain && rank.y <= maxDomain)
       .map(rank => ({
         type: 'line',
@@ -969,7 +970,35 @@ export const useChartConfig = ({
           }
         }
       }));
-  }, [data]);
+
+      const seasonConfig = Object.values(SEASONS).find(s => s.id === seasonId);
+
+      if (seasonConfig && seasonConfig.hasRuby && typeof rubyCutoff === 'number' && rubyCutoff >= minDomain && rubyCutoff <= maxDomain) {
+          annotations.push({
+              type: 'line',
+              yMin: rubyCutoff,
+              yMax: rubyCutoff,
+              borderColor: '#dc2626',
+              borderWidth: 1.5,
+              borderDash: [2, 2],
+              label: {
+                content: 'Ruby',
+                display: true,
+                position: 'center',
+                color: '#dc2626',
+                font: {
+                  size: 11
+                },
+                padding: {
+                  left: 8,
+                  right: 8
+                }
+              }
+          });
+      }
+
+      return annotations;
+  }, [data, seasonId, rubyCutoff]);
 
   const updateDynamicAxes = useCallback((chart) => {
     if (!chart || !data) return;

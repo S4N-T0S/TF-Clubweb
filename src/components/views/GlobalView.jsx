@@ -375,7 +375,7 @@ export const GlobalView = ({
   selectedSeason,
   setSelectedSeason,
   globalLeaderboard,
-  rubyCutoff,
+  currentRubyCutoff,
   onPlayerSearch,
   searchQuery: initialSearchQuery,
   setSearchQuery: setGlobalSearchQuery,
@@ -445,7 +445,7 @@ export const GlobalView = ({
   selectedSeason === 'ALL'
     ? getAllSeasonsLeaderboard(globalLeaderboard)
     : isCurrentSeason
-      ? { leaderboard: globalLeaderboard, rubyCutoff }
+      ? { leaderboard: globalLeaderboard, currentRubyCutoff }
       : getSeasonLeaderboard(selectedSeason);
 
   // Disable Favourites when not in current season
@@ -551,8 +551,8 @@ export const GlobalView = ({
           </select>
         </div>
       </div>
-      {!showFavourites && isCurrentSeason && rubyCutoff && (
-        <RubyCutoffIndicator cutoff={rubyCutoff} onCutoffClick={handleCutoffClick} />
+      {!showFavourites && isCurrentSeason && currentRubyCutoff && (
+        <RubyCutoffIndicator cutoff={currentRubyCutoff} onCutoffClick={handleCutoffClick} />
       )}
       <div className="page-transition-container">
       <div className={`page-content ${slideDirection}`} key={currentPage}>
