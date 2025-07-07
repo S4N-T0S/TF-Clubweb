@@ -5,7 +5,7 @@ to keep up with it's logic. I'm sorry for the mess.
 */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { X, Plus, Search, Camera, SlidersHorizontal, UserPen, Gavel, ChevronsUpDown, Users } from 'lucide-react';
+import { X, Plus, Camera, SlidersHorizontal, UserPen, Gavel, ChevronsUpDown, Users } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -26,6 +26,7 @@ import { useModal } from '../context/ModalProvider';
 import { usePlayerGraphData } from '../hooks/usePlayerGraphData';
 import { useChartConfig } from '../hooks/useChartConfig';
 import { LoadingDisplay } from './LoadingDisplay';
+import { SearchBar } from './SearchBar';
 import { getStoredGraphSettings, setStoredGraphSettings } from '../services/localStorageManager';
 import { SEASONS, getSeasonLeaderboard } from '../services/historicalDataService';
 
@@ -128,14 +129,25 @@ const GraphSettingsModal = ({ settings, onSettingsChange, onClose, hasAnyEvents 
             </div>
           </div>
         </div>
+        <p className="text-xs text-gray-500 text-center italic mt-4">
+          Learn more about events by clicking the information button on the events view page.
+        </p>
       </div>
     </div>
   );
 };
 
-const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comparisonData, mainPlayerLastDataPoint, isMobile }) => {
+const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comparisonData, mainPlayerLastDataPoint, currentSeasonLabel, isMobile }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredPlayers, setFilteredPlayers] = useState([]);
+  const searchInputRef = useRef(null);
+
+  // Re-implement autoFocus since we are now using a component
+  useEffect(() => {
+    if (!isMobile && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isMobile]);
   
   // Stabilize options with useMemo to prevent re-renders in useModal.
   const modalOptions = useMemo(() => ({ type: 'nested' }), []);
@@ -197,25 +209,25 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
-      <div ref={modalContentRef} className="bg-gray-800 rounded-lg p-6 max-w-lg w-full border border-gray-600 shadow-xl relative flex flex-col max-h-[80dvh]">
-        <div className="flex justify-between items-center mb-4 flex-shrink-0">
-          <h3 className="text-lg font-semibold text-white">Add Player to Compare</h3>
+      <div ref={modalContentRef} className="bg-gray-800 rounded-lg w-full max-w-xl lg:max-w-3xl border border-gray-600 shadow-xl relative flex flex-col max-h-[85dvh]">
+        <header className="p-6 pb-4 flex-shrink-0 border-b border-gray-700 flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-white">
+            Add Player to Compare
+            <span className="text-base font-normal text-gray-400 ml-2">({currentSeasonLabel})</span>
+          </h3>
           <button onClick={onClose} aria-label="Close comparisons" className="text-gray-400 hover:text-white">
             <X className="w-5 h-5" />
           </button>
-        </div>
-        <div className="relative mb-4 flex-shrink-0">
-          <input
-            type="text"
+        </header>
+        <div className="px-6 pt-2 flex-shrink-0">
+          <SearchBar
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search players..."
-            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
-            autoFocus={!isMobile}
+            onChange={setSearchTerm}
+            placeholder="Search players by name or club tag..."
+            searchInputRef={searchInputRef}
           />
-          <Search className="absolute right-3 top-2.5 h-5 w-5 text-gray-400" />
         </div>
-        <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-500 scrollbar-track-gray-800 -mr-2 pr-2">
+        <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-500 scrollbar-track-gray-800 px-6 pt-2 pb-6">
           {filteredPlayers.length === 0 ? (
             <div className="p-4 text-center text-gray-400 text-sm">No matching players found.</div>
           ) : (
@@ -565,6 +577,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
             onClose={handleCloseCompareModal}
             comparisonData={comparisonData}
             mainPlayerLastDataPoint={data?.[data.length - 1]}
+            currentSeasonLabel={currentSeasonLabel}
             isMobile={isMobile}
           />
         )}

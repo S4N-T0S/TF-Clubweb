@@ -239,7 +239,7 @@ export const ComparePlayerModalProps = {
   onClose: PropTypes.func.isRequired,
   comparisonData: PropTypes.instanceOf(Map).isRequired,
   mainPlayerLastDataPoint: PropTypes.object,
-  className: PropTypes.string,
+  currentSeasonLabel: PropTypes.string.isRequired,
   isMobile: PropTypes.bool.isRequired
 };
 
