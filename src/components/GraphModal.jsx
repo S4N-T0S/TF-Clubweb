@@ -209,7 +209,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
-      <div ref={modalContentRef} className="bg-gray-800 rounded-lg w-full max-w-xl lg:max-w-3xl border border-gray-600 shadow-xl relative flex flex-col max-h-[85dvh]">
+      <div ref={modalContentRef} className="bg-gray-800 rounded-lg w-full max-w-xl lg:max-w-3xl border border-gray-600 shadow-xl relative flex flex-col max-h-[70dvh]">
         <header className="p-6 pb-4 flex-shrink-0 border-b border-gray-700 flex justify-between items-center">
           <h3 className="text-lg font-semibold text-white">
             Add Player to Compare
