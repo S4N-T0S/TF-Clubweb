@@ -184,6 +184,8 @@ This dashboard is powered by a public API developed by us. Below are the details
           reappeared_at_rank?: number;
           reappeared_at_rank_score?: number;
           // This field is ONLY present if the player reappeared with a different name.
+          // When present, it signifies that a name change occurred while the player was off-leaderboard,
+          // resolving the ban event. 'last_known_name' acts as the old name, and 'reappeared_as_name' is the new name.
           reappeared_as_name?: string;
         }
         // NOTE: An event of this type is considered "resolved" or "over" when its `end_timestamp`
