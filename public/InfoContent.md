@@ -134,9 +134,11 @@ This dashboard is powered by a public API developed by us. Below are the details
 
 #### 3. Get Recent Events
 
-*   **Endpoint:** `GET /events`
+*   **Endpoint:** `GET /events/:seasonId?`
 *   **Auth:** None.
-*   **Purpose:** Fetches a feed of recent, significant player events like name changes, suspected bans, etc. This is for a live "event feed" on the site. The backend returns the last 5000 events.
+*   **Purpose:** Fetches a feed of all significant player events (name changes, suspected bans, etc.) for a given season. This is for a live "event feed" on the site. If `:seasonId` is omitted, it defaults to the current season.
+*   **Path Parameters:**
+*   `seasonId` (optional, number): The ID of the season to fetch events for (e.g., `7`). Only seasons with event tracking support (Season 7 and newer) will return data.
 *   **Response Structure:**
     ```typescript
     interface EventsResponse {
