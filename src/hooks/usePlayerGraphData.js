@@ -178,145 +178,144 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
     }
   }
 
-  // Inject synthetic points for all ban events if enabled in settings
-  const banEvents = events.filter(e => e.event_type === 'SUSPECTED_BAN');
-  if (eventSettings.showSuspectedBan && banEvents.length > 0) {
-    banEvents.sort((a, b) => a.start_timestamp - b.start_timestamp); // Process chronologically
+  // Separate ban events to process them robustly.
+  const completedBanEvents = events.filter(e => e.event_type === 'SUSPECTED_BAN' && e.end_timestamp);
+  const activeBan = events.find(e => e.event_type === 'SUSPECTED_BAN' && !e.end_timestamp);
 
-    banEvents.forEach(event => {
-      const banStartTs = event.start_timestamp * 1000;
-      let insertionIndex = combined.findIndex(p => p.timestamp.getTime() > banStartTs);
-      if (insertionIndex === -1) {
-        insertionIndex = combined.length;
-      }
+  if (eventSettings.showSuspectedBan) {
+    // 1. Process all COMPLETED bans first.
+    if (completedBanEvents.length > 0) {
+      completedBanEvents.sort((a, b) => a.start_timestamp - b.start_timestamp);
+      completedBanEvents.forEach(event => {
+        const banStartTs = event.start_timestamp * 1000;
+        let insertionIndex = combined.findIndex(p => p.timestamp.getTime() > banStartTs);
+        if (insertionIndex === -1) { insertionIndex = combined.length; }
+
+        let lastKnownPoint = null;
+        for (let i = insertionIndex - 1; i >= 0; i--) {
+          if (!combined[i].isBanStartAnchor && !combined[i].isBanEndAnchor) {
+            lastKnownPoint = combined[i];
+            break;
+          }
+        }
+
+        if (lastKnownPoint) {
+          if (lastKnownPoint.isFollowedByGap) { lastKnownPoint.isFollowedByGap = false; }
+          const banStartPoint = {
+            rankScore: lastKnownPoint.rankScore, league: lastKnownPoint.league, rank: lastKnownPoint.rank,
+            timestamp: new Date(banStartTs), isInterpolated: true, scoreChanged: false, isBanStartAnchor: true, events: [event],
+          };
+          combined.splice(insertionIndex, 0, banStartPoint);
+
+          const banEndTs = event.end_timestamp * 1000;
+          const reappearanceIndex = combined.findIndex((p, idx) =>
+            idx > insertionIndex && p.timestamp.getTime() >= banEndTs && !p.isInterpolated && !p.isGapBridge && !p.isStaircasePoint
+          );
+
+          if (reappearanceIndex !== -1) {
+            const pointToModify = combined[reappearanceIndex];
+            pointToModify.isBanEndAnchor = true;
+            if (!pointToModify.events) { pointToModify.events = []; }
+            pointToModify.events.push(event);
+            for (let i = reappearanceIndex - 1; i > insertionIndex; i--) {
+              if (combined[i].isGapBridge) { combined.splice(i, 1); }
+            }
+          } else {
+            let endInsertionIndex = combined.findIndex((p, idx) => idx > insertionIndex && p.timestamp.getTime() > banEndTs);
+            if (endInsertionIndex === -1) { endInsertionIndex = combined.length; }
+            const banEndPoint = {
+              rankScore: lastKnownPoint.rankScore, league: lastKnownPoint.league, rank: lastKnownPoint.rank,
+              timestamp: new Date(banEndTs), isInterpolated: true, scoreChanged: false, isBanEndAnchor: true, events: [event],
+            };
+            combined.splice(endInsertionIndex, 0, banEndPoint);
+            for (let i = endInsertionIndex - 1; i > insertionIndex; i--) {
+              if (combined[i].isGapBridge) { combined.splice(i, 1); }
+            }
+          }
+        }
+      });
+    }
+
+    // 2. Process the single ACTIVE ban (if it exists) LAST.
+    if (activeBan) {
+      const banStartTs = activeBan.start_timestamp * 1000;
+      let insertionIndex = combined.findIndex(p => p.timestamp.getTime() >= banStartTs);
+      if (insertionIndex === -1) { insertionIndex = combined.length; }
 
       let lastKnownPoint = null;
       for (let i = insertionIndex - 1; i >= 0; i--) {
         const p = combined[i];
-        if (!p.isBanStartAnchor && !p.isBanEndAnchor) {
+        if (!p.isBanStartAnchor && !p.isBanEndAnchor && !p.isUnexpectedReappearance) {
           lastKnownPoint = p;
           break;
         }
       }
 
       if (lastKnownPoint) {
-        // The ban event we are adding will visually represent any subsequent data gap.
-        // Therefore, we must remove the `isFollowedByGap` flag from the last point
-        // before the ban to ensure the line leading to the ban start icon is solid.
-        if (lastKnownPoint.isFollowedByGap) {
-          lastKnownPoint.isFollowedByGap = false;
-        }
-
-        // Create a clean start point, not inheriting any flags from lastKnownPoint.
+        if (lastKnownPoint.isFollowedByGap) { lastKnownPoint.isFollowedByGap = false; }
         const banStartPoint = {
-          rankScore: lastKnownPoint.rankScore,
-          league: lastKnownPoint.league,
-          rank: lastKnownPoint.rank,
-          timestamp: new Date(banStartTs),
-          isInterpolated: true,
-          scoreChanged: false,
-          isBanStartAnchor: true,
-          events: [event],
+          rankScore: lastKnownPoint.rankScore, league: lastKnownPoint.league, rank: lastKnownPoint.rank,
+          timestamp: new Date(banStartTs), isInterpolated: true, scoreChanged: false, isBanStartAnchor: true, events: [activeBan],
         };
-        combined.splice(insertionIndex, 0, banStartPoint);
 
-        if (event.end_timestamp) {
-          const banEndTs = event.end_timestamp * 1000;
+        const reappearanceIndex = combined.findIndex((p, idx) =>
+          idx >= insertionIndex && p.scoreChanged && !p.isInterpolated
+        );
 
-          // Try to find the actual data point that marks the player's reappearance.
-          // An "actual" point is not synthetic (interpolated, gap bridge, etc.).
-          const reappearanceIndex = combined.findIndex((p, idx) =>
-            idx > insertionIndex && // Must be after the ban start anchor
-            p.timestamp.getTime() >= banEndTs &&
-            !p.isInterpolated &&
-            !p.isGapBridge &&
-            !p.isStaircasePoint
-          );
-
-          if (reappearanceIndex !== -1) {
-            // If we found the reappearance point, attach the unban info to it.
-            const pointToModify = combined[reappearanceIndex];
-            pointToModify.isBanEndAnchor = true;
-            if (!pointToModify.events) {
-              pointToModify.events = [];
-            }
-            pointToModify.events.push(event);
-
-            // Remove any gap bridge points that are now obsolete because they
-            // fall within the completed ban period. This allows the chart to
-            // draw a single, correctly styled line for the ban.
-            // Iterate backwards to safely use splice.
-            for (let i = reappearanceIndex - 1; i > insertionIndex; i--) {
-              if (combined[i].isGapBridge) {
-                combined.splice(i, 1);
-              }
-            }
-          } else {
-            // Fallback for when no data point is found after the unban timestamp.
-            let endInsertionIndex = combined.findIndex((p, idx) => idx > insertionIndex && p.timestamp.getTime() > banEndTs);
-            if (endInsertionIndex === -1) {
-              endInsertionIndex = combined.length;
-            }
-
-            const banEndPoint = {
-              rankScore: lastKnownPoint.rankScore,
-              league: lastKnownPoint.league,
-              rank: lastKnownPoint.rank,
-              timestamp: new Date(banEndTs),
-              isInterpolated: true,
-              scoreChanged: false,
-              isBanEndAnchor: true,
-              events: [event],
-            };
-            combined.splice(endInsertionIndex, 0, banEndPoint);
-
-            // Also remove gap bridges in this fallback case.
-            for (let i = endInsertionIndex - 1; i > insertionIndex; i--) {
-              if (combined[i].isGapBridge) {
-                combined.splice(i, 1);
-              }
-            }
-          }
+        if (reappearanceIndex !== -1) {
+          // Case A: Unexpected reappearance found.
+          const pointToModify = combined[reappearanceIndex];
+          pointToModify.isUnexpectedReappearance = true;
+          if (!pointToModify.events) { pointToModify.events = []; }
+          pointToModify.events.push(activeBan);
+          banStartPoint.isFollowedByUnexpectedReappearance = true;
+          combined.splice(insertionIndex, reappearanceIndex - insertionIndex);
+          combined.splice(insertionIndex, 0, banStartPoint);
+        } else {
+          // Case B: No reappearance. Ban is ongoing.
+          combined.splice(insertionIndex);
+          combined.push(banStartPoint);
         }
       }
-    });
+    }
   }
-
 
   // Handle final interpolation to 'now'
   const now = seasonEndDate ? new Date(seasonEndDate) : new Date();
   if (combined.length > 0) {
     const lastPoint = combined[combined.length - 1];
 
-    const isActiveBanAnchor = lastPoint.isBanStartAnchor && lastPoint.events?.some(e => e.event_type === 'SUSPECTED_BAN' && !e.end_timestamp);
-    const timeToNow = now - lastPoint.timestamp;
-
-    // Draw a line to 'now' if there's an active ban or a normal long gap in data
-    if (isActiveBanAnchor || (!lastPoint.isBanStartAnchor && !lastPoint.isBanEndAnchor && timeToNow > GAP_THRESHOLD)) {
-      if (!isActiveBanAnchor) {
-        // It's a normal gap to 'now', not a ban, so flag for a white dashed line.
-        lastPoint.isFollowedByGap = true;
-      }
-
-      // Base for the new point. If it's an active ban, we create a clean object to avoid
-      // spreading unwanted flags like `isBanStartAnchor`. Otherwise, we use the last point.
-      const newPointBase = isActiveBanAnchor ? {
-        rankScore: lastPoint.rankScore,
-        league: lastPoint.league,
-        rank: lastPoint.rank,
-        events: lastPoint.events,
-      } : lastPoint;
-
+    if (lastPoint.isUnexpectedReappearance) {
+      // If the last point is an unexpected return, draw a dashed orange line to 'now'.
+      lastPoint.isFollowedByUnexpectedReappearance = true; // Signals line style
+      const newPointBase = {
+        rankScore: lastPoint.rankScore, league: lastPoint.league,
+        rank: lastPoint.rank, events: lastPoint.events,
+      };
       combined.push({
         ...newPointBase,
-        timestamp: now,
-        isInterpolated: true,
-        isFinalInterpolation: true,
-        scoreChanged: false,
-        // Explicitly ensure the 'now' point is never an anchor itself.
-        isBanStartAnchor: false,
-        isBanEndAnchor: false,
+        timestamp: now, isInterpolated: true, isFinalInterpolation: true,
+        scoreChanged: false, isBanStartAnchor: false, isBanEndAnchor: false,
+        isUnexpectedReappearance: false, // The 'now' point is not the event itself
       });
+    } else {
+      // Original logic for normal gaps and standard active bans
+      const isActiveBanAnchor = lastPoint.isBanStartAnchor && lastPoint.events?.some(e => e.event_type === 'SUSPECTED_BAN' && !e.end_timestamp);
+      const timeToNow = now - lastPoint.timestamp;
+
+      if (isActiveBanAnchor || (!lastPoint.isBanStartAnchor && !lastPoint.isBanEndAnchor && timeToNow > GAP_THRESHOLD)) {
+        if (!isActiveBanAnchor) {
+          lastPoint.isFollowedByGap = true;
+        }
+        const newPointBase = isActiveBanAnchor ? {
+          rankScore: lastPoint.rankScore, league: lastPoint.league, rank: lastPoint.rank, events: lastPoint.events,
+        } : lastPoint;
+        combined.push({
+          ...newPointBase,
+          timestamp: now, isInterpolated: true, isFinalInterpolation: true,
+          scoreChanged: false, isBanStartAnchor: false, isBanEndAnchor: false,
+        });
+      }
     }
   }
 

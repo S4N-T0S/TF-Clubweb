@@ -78,6 +78,8 @@ const rsUpIcon = new Image(16, 16);
 rsUpIcon.src = 'data:image/svg+xml;base64,' + btoa(starSvgForRs.replace('currentColor', '#4ade80'));
 const rsDownIcon = new Image(16, 16);
 rsDownIcon.src = 'data:image/svg+xml;base64,' + btoa(starSvgForRs.replace('currentColor', '#ef4444'));
+const unexpectedReappearanceIcon = new Image(16, 16);
+unexpectedReappearanceIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>');
 
 /**
  * Helper to safely get an RS_ADJUSTMENT event from a point context.
@@ -189,17 +191,19 @@ const getBorderColor = (ctx, defaultColor = '#FAF9F6', eventSettings = {}) => {
   const p0 = ctx.p0.raw.raw;
   const p1 = ctx.p1.raw.raw;
 
-  // Check for ban segment first if enabled
-  if (eventSettings.showSuspectedBan && p0.isBanStartAnchor) {
-    const banEvent = p0.events?.find(e => e.event_type === 'SUSPECTED_BAN');
-    if (banEvent) {
-      // Dashed red line during a completed ban
-      if (p1.isBanEndAnchor) {
-        return '#EF4444'; // red
-      }
-      // Dashed red line for an ongoing ban
-      if (!banEvent.end_timestamp && p1.isFinalInterpolation) {
-        return '#EF4444'; // red
+  if (eventSettings.showSuspectedBan) {
+    // Unexpected reappearance path is orange/yellow.
+    if (p0.isFollowedByUnexpectedReappearance) {
+      return '#facc15'; // yellow-400
+    }
+    // Regular ban paths are red.
+    if (p0.isBanStartAnchor) {
+      const banEvent = p0.events?.find(e => e.event_type === 'SUSPECTED_BAN');
+      if (banEvent) {
+        // Dashed red line during a completed ban
+        if (p1.isBanEndAnchor) return '#EF4444'; // red
+        // Dashed red line for an ongoing ban (to 'now')
+        if (!banEvent.end_timestamp && p1.isFinalInterpolation) return '#EF4444'; // red
       }
     }
   }
@@ -233,11 +237,16 @@ const getBorderDash = (ctx, eventSettings = {}) => {
   const p0 = ctx.p0.raw.raw;
   const p1 = ctx.p1?.raw?.raw;
 
-  if (eventSettings.showSuspectedBan && p0.isBanStartAnchor && p1) {
-    const banEvent = p0.events?.find(e => e.event_type === 'SUSPECTED_BAN');
-    if (banEvent) {
-      if (p1.isBanEndAnchor) return [5, 5];
-      if (!banEvent.end_timestamp && p1.isFinalInterpolation) return [5, 5];
+  if (eventSettings.showSuspectedBan) {
+    if (p0.isFollowedByUnexpectedReappearance) {
+      return [5, 5];
+    }
+    if (p0.isBanStartAnchor && p1) {
+      const banEvent = p0.events?.find(e => e.event_type === 'SUSPECTED_BAN');
+      if (banEvent) {
+        if (p1.isBanEndAnchor) return [5, 5];
+        if (!banEvent.end_timestamp && p1.isFinalInterpolation) return [5, 5];
+      }
     }
   }
 
@@ -267,6 +276,8 @@ export const useChartConfig = ({
   const getPointRadius = useCallback((ctx) => {
     const pointData = ctx.raw?.raw;
     if (!ctx.chart || !pointData) return 3;
+
+    if (eventSettings.showSuspectedBan && pointData.isUnexpectedReappearance) return 8;
 
     // Make the ban anchor icons visible and large if enabled
     if (eventSettings.showSuspectedBan && (pointData.isBanStartAnchor || pointData.isBanEndAnchor)) return 8;
@@ -313,6 +324,10 @@ export const useChartConfig = ({
     const { chart, tooltip } = context;
     const tooltipEl = getOrCreateTooltip(chart);
 
+    // Reset width to auto at the beginning of every render.
+    // This allows tooltips to be naturally sized by their content by default.
+    tooltipEl.style.width = 'auto';
+
     // Guard against stale datasetIndex when a dataset is removed. If the tooltip tries
     // to render for a non-existent dataset, hide it and bail to prevent a crash.
     const datasetIndexFromTooltip = tooltip.dataPoints?.[0]?.datasetIndex;
@@ -325,7 +340,7 @@ export const useChartConfig = ({
 
     if (pointData) {
       // Hide tooltips for certain synthetic points, but always show them for ban/unban event anchors.
-      const isBanPoint = eventSettings.showSuspectedBan && (pointData.isBanStartAnchor || pointData.isBanEndAnchor);
+      const isBanPoint = eventSettings.showSuspectedBan && (pointData.isBanStartAnchor || pointData.isBanEndAnchor || pointData.isUnexpectedReappearance);
       if (!isBanPoint) {
         const timeRange = chart.scales.x.max - chart.scales.x.min;
         const isHiddenInterpolatedPoint = (pointData.isInterpolated || pointData.isExtrapolated) &&
@@ -354,7 +369,8 @@ export const useChartConfig = ({
     const banEvent = pointData?.events?.find(e => e.event_type === 'SUSPECTED_BAN');
     const isBanStart = pointData && eventSettings.showSuspectedBan && pointData.isBanStartAnchor && banEvent;
     const isBanEnd = pointData && eventSettings.showSuspectedBan && pointData.isBanEndAnchor && banEvent && banEvent.end_timestamp;
-    const hasEventToShow = isBanStart || isBanEnd;
+    const isUnexpected = pointData && eventSettings.showSuspectedBan && pointData.isUnexpectedReappearance;
+    const hasEventToShow = isBanStart || isBanEnd || isUnexpected;
     const hasScoreContent = !!tooltip.body;
 
     if (hasScoreContent || hasEventToShow) {
@@ -608,6 +624,27 @@ export const useChartConfig = ({
         const durationRow = document.createElement('tr');
         durationRow.innerHTML = `<td colspan="2" style="font-size: 12px; color: #9ca3af;">Duration: ${formatDuration(durationMs)}</td>`;
         tableRoot.appendChild(durationRow);
+      }
+
+      // Unexpected Reappearance Event
+      if (isUnexpected) {
+        if (hasScoreContent || (eventSettings.showRsAdjustment && rsEvent) || isBanStart || isBanEnd) {
+             const hrRow = document.createElement('tr');
+             const hrCell = document.createElement('td');
+             hrCell.colSpan = 2;
+             hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
+             hrRow.appendChild(hrCell);
+             tableRoot.appendChild(hrRow);
+        }
+        const titleRow = document.createElement('tr');
+        titleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: #facc15; padding-bottom: 4px;">Unexpected Reappearance</td>`;
+        tableRoot.appendChild(titleRow);
+
+        const descRow = document.createElement('tr');
+        const summary = "Reappeared during a suspected ban, likely due to an RS adjustment that temporarily dropped them off the leaderboard (we thought it was a ban).";
+        descRow.innerHTML = `<td colspan="2" style="font-size: 12px; color: #9ca3af; white-space: normal;">${summary}</td>`;
+        tooltipEl.style.width = '220px'; // good enough...
+        tableRoot.appendChild(descRow);
       }
     } else {
       tooltipEl.style.opacity = 0;
@@ -1158,6 +1195,7 @@ export const useChartConfig = ({
   const getPointStyle = useCallback((ctx) => {
     const pointData = ctx.raw?.raw;
     if (eventSettings.showSuspectedBan) {
+      if (pointData?.isUnexpectedReappearance) return unexpectedReappearanceIcon;
       if (pointData?.isBanStartAnchor) return gavelIcon;
       if (pointData?.isBanEndAnchor) return unbanIcon;
     }
@@ -1174,9 +1212,12 @@ export const useChartConfig = ({
   }, [eventSettings]);
 
   const getPointRotation = useCallback((ctx) => {
+
+    const pointData = ctx.raw?.raw;
     // Events with custom directional icons (name, club, RS adjustment) should not be rotated.
     if ((eventSettings.showNameChange && hasVisibleEvent(ctx, 'NAME_CHANGE')) ||
         (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE')) ||
+        (eventSettings.showSuspectedBan && pointData?.isUnexpectedReappearance) ||
         (eventSettings.showRsAdjustment && getRsEvent(ctx))) {
       return 0;
     }
