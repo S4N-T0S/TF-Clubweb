@@ -1217,7 +1217,7 @@ export const useChartConfig = ({
     // Events with custom directional icons (name, club, RS adjustment) should not be rotated.
     if ((eventSettings.showNameChange && hasVisibleEvent(ctx, 'NAME_CHANGE')) ||
         (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE')) ||
-        (eventSettings.showSuspectedBan && pointData?.isUnexpectedReappearance) ||
+        (eventSettings.showSuspectedBan && (pointData?.isUnexpectedReappearance || pointData?.isBanStartAnchor || pointData?.isBanEndAnchor)) ||
         (eventSettings.showRsAdjustment && getRsEvent(ctx))) {
       return 0;
     }
