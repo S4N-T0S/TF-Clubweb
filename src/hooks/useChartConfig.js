@@ -162,11 +162,10 @@ const createTooltip = (chart) => {
     borderRadius: '8px',
     border: '1px solid #374151',
     color: '#FAF9F6',
-    opacity: 1,
+    opacity: 0,
     pointerEvents: 'none',
     position: 'absolute',
-    transform: 'translate(-50%, -100%)',
-    transition: 'all 0.15s ease-out',
+    transition: 'opacity 0.15s ease-out',
     padding: '12px',
     boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
   });
@@ -324,100 +323,26 @@ export const useChartConfig = ({
 
     const pointData = tooltip.dataPoints?.[0]?.raw?.raw;
 
-    // Handle special ban anchor tooltip first
-    if (eventSettings.showSuspectedBan && pointData?.isBanStartAnchor) {
-      const banEvent = pointData.events?.find(e => e.event_type === 'SUSPECTED_BAN');
-
-      if (tooltip.opacity === 0 || !banEvent) {
-        tooltipEl.style.opacity = 0;
-        return;
-      }
-
-      while (tooltipEl.firstChild) {
-        tooltipEl.firstChild.remove();
-      }
-
-      const tableRoot = document.createElement('table');
-      tableRoot.style.margin = '0px';
-
-      const titleRow = document.createElement('tr');
-      titleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: #ef4444; padding-bottom: 4px;">Suspected Ban</td>`;
-      tableRoot.appendChild(titleRow);
-
-      const dateRow = document.createElement('tr');
-      const date = new Date(banEvent.start_timestamp * 1000);
-      dateRow.innerHTML = `<td colspan="2" style="font-size: 12px; color: #9ca3af;">Started: ${date.toLocaleString(undefined, TIME.FORMAT)}</td>`;
-      tableRoot.appendChild(dateRow);
-
-      tooltipEl.appendChild(tableRoot);
-
-      const { offsetLeft: positionX, offsetTop: positionY } = chart.canvas;
-      tooltipEl.style.opacity = 1;
-      tooltipEl.style.left = positionX + tooltip.caretX + 'px';
-      tooltipEl.style.top = positionY + tooltip.caretY + 'px';
-      tooltipEl.style.font = tooltip.options.bodyFont.string;
-      tooltipEl.style.boxShadow = '0 2px 12px 0 rgba(0,0,0,0.4)';
-      return;
-    }
-
-    // Handle unban anchor tooltip
-    if (eventSettings.showSuspectedBan && pointData?.isBanEndAnchor) {
-      const banEvent = pointData.events?.find(e => e.event_type === 'SUSPECTED_BAN');
-
-      if (tooltip.opacity === 0 || !banEvent || !banEvent.end_timestamp) {
-        tooltipEl.style.opacity = 0;
-        return;
-      }
-
-      while (tooltipEl.firstChild) {
-        tooltipEl.firstChild.remove();
-      }
-
-      const tableRoot = document.createElement('table');
-      tableRoot.style.margin = '0px';
-
-      const titleRow = document.createElement('tr');
-      titleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: #4ade80; padding-bottom: 4px;">Player Reappeared</td>`;
-      tableRoot.appendChild(titleRow);
-
-      const dateRow = document.createElement('tr');
-      const date = new Date(banEvent.end_timestamp * 1000);
-      dateRow.innerHTML = `<td colspan="2" style="font-size: 12px; color: #9ca3af; padding-bottom: 4px;">Ended: ${date.toLocaleString(undefined, TIME.FORMAT)}</td>`;
-      tableRoot.appendChild(dateRow);
-
-      const durationMs = (banEvent.end_timestamp - banEvent.start_timestamp) * 1000;
-      const durationRow = document.createElement('tr');
-      durationRow.innerHTML = `<td colspan="2" style="font-size: 12px; color: #9ca3af;">Duration: ${formatDuration(durationMs)}</td>`;
-      tableRoot.appendChild(durationRow);
-
-      tooltipEl.appendChild(tableRoot);
-
-      const { offsetLeft: positionX, offsetTop: positionY } = chart.canvas;
-      tooltipEl.style.opacity = 1;
-      tooltipEl.style.left = positionX + tooltip.caretX + 'px';
-      tooltipEl.style.top = positionY + tooltip.caretY + 'px';
-      tooltipEl.style.font = tooltip.options.bodyFont.string;
-      tooltipEl.style.boxShadow = '0 2px 12px 0 rgba(0,0,0,0.4)';
-      return;
-    }
-
     if (pointData) {
-      const timeRange = chart.scales.x.max - chart.scales.x.min;
+      // Hide tooltips for certain synthetic points, but always show them for ban/unban event anchors.
+      const isBanPoint = eventSettings.showSuspectedBan && (pointData.isBanStartAnchor || pointData.isBanEndAnchor);
+      if (!isBanPoint) {
+        const timeRange = chart.scales.x.max - chart.scales.x.min;
+        const isHiddenInterpolatedPoint = (pointData.isInterpolated || pointData.isExtrapolated) &&
+          timeRange > TIME.SEVENTY_TWO_HOURS;
 
-      const isHiddenInterpolatedPoint = (pointData.isInterpolated || pointData.isExtrapolated) &&
-        timeRange > TIME.SEVENTY_TWO_HOURS;
+        const isHiddenTrackingPoint = pointData.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS &&
+          !pointData.scoreChanged &&
+          !pointData.isInterpolated &&
+          !pointData.isExtrapolated;
 
-      const isHiddenTrackingPoint = pointData.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS &&
-        !pointData.scoreChanged &&
-        !pointData.isInterpolated &&
-        !pointData.isExtrapolated;
+        const isStaircase = pointData.isStaircasePoint;
+        const isGapBridge = pointData.isGapBridge;
 
-      const isStaircase = pointData.isStaircasePoint;
-      const isGapBridge = pointData.isGapBridge;
-
-      if (isHiddenInterpolatedPoint || isHiddenTrackingPoint || isStaircase || isGapBridge) {
-        tooltipEl.style.opacity = 0;
-        return;
+        if (isHiddenInterpolatedPoint || isHiddenTrackingPoint || isStaircase || isGapBridge) {
+          tooltipEl.style.opacity = 0;
+          return;
+        }
       }
     }
 
@@ -426,11 +351,15 @@ export const useChartConfig = ({
       return;
     }
 
-    if (tooltip.body) {
+    const banEvent = pointData?.events?.find(e => e.event_type === 'SUSPECTED_BAN');
+    const isBanStart = pointData && eventSettings.showSuspectedBan && pointData.isBanStartAnchor && banEvent;
+    const isBanEnd = pointData && eventSettings.showSuspectedBan && pointData.isBanEndAnchor && banEvent && banEvent.end_timestamp;
+    const hasEventToShow = isBanStart || isBanEnd;
+    const hasScoreContent = !!tooltip.body;
+
+    if (hasScoreContent || hasEventToShow) {
       const titleLines = tooltip.title || [];
       const bodyLines = tooltip.body.map(b => b.lines);
-      const score = parseInt(bodyLines[0][0].split(': ')[1].replace(/[^\d]/g, ''));
-      const rank = getRankFromScore(score);
       const datasetIndex = tooltip.dataPoints[0].datasetIndex;
       const dataPoint = tooltip.dataPoints[0].raw.raw;
       const rsEvent = dataPoint.events?.find(e => e.event_type === 'RS_ADJUSTMENT');
@@ -443,168 +372,172 @@ export const useChartConfig = ({
       tableRoot.style.margin = '0px';
       tooltipEl.appendChild(tableRoot);
 
-      if (
-        dataPoint?.rank !== null &&
-        Number.isInteger(dataPoint?.rank) &&
-        !dataPoint.isExtrapolated &&
-        !dataPoint.isInterpolated
-      ) {
-        const rankBadge = document.createElement('div');
-        rankBadge.style.position = 'absolute';
-        rankBadge.style.right = '-6px';
-        rankBadge.style.top = '-6px';
-        rankBadge.style.backgroundColor = '#3b82f6';
-        rankBadge.style.color = '#ffffff';
-        rankBadge.style.fontSize = '11px';
-        rankBadge.style.fontWeight = 'bold';
-        rankBadge.style.padding = '3px 8px';
-        rankBadge.style.borderRadius = '4px 0 4px 0';
-        rankBadge.style.boxShadow = '0 1px 3px rgba(0,0,0,0.3)';
-        rankBadge.textContent = `#${dataPoint.rank.toLocaleString()}`;
+      if (hasScoreContent) {
+        const score = parseInt(bodyLines[0][0].split(': ')[1].replace(/[^\d]/g, ''));
+        const rank = getRankFromScore(score);
+        if (
+          dataPoint?.rank !== null &&
+          Number.isInteger(dataPoint?.rank) &&
+          !dataPoint.isExtrapolated &&
+          !dataPoint.isInterpolated
+        ) {
+          const rankBadge = document.createElement('div');
+          rankBadge.style.position = 'absolute';
+          rankBadge.style.right = '-6px';
+          rankBadge.style.top = '-6px';
+          rankBadge.style.backgroundColor = '#3b82f6';
+          rankBadge.style.color = '#ffffff';
+          rankBadge.style.fontSize = '11px';
+          rankBadge.style.fontWeight = 'bold';
+          rankBadge.style.padding = '3px 8px';
+          rankBadge.style.borderRadius = '4px 0 4px 0';
+          rankBadge.style.boxShadow = '0 1px 3px rgba(0,0,0,0.3)';
+          rankBadge.textContent = `#${dataPoint.rank.toLocaleString()}`;
 
-        tooltipEl.appendChild(rankBadge);
-      }
+          tooltipEl.appendChild(rankBadge);
+        }
 
-      if (chart.data.datasets.length > 1) {
-        const playerNameRow = document.createElement('tr');
-        playerNameRow.style.borderWidth = 0;
-        const playerNameCell = document.createElement('th');
-        playerNameCell.style.borderWidth = 0;
-        playerNameCell.style.color = '#ffffff';
-        playerNameCell.style.fontSize = '14px';
-        playerNameCell.style.fontWeight = 'bold';
-        playerNameCell.style.paddingTop = '-20px';
-        const playerName = chart.data.datasets[datasetIndex].label.trim();
-        const playerText = document.createTextNode(playerName);
-        playerNameCell.appendChild(playerText);
-        playerNameRow.appendChild(playerNameCell);
-        tableRoot.appendChild(playerNameRow);
-      }
+        if (chart.data.datasets.length > 1) {
+          const playerNameRow = document.createElement('tr');
+          playerNameRow.style.borderWidth = 0;
+          const playerNameCell = document.createElement('th');
+          playerNameCell.style.borderWidth = 0;
+          playerNameCell.style.color = '#ffffff';
+          playerNameCell.style.fontSize = '14px';
+          playerNameCell.style.fontWeight = 'bold';
+          playerNameCell.style.paddingTop = '-20px';
+          const playerName = chart.data.datasets[datasetIndex].label.trim();
+          const playerText = document.createTextNode(playerName);
+          playerNameCell.appendChild(playerText);
+          playerNameRow.appendChild(playerNameCell);
+          tableRoot.appendChild(playerNameRow);
+        }
 
-      const headerRow = document.createElement('tr');
-      headerRow.style.borderWidth = 0;
-      const headerCell = document.createElement('th');
-      headerCell.style.borderWidth = 0;
-      headerCell.style.color = '#9ca3af';
-      headerCell.style.fontSize = '12px';
-      const headerText = document.createTextNode(titleLines[0]);
-      headerCell.appendChild(headerText);
-      headerRow.appendChild(headerCell);
-      tableRoot.appendChild(headerRow);
+        const headerRow = document.createElement('tr');
+        headerRow.style.borderWidth = 0;
+        const headerCell = document.createElement('th');
+        headerCell.style.borderWidth = 0;
+        headerCell.style.color = '#9ca3af';
+        headerCell.style.fontSize = '12px';
+        const headerText = document.createTextNode(titleLines[0]);
+        headerCell.appendChild(headerText);
+        headerRow.appendChild(headerCell);
+        tableRoot.appendChild(headerRow);
 
-      const scoreRow = document.createElement('tr');
-      scoreRow.style.borderWidth = 0;
-      const scoreCell = document.createElement('td');
-      scoreCell.style.borderWidth = 0;
-      scoreCell.style.fontSize = '14px';
-      scoreCell.style.fontWeight = 'bold';
-      scoreCell.style.paddingTop = '4px';
+        const scoreRow = document.createElement('tr');
+        scoreRow.style.borderWidth = 0;
+        const scoreCell = document.createElement('td');
+        scoreCell.style.borderWidth = 0;
+        scoreCell.style.fontSize = '14px';
+        scoreCell.style.fontWeight = 'bold';
+        scoreCell.style.paddingTop = '4px';
 
-      const scoreContainer = document.createElement('div');
-      scoreContainer.appendChild(document.createTextNode(`Score: ${score.toLocaleString()}`));
+        const scoreContainer = document.createElement('div');
+        scoreContainer.appendChild(document.createTextNode(`Score: ${score.toLocaleString()}`));
 
-      if (dataPoint.scoreChanged && !rsEvent) { // Don't show regular change if it's an adjustment event
-        const dataIndex = tooltip.dataPoints[0].dataIndex;
-        const dataset = chart.data.datasets[datasetIndex].data;
+        if (dataPoint.scoreChanged && !rsEvent) { // Don't show regular change if it's an adjustment event
+          const dataIndex = tooltip.dataPoints[0].dataIndex;
+          const dataset = chart.data.datasets[datasetIndex].data;
 
-        let previousScore = null;
-        for (let i = dataIndex - 1; i >= 0; i--) {
-          if (dataset[i].raw.scoreChanged) {
-            previousScore = dataset[i].raw.rankScore;
-            break;
+          let previousScore = null;
+          for (let i = dataIndex - 1; i >= 0; i--) {
+            if (dataset[i].raw.scoreChanged) {
+              previousScore = dataset[i].raw.rankScore;
+              break;
+            }
+          }
+
+          if (previousScore !== null) {
+            const scoreChange = score - previousScore;
+            const scoreChangeText = document.createElement('span');
+            scoreChangeText.style.fontWeight = '600';
+            scoreChangeText.style.marginLeft = '4px';
+            scoreChangeText.style.fontSize = '12px';
+            scoreChangeText.style.color = scoreChange > 0 ? '#10B981' : scoreChange < 0 ? '#EF4444' : '#9ca3af';
+            scoreChangeText.textContent = `(${scoreChange > 0 ? '+' : ''}${scoreChange.toLocaleString()})`;
+            scoreContainer.appendChild(scoreChangeText);
           }
         }
 
-        if (previousScore !== null) {
-          const scoreChange = score - previousScore;
-          const scoreChangeText = document.createElement('span');
-          scoreChangeText.style.fontWeight = '600';
-          scoreChangeText.style.marginLeft = '4px';
-          scoreChangeText.style.fontSize = '12px';
-          scoreChangeText.style.color = scoreChange > 0 ? '#10B981' : scoreChange < 0 ? '#EF4444' : '#9ca3af';
-          scoreChangeText.textContent = `(${scoreChange > 0 ? '+' : ''}${scoreChange.toLocaleString()})`;
-          scoreContainer.appendChild(scoreChangeText);
-        }
-      }
+        scoreCell.appendChild(scoreContainer);
+        scoreRow.appendChild(scoreCell);
+        tableRoot.appendChild(scoreRow);
 
-      scoreCell.appendChild(scoreContainer);
-      scoreRow.appendChild(scoreCell);
-      tableRoot.appendChild(scoreRow);
+        const rankRow = document.createElement('tr');
+        rankRow.style.borderWidth = 0;
+        const rankCell = document.createElement('td');
+        rankCell.style.borderWidth = 0;
+        rankCell.style.fontSize = '14px';
+        rankCell.style.fontWeight = 'bold';
+        rankCell.style.paddingTop = '4px';
 
-      const rankRow = document.createElement('tr');
-      rankRow.style.borderWidth = 0;
-      const rankCell = document.createElement('td');
-      rankCell.style.borderWidth = 0;
-      rankCell.style.fontSize = '14px';
-      rankCell.style.fontWeight = 'bold';
-      rankCell.style.paddingTop = '4px';
+        const rankContainer = document.createElement('div');
+        rankContainer.style.display = 'flex';
+        rankContainer.style.alignItems = 'center';
+        rankContainer.style.gap = '6px';
 
-      const rankContainer = document.createElement('div');
-      rankContainer.style.display = 'flex';
-      rankContainer.style.alignItems = 'center';
-      rankContainer.style.gap = '6px';
+        if (dataPoint.scoreChanged) {
+          const dataIndex = tooltip.dataPoints[0].dataIndex;
+          const dataset = chart.data.datasets[datasetIndex].data;
 
-      if (dataPoint.scoreChanged) {
-        const dataIndex = tooltip.dataPoints[0].dataIndex;
-        const dataset = chart.data.datasets[datasetIndex].data;
+          let previousScore = null;
+          for (let i = dataIndex - 1; i >= 0; i--) {
+            if (dataset[i].raw.scoreChanged) {
+              previousScore = dataset[i].raw.rankScore;
+              break;
+            }
+          }
 
-        let previousScore = null;
-        for (let i = dataIndex - 1; i >= 0; i--) {
-          if (dataset[i].raw.scoreChanged) {
-            previousScore = dataset[i].raw.rankScore;
-            break;
+          if (previousScore !== null) {
+            const previousRank = getRankFromScore(previousScore);
+            const rankIndex = RANKS.findIndex(r => r.label === rank.label);
+            const previousRankIndex = RANKS.findIndex(r => r.label === previousRank.label);
+
+            if (rankIndex !== previousRankIndex) {
+              const isRankUp = rankIndex > previousRankIndex;
+              const arrowSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+              arrowSvg.setAttribute('width', '14');
+              arrowSvg.setAttribute('height', '14');
+              arrowSvg.setAttribute('viewBox', '0 0 24 24');
+              arrowSvg.setAttribute('fill', 'none');
+              arrowSvg.setAttribute('stroke', isRankUp ? '#10B981' : '#EF4444');
+              arrowSvg.setAttribute('stroke-width', '2');
+              arrowSvg.setAttribute('stroke-linecap', 'round');
+              arrowSvg.setAttribute('stroke-linejoin', 'round');
+              arrowSvg.style.display = 'block';
+              arrowSvg.style.flexShrink = '0';
+              arrowSvg.style.marginTop = '0';
+              arrowSvg.style.marginBottom = '0';
+
+              arrowSvg.innerHTML = isRankUp
+                ? '<path d="M12 19V5M5 12l7-7 7 7"/>'
+                : '<path d="M12 5v14M5 12l7 7 7-7"/>';
+
+              rankContainer.appendChild(arrowSvg);
+            }
           }
         }
 
-        if (previousScore !== null) {
-          const previousRank = getRankFromScore(previousScore);
-          const rankIndex = RANKS.findIndex(r => r.label === rank.label);
-          const previousRankIndex = RANKS.findIndex(r => r.label === previousRank.label);
+        rankContainer.appendChild(document.createTextNode(rank.label));
 
-          if (rankIndex !== previousRankIndex) {
-            const isRankUp = rankIndex > previousRankIndex;
-            const arrowSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            arrowSvg.setAttribute('width', '14');
-            arrowSvg.setAttribute('height', '14');
-            arrowSvg.setAttribute('viewBox', '0 0 24 24');
-            arrowSvg.setAttribute('fill', 'none');
-            arrowSvg.setAttribute('stroke', isRankUp ? '#10B981' : '#EF4444');
-            arrowSvg.setAttribute('stroke-width', '2');
-            arrowSvg.setAttribute('stroke-linecap', 'round');
-            arrowSvg.setAttribute('stroke-linejoin', 'round');
-            arrowSvg.style.display = 'block';
-            arrowSvg.style.flexShrink = '0';
-            arrowSvg.style.marginTop = '0';
-            arrowSvg.style.marginBottom = '0';
+        const hexagonSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        hexagonSvg.setAttribute('width', '14');
+        hexagonSvg.setAttribute('height', '14');
+        hexagonSvg.setAttribute('viewBox', '0 0 24 24');
+        hexagonSvg.style.marginLeft = '0';
+        hexagonSvg.style.flexShrink = '0';
+        hexagonSvg.style.display = 'block';
 
-            arrowSvg.innerHTML = isRankUp
-              ? '<path d="M12 19V5M5 12l7-7 7 7"/>'
-              : '<path d="M12 5v14M5 12l7 7 7-7"/>';
+        const hexPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        hexPath.setAttribute('d', 'M12 2L22 8.5V15.5L12 22L2 15.5V8.5L12 2Z');
+        hexPath.setAttribute('fill', rank.color);
+        hexagonSvg.appendChild(hexPath);
+        rankContainer.appendChild(hexagonSvg);
 
-            rankContainer.appendChild(arrowSvg);
-          }
-        }
+        rankCell.appendChild(rankContainer);
+        rankRow.appendChild(rankCell);
+        tableRoot.appendChild(rankRow);
       }
-
-      rankContainer.appendChild(document.createTextNode(rank.label));
-
-      const hexagonSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      hexagonSvg.setAttribute('width', '14');
-      hexagonSvg.setAttribute('height', '14');
-      hexagonSvg.setAttribute('viewBox', '0 0 24 24');
-      hexagonSvg.style.marginLeft = '0';
-      hexagonSvg.style.flexShrink = '0';
-      hexagonSvg.style.display = 'block';
-
-      const hexPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      hexPath.setAttribute('d', 'M12 2L22 8.5V15.5L12 22L2 15.5V8.5L12 2Z');
-      hexPath.setAttribute('fill', rank.color);
-      hexagonSvg.appendChild(hexPath);
-      rankContainer.appendChild(hexagonSvg);
-
-      rankCell.appendChild(rankContainer);
-      rankRow.appendChild(rankCell);
-      tableRoot.appendChild(rankRow);
 
       if (eventSettings.showRsAdjustment && rsEvent) {
         const details = rsEvent.details;
@@ -631,15 +564,82 @@ export const useChartConfig = ({
         eventScoreRow.innerHTML = `<td colspan="2" style="font-size: 12px;">Score: ${details.old_score.toLocaleString()} → <span style="font-weight: bold;">${details.new_score.toLocaleString()}</span></td>`;
         tableRoot.appendChild(eventScoreRow);
       }
+
+      // Suspected Ban Event
+      if (isBanStart) {
+        if (hasScoreContent || (eventSettings.showRsAdjustment && rsEvent)) {
+            const hrRow = document.createElement('tr');
+            const hrCell = document.createElement('td');
+            hrCell.colSpan = 2;
+            hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
+            hrRow.appendChild(hrCell);
+            tableRoot.appendChild(hrRow);
+        }
+        const titleRow = document.createElement('tr');
+        titleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: #ef4444; padding-bottom: 4px;">Suspected Ban</td>`;
+        tableRoot.appendChild(titleRow);
+
+        const dateRow = document.createElement('tr');
+        const date = new Date(banEvent.start_timestamp * 1000);
+        dateRow.innerHTML = `<td colspan="2" style="font-size: 12px; color: #9ca3af;">Started: ${date.toLocaleString(undefined, TIME.FORMAT)}</td>`;
+        tableRoot.appendChild(dateRow);
+      }
+
+      // Player Reappeared Event
+      if (isBanEnd) {
+        if (hasScoreContent || (eventSettings.showRsAdjustment && rsEvent) || isBanStart) {
+             const hrRow = document.createElement('tr');
+             const hrCell = document.createElement('td');
+             hrCell.colSpan = 2;
+             hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
+             hrRow.appendChild(hrCell);
+             tableRoot.appendChild(hrRow);
+        }
+        const titleRow = document.createElement('tr');
+        titleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: #4ade80; padding-bottom: 4px;">Player Reappeared</td>`;
+        tableRoot.appendChild(titleRow);
+
+        const dateRow = document.createElement('tr');
+        const date = new Date(banEvent.end_timestamp * 1000);
+        dateRow.innerHTML = `<td colspan="2" style="font-size: 12px; color: #9ca3af; padding-bottom: 4px;">Ended: ${date.toLocaleString(undefined, TIME.FORMAT)}</td>`;
+        tableRoot.appendChild(dateRow);
+
+        const durationMs = (banEvent.end_timestamp - banEvent.start_timestamp) * 1000;
+        const durationRow = document.createElement('tr');
+        durationRow.innerHTML = `<td colspan="2" style="font-size: 12px; color: #9ca3af;">Duration: ${formatDuration(durationMs)}</td>`;
+        tableRoot.appendChild(durationRow);
+      }
+    } else {
+      tooltipEl.style.opacity = 0;
+      return;
     }
 
+    // --- New Positioning Logic ---
     const { offsetLeft: positionX, offsetTop: positionY } = chart.canvas;
-
+    const tooltipWidth = tooltipEl.offsetWidth;
+    const tooltipHeight = tooltipEl.offsetHeight;
+    const chartWidth = chart.width;
+ 
+    // Horizontal position: Center by default, but shift if it clips the edges.
+    let left = positionX + tooltip.caretX - (tooltipWidth / 2);
+    if (left < 5) { // Check left boundary
+        left = 5;
+    }
+    if (left + tooltipWidth > chartWidth - 5) { // Check right boundary
+        left = chartWidth - tooltipWidth - 5;
+    }
+ 
+    // Vertical position: Place above the point by default. If it clips the top, place it below.
+    let top = positionY + tooltip.caretY - tooltipHeight - 10; // 10px gap above
+    if (top < 5) {
+        top = positionY + tooltip.caretY + 15; // 15px gap below
+    }
+ 
     tooltipEl.style.opacity = 1;
-    tooltipEl.style.left = positionX + tooltip.caretX + 'px';
-    tooltipEl.style.top = positionY + tooltip.caretY + 'px';
+    tooltipEl.style.left = left + 'px';
+    tooltipEl.style.top = top + 'px';
+    tooltipEl.style.transform = 'none'; // Position is now calculated manually.
     tooltipEl.style.font = tooltip.options.bodyFont.string;
-    tooltipEl.style.boxShadow = '0 2px 12px 0 rgba(0,0,0,0.4)';
   }, [eventSettings]);
 
   const overallTimeDomain = useMemo(() => {
