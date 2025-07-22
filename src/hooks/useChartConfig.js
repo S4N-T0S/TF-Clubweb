@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 import { Chart as ChartJS } from 'chart.js';
 import { SEASONS } from '../services/historicalDataService';
 import { formatDuration } from '../utils/timeUtils';
@@ -264,7 +264,7 @@ export const useChartConfig = ({
   embarkId,
   selectedTimeRange,
   chartRef,
-  onZoomPan,
+  onZoomOrPan,
   eventSettings,
   seasonId,
   rubyCutoff,
@@ -272,6 +272,17 @@ export const useChartConfig = ({
 
   const seasonConfig = useMemo(() => Object.values(SEASONS).find(s => s.id === seasonId), [seasonId]);
   const seasonEndDate = useMemo(() => seasonConfig?.endTimestamp ? new Date(seasonConfig.endTimestamp * 1000) : null, [seasonConfig]);
+
+  const [manualViewWindow, setManualViewWindow] = useState(null);
+  const [isManuallyZoomed, setIsManuallyZoomed] = useState(false);
+
+  useEffect(() => {
+      // When the user clicks a button (24H, 7D, MAX), selectedTimeRange changes.
+      // This effect will run, resetting our manual zoom state.
+      setIsManuallyZoomed(false);
+      setManualViewWindow(null);
+  }, [selectedTimeRange]);
+
 
   const getPointRadius = useCallback((ctx) => {
     const pointData = ctx.raw?.raw;
@@ -720,44 +731,36 @@ export const useChartConfig = ({
 
   const viewWindow = useMemo(() => calculateViewWindow(data, selectedTimeRange, overallTimeDomain.min), [data, selectedTimeRange, calculateViewWindow, overallTimeDomain.min]);
 
-  const calculateYAxisBounds = useCallback((data, timeWindow, customTimeRange = null) => {
-    if (!data?.length) return { min: 0, max: 50000, stepSize: 10000 };
+  const calculateYAxisBounds = useCallback((data, timeRange) => {
+    if (!data?.length || !timeRange?.min) return { min: 0, max: 50000, stepSize: 10000 };
 
     const getVisibleAndNearestData = (dataset) => {
-      if (customTimeRange) {
-        const visiblePoints = dataset.filter(d =>
-          d.timestamp >= customTimeRange.min &&
-          d.timestamp <= customTimeRange.max
-        );
+      const visiblePoints = dataset.filter(d =>
+        d.timestamp >= timeRange.min &&
+        d.timestamp <= timeRange.max
+      );
 
-        if (visiblePoints.length === 0) {
-          const lastPointBefore = dataset.reduce((nearest, point) => {
-            if (point.timestamp < customTimeRange.min &&
-              (!nearest || point.timestamp > nearest.timestamp)) {
-              return point;
-            }
-            return nearest;
-          }, null);
+      if (visiblePoints.length === 0) {
+        const lastPointBefore = dataset.reduce((nearest, point) => {
+          if (point.timestamp < timeRange.min &&
+            (!nearest || point.timestamp > nearest.timestamp)) {
+            return point;
+          }
+          return nearest;
+        }, null);
 
-          const firstPointAfter = dataset.reduce((nearest, point) => {
-            if (point.timestamp > customTimeRange.max &&
-              (!nearest || point.timestamp < nearest.timestamp)) {
-              return point;
-            }
-            return nearest;
-          }, null);
+        const firstPointAfter = dataset.reduce((nearest, point) => {
+          if (point.timestamp > timeRange.max &&
+            (!nearest || point.timestamp < nearest.timestamp)) {
+            return point;
+          }
+          return nearest;
+        }, null);
 
-          return [lastPointBefore, firstPointAfter].filter(Boolean);
-        }
-
-        return visiblePoints;
-      } else {
-        const now = seasonEndDate || new Date();
-        const windowStart = new Date(now - TIME.RANGES[timeWindow]);
-        return timeWindow === 'MAX'
-          ? dataset
-          : dataset.filter(d => d.timestamp >= windowStart);
+        return [lastPointBefore, firstPointAfter].filter(Boolean);
       }
+
+      return visiblePoints;
     };
 
     const chart = chartRef.current;
@@ -782,8 +785,7 @@ export const useChartConfig = ({
 
     if (!allVisibleData.length) {
       let lastKnownScore;
-      const rangeStart = customTimeRange?.min ||
-        (timeWindow === 'MAX' ? data[0].timestamp : new Date(new Date() - TIME.RANGES[timeWindow]));
+      const rangeStart = timeRange.min;
 
       const allDatasets = [
         chart?.getDatasetMeta(0).visible !== false ? data : [],
@@ -869,7 +871,7 @@ export const useChartConfig = ({
     }
 
     return { min: newMin, max: newMax, stepSize };
-  }, [comparisonData, chartRef, seasonEndDate]);
+  }, [comparisonData, chartRef]);
 
   const getEventAnnotations = useCallback(() => {
     const annotations = [];
@@ -890,6 +892,8 @@ export const useChartConfig = ({
             // by the plugin via scriptable options. This prevents replacing the annotations
             // array on every pan/zoom, which is the cause of the visual glitch.
 
+            const eventId = event.event_id || `${event.event_type}-${point.timestamp.getTime()}`;
+
             let labelContent = [];
             if (event.event_type === 'NAME_CHANGE') {
               labelContent = [`Name Change:`, `${event.details.old_name} → ${event.details.new_name}`];
@@ -901,7 +905,7 @@ export const useChartConfig = ({
 
             annotations.push({
               type: 'label',
-              id: `label-point-event-${event.event_id}`,
+              id: `label-point-event-${eventId}`,
               // The `display` property lets the plugin manage visibility internally.
               display: (ctx) => {
                 const chart = ctx.chart;
@@ -981,19 +985,27 @@ export const useChartConfig = ({
     return annotations;
   }, [data, events, comparisonData, embarkId, eventSettings]);
 
-  const getRankAnnotations = useCallback((minDomain, maxDomain) => {
+  const getRankAnnotations = useCallback(() => {
     if (!data) return [];
 
+    // Create annotations for ALL ranks and ruby line, but control their visibility dynamically.
+    // This makes the returned array stable, preventing the plugin from resetting.
     const annotations = RANKS
-      .filter(rank => rank.y >= minDomain && rank.y <= maxDomain)
       .map(rank => ({
         type: 'line',
         drawTime: 'beforeDatasetsDraw',
+        id: `rank-line-${rank.label.replace(' ', '-')}`,
         yMin: rank.y,
         yMax: rank.y,
         borderColor: rank.color,
         borderWidth: 1.5,
         borderDash: [2, 2],
+        // Use the 'display' property to let the plugin handle visibility.
+        display: (ctx) => {
+            const yAxis = ctx.chart.scales.y;
+            // Only display if the rank is within the current y-axis view.
+            return rank.y >= yAxis.min && rank.y <= yAxis.max;
+        },
         label: {
           content: rank.label,
           display: true,
@@ -1011,15 +1023,21 @@ export const useChartConfig = ({
 
       const seasonConfig = Object.values(SEASONS).find(s => s.id === seasonId);
 
-      if (seasonConfig && seasonConfig.hasRuby && typeof rubyCutoff === 'number' && rubyCutoff >= minDomain && rubyCutoff <= maxDomain) {
+      if (seasonConfig && seasonConfig.hasRuby && typeof rubyCutoff === 'number') {
           annotations.push({
               type: 'line',
               drawTime: 'beforeDatasetsDraw',
+              id: 'rank-line-ruby',
               yMin: rubyCutoff,
               yMax: rubyCutoff,
               borderColor: '#dc2626',
               borderWidth: 1.5,
               borderDash: [2, 2],
+              // Also control the Ruby line's visibility dynamically.
+              display: (ctx) => {
+                const yAxis = ctx.chart.scales.y;
+                return rubyCutoff >= yAxis.min && rubyCutoff <= yAxis.max;
+              },
               label: {
                 content: 'Ruby',
                 display: true,
@@ -1039,56 +1057,18 @@ export const useChartConfig = ({
       return annotations;
   }, [data, seasonId, rubyCutoff]);
 
-  const updateDynamicAxes = useCallback((chart) => {
-    if (!chart || !data) return;
-
-    const timeRange = {
-      min: chart.scales.x.min,
-      max: chart.scales.x.max
-    };
-
-    const tooltipEl = chart.canvas.parentNode.querySelector('div.rank-tooltip');
-    if (tooltipEl) {
-      const currentTimeRange = timeRange.max - timeRange.min;
-      if (currentTimeRange > TIME.SEVENTY_TWO_HOURS) {
-        tooltipEl.style.opacity = 0;
-      }
-    }
-
-    const { min: newMin, max: newMax, stepSize: newStepSize } = calculateYAxisBounds(
-      data,
-      selectedTimeRange,
-      timeRange
-    );
-
-    chart.options.scales.y.min = newMin;
-    chart.options.scales.y.max = newMax;
-    chart.options.scales.y.ticks.stepSize = newStepSize;
-
-    // Regenerate rank annotations based on the new Y-axis.
-    const newRankAnnotations = getRankAnnotations(newMin, newMax);
-
-    // Get a reference to the chart's live annotation options.
-    const liveAnnotationOptions = chart.options.plugins.annotation;
-
-    // Preserve the existing event annotations by filtering the live array.
-    const currentEventAnnotations = liveAnnotationOptions.annotations.filter(
-      a => a.id && (a.id.startsWith('label-point-event-') || a.id.startsWith('sb-event-'))
-    );
-
-    // Mutate the array in-place to avoid breaking the plugin's internal references.
-    liveAnnotationOptions.annotations.length = 0;
-    liveAnnotationOptions.annotations.push(...newRankAnnotations, ...currentEventAnnotations);
-
-  }, [data, selectedTimeRange, calculateYAxisBounds, getRankAnnotations]);
-
   const chartOptions = useMemo(() => {
     if (!data) return null;
 
     const { min: overallMin, max: overallMax } = overallTimeDomain;
 
-    const { min: initialMinY, max: initialMaxY, stepSize: initialStepSize } = calculateYAxisBounds(data, selectedTimeRange);
-    const rankAnnotations = getRankAnnotations(initialMinY, initialMaxY);
+    // The 'viewWindow' from props is our starting point (e.g., last 7 days from button).
+    // The 'manualViewWindow' is the state updated by user zoom/pan.
+    // We decide which one is currently active.
+    const activeViewWindow = isManuallyZoomed && manualViewWindow ? manualViewWindow : viewWindow;
+
+    const { min: initialMinY, max: initialMaxY, stepSize: initialStepSize } = calculateYAxisBounds(data, activeViewWindow);
+    const rankAnnotations = getRankAnnotations();
     const eventAnnotations = getEventAnnotations();
 
     return {
@@ -1122,8 +1102,8 @@ export const useChartConfig = ({
               return date.toLocaleString(undefined, TIME.FORMAT);
             }
           },
-          min: viewWindow?.min,
-          max: viewWindow?.max
+          min: activeViewWindow?.min,
+          max: activeViewWindow?.max
         },
         y: {
           min: initialMinY,
@@ -1150,15 +1130,27 @@ export const useChartConfig = ({
             enabled: true,
             mode: 'x',
             modifierKey: null,
-            onPanStart: onZoomPan,
-            onPan: (ctx) => updateDynamicAxes(ctx.chart)
+            onPanStart: () => {
+              setIsManuallyZoomed(true); // User is taking control
+              if (onZoomOrPan) onZoomOrPan(); // Call the callback
+            },
+            onPan: (ctx) => {
+              // Update state, which triggers a re-render
+              setManualViewWindow({ min: ctx.chart.scales.x.min, max: ctx.chart.scales.x.max });
+            }
           },
           zoom: {
             wheel: { enabled: true },
             pinch: { enabled: true },
             mode: 'x',
-            onZoomStart: onZoomPan,
-            onZoom: (ctx) => updateDynamicAxes(ctx.chart),
+            onZoomStart: () => {
+              setIsManuallyZoomed(true); // User is taking control
+              if (onZoomOrPan) onZoomOrPan(); // Call the callback
+            },
+            onZoom: (ctx) => {
+              // Update state, which triggers a re-render
+              setManualViewWindow({ min: ctx.chart.scales.x.min, max: ctx.chart.scales.x.max });
+            },
           },
         },
         annotation: {
@@ -1177,10 +1169,13 @@ export const useChartConfig = ({
         },
         legend: {
           onClick: (evt, item, legend) => {
+            // Run the default behavior
             ChartJS.defaults.plugins.legend.onClick(evt, item, legend);
+            // Then, trigger a state update to force a Y-axis recalculation
             setTimeout(() => {
-              updateDynamicAxes(legend.chart);
-              legend.chart.update();
+              const chart = legend.chart;
+              setIsManuallyZoomed(true); // Engage manual mode to use the current zoom level
+              setManualViewWindow({ min: chart.scales.x.min, max: chart.scales.x.max });
             }, 0);
           },
           labels: {
@@ -1192,7 +1187,18 @@ export const useChartConfig = ({
         }
       }
     };
-  }, [data, viewWindow, calculateYAxisBounds, getRankAnnotations, getEventAnnotations, selectedTimeRange, externalTooltipHandler, updateDynamicAxes, onZoomPan, overallTimeDomain]);
+  }, [
+    data, 
+    viewWindow, 
+    isManuallyZoomed, 
+    manualViewWindow, 
+    calculateYAxisBounds, 
+    getRankAnnotations, 
+    getEventAnnotations, 
+    externalTooltipHandler, 
+    overallTimeDomain,
+    onZoomOrPan
+  ]);
 
   const getPointStyle = useCallback((ctx) => {
     const pointData = ctx.raw?.raw;

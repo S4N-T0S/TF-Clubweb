@@ -345,29 +345,11 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     embarkId: mainPlayerCurrentId || embarkId,
     selectedTimeRange,
     chartRef,
-    onZoomPan: handleZoomPan,
+    onZoomOrPan: handleZoomPan,
     eventSettings,
     seasonId: currentSeasonId,
     rubyCutoff: rubyCutoffForChart,
   });
-
-  useEffect(() => {
-    // This effect addresses a timing issue in Chart.js where label positions
-    // might not update correctly on initial load or after a time range change.
-    // By forcing a second update after a short delay, we ensure the chart's
-    // internal scales and coordinates are fully synchronized before the final render.
-    if (chartRef.current) {
-      const timer = setTimeout(() => {
-        if (chartRef.current) {
-          // Use 'none' to prevent re-running animations, which could look jerky.
-          chartRef.current.update('none');
-        }
-      }, 75); // A small delay for the initial render to complete.
-      return () => clearTimeout(timer);
-    }
-    // By including chartData, this effect now also runs on the initial data load,
-    // fixing the issue where annotation labels might not appear until the first zoom/pan.
-  }, [selectedTimeRange, eventSettings, chartData]);
 
   useEffect(() => {
     if (!isOpen) return;
