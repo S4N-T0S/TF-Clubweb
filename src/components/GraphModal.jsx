@@ -622,7 +622,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                       <div className="bg-gray-700 text-gray-300 text-xs font-medium px-2 py-1 rounded-md cursor-help">
                         {mainPlayerGameCount} games
                       </div>
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[80vw] sm:max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20 shadow-lg border border-gray-700 whitespace-normal">
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[80vw] sm:max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30 shadow-lg border border-gray-700 whitespace-normal">
                         {GAME_COUNT_TOOLTIP}
                       </div>
                     </div>
@@ -776,7 +776,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                     ) : (
                       <div className="relative group">
                         <span className="text-gray-400 text-xs cursor-help">({gameCount})</span>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[80vw] sm:max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20 shadow-lg border border-gray-700 whitespace-normal">
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[80vw] sm:max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30 shadow-lg border border-gray-700 whitespace-normal">
                           {GAME_COUNT_TOOLTIP}
                         </div>
                       </div>
@@ -798,40 +798,41 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
         </div>
 
         <div className="relative w-full min-h-0 min-w-0">
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
+          {chartData && chartOptions && <Line ref={chartRef} data={chartData} options={chartOptions} />}
+
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[#1a1f2e] z-20 animate-fade-in-fast">
               <LoadingDisplay variant="component" />
             </div>
-          ) : error ? (
-            <div className="flex items-center justify-center h-full text-gray-400">{error}</div>
-          ) : (
-            <>
-              {showZoomHint && (
-                <div
-                  className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800 bg-opacity-90 text-white px-4 py-2 rounded-lg transition-opacity duration-300 cursor-pointer z-10 animate-fadeIn shadow-lg"
-                  onClick={() => setShowZoomHint(false)}
-                  style={{ backdropFilter: 'blur(2px)' }}
-                >
-                  <div className="flex flex-col items-center gap-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                              d="M12 4v16m8-8H4" />
-                      </svg>
-                      <span>{isMobile ? 'Pinch to zoom' : 'Mouse wheel to zoom'}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                              d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                      </svg>
-                      <span>{isMobile ? 'Touch and drag to pan' : 'Click and drag to pan'}</span>
-                    </div>
-                  </div>
+          )}
+          {error && !loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[#1a1f2e] z-20">
+              <div className="text-gray-400 text-center p-4">{error}</div>
+            </div>
+          )}
+          {!loading && !error && showZoomHint && (
+             <div
+              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800 bg-opacity-90 text-white px-4 py-2 rounded-lg transition-opacity duration-300 cursor-pointer z-10 animate-fadeIn shadow-lg"
+              onClick={() => setShowZoomHint(false)}
+              style={{ backdropFilter: 'blur(2px)' }}
+            >
+              <div className="flex flex-col items-center gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>{isMobile ? 'Pinch to zoom' : 'Mouse wheel to zoom'}</span>
                 </div>
-              )}
-              {chartData && chartOptions && <Line ref={chartRef} data={chartData} options={chartOptions} />}
-            </>
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
+                  <span>{isMobile ? 'Touch and drag to pan' : 'Click and drag to pan'}</span>
+                </div>
+              </div>
+             </div>
           )}
         </div>
       </div>

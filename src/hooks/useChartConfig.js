@@ -908,8 +908,11 @@ export const useChartConfig = ({
               id: `label-point-event-${eventId}`,
               // The `display` property lets the plugin manage visibility internally.
               display: (ctx) => {
-                const chart = ctx.chart;
-                if (!chart.scales?.x || !ctx.element?.options) return false;
+                if (!ctx.element?.options) {
+                  return true;
+                }
+                const { chart } = ctx;
+                if (!chart.scales?.x || !chart.scales?.y) return true;
 
                 // Check if the associated dataset is visible before rendering the annotation.
                 if (!chart.isDatasetVisible(datasetIndex)) {
