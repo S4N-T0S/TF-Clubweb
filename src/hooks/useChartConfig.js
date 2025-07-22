@@ -988,6 +988,7 @@ export const useChartConfig = ({
       .filter(rank => rank.y >= minDomain && rank.y <= maxDomain)
       .map(rank => ({
         type: 'line',
+        drawTime: 'beforeDatasetsDraw',
         yMin: rank.y,
         yMax: rank.y,
         borderColor: rank.color,
@@ -1013,6 +1014,7 @@ export const useChartConfig = ({
       if (seasonConfig && seasonConfig.hasRuby && typeof rubyCutoff === 'number' && rubyCutoff >= minDomain && rubyCutoff <= maxDomain) {
           annotations.push({
               type: 'line',
+              drawTime: 'beforeDatasetsDraw',
               yMin: rubyCutoff,
               yMax: rubyCutoff,
               borderColor: '#dc2626',
