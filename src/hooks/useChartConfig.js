@@ -277,11 +277,11 @@ export const useChartConfig = ({
   const [isManuallyZoomed, setIsManuallyZoomed] = useState(false);
 
   useEffect(() => {
-      // When the user clicks a button (24H, 7D, MAX), selectedTimeRange changes.
-      // This effect will run, resetting our manual zoom state.
-      setIsManuallyZoomed(false);
-      setManualViewWindow(null);
-  }, [selectedTimeRange]);
+    // When the user clicks a button (24H, 7D, MAX) or switches seasons,
+    // this effect will run, resetting our manual zoom state.
+    setIsManuallyZoomed(false);
+    setManualViewWindow(null);
+  }, [selectedTimeRange, seasonId]);
 
 
   const getPointRadius = useCallback((ctx) => {
