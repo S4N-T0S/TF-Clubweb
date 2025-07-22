@@ -29,6 +29,7 @@ import { LoadingDisplay } from './LoadingDisplay';
 import { SearchBar } from './SearchBar';
 import { getStoredGraphSettings, setStoredGraphSettings } from '../services/localStorageManager';
 import { SEASONS, getSeasonLeaderboard } from '../services/historicalDataService';
+import { filterPlayerByQuery } from '../utils/searchUtils';
 
 ChartJS.register(
   CategoryScale,
@@ -191,13 +192,12 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
 
   useEffect(() => {
     if (searchTerm) {
-      // If there's a search term, filter by name/club tag
+      // If there's a search term, filter using the advanced logic
       const filtered = leaderboard
         .filter(player =>
           player.name !== mainEmbarkId &&
           !Array.from(comparisonData.keys()).includes(player.name) &&
-          (player.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           (player.clubTag && `[${player.clubTag}]`.toLowerCase().includes(searchTerm.toLowerCase())))
+          filterPlayerByQuery(player, searchTerm)
         )
         .slice(0, 50);
       setFilteredPlayers(filtered);
@@ -719,11 +719,11 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                     >
                       <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
                       {showCompareHint && (
-                        <div className="absolute -bottom-2 -right-2 w-5 h-5 bg-blue-500 rounded-full animate-pulse" />
+                        <div className="absolute -bottom-2 -right-2 w-5 h-5 bg-blue-500 rounded-full animate-pulse z-30" />
                       )}
 
                       {showCompareHint && (
-                        <div className={`absolute top-full mt-2 whitespace-nowrap bg-gray-800 text-white text-xs py-1 px-2 rounded fade-out pointer-events-none
+                        <div className={`absolute top-full mt-2 whitespace-nowrap bg-gray-800 text-white text-xs py-1 px-2 rounded fade-out pointer-events-none z-30
                           ${isMobile ? 'left-0' : 'left-1/2 -translate-x-1/2'}`}>
                           Try comparing!
                         </div>

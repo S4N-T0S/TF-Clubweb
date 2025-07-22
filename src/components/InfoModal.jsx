@@ -1,12 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useModal } from '../context/ModalProvider';
 import { LoadingDisplay } from './LoadingDisplay';
 import { X, ExternalLink } from 'lucide-react';
-import { InfoModalProps, LinkRendererProps } from '../types/propTypes';
+import { InfoModalProps, LinkRendererProps, CollapsibleMarkdownSectionProps } from '../types/propTypes';
 import { useSwipe } from '../hooks/useSwipe';
 
 // Fetches and parses the markdown content file from the public folder.
@@ -62,6 +61,71 @@ const transparentBgTheme = {
     padding: '0',
   },
 };
+
+
+// --- NEW HELPER COMPONENT FOR THE COLLAPSIBLE SECTION ---
+const CollapsibleMarkdownSection = ({ content }) => {
+  // Define the custom delimiter and regex to extract the summary text
+  const delimiterRegex = /\+\+\+(.*)\+\+\+/;
+  const match = content.match(delimiterRegex);
+
+  // If the content doesn't have the delimiter, render it normally
+  if (!match) {
+    return <ReactMarkdown components={markdownComponents}>{content}</ReactMarkdown>;
+  }
+
+  const summaryText = match[1];
+  const contentParts = content.split(delimiterRegex);
+  const beforeContent = contentParts[0];
+  const collapsibleContent = contentParts[2];
+
+  return (
+    <>
+      <ReactMarkdown components={markdownComponents}>{beforeContent}</ReactMarkdown>
+      <details className="mt-4">
+        <summary>
+          {summaryText}
+        </summary>
+        <div className="details-content-style">
+          <ReactMarkdown components={markdownComponents}>{collapsibleContent}</ReactMarkdown>
+        </div>
+      </details>
+    </>
+  );
+};
+
+// Define components outside the main render function to avoid recreation
+const markdownComponents = {
+  a: LinkRenderer,
+  code({ inline, className, children, ...props }) {
+    const match = /language-(\w+)/.exec(className || '');
+    if (!inline && match) {
+      return (
+        <SyntaxHighlighter
+          style={transparentBgTheme}
+          language={match[1]}
+          PreTag="div"
+          {...props}
+        >
+          {String(children).replace(/\n$/, '')}
+        </SyntaxHighlighter>
+      );
+    }
+    if (inline) {
+      return (
+        <code className="bg-gray-700/60 text-pink-400 rounded-sm px-1.5 py-1 font-mono text-[0.9em]" {...props}>
+          {children}
+        </code>
+      );
+    }
+    return (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    );
+  }
+};
+
 
 export const InfoModal = ({ isOpen, onClose, isMobile }) => {
   const { modalRef, isActive } = useModal(isOpen, onClose);
@@ -122,54 +186,48 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
     isSwipeActive: isMobile && isOpen && tabs.length > 1,
     targetRef: contentRef,
   });
-  
-  const components = {
-    a: LinkRenderer,
-    code({ inline, className, children, ...props }) {
-      const match = /language-(\w+)/.exec(className || '');
-      
-      // Handle syntax highlighting for fenced code blocks with a language
-      if (!inline && match) {
-        return (
-          <SyntaxHighlighter
-            style={transparentBgTheme}
-            language={match[1]}
-            PreTag="div" // Use a div to avoid nested <pre> tags
-            {...props}
-          >
-            {String(children).replace(/\n$/, '')}
-          </SyntaxHighlighter>
-        );
-      }
-      
-      // Handle inline code snippets with custom styling
-      if (inline) {
-        return (
-          <code className="bg-gray-700/60 text-pink-400 rounded-sm px-1.5 py-1 font-mono text-[0.9em]" {...props}>
-            {children}
-          </code>
-        );
-      }
-      
-      // Handle fenced code blocks without a language.
-      // react-markdown will wrap this in a <pre> tag, which gets styled by prose.
-      return (
-        <code className={className} {...props}>
-          {children}
-        </code>
-      );
-    }
-  };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-      {/* Animation styles for swipe */}
+      {/* CSS Styling */}
       <style>{`
         .slide-left-enter { transform: translateX(25%); opacity: 0; }
         .slide-right-enter { transform: translateX(-25%); opacity: 0; }
         .slide-center { transform: translateX(0); opacity: 1; }
+
+        /* --- STYLES FOR OUR CUSTOM COLLAPSIBLE SECTION (USING <details>) --- */
+        details > summary {
+          cursor: pointer;
+          font-weight: 500;
+          color: #9ca3af; /* text-gray-400 */
+          display: flex;
+          align-items: center;
+          gap: 0.5rem; /* 8px */
+          transition: color 0.2s ease-in-out;
+          list-style: none; /* Remove default marker */
+        }
+        details > summary::-webkit-details-marker {
+          display: none; /* Hide default marker for Safari */
+        }
+        details > summary:hover {
+          color: #d1d5db; /* text-gray-300 */
+        }
+        details > summary::before {
+          content: '▶';
+          font-size: 0.6em;
+          display: inline-block;
+          transition: transform 0.2s ease-in-out;
+        }
+        details[open] > summary::before {
+          transform: rotate(90deg);
+        }
+        .details-content-style {
+          margin-top: 1rem; /* 16px */
+          padding-left: 1.25rem; /* 20px */
+          border-left: 2px solid #374151; /* border-gray-700 */
+        }
       `}</style>
       <div
         ref={modalRef}
@@ -212,12 +270,8 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
              error ? <p className="text-red-400">{error}</p> :
              activeTab && (
                 <article className={`prose prose-sm sm:prose-base prose-invert max-w-none prose-h2:text-xl prose-h2:mb-4 prose-h4:text-base prose-pre:bg-gray-800 prose-a:text-blue-400 transition-all duration-300 ease-in-out ${slideDirection}`}>
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={components}
-                    >
-                      {activeTab.content}
-                    </ReactMarkdown>
+                    {/* Use the new helper component to render the content */}
+                    <CollapsibleMarkdownSection content={activeTab.content} />
                 </article>
              )
             }
@@ -230,5 +284,6 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
 
 InfoModal.propTypes = InfoModalProps;
 LinkRenderer.propTypes = LinkRendererProps;
+CollapsibleMarkdownSection.propTypes = CollapsibleMarkdownSectionProps;
 
 export default InfoModal;

@@ -10,46 +10,47 @@ import { ErrorDisplay } from './ErrorDisplay';
 import { EventCard } from './EventCard';
 import { LeagueRangeSlider } from './LeagueRangeSlider';
 import { getLeagueIndexForFilter } from '../utils/leagueUtils';
+import { parseSearchQuery } from '../utils/searchUtils';
 import { getStoredEventsSettings, setStoredEventsSettings } from '../services/localStorageManager';
 import { UserPen, Gavel, ChevronsUpDown, Users, X, RefreshCw, SlidersHorizontal, Info } from 'lucide-react';
 import { EventsModalProps, FilterToggleButtonProps, EventsModal_InfoPopupProps } from '../types/propTypes';
 
 // Helper component for filter buttons, now with enhanced styling capabilities.
 const FilterToggleButton = ({ label, isActive, onClick, Icon, colorClass, textColorClass, activeBorderClass }) => {
-    // Base classes to ensure consistent sizing and prevent layout shifts on state change.
-    const baseClasses = "flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors w-full border";
-
-    // New style: for event type filters with persistent colored text.
-    if (textColorClass) {
-        const dynamicClasses = isActive 
-            ? `${activeBorderClass || 'border-blue-500'} bg-gray-700`
-            : 'border-transparent bg-gray-700 hover:bg-gray-600';
-        
-        return (
-            <button
-                onClick={onClick}
-                className={`${baseClasses} ${dynamicClasses}`}
-            >
-                {Icon && <Icon className={`w-4 h-4 ${textColorClass}`} />}
-                <span className={textColorClass}>{label}</span>
-            </button>
-        );
-    }
-
-    // Original style: for rank filters, where the background changes on activation.
+  // Base classes to ensure consistent sizing and prevent layout shifts on state change.
+  const baseClasses = "flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors w-full border";
+  
+  // New style: for event type filters with persistent colored text.
+  if (textColorClass) {
     const dynamicClasses = isActive 
-        ? (colorClass || 'bg-blue-600 text-white border-transparent') 
-        : 'bg-gray-700 text-gray-300 hover:bg-gray-600 border-transparent';
+      ? `${activeBorderClass || 'border-blue-500'} bg-gray-700`
+      : 'border-transparent bg-gray-700 hover:bg-gray-600';
     
     return (
-        <button
-            onClick={onClick}
-            className={`${baseClasses} ${dynamicClasses}`}
-        >
-            {Icon && <Icon className="w-4 h-4" />}
-            <span>{label}</span>
-        </button>
+      <button
+        onClick={onClick}
+        className={`${baseClasses} ${dynamicClasses}`}
+      >
+        {Icon && <Icon className={`w-4 h-4 ${textColorClass}`} />}
+        <span className={textColorClass}>{label}</span>
+      </button>
     );
+  }
+  
+  // Original style: for rank filters, where the background changes on activation.
+  const dynamicClasses = isActive 
+    ? (colorClass || 'bg-blue-600 text-white border-transparent') 
+    : 'bg-gray-700 text-gray-300 hover:bg-gray-600 border-transparent';
+
+  return (
+    <button
+      onClick={onClick}
+      className={`${baseClasses} ${dynamicClasses}`}
+    >
+      {Icon && <Icon className="w-4 h-4" />}
+      <span>{label}</span>
+    </button>
+  );
 };
 
 // Helper component for the information pop-up
@@ -122,56 +123,53 @@ const EventInfoPopup = ({ onClose }) => {
 };
 
 const getRankInfoFromEvent = (event) => {
-    const d = event.details;
-    switch(event.event_type) {
-        case 'NAME_CHANGE': return { rank: d.rank, score: d.rank_score };
-        case 'SUSPECTED_BAN': return { rank: d.last_known_rank, score: d.last_known_rank_score };
-        case 'RS_ADJUSTMENT': {
-            // For score drops (including falling off leaderboard), filter by the player's old rank.
-            // For score gains, filter by their new rank. This is more intuitive for users.
-            const isLoss = d.is_off_leaderboard || (d.change && d.change < 0);
-            if (isLoss) {
-                return { rank: d.old_rank, score: d.old_score };
-            }
-            return { rank: d.new_rank, score: d.new_score };
-        }
-        case 'CLUB_CHANGE': return { rank: d.rank, score: d.rank_score };
-        default: return { rank: null, score: null };
+  const d = event.details;
+  switch(event.event_type) {
+    case 'NAME_CHANGE': return { rank: d.rank, score: d.rank_score };
+    case 'SUSPECTED_BAN': return { rank: d.last_known_rank, score: d.last_known_rank_score };
+    case 'RS_ADJUSTMENT': {
+      // For score drops (including falling off leaderboard), filter by the player's old rank.
+      // For score gains, filter by their new rank. This is more intuitive for users.
+      const isLoss = d.is_off_leaderboard || (d.change && d.change < 0);
+      if (isLoss) {
+        return { rank: d.old_rank, score: d.old_score };
+      }
+      return { rank: d.new_rank, score: d.new_score };
     }
+    case 'CLUB_CHANGE': return { rank: d.rank, score: d.rank_score };
+    default: return { rank: null, score: null };
+  }
 };
 
 const isQueryInEvent = (event, query) => {
-    const lowerQuery = query.toLowerCase().trim();
-    if (!lowerQuery) return true;
-
-    const d = event.details;
-
-    // Collect all relevant names and club tags from the event.
-    const eventNames = [ event.current_embark_id, d.old_name, d.new_name, d.last_known_name, d.name ].filter(Boolean).map(n => n.toLowerCase());
-    const eventClubTags = [ d.club_tag, d.old_club_tag, d.new_club_tag, d.last_known_club_tag, d.old_club, d.new_club ].filter(Boolean).map(t => t.toLowerCase());
-
-    // Handle exclusive club tag searches like `[tag]`
-    const clubSearchMatch = lowerQuery.match(/^\[(.*?)\]$/);
-    if (clubSearchMatch) {
-        const tagQuery = clubSearchMatch[1];
-        return eventClubTags.some(tag => tag.includes(tagQuery));
-    }
+  const { nameQuery, clubQuery, clubSearchType } = parseSearchQuery(query);
+  
+  if (!nameQuery && clubQuery === null) return true;
+  // 1. Collect all potential event data.
+  const d = event.details;
+  const eventNames = [ event.current_embark_id, d.old_name, d.new_name, d.last_known_name, d.name ].filter(Boolean).map(n => n.toLowerCase());
+  const eventClubTags = [ d.club_tag, d.old_club_tag, d.new_club_tag, d.last_known_club_tag, d.old_club, d.new_club ].filter(Boolean).map(t => t.toLowerCase());
+  
+  // 2. Perform filter checks based on the parsed query.
+  const namePasses = !nameQuery ||
+    eventNames.some(n => n.includes(nameQuery)) ||
+    eventClubTags.some(t => t.includes(nameQuery));
     
-    // For combined or general searches, construct all possible searchable strings.
-    const fullSearchableStrings = new Set();
-    eventNames.forEach(name => {
-        // Add the name by itself
-        fullSearchableStrings.add(name);
-        // Add all combinations of "[tag] name"
-        eventClubTags.forEach(tag => {
-            fullSearchableStrings.add(`[${tag}] ${name}`);
-        });
-    });
-
-    // Also add club tags by themselves to be searchable
-    eventClubTags.forEach(tag => fullSearchableStrings.add(`[${tag}]`));
-
-    return Array.from(fullSearchableStrings).some(s => s.includes(lowerQuery));
+  let clubPasses = true;
+  if (clubQuery !== null) {
+    switch (clubSearchType) {
+      case 'exact':
+        clubPasses = eventClubTags.some(tag => tag === clubQuery) || (clubQuery === '' && eventClubTags.length === 0);
+        break;
+      case 'startsWith':
+        clubPasses = eventClubTags.some(tag => tag.startsWith(clubQuery));
+        break;
+      case 'endsWith':
+        clubPasses = eventClubTags.some(tag => tag.endsWith(clubQuery));
+        break;
+    }
+  }
+  return namePasses && clubPasses;
 };
 
 
@@ -481,7 +479,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
             <fieldset className="bg-gray-800 p-4 rounded-lg border border-gray-700">
               <div className={`flex gap-2 items-center ${isFilterSectionExpanded ? 'mb-4' : ''}`}>
                 <div className="flex-grow">
-                  <SearchBar value={filters.searchQuery} onChange={(val) => handleFilterChange('searchQuery', val)} placeholder="Search by name, or club tag e.g. [OG]" />
+                  <SearchBar value={filters.searchQuery} onChange={(val) => handleFilterChange('searchQuery', val)} placeholder="Search by name, club tag or both e.g. [OG]" />
                 </div>
                 <button
                   onClick={toggleFilterSection}

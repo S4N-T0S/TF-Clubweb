@@ -328,3 +328,7 @@ export const LinkRendererProps = {
   href: PropTypes.string.isRequired,
   children: PropTypes.node.isRequired,
 };
+
+export const CollapsibleMarkdownSectionProps = {
+  content: PropTypes.string.isRequired,
+};

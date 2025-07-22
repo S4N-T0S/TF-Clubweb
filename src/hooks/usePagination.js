@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { filterPlayerByQuery } from '../utils/searchUtils';
 
 export const usePagination = (items, itemsPerPage, isMobile) => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -64,27 +65,19 @@ export const usePagination = (items, itemsPerPage, isMobile) => {
 
   // Memoize filtered and sorted items
   const processedItems = useMemo(() => {
-    // First filter
     const filtered = items.filter(item => {
-      const searchLower = searchQuery.toLowerCase();
-      
-      // Handle club items (items with 'tag' property)
-      if ('tag' in item) {
-        return item.tag.toLowerCase().includes(searchLower);
-      }
-      
-      // Handle player items (items with 'name' property)
+      // Handle player items (items with 'name' property) - This is for GlobalView
       if (item.name) {
-        const displayName = item.clubTag ? `[${item.clubTag}] ${item.name}` : item.name;
-        
-        return (
-          displayName.toLowerCase().includes(searchLower) ||
-          (item.steamName && item.steamName.toLowerCase().includes(searchLower)) ||
-          (item.psnName && item.psnName.toLowerCase().includes(searchLower)) ||
-          (item.xboxName && item.xboxName.toLowerCase().includes(searchLower))
-        );
+        return filterPlayerByQuery(item, searchQuery);
       }
 
+      // Handle club list items (items with 'tag' property) - This is for a different view
+      if ('tag' in item) {
+        // Sanitize the query by removing any brackets for this specific search type.
+        const sanitizedQuery = searchQuery.toLowerCase().replace(/[[\]]/g, '');
+        return item.tag.toLowerCase().includes(sanitizedQuery);
+      }
+      
       // If the item doesn't match known filterable structures (e.g., it's an event),
       // let it pass through. The consuming component (EventsView) handles its own filtering.
       return true;

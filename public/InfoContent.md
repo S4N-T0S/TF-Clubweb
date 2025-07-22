@@ -29,6 +29,39 @@ Discord username: **tsa.gov**
 
 In your message, please briefly introduce yourself and link to your profile on this dashboard.
 
+## [TIPS] - Tips & Tricks
+
+Here are a few tips to help you get the most out of the dashboard.
+
++++Advanced Searching+++
+
+The search bars in this dashboard support a powerful syntax to help you find exactly what you're looking for. The rules are consistent everywhere.
+
+*   **Exact Club Search**
+    To find players in one specific club, enclose the club tag in full brackets.
+    *   Example: `[OG]` will only show members of the [OG] club.
+
+*   **Partial Club Search (Starts With)**
+    To find clubs that start with certain letters, use an opening bracket.
+    *   Example: `[OG` will show members from clubs like [OG], [OGRE], etc.
+
+*   **Partial Club Search (Ends With)**
+    To find clubs that end with certain letters, use a closing bracket.
+    *   Example: `G]` will show members from clubs like [OG], [FROG], etc.
+
+*   **No Club Search**
+    To find all players who are not currently in a club, simply search for empty brackets.
+    *   Example: `[]`
+
+*   **Combined Search**
+    You can combine any club syntax with a player name to narrow down your results. The order doesn't matter.
+    *   Example: `[OG] 00` finds players named "00" within the [OG] club.
+    *   Example: `[] et` finds players named "et" who are not in a club.
+
+*   **General Search**
+    If you search without any brackets, the query will match text found in a player's Embark ID, their linked platform names (Steam, PSN, Xbox), or their club tag.
+    *   Example: `bali` will find the player `Balise#2431`, a player with the Steam name `Balius`, or even a player in a club like `[BALI]`.
+
 ## [API] - API Documentation
 
 This dashboard is powered by a public API developed by us. Below are the details for developers who wish to interact with the data programmatically.
