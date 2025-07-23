@@ -16,7 +16,7 @@ To be considered for membership, applicants should meet the following criteria:
 
 Please note the following rules of conduct, which apply to all members:
 
-1.  **Fair Play:** Members are not expected to "go easy" on other members in public matches. We believe in competitive integrity, regardless of who is on the opposing team.
+1.  **Fair Play:** Members are not expected to help eachother in public matches. Do whatever you like, do not get upset if you're griefed by a fellow member.
 2.  **Perpetual Requirements:** The standards listed above are continuous. Failure to uphold them during your time in the club may result in removal.
 3.  **Vouching System:** While meeting the requirements makes you eligible, final acceptance often requires vouches from existing OG members.
 
