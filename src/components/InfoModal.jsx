@@ -4,7 +4,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useModal } from '../context/ModalProvider';
 import { LoadingDisplay } from './LoadingDisplay';
-import { X, ExternalLink } from 'lucide-react';
+import { X, ExternalLink, ChevronRight } from 'lucide-react';
 import { InfoModalProps, LinkRendererProps, CollapsibleMarkdownSectionProps } from '../types/propTypes';
 import { useSwipe } from '../hooks/useSwipe';
 
@@ -63,33 +63,53 @@ const transparentBgTheme = {
 };
 
 
-// --- NEW HELPER COMPONENT FOR THE COLLAPSIBLE SECTION ---
+// --- UPDATED HELPER COMPONENT FOR COLLAPSIBLE SECTIONS ---
+// This version can handle multiple collapsible sections within the same content block.
 const CollapsibleMarkdownSection = ({ content }) => {
   // Define the custom delimiter and regex to extract the summary text
   const delimiterRegex = /\+\+\+(.*)\+\+\+/;
-  const match = content.match(delimiterRegex);
+  
+  // Split the content by the delimiter. This creates an array where:
+  // - Even-indexed items are the content *between* the collapsible sections.
+  // - Odd-indexed items are the summary texts for the collapsible sections.
+  const parts = content.split(delimiterRegex);
 
-  // If the content doesn't have the delimiter, render it normally
-  if (!match) {
+  // If there's only one part, no delimiters were found, so render normally.
+  if (parts.length <= 1) {
     return <ReactMarkdown components={markdownComponents}>{content}</ReactMarkdown>;
   }
 
-  const summaryText = match[1];
-  const contentParts = content.split(delimiterRegex);
-  const beforeContent = contentParts[0];
-  const collapsibleContent = contentParts[2];
+  // The first element is the content before any collapsible sections.
+  const initialContent = parts[0];
+
+  const collapsibleSections = [];
+  // Loop through the remaining parts, taking two at a time (summary + content).
+  for (let i = 1; i < parts.length; i += 2) {
+    const summaryText = parts[i];
+    const collapsibleContent = parts[i + 1];
+
+    if (summaryText && collapsibleContent) {
+      collapsibleSections.push(
+        // Use `group` class to manage state of children based on the `open` attribute
+        <details key={i} className="group mt-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between rounded-lg bg-gray-800 p-3 font-medium text-gray-300 transition-colors hover:bg-gray-700">
+            {summaryText}
+            {/* The chevron icon rotates on `open` state using `group-open` */}
+            <ChevronRight className="h-5 w-5 shrink-0 transform transition-transform duration-200 group-open:rotate-90" />
+          </summary>
+          {/* Styling for the content area of the dropdown */}
+          <div className="prose prose-sm sm:prose-base prose-invert max-w-none prose-pre:bg-gray-800 prose-a:text-blue-400 mt-3 px-3 text-gray-400">
+            <ReactMarkdown components={markdownComponents}>{collapsibleContent}</ReactMarkdown>
+          </div>
+        </details>
+      );
+    }
+  }
 
   return (
     <>
-      <ReactMarkdown components={markdownComponents}>{beforeContent}</ReactMarkdown>
-      <details className="mt-4">
-        <summary>
-          {summaryText}
-        </summary>
-        <div className="details-content-style">
-          <ReactMarkdown components={markdownComponents}>{collapsibleContent}</ReactMarkdown>
-        </div>
-      </details>
+      {initialContent && <ReactMarkdown components={markdownComponents}>{initialContent}</ReactMarkdown>}
+      {collapsibleSections}
     </>
   );
 };
@@ -196,38 +216,6 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
         .slide-left-enter { transform: translateX(25%); opacity: 0; }
         .slide-right-enter { transform: translateX(-25%); opacity: 0; }
         .slide-center { transform: translateX(0); opacity: 1; }
-
-        /* --- STYLES FOR OUR CUSTOM COLLAPSIBLE SECTION (USING <details>) --- */
-        details > summary {
-          cursor: pointer;
-          font-weight: 500;
-          color: #9ca3af; /* text-gray-400 */
-          display: flex;
-          align-items: center;
-          gap: 0.5rem; /* 8px */
-          transition: color 0.2s ease-in-out;
-          list-style: none; /* Remove default marker */
-        }
-        details > summary::-webkit-details-marker {
-          display: none; /* Hide default marker for Safari */
-        }
-        details > summary:hover {
-          color: #d1d5db; /* text-gray-300 */
-        }
-        details > summary::before {
-          content: '▶';
-          font-size: 0.6em;
-          display: inline-block;
-          transition: transform 0.2s ease-in-out;
-        }
-        details[open] > summary::before {
-          transform: rotate(90deg);
-        }
-        .details-content-style {
-          margin-top: 1rem; /* 16px */
-          padding-left: 1.25rem; /* 20px */
-          border-left: 2px solid #374151; /* border-gray-700 */
-        }
       `}</style>
       <div
         ref={modalRef}
@@ -270,7 +258,7 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
              error ? <p className="text-red-400">{error}</p> :
              activeTab && (
                 <article className={`prose prose-sm sm:prose-base prose-invert max-w-none prose-h2:text-xl prose-h2:mb-4 prose-h4:text-base prose-pre:bg-gray-800 prose-a:text-blue-400 transition-all duration-300 ease-in-out ${slideDirection}`}>
-                    {/* Use the new helper component to render the content */}
+                    {/* Use the updated helper component to render the content */}
                     <CollapsibleMarkdownSection content={activeTab.content} />
                 </article>
              )

@@ -1,6 +1,8 @@
-## [JOIN] - How to Join OG
+## [OG] - About the OG Club
 
 The 'Original Goats' [OG] is a community of dedicated, high-skill players in The Finals. We are actively looking for members who share our passion for competitive play and good sportsmanship.
+
++++How to Join+++
 
 ### Minimum Requirements
 
@@ -28,6 +30,14 @@ If you meet these requirements and are interested in joining, please send a dire
 Discord username: **tsa.gov**
 
 In your message, please briefly introduce yourself and link to your profile on this dashboard.
+
++++Club Governance+++
+
+For simplicity and to foster a connected environment, the club operates directly out of the Ruby Grind Discord server.
+
+While our club has designated admins who hold power to make decisions, we are founded on the principle of community governance. Any member of the OG Club is free to make an appeal regarding an administrative decision.
+
+At that point, the final decision will be made democratically by the OG Club members via a poll. This ensures that while our admins can lead effectively, the ultimate authority rests with the community.
 
 ## [TIPS] - Tips & Tricks
 
