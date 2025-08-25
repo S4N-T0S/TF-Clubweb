@@ -176,6 +176,7 @@ const isQueryInEvent = (event, query) => {
 export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubClick, onGraphOpen, showToast }) => {
   // `useModal` now also returns `isActive`, which handles animation state internally based on the modal stack.
   const { modalRef, isTopModal, isActive } = useModal(isOpen, onClose);
+  const searchInputRef = useRef(null);
   const scrollContainerRef = useRef(null); // Ref for the scrollable content area
   const scrollPositionRef = useRef(0); // Ref to store the scroll position
   const hasInitialized = useRef(false);
@@ -307,6 +308,11 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
 
   // Checks the `hasInitialized` ref to ensure it only runs ONCE per mount.
   useEffect(() => {
+    // Auto-focus the search input on desktop when the modal opens.
+    if (isOpen && searchInputRef.current && !isMobile && !hasInitialized.current) {
+      searchInputRef.current.focus();
+    }
+
     // The `key` prop from App.jsx ensures this component is brand new on a "fresh" open.
     // When it mounts, `hasInitialized.current` is false, so this block runs.
     if (isOpen && !hasInitialized.current) {
@@ -316,7 +322,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
         // (e.g., when a child modal opens) will not re-trigger this logic.
         hasInitialized.current = true;
     }
-  }, [isOpen, loadEvents, handleFilterChange]);
+  }, [isOpen, loadEvents, handleFilterChange, isMobile]);
 
   // Auto-refresh timer: sets when modal opens, clears when it closes.
   useEffect(() => {
@@ -479,7 +485,12 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
             <fieldset className="bg-gray-800 p-4 rounded-lg border border-gray-700">
               <div className={`flex gap-2 items-center ${isFilterSectionExpanded ? 'mb-4' : ''}`}>
                 <div className="flex-grow">
-                  <SearchBar value={filters.searchQuery} onChange={(val) => handleFilterChange('searchQuery', val)} placeholder="Search by name, club tag or both e.g. [OG]" />
+                  <SearchBar
+                    value={filters.searchQuery}
+                    onChange={(val) => handleFilterChange('searchQuery', val)}
+                    placeholder="Search by name, club tag or both e.g. [OG]"
+                    searchInputRef={searchInputRef}
+                  />
                 </div>
                 <button
                   onClick={toggleFilterSection}
