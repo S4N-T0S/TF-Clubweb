@@ -1,25 +1,24 @@
 import { apiFetch, logApiCall, API } from "./apiService";
+import { getStoredCacheItem, setStoredCacheItem } from "./localStorageManager";
 
-// Use a Map for session-level caching. It's cleared on page refresh.
-const graphCache = new Map();
-const CACHE_TTL_MS = 60 * 1000; // 1 minute TTL on client-side cache
+const CACHE_TTL_SECONDS = 60; // 1 minute TTL on client-side cache
 
 export const fetchGraphData = async (embarkId, seasonId = null) => {
   // A unique key for caching, including the season
-  const cacheKey = seasonId ? `${embarkId}@${seasonId}` : embarkId;
+  const cacheKey = `graph_cache_${seasonId ? `${embarkId}@${seasonId}` : embarkId}`;
 
   // Check for a valid, non-expired cache entry.
-  if (graphCache.has(cacheKey)) {
-    const cachedEntry = graphCache.get(cacheKey);
-    if (Date.now() < cachedEntry.expiresAt) {
-      logApiCall('Session Cache', {
-        groupName: 'Player Graph',
-        embarkId,
-        responseTime: 0,
-      });
-      // Return the data property of the cached entry.
-      return cachedEntry.data;
-    }
+  const cachedEntry = getStoredCacheItem(cacheKey);
+  if (cachedEntry) {
+    logApiCall('Client Cache', {
+      groupName: 'Player Graph',
+      embarkId,
+      timestamp: cachedEntry.data.timestamp,
+      remainingTtl: Math.floor((cachedEntry.expiresAt - Date.now()) / 1000),
+      responseTime: 0,
+    });
+    // Return the data property of the cached entry.
+    return cachedEntry.data;
   }
 
   try {
@@ -43,18 +42,15 @@ export const fetchGraphData = async (embarkId, seasonId = null) => {
       throw new Error('No graph data received from API');
     }
 
-    logApiCall('Direct', {
+    logApiCall(result.source || 'Direct', {
       groupName: 'Player Graph',
       embarkId,
       responseTime,
+      timestamp: result.timestamp
     });
     
-    // Store the new result with an expiration timestamp.
-    const cacheEntry = {
-      data: result,
-      expiresAt: Date.now() + CACHE_TTL_MS,
-    };
-    graphCache.set(cacheKey, cacheEntry);
+    // Store the new result with an expiration timestamp using the centralized manager.
+    setStoredCacheItem(cacheKey, result, CACHE_TTL_SECONDS);
     
     // Return the fresh data from the API call.
     return result;

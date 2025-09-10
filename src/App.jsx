@@ -17,7 +17,7 @@ import InfoModal from './components/InfoModal';
 import Toast from './components/Toast';
 import { getStoredTab, setStoredTab, getStoredAutoRefresh, setStoredAutoRefresh } from './services/localStorageManager';
 import { ModalProvider } from './context/ModalProvider';
-import { SEASONS } from './services/historicalDataService';
+import { SEASONS, currentSeasonKey } from './services/historicalDataService';
 
 const App = () => {
   const isMobile = useMobileDetect() || false;
@@ -47,7 +47,7 @@ const App = () => {
   const [clubMembersLoading, setClubMembersLoading] = useState(true);
   const [showFavourites, setShowFavourites] = useState(false);
 
-  const currentSeason = 'S7';
+  const currentSeason = currentSeasonKey;;
   const [selectedSeason, setSelectedSeason] = useState(currentSeason);
   const {
     clubMembers,

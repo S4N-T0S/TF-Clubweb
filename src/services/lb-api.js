@@ -1,47 +1,8 @@
 import { getLeagueInfo } from "../utils/leagueUtils";
 import { apiFetch, logApiCall } from "./apiService";
+import { getStoredCacheItem, setStoredCacheItem, getStoredJsonItem } from "./localStorageManager";
 
 const CACHE_KEY = 'leaderboard_cache';
-
-const getCachedData = () => {
-  const cached = localStorage.getItem(CACHE_KEY);
-  if (!cached) return null;
-
-  try {
-    const { data, timestamp, expiresAt, source } = JSON.parse(cached);
-    const now = Date.now();
-    
-    if (now < expiresAt) {
-      return {
-        data,
-        timestamp,
-        expiresAt,
-        remainingTtl: Math.floor((expiresAt - now) / 1000),
-        source
-      };
-    }
-    
-    return {
-      data,
-      timestamp,
-      expiresAt,
-      isStale: true,
-      source
-    };
-  } catch {
-    localStorage.removeItem(CACHE_KEY);
-    return null;
-  }
-};
-
-const setCacheData = (data, timestamp, expiresAt, source) => {
-  localStorage.setItem(CACHE_KEY, JSON.stringify({
-    data,
-    timestamp,
-    expiresAt,
-    source
-  }));
-};
 
 const transformData = (rawData) => {
   return rawData.map(entry => {
@@ -63,24 +24,26 @@ const transformData = (rawData) => {
 
 export const fetchLeaderboardData = async () => {
   try {
-    const cachedData = getCachedData();
+    const cachedEntry = getStoredCacheItem(CACHE_KEY);
 
     // 1. Check for fresh client cache
-    if (cachedData && !cachedData.isStale) {
-      const source = cachedData.source === 'kv-cache-fallback' ? 'client-cache-fallback' : 'client-cache';
+    if (cachedEntry) {
+      const cachePayload = cachedEntry.data; // The full API response is in the 'data' property
+      const source = cachePayload.source === 'kv-cache-fallback' ? 'client-cache-fallback' : 'client-cache';
+      const remainingTtl = Math.floor((cachedEntry.expiresAt - Date.now()) / 1000);
       
       logApiCall(source, {
         groupName: 'Leaderboard',
-        timestamp: cachedData.timestamp,
-        remainingTtl: cachedData.remainingTtl,
+        timestamp: cachePayload.timestamp,
+        remainingTtl,
         responseTime: 0
       });
       return {
-        data: transformData(cachedData.data),
+        data: transformData(cachePayload.data),
         source,
-        timestamp: cachedData.timestamp,
-        remainingTtl: cachedData.remainingTtl,
-        expiresAt: cachedData.expiresAt,
+        timestamp: cachePayload.timestamp,
+        remainingTtl,
+        expiresAt: cachedEntry.expiresAt,
       };
     }
 
@@ -114,8 +77,8 @@ export const fetchLeaderboardData = async () => {
       responseTime
     });
 
-    // Store data in client cache with the potentially overridden expiry time.
-    setCacheData(result.data, timestampMs, expiresAtMs, result.source);
+    // Store the entire API result in the client cache with the calculated TTL.
+    setStoredCacheItem(CACHE_KEY, result, remainingTtl);
 
     return {
       data: transformedData,
@@ -128,22 +91,24 @@ export const fetchLeaderboardData = async () => {
   } catch (error) {
     // 3. Fallback to emergency cache on network failure
     console.error("Leaderboard fetch failed, checking for emergency cache.", error);
-    const cachedData = getCachedData();
-    if (cachedData) {
+    // Use the lower-level getter that doesn't check for expiry.
+    const emergencyCache = getStoredJsonItem(CACHE_KEY); 
+    if (emergencyCache && emergencyCache.data) {
+      const cachePayload = emergencyCache.data;
       const source = 'client-cache-emergency';
       const remainingTtl = 120; // 2 minutes (RETRY_DELAY_MS - edit in conjunction)
       const newExpiresAt = Date.now() + remainingTtl * 1000;
 
       logApiCall(source, {
         groupName: 'Leaderboard',
-        timestamp: cachedData.timestamp,
+        timestamp: cachePayload.timestamp,
         remainingTtl,
         responseTime: 0
       });
       return {
-        data: transformData(cachedData.data),
+        data: transformData(cachePayload.data),
         source,
-        timestamp: cachedData.timestamp,
+        timestamp: cachePayload.timestamp,
         remainingTtl,
         expiresAt: newExpiresAt,
       };

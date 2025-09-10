@@ -1,5 +1,5 @@
 // A generic, robust getter for JSON-parsed localStorage items.
-const getStoredJsonItem = (key, defaultValue, validator) => {
+export const getStoredJsonItem = (key, defaultValue, validator) => {
   try {
     const storedValue = localStorage.getItem(key);
     if (storedValue === null) {
@@ -32,6 +32,51 @@ const setStoredJsonItem = (key, value) => {
     console.error(`Error writing "${key}" to localStorage:`, error);
   }
 };
+
+// --- Generic Cache Functions with TTL ---
+
+/**
+ * Stores an item in localStorage with a "Time To Live" in seconds.
+ * @param {string} key The key for the localStorage item.
+ * @param {any} value The JSON-serializable value to store.
+ * @param {number} ttlSeconds The number of seconds until the cache item expires.
+ */
+export const setStoredCacheItem = (key, value, ttlSeconds) => {
+  if (typeof ttlSeconds !== 'number' || ttlSeconds <= 0) {
+    console.error(`Invalid TTL provided for key "${key}". Must be a positive number.`);
+    return;
+  }
+  const item = {
+    data: value,
+    expiresAt: Date.now() + ttlSeconds * 1000,
+  };
+  setStoredJsonItem(key, item);
+};
+
+/**
+ * Retrieves a cached item from localStorage if it hasn't expired.
+ * @param {string} key The key for the localStorage item.
+ * @returns {object|null} The cached data object (including expiresAt and the data itself) or null if not found or expired.
+ */
+export const getStoredCacheItem = (key) => {
+  const validator = (value) => 
+    typeof value === 'object' && value !== null && 'data' in value && typeof value.expiresAt === 'number';
+
+  const storedItem = getStoredJsonItem(key, null, validator);
+
+  if (!storedItem) {
+    return null;
+  }
+
+  if (Date.now() < storedItem.expiresAt) {
+    return storedItem; // Return the full cache object { data, expiresAt }
+  }
+
+  // Item has expired, remove it and return null
+  localStorage.removeItem(key);
+  return null;
+};
+
 
 // --- Specific Getters and Setters ---
 

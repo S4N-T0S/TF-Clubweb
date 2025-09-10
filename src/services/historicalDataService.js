@@ -5,6 +5,7 @@ import S3Data from '../data/S3/S3-crossplay.json';
 import S4Data from '../data/S4/S4-crossplay.json';
 import S5Data from '../data/S5/S5-crossplay.json';
 import S6Data from '../data/S6/S6-crossplay.json';
+import S7Data from '../data/S7/S7-crossplay.json';
 
 export const SEASONS = {
   ALL: { label: 'All Seasons', isAggregate: true },
@@ -15,8 +16,11 @@ export const SEASONS = {
   S4: { id: 4, data: S4Data, label: 'Season 4', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: false, rubyCutoff: 46543 },
   S5: { id: 5, data: S5Data, label: 'Season 5', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1735429827, endTimestamp: 1742498648, rubyCutoff: 49750 },
   S6: { id: 6, data: S6Data, label: 'Season 6', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1742502488, endTimestamp: 1749721922, rubyCutoff: 50347 },
-  S7: { id: 7, data: null, label: 'Season 7', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isCurrent: true, isGraphable: true, startTimestamp: 1749734705, endTimestamp: null, rubyCutoff: null },
+  S7: { id: 7, data: S7Data, label: 'Season 7', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1749734705, endTimestamp: 1757514600, rubyCutoff: 51701, hasEvents: true },
+  S8: { id: 8, data: null, label: 'Season 8', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1757516400, endTimestamp: null, rubyCutoff: null, hasEvents: true, isCurrent: true },
 };
+
+export const currentSeasonKey = Object.keys(SEASONS).find(key => SEASONS[key].isCurrent);
 
 export const getSeasonLeaderboard = (seasonKey) => {
   const season = SEASONS[seasonKey];
@@ -48,7 +52,8 @@ export const getSeasonLeaderboard = (seasonKey) => {
 
 export const getAllSeasonsLeaderboard = (currentSeasonData) => {
   const allData = Object.entries(SEASONS)
-    .filter(([key]) => key !== 'ALL' && key !== 'S7')
+    // Filter out 'ALL' and the current season (as it's passed in fresh)
+    .filter(([key, season]) => key !== 'ALL' && !season.isCurrent && season.data)
     .flatMap(([key]) => {
       const seasonData = getSeasonLeaderboard(key).leaderboard;
       return seasonData.map(p => ({ ...p, season: key }));
@@ -57,7 +62,7 @@ export const getAllSeasonsLeaderboard = (currentSeasonData) => {
   return {
     leaderboard: [
       ...allData,
-      ...currentSeasonData.map(p => ({ ...p, season: 'S7' }))
+      ...(currentSeasonData || []).map(p => ({ ...p, season: currentSeasonKey }))
     ]
   };
 };
@@ -148,7 +153,11 @@ export const searchPlayerHistory = async (embarkId, currentSeasonData = null) =>
   ]);
 
   // Sort results by season
-  const seasonOrder = ['Open Beta', 'Season 1', 'Season 2', 'Season 3', 'Season 4', 'Season 5', 'Season 6', 'Season 7'];
+  const seasonOrder = Object.values(SEASONS)
+    .filter(s => s.label && s.id !== undefined && !s.isAggregate)
+    .sort((a, b) => a.id - b.id)
+    .map(s => s.label);
+  
   return Array.from(allResults.values()).sort((a, b) => 
     seasonOrder.indexOf(a.season) - seasonOrder.indexOf(b.season)
   );

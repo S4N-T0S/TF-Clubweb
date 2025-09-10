@@ -5,7 +5,7 @@ import { LeagueDisplay } from '../LeagueDisplay';
 import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { GlobalViewProps, GlobalPlayerRowProps, RankChangeDisplayProps, RubyCutoffIndicatorProps, NoResultsMessageProps, FavouritesButtonProps } from '../../types/propTypes';
 import { PlatformIcons } from "../icons/Platforms";
 import { SortButton } from '../SortButton';
@@ -455,6 +455,18 @@ export const GlobalView = ({
     }
   }, [isCurrentSeason, showFavourites, setShowFavourites]);
 
+  // Define custom sorters to pass to the pagination hook.
+  const customSorters = useMemo(() => ({
+    season: (a, b, direction) => {
+      const seasonOrder = Object.entries(SEASONS)
+        .filter(([, season]) => season.id !== undefined && !season.isAggregate)
+        .sort(([, sA], [, sB]) => sA.id - sB.id)
+        .map(([key]) => key);
+      const comparison = seasonOrder.indexOf(a.season) - seasonOrder.indexOf(b.season);
+      return direction === 'asc' ? comparison : -comparison;
+    }
+  }), []);
+
   const {
     searchQuery,
     setSearchQuery,
@@ -475,7 +487,8 @@ export const GlobalView = ({
       ? getFavouritesWithFallback(historicalLeaderboard)
       : historicalLeaderboard,
     isMobile ? 25 : 50,
-    isMobile
+    isMobile,
+    { customSorters }
   );
 
   useEffect(() => {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { filterPlayerByQuery } from '../utils/searchUtils';
 
-export const usePagination = (items, itemsPerPage, isMobile) => {
+export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {} } = {}) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState({ field: null, direction: 'default' });
@@ -86,13 +86,12 @@ export const usePagination = (items, itemsPerPage, isMobile) => {
     // Then sort if needed
     if (sortConfig.field && sortConfig.direction !== 'default') {
       return [...filtered].sort((a, b) => {
+        if (customSorters[sortConfig.field]) {
+          return customSorters[sortConfig.field](a, b, sortConfig.direction);
+        }
+
         let comparison = 0;
         switch (sortConfig.field) {
-          case 'season': {
-            const seasonOrder = ['OB', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7'];
-            comparison = seasonOrder.indexOf(a.season) - seasonOrder.indexOf(b.season);
-            break;
-          }
           case 'originalRank':
             comparison = a.originalRank - b.originalRank;
             break;
@@ -125,7 +124,7 @@ export const usePagination = (items, itemsPerPage, isMobile) => {
     }
 
     return filtered;
-  }, [items, searchQuery, sortConfig]);
+  }, [items, searchQuery, sortConfig, customSorters]);
 
   const totalPages = Math.max(1, Math.ceil(processedItems.length / itemsPerPage));
   const currentPage2 = Math.min(currentPage, totalPages);
