@@ -41,7 +41,7 @@ export const fetchLeaderboardData = async () => {
       return {
         data: transformData(cachePayload.data),
         source,
-        timestamp: cachePayload.timestamp,
+        timestamp: cachePayload.timestamp * 1000,
         remainingTtl,
         expiresAt: cachedEntry.expiresAt,
       };
@@ -108,7 +108,7 @@ export const fetchLeaderboardData = async () => {
       return {
         data: transformData(cachePayload.data),
         source,
-        timestamp: cachePayload.timestamp,
+        timestamp: cachePayload.timestamp * 1000,
         remainingTtl,
         expiresAt: newExpiresAt,
       };

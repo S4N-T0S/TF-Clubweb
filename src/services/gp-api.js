@@ -10,15 +10,16 @@ export const fetchGraphData = async (embarkId, seasonId = null) => {
   // Check for a valid, non-expired cache entry.
   const cachedEntry = getStoredCacheItem(cacheKey);
   if (cachedEntry) {
+    const cachedData = cachedEntry.data;
     logApiCall('Client Cache', {
       groupName: 'Player Graph',
       embarkId,
-      timestamp: cachedEntry.data.timestamp,
+      timestamp: cachedData.timestamp,
       remainingTtl: Math.floor((cachedEntry.expiresAt - Date.now()) / 1000),
       responseTime: 0,
     });
-    // Return the data property of the cached entry.
-    return cachedEntry.data;
+    // Return the data property of the cached entry, converting timestamp to ms.
+    return { ...cachedData, timestamp: cachedData.timestamp * 1000 };
   }
 
   try {
@@ -52,8 +53,8 @@ export const fetchGraphData = async (embarkId, seasonId = null) => {
     // Store the new result with an expiration timestamp using the centralized manager.
     setStoredCacheItem(cacheKey, result, CACHE_TTL_SECONDS);
     
-    // Return the fresh data from the API call.
-    return result;
+    // Return the fresh data from the API call, converting timestamp to ms.
+    return { ...result, timestamp: result.timestamp * 1000 };
 
   } catch (error) {
     console.error(`Failed to fetch graph data for ${embarkId}:`, error);

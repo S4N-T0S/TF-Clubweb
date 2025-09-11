@@ -33,7 +33,12 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
         responseTime: 0,
       });
       // The cached item's data is already structured correctly.
-      return { ...cached.data, data: cached.data.data.map(transformEventData), expiresAt: cached.expiresAt };
+      return { 
+        ...cached.data, 
+        data: cached.data.data.map(transformEventData), 
+        expiresAt: cached.expiresAt,
+        timestamp: cached.data.timestamp * 1000,
+      };
     }
   }
 
@@ -83,6 +88,7 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
       ...result,
       data: result.data.map(transformEventData), // Transform data for consistency
       expiresAt,
+      timestamp: result.timestamp * 1000,
     };
 
   } catch (error) {
