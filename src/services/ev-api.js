@@ -69,19 +69,25 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
       throw new Error('Invalid events data received from API');
     }
 
-    // Use Cache-Control header to set the client cache duration.
     const cacheControl = response.headers.get('Cache-Control');
-    const maxAge = parseCacheControl(cacheControl);
+    let clientCacheTtl;
+
+    // For older seasons, set a static 30-minute cache. For the current season, respect the API's header.
+    if (effectiveSeasonKey !== currentSeasonKey) {
+      clientCacheTtl = 30 * 60; // 30 minutes in seconds
+    } else {
+      clientCacheTtl = parseCacheControl(cacheControl);
+    }
     
-    // Use the new centralized cache setter
-    setStoredCacheItem(cacheKey, result, maxAge);
-    const expiresAt = Date.now() + maxAge * 1000;
+    // Use the new centralized cache setter with the determined TTL
+    setStoredCacheItem(cacheKey, result, clientCacheTtl);
+    const expiresAt = Date.now() + clientCacheTtl * 1000;
 
     logApiCall(result.source || 'Direct', {
       groupName: `Events (Season: ${effectiveSeasonKey})`,
       responseTime,
       timestamp: result.timestamp,
-      remainingTtl: maxAge,
+      remainingTtl: clientCacheTtl,
     });
 
     return {
