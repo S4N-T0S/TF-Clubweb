@@ -7,7 +7,7 @@ const formatTtl = (ttl, type) => {
   // Handle cases where TTL has expired or is zero.
   if (ttl <= 0) {
     if (type === 'success') {
-      return 'Up to date!';
+      return 'Checking for update...';
     }
     // Logic to handle the user-facing cooldown message for stale data warnings and errors.
     // This tells the user when they can try fetching fresh data again.

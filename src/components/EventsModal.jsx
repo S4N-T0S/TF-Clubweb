@@ -160,7 +160,14 @@ const isQueryInEvent = (event, query) => {
   if (clubQuery !== null) {
     switch (clubSearchType) {
       case 'exact':
-        clubPasses = eventClubTags.some(tag => tag === clubQuery) || (clubQuery === '' && eventClubTags.length === 0);
+        if (clubQuery === '') {
+          // Special case for `[]` search: find players with no club affiliation in the event.
+          // This includes events where no club is mentioned, or events where a player explicitly leaves a club.
+          const isClubLeaveEvent = event.event_type === 'CLUB_CHANGE' && event.details.old_club && !event.details.new_club;
+          clubPasses = eventClubTags.length === 0 || isClubLeaveEvent;
+        } else {
+          clubPasses = eventClubTags.some(tag => tag === clubQuery);
+        }
         break;
       case 'startsWith':
         clubPasses = eventClubTags.some(tag => tag.startsWith(clubQuery));
@@ -479,38 +486,49 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
           ${!isTopModal ? 'pointer-events-none' : ''}
           `}
       >
-        <header className="flex-shrink-0 bg-gray-800 p-4 border-b border-gray-700 flex items-center">
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
+        <header className="flex-shrink-0 bg-gray-800 p-4 border-b border-gray-700 flex items-center justify-between sm:relative">
+            {/* Left side controls */}
+            <div className="flex items-center gap-2">
                 <button
-                    onClick={!isCurrentSeasonSelected ? undefined : toggleAutoRefresh}
-                    className={`p-2 rounded-full transition-colors ${autoRefresh && isCurrentSeasonSelected ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'} ${!isCurrentSeasonSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    title={!isCurrentSeasonSelected ? 'Auto-refresh only available for current season' : (autoRefresh ? 'Auto-refresh is ON' : 'Auto-refresh is OFF')}
+                  onClick={!isCurrentSeasonSelected ? undefined : toggleAutoRefresh}
+                  className={`p-2 rounded-full transition-colors ${autoRefresh && isCurrentSeasonSelected ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'} ${!isCurrentSeasonSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title={!isCurrentSeasonSelected ? 'Auto-refresh only available for current season' : (autoRefresh ? 'Auto-refresh is ON' : 'Auto-refresh is OFF')}
                 >
-                    <RefreshCw className={`w-5 h-5 ${isAnimatingRefresh ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-5 h-5 ${isAnimatingRefresh ? 'animate-spin' : ''}`} />
                 </button>
                 <button
-                    onClick={() => setShowInfo(true)}
-                    className="p-2 rounded-full bg-gray-600 text-gray-300 hover:bg-gray-500 transition-colors"
-                    title="About Event Types"
+                  onClick={() => setShowInfo(true)}
+                  className="p-2 rounded-full bg-gray-600 text-gray-300 hover:bg-gray-500 transition-colors"
+                  title="About Event Types"
                 >
-                    <Info className="w-5 h-5" />
+                  <Info className="w-5 h-5" />
                 </button>
-              </div>
             </div>
-            <div className="flex-shrink-0 text-xl font-bold text-white flex items-center gap-2">
-              <span>{isCurrentSeasonSelected && autoRefresh ? 'Live ' : ''}Events Feed</span>
-              <select
-                value={selectedSeason}
-                onChange={(e) => setSelectedSeason(e.target.value)}
-                className="bg-gray-700 text-white text-base font-normal rounded-md p-1 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {eventSeasons.map(season => (
-                  <option key={season.key} value={season.key}>{season.label}</option>
-                ))}
-              </select>
+
+            {/* Title block: Switches between in-flow for mobile and absolute for desktop */}
+            <div className="sm:hidden">
+                <span className="text-lg font-bold text-white">Events Feed</span>
             </div>
-            <div className="flex-1 flex justify-end">
+            <div className="hidden sm:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                <span className="text-xl font-bold text-white">
+                    {isCurrentSeasonSelected && autoRefresh ? 'Live ' : ''}Events Feed
+                </span>
+            </div>
+
+            {/* Right side controls */}
+            <div className="flex items-center gap-2 sm:gap-4">
+                <div className="relative">
+                    <select
+                      value={selectedSeason}
+                      onChange={(e) => setSelectedSeason(e.target.value)}
+                      className="appearance-none bg-gray-700 text-gray-200 text-sm font-medium rounded-md py-1 pl-3 pr-7 border border-gray-600 hover:border-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors cursor-pointer"
+                    >
+                      {eventSeasons.map(season => <option key={season.key} value={season.key} className="bg-gray-800 text-white">{season.label}</option>)}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-gray-400">
+                        <ChevronsUpDown className="w-4 h-4" />
+                    </div>
+                </div>
                 <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full">
                     <X className="w-5 h-5" />
                 </button>

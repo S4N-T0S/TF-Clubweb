@@ -211,7 +211,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
                 : 'block'
               } p-4 text-sm
             `}>
-              <p>This tool searches the leaderboards for Open Beta and Seasons 1-5 using an Embark ID. It identifies any linked Steam, Xbox, or PSN usernames from these records and performs additional searches on those accounts to uncover more associated records. All linked accounts and results are displayed. Note: The autofill feature only works for players in the top 10k, but you can manually enter an Embark ID for inactive players.</p>
+              <p>This tool searches the leaderboards using an Embark ID. It identifies any linked Steam, Xbox, or PSN usernames from these records and performs additional searches on those accounts to uncover more associated records. All linked accounts and results are displayed. Note: The autofill feature only works for players in the top 10k, but you can manually enter an Embark ID for inactive players.</p>
             </div>
           </div>
           <div className="relative mb-4">
