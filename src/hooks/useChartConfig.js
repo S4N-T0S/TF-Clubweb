@@ -1159,14 +1159,14 @@ export const useChartConfig = ({
             mode: 'x',
             modifierKey: null,
             onPanStart: () => {
-              // Intentionally left blank. State changes are deferred to onPanComplete.
-            },
-            onPanComplete: (ctx) => {
-              // Update states/callbacks at the end of panning
               setIsManuallyZoomed(true);
-              setManualViewWindow({ min: ctx.chart.scales.x.min, max: ctx.chart.scales.x.max });
-              setSelectedTimeRange(null);
               if (onZoomOrPan) onZoomOrPan();
+            },
+            onPan: (ctx) => {
+              setManualViewWindow({ min: ctx.chart.scales.x.min, max: ctx.chart.scales.x.max });
+            },
+            onPanComplete: () => {
+              setSelectedTimeRange(null);
             }
           },
           zoom: {
@@ -1174,15 +1174,15 @@ export const useChartConfig = ({
             pinch: { enabled: true },
             mode: 'x',
             onZoomStart: () => {
-              // Intentionally left blank. State changes are deferred to onZoomComplete.
-            },
-            onZoomComplete: (ctx) => {
-              // Update states/callbacks at the end of zooming
               setIsManuallyZoomed(true);
-              setManualViewWindow({ min: ctx.chart.scales.x.min, max: ctx.chart.scales.x.max });
-              setSelectedTimeRange(null);
               if (onZoomOrPan) onZoomOrPan();
             },
+            onZoom: (ctx) => {
+              setManualViewWindow({ min: ctx.chart.scales.x.min, max: ctx.chart.scales.x.max });
+            },
+            onZoomComplete: () => {
+              setSelectedTimeRange(null);
+            }
           },
         },
         annotation: {
