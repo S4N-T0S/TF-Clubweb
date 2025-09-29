@@ -214,10 +214,10 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
           // Determine the timestamp for our synthetic point.
           let syntheticTimestamp;
 
-          if (timeDiff > TIME.MINUTES_15) {
+          if (timeDiff >= TIME.MINUTES_15) {
             // It's safe to use the original 15-minute step for the aesthetic.
             syntheticTimestamp = new Date(current.timestamp.getTime() - TIME.MINUTES_15);
-          } else if (timeDiff > TIME.MINUTE * 5) {
+          } else if (timeDiff >= TIME.MINUTE * 5) {
             // The games are too close together. To prevent criss-crossing,
             // the step must end just before the next point.
             syntheticTimestamp = new Date(current.timestamp.getTime() - TIME.MINUTE * 4);
@@ -227,7 +227,7 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
             // between the two points to ensure a clean step without overlap.
             syntheticTimestamp = new Date(previous.timestamp.getTime() - 1);
           }
-          
+
           // Add a synthetic point to create the staircase step.
           processedNew.push({
             ...previous,

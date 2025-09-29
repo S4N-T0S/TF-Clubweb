@@ -20,18 +20,21 @@ export class ApiError extends Error {
 export async function apiFetch(endpoint, options = {}) {
   const url = `${API.BASE_URL}${endpoint}`;
   
+  // Destructure our custom option to prevent it from being passed to the native fetch function.
+  const { returnHeaders, ...fetchOptions } = options;
+
   // Only add if we have a body to send
   const headers = {};
-  if (options.body) {
+  if (fetchOptions.body) {
     headers['Content-Type'] = 'application/json';
   }
 
   const config = {
     method: 'GET',
-    ...options,
+    ...fetchOptions,
     headers: {
       ...headers,
-      ...options.headers, // Allow overriding headers if needed
+      ...fetchOptions.headers, // Allow overriding headers if needed
     },
   };
 
@@ -57,7 +60,16 @@ export async function apiFetch(endpoint, options = {}) {
       errorDetails
     );
   }
+  
+  // If the caller has requested headers, return an object with both data and headers.
+  if (returnHeaders) {
+    return {
+      data: await response.json(),
+      headers: response.headers,
+    };
+  }
 
+  // The default behavior remains the same for backward compatibility.
   return response.json();
 }
 

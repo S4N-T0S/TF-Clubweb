@@ -49,7 +49,8 @@ export const fetchLeaderboardData = async () => {
 
     // 2. Fetch from the network
     const startTime = Date.now();
-    const result = await apiFetch('/leaderboard');
+    // Use the updated apiFetch to get both data and headers
+    const { data: result, headers } = await apiFetch('/leaderboard', { returnHeaders: true });
     const responseTime = Date.now() - startTime;
     
     if (!result.data) {
@@ -57,18 +58,16 @@ export const fetchLeaderboardData = async () => {
     }
 
     const transformedData = transformData(result.data);
-    
     const timestampMs = result.timestamp * 1000;
-    let expiresAtMs = result.expiresAt * 1000;
-    let remainingTtl;
 
-    // If the data source is a fallback, override the expiry to force a retry in 2 minutes.
-    // This prevents a stale 'expiresAt' from the fallback from halting the auto-refresh loop.
-    if (result.source === 'kv-cache-fallback') {
-      expiresAtMs = Date.now() + 120 * 1000;
-    }
-
-    remainingTtl = Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
+    // Read the 'Expires' header to determine cache lifetime.
+    const expiresHeader = headers.get('Expires');
+    // If header exists and is a valid date, use it. Otherwise, default to a short 2-minute cache.
+    const expiresAtMs = expiresHeader && !isNaN(new Date(expiresHeader)) 
+      ? new Date(expiresHeader).getTime() 
+      : Date.now() + 120 * 1000;
+    
+    const remainingTtl = Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
 
     logApiCall(result.source, {
       groupName: 'Leaderboard',

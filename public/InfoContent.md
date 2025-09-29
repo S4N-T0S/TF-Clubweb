@@ -81,7 +81,7 @@ https://API.ogclub.s4nt0s.eu
 
 #### Core Concepts
 
-*   **Seasons:** The API's data is partitioned by "seasons". Each season has a unique `id` and `name`. The frontend will need to allow users to select a season, especially for viewing player graphs. The current season is `7`. (as this is writen)
+*   **Seasons:** The API's data is partitioned by "seasons". Each season has a unique `id` and `name`. The frontend will need to allow users to select a season, especially for viewing player graphs. The current season is `8`. (as this is writen)
 *   **Player Identity:** A player is identified by an "Embark ID" (e.g., `Username#1234`). Players can change their Embark ID. The backend tracks these changes using a permanent, internal ID. API responses will always provide the player's *current* Embark ID, along with their name change history where relevant.
 *   **Public Authentication:** The `/graph` endpoint is a POST request and requires a public auth token to be sent in the request body. (This endpoint still has token in case of floods in future)
 
@@ -92,14 +92,13 @@ https://API.ogclub.s4nt0s.eu
 *   **Endpoint:** `GET /leaderboard`
 *   **Auth:** None.
 *   **Purpose:** Fetches the current state of the main "Ranked" leaderboard. The backend caches this data heavily.
+*   **Caching:** The API uses the standard `Expires` HTTP header to communicate cache duration. Clients should rely on this header for caching instead of any fields in the response body.
 *   **Response Structure:**
     ```typescript
     interface LeaderboardResponse {
       data: PlayerEntry[];
       source: 'kv-cache' | 'kv-cache-fallback';
       timestamp: number; // Unix timestamp of the data
-      expiresAt: number; // The absolute Unix timestamp when the cache is considered stale.
-      responseTime: number;
     }
 
     interface PlayerEntry {
@@ -124,7 +123,7 @@ https://API.ogclub.s4nt0s.eu
     ```json
     {
       "embarkId": "00#0000", // A player's Embark ID (current or historical)
-      "seasonId": 7, // Optional. Defaults to the current season if not provided.
+      "seasonId": 8, // Optional. Defaults to the current season if not provided.
       "token": "not-secret" // The required auth token.
     }
     ```
@@ -165,7 +164,7 @@ https://API.ogclub.s4nt0s.eu
     This occurs if the player has no data for the *requested* season. The `availableSeasons` key is still returned if the player was found in other seasons, which is useful for redirecting the user.
     ```typescript
     interface GraphNotFoundResponse {
-      error: string; // e.g., "Not Found: Player has no data recorded for Season 7."
+      error: string; // e.g., "Not Found: Player has no data recorded for Season 8."
       embarkId: string; // The ID that was searched for.
       seasonId: number; // The season that was searched for.
       availableSeasons: {
@@ -184,7 +183,7 @@ https://API.ogclub.s4nt0s.eu
 *   **Auth:** None.
 *   **Purpose:** Fetches a feed of all significant player events (name changes, suspected bans, etc.) for a given season. This is for a live "event feed" on the site. If `:seasonId` is omitted, it defaults to the current season.
 *   **Path Parameters:**
-*   `seasonId` (optional, number): The ID of the season to fetch events for (e.g., `7`). Only seasons with event tracking support (Season 7 and newer) will return data.
+*   `seasonId` (optional, number): The ID of the season to fetch events for (e.g., `8`). Only seasons with event tracking support (Season 7 and newer) will return data.
 *   **Response Structure:**
     ```typescript
     interface EventsResponse {

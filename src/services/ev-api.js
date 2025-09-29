@@ -1,14 +1,8 @@
-import { API, ApiError, logApiCall } from "./apiService";
+import { apiFetch, ApiError, logApiCall } from "./apiService";
 import { currentSeasonKey, SEASONS } from "../services/historicalDataService";
 import { getCacheItem, setCacheItem } from "./idbCache";
 
 const getCacheKey = (seasonKey) => `events_cache_${seasonKey || currentSeasonKey}`;
-
-const parseCacheControl = (header) => {
-    if (!header) return 60; // Default to 60 seconds if no header
-    const maxAgeMatch = header.match(/max-age=(\d+)/);
-    return maxAgeMatch ? parseInt(maxAgeMatch[1], 10) : 60;
-};
 
 const transformEventData = (event) => {
   return {
@@ -44,44 +38,29 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
 
   try {
     const startTime = Date.now();
-    // Use native fetch to access response headers for caching logic.
-    // Endpoint is /events for current season, and /events/{X} for historical.
+    // Endpoint is /events/{X} for historical seasons.
     const season = SEASONS[effectiveSeasonKey];
     const endpoint = `/events/${season.id}`;
-    const response = await fetch(`${API.BASE_URL}${endpoint}`);
 
-    if (!response.ok) {
-      let errorDetails = `Request failed with status ${response.status}`;
-      try {
-        const errorData = await response.json();
-        errorDetails = errorData.message || errorData.error || JSON.stringify(errorData);
-
-      } catch (_err) {
-        errorDetails = await response.text();
-      }
-      throw new ApiError(`API Error on ${endpoint}: ${errorDetails}`, response.status, errorDetails);
-    }
-
-    const result = await response.json();
+    // Use the updated apiFetch to get both data and headers.
+    const { data: result, headers } = await apiFetch(endpoint, { returnHeaders: true });
     const responseTime = Date.now() - startTime;
     
     if (!result.data || !Array.isArray(result.data)) {
       throw new Error('Invalid events data received from API');
     }
 
-    const cacheControl = response.headers.get('Cache-Control');
-    let clientCacheTtl;
+    // Read the 'Expires' header to determine cache lifetime.
+    const expiresHeader = headers.get('Expires');
+    // If header exists and is a valid date, use it. Otherwise, default to a short 60s cache.
+    const expiresAt = expiresHeader && !isNaN(new Date(expiresHeader)) 
+      ? new Date(expiresHeader).getTime() 
+      : Date.now() + 60 * 1000;
 
-    // For older seasons, set a static 30-minute cache. For the current season, respect the API's header.
-    if (effectiveSeasonKey !== currentSeasonKey) {
-      clientCacheTtl = 30 * 60; // 30 minutes in seconds
-    } else {
-      clientCacheTtl = parseCacheControl(cacheControl);
-    }
+    const clientCacheTtl = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
     
-    // Use the new cache service with the determined TTL
+    // Use the new cache service with the TTL derived from the Expires header
     await setCacheItem(cacheKey, result, clientCacheTtl);
-    const expiresAt = Date.now() + clientCacheTtl * 1000;
 
     logApiCall(result.source || 'Direct', {
       groupName: `Events (Season: ${effectiveSeasonKey})`,
