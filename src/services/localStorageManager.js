@@ -33,52 +33,7 @@ const setStoredJsonItem = (key, value) => {
   }
 };
 
-// --- Generic Cache Functions with TTL ---
-
-/**
- * Stores an item in localStorage with a "Time To Live" in seconds.
- * @param {string} key The key for the localStorage item.
- * @param {any} value The JSON-serializable value to store.
- * @param {number} ttlSeconds The number of seconds until the cache item expires.
- */
-export const setStoredCacheItem = (key, value, ttlSeconds) => {
-  if (typeof ttlSeconds !== 'number' || ttlSeconds <= 0) {
-    console.error(`Invalid TTL provided for key "${key}". Must be a positive number.`);
-    return;
-  }
-  const item = {
-    data: value,
-    expiresAt: Date.now() + ttlSeconds * 1000,
-  };
-  setStoredJsonItem(key, item);
-};
-
-/**
- * Retrieves a cached item from localStorage if it hasn't expired.
- * @param {string} key The key for the localStorage item.
- * @returns {object|null} The cached data object (including expiresAt and the data itself) or null if not found or expired.
- */
-export const getStoredCacheItem = (key) => {
-  const validator = (value) => 
-    typeof value === 'object' && value !== null && 'data' in value && typeof value.expiresAt === 'number';
-
-  const storedItem = getStoredJsonItem(key, null, validator);
-
-  if (!storedItem) {
-    return null;
-  }
-
-  if (Date.now() < storedItem.expiresAt) {
-    return storedItem; // Return the full cache object { data, expiresAt }
-  }
-
-  // Item has expired, remove it and return null
-  localStorage.removeItem(key);
-  return null;
-};
-
-
-// --- Specific Getters and Setters ---
+// --- Specific Getters and Setters for User Settings ---
 
 // View Tab (stores a simple string, not JSON)
 const LAST_TAB_KEY = 'dashboard_tab';
@@ -160,3 +115,53 @@ const defaultEventSettings = {
 };
 export const getStoredEventsSettings = () => getStoredJsonItem(EVENTS_MODAL_SETTINGS_KEY, defaultEventSettings, areValidEventSettings);
 export const setStoredEventsSettings = (value) => setStoredJsonItem(EVENTS_MODAL_SETTINGS_KEY, value);
+
+// Deprecated Cache Cleanup
+const DEPRECATED_CACHE_CLEANUP_FLAG = 'v2_storage_cleanup_complete';
+/**
+ * A one-time utility to remove old cache data from localStorage after the
+ * migration to IndexedDB. It uses a flag to ensure it only ever runs once
+ * per user, making it "safe" to call on every app startup.
+ */
+export const cleanupDeprecatedCache = () => {
+  // 1. Check if the cleanup has already been performed. If so, do nothing.
+  if (localStorage.getItem(DEPRECATED_CACHE_CLEANUP_FLAG)) {
+    return;
+  }
+
+  console.log("Performing one-time cleanup of deprecated localStorage cache...");
+
+  const keysToRemove = [];
+  // 2. Iterate through all keys in localStorage to find deprecated cache items.
+  // We do this safely by not modifying the collection while iterating over it.
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && (
+      key.startsWith('graph_cache_') ||
+      key.startsWith('events_cache_') ||
+      key === 'leaderboard_cache'
+    )) {
+      keysToRemove.push(key);
+    }
+  }
+
+  // 3. Remove all the identified keys.
+  if (keysToRemove.length > 0) {
+    keysToRemove.forEach(key => {
+      try {
+        localStorage.removeItem(key);
+        console.log(`Removed deprecated localStorage key: ${key}`);
+      } catch (error) {
+        console.error(`Failed to remove deprecated key "${key}":`, error);
+      }
+    });
+  }
+
+  // 4. Set the flag to prevent this function from ever running again.
+  try {
+    localStorage.setItem(DEPRECATED_CACHE_CLEANUP_FLAG, 'true');
+    console.log("Deprecated localStorage cache cleanup complete.");
+  } catch (error) {
+    console.error("Failed to set storage cleanup completion flag:", error);
+  }
+};

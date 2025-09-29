@@ -1,5 +1,5 @@
 import { apiFetch, logApiCall, API } from "./apiService";
-import { getStoredCacheItem, setStoredCacheItem } from "./localStorageManager";
+import { getCacheItem, setCacheItem } from "./idbCache";
 
 const CACHE_TTL_SECONDS = 60; // 1 minute TTL on client-side cache
 
@@ -8,7 +8,7 @@ export const fetchGraphData = async (embarkId, seasonId = null) => {
   const cacheKey = `graph_cache_${seasonId ? `${embarkId}@${seasonId}` : embarkId}`;
 
   // Check for a valid, non-expired cache entry.
-  const cachedEntry = getStoredCacheItem(cacheKey);
+  const cachedEntry = await getCacheItem(cacheKey);
   if (cachedEntry) {
     const cachedData = cachedEntry.data;
     logApiCall('Client Cache', {
@@ -50,8 +50,8 @@ export const fetchGraphData = async (embarkId, seasonId = null) => {
       timestamp: result.timestamp
     });
     
-    // Store the new result with an expiration timestamp using the centralized manager.
-    setStoredCacheItem(cacheKey, result, CACHE_TTL_SECONDS);
+    // Store the new result with an expiration timestamp using the new cache service.
+    await setCacheItem(cacheKey, result, CACHE_TTL_SECONDS);
     
     // Return the fresh data from the API call, converting timestamp to ms.
     return { ...result, timestamp: result.timestamp * 1000 };

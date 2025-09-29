@@ -1,6 +1,6 @@
 import { API, ApiError, logApiCall } from "./apiService";
 import { currentSeasonKey, SEASONS } from "../services/historicalDataService";
-import { getStoredCacheItem, setStoredCacheItem } from "./localStorageManager";
+import { getCacheItem, setCacheItem } from "./idbCache";
 
 const getCacheKey = (seasonKey) => `events_cache_${seasonKey || currentSeasonKey}`;
 
@@ -24,7 +24,7 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
   const cacheKey = getCacheKey(effectiveSeasonKey);
   
   if (!forceRefresh) {
-    const cached = getStoredCacheItem(cacheKey);
+    const cached = await getCacheItem(cacheKey);
     if (cached) {
       logApiCall('Client Cache', {
         groupName: `Events (Season: ${effectiveSeasonKey})`,
@@ -79,8 +79,8 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
       clientCacheTtl = parseCacheControl(cacheControl);
     }
     
-    // Use the new centralized cache setter with the determined TTL
-    setStoredCacheItem(cacheKey, result, clientCacheTtl);
+    // Use the new cache service with the determined TTL
+    await setCacheItem(cacheKey, result, clientCacheTtl);
     const expiresAt = Date.now() + clientCacheTtl * 1000;
 
     logApiCall(result.source || 'Direct', {

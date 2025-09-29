@@ -15,9 +15,10 @@ import GraphModal from './components/GraphModal';
 import EventsModal from './components/EventsModal';
 import InfoModal from './components/InfoModal';
 import Toast from './components/Toast';
-import { getStoredTab, setStoredTab, getStoredAutoRefresh, setStoredAutoRefresh } from './services/localStorageManager';
+import { getStoredTab, setStoredTab, getStoredAutoRefresh, setStoredAutoRefresh, cleanupDeprecatedCache } from './services/localStorageManager';
 import { ModalProvider } from './context/ModalProvider';
 import { SEASONS, currentSeasonKey } from './services/historicalDataService';
+import { cleanupExpiredCacheItems } from './services/idbCache';
 
 const App = () => {
   const isMobile = useMobileDetect() || false;
@@ -63,6 +64,12 @@ const App = () => {
     toastMessage,
     setToastMessage,
   } = useLeaderboard(clubMembersData, autoRefresh);
+
+  // Run cache cleanup on initial application load
+  useEffect(() => {
+    cleanupDeprecatedCache();
+    cleanupExpiredCacheItems();
+  }, []);
 
   // Save auto-refresh setting to storage when it changes
   useEffect(() => {

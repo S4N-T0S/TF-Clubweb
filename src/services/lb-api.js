@@ -1,6 +1,6 @@
 import { getLeagueInfo } from "../utils/leagueUtils";
 import { apiFetch, logApiCall } from "./apiService";
-import { getStoredCacheItem, setStoredCacheItem, getStoredJsonItem } from "./localStorageManager";
+import { getCacheItem, setCacheItem } from "./idbCache";
 
 const CACHE_KEY = 'leaderboard_cache';
 
@@ -24,9 +24,9 @@ const transformData = (rawData) => {
 
 export const fetchLeaderboardData = async () => {
   try {
-    const cachedEntry = getStoredCacheItem(CACHE_KEY);
+    // 1. Check for fresh client cache from IndexedDB
+    const cachedEntry = await getCacheItem(CACHE_KEY);
 
-    // 1. Check for fresh client cache
     if (cachedEntry) {
       const cachePayload = cachedEntry.data; // The full API response is in the 'data' property
       const source = cachePayload.source === 'kv-cache-fallback' ? 'client-cache-fallback' : 'client-cache';
@@ -78,7 +78,7 @@ export const fetchLeaderboardData = async () => {
     });
 
     // Store the entire API result in the client cache with the calculated TTL.
-    setStoredCacheItem(CACHE_KEY, result, remainingTtl);
+    await setCacheItem(CACHE_KEY, result, remainingTtl);
 
     return {
       data: transformedData,
@@ -91,8 +91,8 @@ export const fetchLeaderboardData = async () => {
   } catch (error) {
     // 3. Fallback to emergency cache on network failure
     console.error("Leaderboard fetch failed, checking for emergency cache.", error);
-    // Use the lower-level getter that doesn't check for expiry.
-    const emergencyCache = getStoredJsonItem(CACHE_KEY); 
+    // Use the new getter with ignoreExpiration to get stale data if it exists.
+    const emergencyCache = await getCacheItem(CACHE_KEY, { ignoreExpiration: true });
     if (emergencyCache && emergencyCache.data) {
       const cachePayload = emergencyCache.data;
       const source = 'client-cache-emergency';
