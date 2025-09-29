@@ -36,7 +36,6 @@ export const fetchLeaderboardData = async () => {
         groupName: 'Leaderboard',
         timestamp: cachePayload.timestamp,
         remainingTtl,
-        responseTime: 0
       });
       return {
         data: transformData(cachePayload.data),
@@ -48,10 +47,8 @@ export const fetchLeaderboardData = async () => {
     }
 
     // 2. Fetch from the network
-    const startTime = Date.now();
     // Use the updated apiFetch to get both data and headers
     const { data: result, headers } = await apiFetch('/leaderboard', { returnHeaders: true });
-    const responseTime = Date.now() - startTime;
     
     if (!result.data) {
       throw new Error('No data in API response');
@@ -73,7 +70,6 @@ export const fetchLeaderboardData = async () => {
       groupName: 'Leaderboard',
       timestamp: result.timestamp,
       remainingTtl: remainingTtl,
-      responseTime
     });
 
     // Store the entire API result in the client cache with the calculated TTL.
@@ -102,7 +98,6 @@ export const fetchLeaderboardData = async () => {
         groupName: 'Leaderboard',
         timestamp: cachePayload.timestamp,
         remainingTtl,
-        responseTime: 0
       });
       return {
         data: transformData(cachePayload.data),

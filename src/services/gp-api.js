@@ -16,14 +16,12 @@ export const fetchGraphData = async (embarkId, seasonId = null) => {
       embarkId,
       timestamp: cachedData.timestamp,
       remainingTtl: Math.floor((cachedEntry.expiresAt - Date.now()) / 1000),
-      responseTime: 0,
     });
     // Return the data property of the cached entry, converting timestamp to ms.
     return { ...cachedData, timestamp: cachedData.timestamp * 1000 };
   }
 
   try {
-    const startTime = Date.now();
     const body = {
       token: API.AUTH_TOKEN,
       embarkId,
@@ -37,8 +35,6 @@ export const fetchGraphData = async (embarkId, seasonId = null) => {
       body,
     });
     
-    const responseTime = Date.now() - startTime;
-    
     if (!result.data) {
       throw new Error('No graph data received from API');
     }
@@ -46,7 +42,6 @@ export const fetchGraphData = async (embarkId, seasonId = null) => {
     logApiCall(result.source || 'Direct', {
       groupName: 'Player Graph',
       embarkId,
-      responseTime,
       timestamp: result.timestamp
     });
     

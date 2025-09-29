@@ -24,7 +24,6 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
         groupName: `Events (Season: ${effectiveSeasonKey})`,
         timestamp: cached.data.timestamp,
         remainingTtl: Math.floor((cached.expiresAt - Date.now()) / 1000),
-        responseTime: 0,
       });
       // The cached item's data is already structured correctly.
       return { 
@@ -37,14 +36,12 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
   }
 
   try {
-    const startTime = Date.now();
     // Endpoint is /events/{X} for historical seasons.
     const season = SEASONS[effectiveSeasonKey];
     const endpoint = `/events/${season.id}`;
 
     // Use the updated apiFetch to get both data and headers.
     const { data: result, headers } = await apiFetch(endpoint, { returnHeaders: true });
-    const responseTime = Date.now() - startTime;
     
     if (!result.data || !Array.isArray(result.data)) {
       throw new Error('Invalid events data received from API');
@@ -64,7 +61,6 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
 
     logApiCall(result.source || 'Direct', {
       groupName: `Events (Season: ${effectiveSeasonKey})`,
-      responseTime,
       timestamp: result.timestamp,
       remainingTtl: clientCacheTtl,
     });

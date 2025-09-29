@@ -113,6 +113,5 @@ export const logApiCall = (source, info) => {
   if (timestamp) console.log('Timestamp:', new Date(timestamp).toLocaleString());
   if (age !== 'N/A') console.log('Cache Age:', `${age}s`);
   if (info.remainingTtl) console.log('TTL Remaining:', `${info.remainingTtl}s`);
-  console.log('Response Time:', `${info.responseTime}ms`);
   console.groupEnd();
 };
