@@ -213,7 +213,7 @@ const App = () => {
     const effectiveSeasonKey = seasonKey || currentSeason;
     const seasonId = SEASONS[effectiveSeasonKey]?.id;
 
-    if (!seasonId) {
+    if (seasonId === undefined || seasonId === null) {
         console.error(`Could not find a valid season ID for key: ${effectiveSeasonKey}`);
         showToast({ message: `Cannot open graph for season ${effectiveSeasonKey}. No data available.`, type: 'error' });
         return;
@@ -397,7 +397,7 @@ const App = () => {
           isMobile={isMobile}
           onPlayerSearch={handleSearchModalOpen}
           onClubClick={handleClubClick}
-          onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId, [], null)}
+          onGraphOpen={(embarkId, seasonKey) => handleGraphModalOpen(embarkId, [], seasonKey)}
           showToast={showToast}
         />
 

@@ -230,6 +230,10 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     setFilters(prev => ({ ...prev, [key]: value }));
   }, []);
 
+  const handleGraphOpenWithSeason = useCallback((embarkId) => {
+    onGraphOpen(embarkId, selectedSeason);
+  }, [onGraphOpen, selectedSeason]);
+
   // Save settings to localStorage whenever they change (except for search query)
   const { minLeague, showNameChange, showSuspectedBan, showRsAdjustment, showClubChange } = filters;
   useEffect(() => {
@@ -589,7 +593,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
                 <div className={`page-content ${slideDirection}`} key={currentPage}>
                     <div className="flex flex-col gap-2">
                         {currentItems.length > 0 ? (
-                            currentItems.map((event) => <EventCard key={event.id} event={event} onPlayerSearch={onPlayerSearch} onClubClick={onClubClick} onGraphOpen={onGraphOpen} isMobile={isMobile} />)
+                            currentItems.map((event) => <EventCard key={event.id} event={event} onPlayerSearch={onPlayerSearch} onClubClick={onClubClick} onGraphOpen={handleGraphOpenWithSeason} isMobile={isMobile} />)
                         ) : (
                             <div className="text-center text-gray-400 p-8 bg-gray-800 rounded-lg">No events match your current filters.</div>
                         )}
