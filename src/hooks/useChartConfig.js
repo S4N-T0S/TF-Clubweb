@@ -263,6 +263,7 @@ export const useChartConfig = ({
   comparisonData,
   embarkId,
   selectedTimeRange,
+  setSelectedTimeRange,
   chartRef,
   onZoomOrPan,
   eventSettings,
@@ -277,11 +278,19 @@ export const useChartConfig = ({
   const [isManuallyZoomed, setIsManuallyZoomed] = useState(false);
 
   useEffect(() => {
-    // When the user clicks a button (24H, 7D, MAX) or switches seasons,
-    // this effect will run, resetting our manual zoom state.
+    // When the user clicks a time range button (24H, 7D, MAX), reset manual zoom.
+    // This should not run when `selectedTimeRange` is cleared to null by zooming/panning.
+    if (selectedTimeRange) {
+      setIsManuallyZoomed(false);
+      setManualViewWindow(null);
+    }
+  }, [selectedTimeRange]);
+
+  useEffect(() => {
+    // When the season changes, always reset manual zoom state.
     setIsManuallyZoomed(false);
     setManualViewWindow(null);
-  }, [selectedTimeRange, seasonId]);
+  }, [seasonId]);
 
 
   const getPointRadius = useCallback((ctx) => {
@@ -294,6 +303,7 @@ export const useChartConfig = ({
     if (eventSettings.showSuspectedBan && (pointData.isBanStartAnchor || pointData.isBanEndAnchor)) return 8;
 
     // Make event icon points visible and large if enabled
+    if ((eventSettings.showNameChange || eventSettings.showClubChange) && hasVisibleEvent(ctx, 'COMBINED_CHANGE')) return 8;
     if (eventSettings.showNameChange && hasVisibleEvent(ctx, 'NAME_CHANGE')) return 8;
     if (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE')) return 8;
 
@@ -714,7 +724,7 @@ export const useChartConfig = ({
   }, [data, comparisonData]);
 
   const calculateViewWindow = useCallback((data, range, overallMinTimestamp) => {
-    if (!data?.length) return null;
+    if (!data?.length || !TIME.RANGES[range]) return null;
 
     const now = seasonEndDate || new Date();
     const endTime = new Date(now.getTime() + TIME.HOUR);
@@ -886,23 +896,38 @@ export const useChartConfig = ({
         }
 
         point.events.forEach(event => {
-          if ((event.event_type === 'NAME_CHANGE' && eventSettings.showNameChange) ||
-              (event.event_type === 'CLUB_CHANGE' && eventSettings.showClubChange)) {
-            // All labels are created upfront. Visibility and font size are handled dynamically
-            // by the plugin via scriptable options. This prevents replacing the annotations
-            // array on every pan/zoom, which is the cause of the visual glitch.
+          let labelContent = [];
+          let color = '';
+          let shouldShow = false;
 
-            const eventId = event.event_id || `${event.event_type}-${point.timestamp.getTime()}`;
-
-            let labelContent = [];
-            if (event.event_type === 'NAME_CHANGE') {
-              labelContent = [`Name Change:`, `${event.details.old_name} → ${event.details.new_name}`];
-            } else { // CLUB_CHANGE
+          if (event.event_type === 'COMBINED_CHANGE') {
+            if (eventSettings.showNameChange) {
+              const oldClubText = event.details.old_club ? `[${event.details.old_club}] ` : '';
+              const newClubText = event.details.new_club ? `[${event.details.new_club}] ` : '';
+              labelContent = ['Name & Club Change:', `${oldClubText}${event.details.old_name} → ${newClubText}${event.details.new_name}`];
+              color = "#818cf8";
+              shouldShow = true;
+            } else if (eventSettings.showClubChange) {
               const oldClub = event.details.old_club ? `[${event.details.old_club}]` : 'No Club';
               const newClub = event.details.new_club ? `[${event.details.new_club}]` : 'No Club';
               labelContent = ['Club Change:', `${oldClub} → ${newClub}`];
+              color = '#2dd4bf';
+              shouldShow = true;
             }
-
+          } else if (event.event_type === 'NAME_CHANGE' && eventSettings.showNameChange) {
+            labelContent = [`Name Change:`, `${event.details.old_name} → ${event.details.new_name}`];
+            color = "#818cf8";
+            shouldShow = true;
+          } else if (event.event_type === 'CLUB_CHANGE' && eventSettings.showClubChange) {
+            const oldClub = event.details.old_club ? `[${event.details.old_club}]` : 'No Club';
+            const newClub = event.details.new_club ? `[${event.details.new_club}]` : 'No Club';
+            labelContent = ['Club Change:', `${oldClub} → ${newClub}`];
+            color = '#2dd4bf';
+            shouldShow = true;
+          }
+          
+          if (shouldShow) {
+            const eventId = event.event_id || `${event.event_type}-${point.timestamp.getTime()}`;
             annotations.push({
               type: 'label',
               id: `label-point-event-${eventId}`,
@@ -941,7 +966,7 @@ export const useChartConfig = ({
                   return Math.max(8, baseFontSize - 2);
                 }
               },
-              color: event.event_type === 'NAME_CHANGE' ? "#818cf8" : '#2dd4bf',
+              color: color,
               backgroundColor: 'rgba(30, 41, 59, 0.85)',
               yAdjust: 25,
               xAdjust: (ctx) => {
@@ -1134,12 +1159,14 @@ export const useChartConfig = ({
             mode: 'x',
             modifierKey: null,
             onPanStart: () => {
-              setIsManuallyZoomed(true); // User is taking control
-              if (onZoomOrPan) onZoomOrPan(); // Call the callback
+              // Intentionally left blank. State changes are deferred to onPanComplete.
             },
-            onPan: (ctx) => {
-              // Update state, which triggers a re-render
+            onPanComplete: (ctx) => {
+              // Update states/callbacks at the end of panning
+              setIsManuallyZoomed(true);
               setManualViewWindow({ min: ctx.chart.scales.x.min, max: ctx.chart.scales.x.max });
+              setSelectedTimeRange(null);
+              if (onZoomOrPan) onZoomOrPan();
             }
           },
           zoom: {
@@ -1147,12 +1174,14 @@ export const useChartConfig = ({
             pinch: { enabled: true },
             mode: 'x',
             onZoomStart: () => {
-              setIsManuallyZoomed(true); // User is taking control
-              if (onZoomOrPan) onZoomOrPan(); // Call the callback
+              // Intentionally left blank. State changes are deferred to onZoomComplete.
             },
-            onZoom: (ctx) => {
-              // Update state, which triggers a re-render
+            onZoomComplete: (ctx) => {
+              // Update states/callbacks at the end of zooming
+              setIsManuallyZoomed(true);
               setManualViewWindow({ min: ctx.chart.scales.x.min, max: ctx.chart.scales.x.max });
+              setSelectedTimeRange(null);
+              if (onZoomOrPan) onZoomOrPan();
             },
           },
         },
@@ -1200,7 +1229,8 @@ export const useChartConfig = ({
     getEventAnnotations, 
     externalTooltipHandler, 
     overallTimeDomain,
-    onZoomOrPan
+    onZoomOrPan,
+    setSelectedTimeRange
   ]);
 
   const getPointStyle = useCallback((ctx) => {
@@ -1209,6 +1239,10 @@ export const useChartConfig = ({
       if (pointData?.isUnexpectedReappearance) return unexpectedReappearanceIcon;
       if (pointData?.isBanStartAnchor) return gavelIcon;
       if (pointData?.isBanEndAnchor) return unbanIcon;
+    }
+    if (hasVisibleEvent(ctx, 'COMBINED_CHANGE')) {
+      if (eventSettings.showNameChange) return nameChangeIcon;
+      if (eventSettings.showClubChange) return clubChangeIcon;
     }
     if (eventSettings.showNameChange && hasVisibleEvent(ctx, 'NAME_CHANGE')) return nameChangeIcon;
     if (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE')) return clubChangeIcon;
@@ -1228,6 +1262,7 @@ export const useChartConfig = ({
     // Events with custom directional icons (name, club, RS adjustment) should not be rotated.
     if ((eventSettings.showNameChange && hasVisibleEvent(ctx, 'NAME_CHANGE')) ||
         (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE')) ||
+        (hasVisibleEvent(ctx, 'COMBINED_CHANGE')) ||
         (eventSettings.showSuspectedBan && (pointData?.isUnexpectedReappearance || pointData?.isBanStartAnchor || pointData?.isBanEndAnchor)) ||
         (eventSettings.showRsAdjustment && getRsEvent(ctx))) {
       return 0;

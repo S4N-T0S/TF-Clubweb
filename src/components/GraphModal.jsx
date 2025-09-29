@@ -265,6 +265,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
 const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isClubView = false, globalLeaderboard = [], onSwitchToGlobal, currentRubyCutoff, isMobile }) => {
   const { modalRef, isActive } = useModal(isOpen, onClose);
   const chartRef = useRef(null);
+  const hasSetInitialTimeRangeRef = useRef(false);
 
   // UI State
   const [currentSeasonId, setCurrentSeasonId] = useState(seasonId);
@@ -287,6 +288,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
   useEffect(() => {
     if (isOpen) {
       setCurrentSeasonId(seasonId);
+      hasSetInitialTimeRangeRef.current = false; // Reset the flag
     }
   }, [isOpen, seasonId]);
 
@@ -344,6 +346,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     comparisonData,
     embarkId: mainPlayerCurrentId || embarkId,
     selectedTimeRange,
+    setSelectedTimeRange,
     chartRef,
     onZoomOrPan: handleZoomPan,
     eventSettings,
@@ -392,18 +395,20 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     if (newSeasonId !== currentSeasonId) {
       setCurrentSeasonId(newSeasonId);
       switchSeason(newSeasonId);
+      hasSetInitialTimeRangeRef.current = false; // Reset the flag
     }
     setShowSeasonDropdown(false);
   }, [currentSeasonId, switchSeason]);
 
 
   const hasAnyEvents = useMemo(() => {
-    if (events?.some(e => ['NAME_CHANGE', 'CLUB_CHANGE', 'RS_ADJUSTMENT', 'SUSPECTED_BAN'].includes(e.event_type))) {
+    const eventTypes = ['NAME_CHANGE', 'CLUB_CHANGE', 'RS_ADJUSTMENT', 'SUSPECTED_BAN', 'COMBINED_CHANGE'];
+    if (events?.some(e => eventTypes.includes(e.event_type))) {
       return true;
     }
     if (comparisonData.size > 0) {
       for (const compare of comparisonData.values()) {
-        if (compare.events?.some(e => ['NAME_CHANGE', 'CLUB_CHANGE', 'RS_ADJUSTMENT', 'SUSPECTED_BAN'].includes(e.event_type))) {
+        if (compare.events?.some(e => eventTypes.includes(e.event_type))) {
           return true;
         }
       }
@@ -441,13 +446,16 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
 
   // Set default time range when data loads
   useEffect(() => {
-    if (data) {
+    // Only set the initial time range if data is present and we haven't set it yet for this dataset
+    if (data && !hasSetInitialTimeRangeRef.current) {
       if (isHistoricalSeason) {
         setSelectedTimeRange('MAX');
       } else {
         const defaultRange = determineDefaultTimeRange(data);
         setSelectedTimeRange(defaultRange);
       }
+      // Mark that we've set the initial range
+      hasSetInitialTimeRangeRef.current = true;
     }
   }, [data, determineDefaultTimeRange, isHistoricalSeason]);
 
