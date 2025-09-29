@@ -74,7 +74,10 @@ The search bars in this dashboard support a powerful syntax to help you find exa
 
 ## [API] - API Documentation
 
-This dashboard is powered by a public API developed by us. Below are the details for developers who wish to interact with the data programmatically.
+This dashboard is powered by a public API. Below are the details for developers who wish to interact with the data programmatically.
+```http
+https://API.ogclub.s4nt0s.eu
+```
 
 #### Core Concepts
 
