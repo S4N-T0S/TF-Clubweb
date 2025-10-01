@@ -2,7 +2,11 @@
 
 const DB_NAME = 'ogclub-cache-db';
 const STORE_NAME = 'api-cache';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Bump version due to data structure change.
+
+// IMPROVEMENT: Add a version for the data structure itself.
+// Change this if you ever alter the shape of the data being cached (e.g., in lb-api's transformData).
+const CACHE_STRUCTURE_VERSION = '1.0.0';
 
 let dbPromise = null;
 
@@ -23,6 +27,7 @@ const initDB = () => {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'key' });
       }
+      // Note: If we need to add indexes in the future, do it here based on DB version.
     };
 
     request.onsuccess = (event) => {
@@ -33,11 +38,11 @@ const initDB = () => {
 };
 
 /**
- * Retrieves a cached item from IndexedDB if it hasn't expired.
+ * Retrieves a cached item from IndexedDB if it's fresh and matches the current data structure version.
  * @param {string} key The key for the item.
  * @param {object} [options] Optional settings.
  * @param {boolean} [options.ignoreExpiration=false] If true, returns the item even if it's stale.
- * @returns {Promise<object|null>} The cached data object or null if not found or expired.
+ * @returns {Promise<object|null>} The cached data object or null if not found, expired, or version mismatch.
  */
 export const getCacheItem = async (key, { ignoreExpiration = false } = {}) => {
   try {
@@ -55,11 +60,18 @@ export const getCacheItem = async (key, { ignoreExpiration = false } = {}) => {
           return;
         }
 
-        if (ignoreExpiration || Date.now() < result.value.expiresAt) {
-          resolve(result.value); // Returns the full object { data, expiresAt }
+        // Check cache structure version to prevent bugs from outdated data formats.
+        if (result.version !== CACHE_STRUCTURE_VERSION) {
+          console.warn(`Cache mismatch for key "${key}". Expected v${CACHE_STRUCTURE_VERSION}, found v${result.version}. Discarding.`);
+          // The cleanup job will eventually remove this item.
+          resolve(null);
+          return;
+        }
+
+        if (ignoreExpiration || Date.now() < result.expiresAt) {
+          resolve(result); // Returns the full object { key, data, expiresAt, version }
         } else {
-          // Item has expired, remove it in a new transaction
-          clearCacheItem(key);
+          // Do not perform a delete here. It's inefficient.
           resolve(null);
         }
       };
@@ -73,10 +85,10 @@ export const getCacheItem = async (key, { ignoreExpiration = false } = {}) => {
 /**
  * Stores an item in IndexedDB with a "Time To Live" in seconds.
  * @param {string} key The key for the item.
- * @param {any} value The JSON-serializable value to store.
+ * @param {any} data The JSON-serializable value to store.
  * @param {number} ttlSeconds The number of seconds until the cache item expires.
  */
-export const setCacheItem = async (key, value, ttlSeconds) => {
+export const setCacheItem = async (key, data, ttlSeconds) => {
   if (typeof ttlSeconds !== 'number' || ttlSeconds <= 0) {
     console.error(`Invalid TTL provided for key "${key}". Must be a positive number.`);
     return;
@@ -84,10 +96,9 @@ export const setCacheItem = async (key, value, ttlSeconds) => {
 
   const item = {
     key: key,
-    value: {
-      data: value,
-      expiresAt: Date.now() + ttlSeconds * 1000,
-    }
+    data: data,
+    expiresAt: Date.now() + ttlSeconds * 1000,
+    version: CACHE_STRUCTURE_VERSION,
   };
 
   try {
@@ -130,14 +141,27 @@ export const cleanupExpiredCacheItems = async () => {
     request.onsuccess = event => {
       const cursor = event.target.result;
       if (cursor) {
-        if (cursor.value.value.expiresAt < now) {
+        const item = cursor.value;
+        let shouldDelete = false;
+
+        if (item.version !== CACHE_STRUCTURE_VERSION) {
+          shouldDelete = true;
+        } else if (item.expiresAt < now) {
+          shouldDelete = true;
+        }
+
+        if (shouldDelete) {
           store.delete(cursor.primaryKey);
         }
+        
         cursor.continue();
       } else {
         console.log("IndexedDB cache cleanup complete.");
       }
     };
+    request.onerror = event => {
+        console.error("Error during IndexedDB cursor cleanup:", event.target.error);
+    }
   } catch (error) {
     console.error("Error during IndexedDB cleanup:", error);
   }
