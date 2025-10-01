@@ -1,4 +1,4 @@
-import { apiFetch, ApiError, logApiCall } from "./apiService";
+import { apiFetch, ApiError, logApiCall, calculateClientCacheTtl } from "./apiService";
 import { currentSeasonKey, SEASONS } from "../services/historicalDataService";
 import { getCacheItem, setCacheItem } from "./idbCache";
 
@@ -47,28 +47,22 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
       throw new Error('Invalid events data received from API');
     }
 
-    // Read the 'Expires' header to determine cache lifetime.
-    const expiresHeader = headers.get('Expires');
-    // If header exists and is a valid date, use it. Otherwise, default to a short 60s cache.
-    const expiresAt = expiresHeader && !isNaN(new Date(expiresHeader)) 
-      ? new Date(expiresHeader).getTime() 
-      : Date.now() + 60 * 1000;
-
-    const clientCacheTtl = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+    // Use new centralized TTL calculator.
+    const ttlForCache = calculateClientCacheTtl(headers, 30, `events (Season ${effectiveSeasonKey})`);
     
     // Use the new cache service with the TTL derived from the Expires header
-    await setCacheItem(cacheKey, result, clientCacheTtl);
+    await setCacheItem(cacheKey, result, ttlForCache);
 
     logApiCall(result.source || 'Direct', {
       groupName: `Events (Season: ${effectiveSeasonKey})`,
       timestamp: result.timestamp,
-      remainingTtl: clientCacheTtl,
+      remainingTtl: ttlForCache,
     });
 
     return {
       ...result,
       data: result.data.map(transformEventData), // Transform data for consistency
-      expiresAt,
+      expiresAt: Date.now() + (ttlForCache * 1000),
       timestamp: result.timestamp * 1000,
     };
 

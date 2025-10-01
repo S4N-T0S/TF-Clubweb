@@ -1,5 +1,5 @@
 import { getLeagueInfo } from "../utils/leagueUtils";
-import { apiFetch, logApiCall } from "./apiService";
+import { apiFetch, logApiCall, calculateClientCacheTtl } from "./apiService";
 import { getCacheItem, setCacheItem } from "./idbCache";
 
 const CACHE_KEY = 'leaderboard_cache';
@@ -57,30 +57,24 @@ export const fetchLeaderboardData = async () => {
     const transformedData = transformData(result.data);
     const timestampMs = result.timestamp * 1000;
 
-    // Read the 'Expires' header to determine cache lifetime.
-    const expiresHeader = headers.get('Expires');
-    // If header exists and is a valid date, use it. Otherwise, default to a short 2-minute cache.
-    const expiresAtMs = expiresHeader && !isNaN(new Date(expiresHeader)) 
-      ? new Date(expiresHeader).getTime() 
-      : Date.now() + 120 * 1000;
-    
-    const remainingTtl = Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
+    // Use new centralized TTL calculator.
+    const ttlForCache = calculateClientCacheTtl(headers, 120, 'leaderboard');
 
     logApiCall(result.source, {
       groupName: 'Leaderboard',
       timestamp: result.timestamp,
-      remainingTtl: remainingTtl,
+      remainingTtl: ttlForCache,
     });
 
     // Store the entire API result in the client cache with the calculated TTL.
-    await setCacheItem(CACHE_KEY, result, remainingTtl);
+    await setCacheItem(CACHE_KEY, result, ttlForCache);
 
     return {
       data: transformedData,
       source: result.source,
       timestamp: timestampMs,
-      remainingTtl: remainingTtl,
-      expiresAt: expiresAtMs,
+      remainingTtl: ttlForCache,
+      expiresAt: Date.now() + (ttlForCache * 1000),
     };
 
   } catch (error) {

@@ -16,6 +16,40 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Calculates a safe client-side TTL (Time To Live) in seconds based on an API response's 'Expires' header.
+ * If the header is missing, invalid, or in the past, it returns a specified fallback TTL.
+ *
+ * @param {Headers} headers - The Headers object from the fetch response.
+ * @param {number} fallbackTtlSeconds - The default TTL in seconds to use if the header is unusable.
+ * @param {string} [logContext=''] - Optional context for warning logs (e.g., 'leaderboard', 'events').
+ * @returns {number} The calculated TTL in seconds, guaranteed to be at least 1.
+ */
+export const calculateClientCacheTtl = (headers, fallbackTtlSeconds, logContext = '') => {
+  const expiresHeader = headers.get('Expires');
+
+  // Get expiry time from header, if it exists and is valid.
+  const headerExpiresAtMs = expiresHeader && !isNaN(new Date(expiresHeader))
+    ? new Date(expiresHeader).getTime()
+    : null;
+
+  let finalTtl;
+  // Check if the header-derived expiry time is valid and in the future.
+  if (headerExpiresAtMs && headerExpiresAtMs > Date.now()) {
+    finalTtl = Math.floor((headerExpiresAtMs - Date.now()) / 1000);
+  } else {
+    // If header is missing, invalid, or in the past, use the fallback.
+    if (headerExpiresAtMs) { // Log a warning only if we are overriding a stale header from the server.
+      const contextMsg = logContext ? ` for ${logContext}` : '';
+      console.warn(`Received an already-expired response${contextMsg}. Using fallback TTL of ${fallbackTtlSeconds}s.`);
+    }
+    finalTtl = fallbackTtlSeconds;
+  }
+
+  // Ensure the TTL is a positive integer. Caching for 0s is pointless.
+  return Math.max(1, finalTtl);
+};
+
 // --- Central Fetch Function ---
 export async function apiFetch(endpoint, options = {}) {
   const url = `${API.BASE_URL}${endpoint}`;
