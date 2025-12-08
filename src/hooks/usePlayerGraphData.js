@@ -459,6 +459,8 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
           ...newPointBase,
           timestamp: now, isInterpolated: true, isFinalInterpolation: true,
           scoreChanged: false, isBanStartAnchor: false, isBanEndAnchor: false,
+          isRsAdjustmentAnchor: false,
+          events: isActiveBanAnchor ? newPointBase.events : [],
         });
       }
     }
