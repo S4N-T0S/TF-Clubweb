@@ -127,6 +127,47 @@ export const clearCacheItem = async (key) => {
 };
 
 /**
+ * Clears all cache items where the key starts with the provided prefix.
+ * Used to invalidate all graph data when leaderboard updates.
+ * @param {string} prefix The string prefix to match (e.g., 'graph_cache_')
+ */
+export const clearCacheStartingWith = async (prefix) => {
+  try {
+    const db = await initDB();
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.openCursor();
+
+    return new Promise((resolve, reject) => {
+      let deletedCount = 0;
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          const key = cursor.key;
+          if (typeof key === 'string' && key.startsWith(prefix)) {
+            cursor.delete();
+            deletedCount++;
+          }
+          cursor.continue();
+        } else {
+          // Iteration complete
+          if (deletedCount > 0) {
+            console.log(`[Cache] Invalidated ${deletedCount} items with prefix "${prefix}".`);
+          }
+          resolve();
+        }
+      };
+      request.onerror = (event) => {
+        console.error("Error clearing cache by prefix:", event.target.error);
+        reject(event.target.error);
+      };
+    });
+  } catch (error) {
+    console.error(`Error in clearCacheStartingWith("${prefix}"):`, error);
+  }
+};
+
+/**
  * Scans the cache and removes all expired items.
  * Should be run once on application startup.
  */

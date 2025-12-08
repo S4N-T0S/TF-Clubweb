@@ -1,7 +1,9 @@
 import { apiFetch, logApiCall, API } from "./apiService";
 import { getCacheItem, setCacheItem } from "./idbCache";
 
-const CACHE_TTL_SECONDS = 60; // 1 minute TTL on client-side cache
+// 20 minute fallback TTL. 
+// Primary invalidation happens via clearCacheStartingWith() in lb-api.js when leaderboard updates.
+const CACHE_TTL_SECONDS = 1200;
 
 export const fetchGraphData = async (embarkId, seasonId = null) => {
   // A unique key for caching, including the season
