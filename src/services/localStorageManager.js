@@ -56,12 +56,6 @@ export const setStoredTab = (tab) => {
     }
 };
 
-// Auto-Refresh (stores a boolean)
-const AUTO_REFRESH_KEY = 'dashboard_autoRefresh';
-const isBoolean = (value) => typeof value === 'boolean';
-export const getStoredAutoRefresh = () => getStoredJsonItem(AUTO_REFRESH_KEY, true, isBoolean);
-export const setStoredAutoRefresh = (value) => setStoredJsonItem(AUTO_REFRESH_KEY, value);
-
 // Graph Modal Settings
 const GRAPH_MODAL_SETTINGS_KEY = 'graphModalSettings';
 // Validator for graph settings to ensure data integrity.
@@ -117,7 +111,7 @@ export const getStoredEventsSettings = () => getStoredJsonItem(EVENTS_MODAL_SETT
 export const setStoredEventsSettings = (value) => setStoredJsonItem(EVENTS_MODAL_SETTINGS_KEY, value);
 
 // Deprecated Cache Cleanup
-const DEPRECATED_CACHE_CLEANUP_FLAG = 'v2_storage_cleanup_complete';
+const DEPRECATED_CACHE_CLEANUP_FLAG = 'v3_storage_cleanup_complete';
 /**
  * A one-time utility to remove old cache data from localStorage after the
  * migration to IndexedDB. It uses a flag to ensure it only ever runs once
@@ -129,38 +123,41 @@ export const cleanupDeprecatedCache = () => {
     return;
   }
 
-  console.log("Performing one-time cleanup of deprecated localStorage cache...");
+  console.log("Performing one-time cleanup of deprecated localStorage...");
 
-  const keysToRemove = [];
-  // 2. Iterate through all keys in localStorage to find deprecated cache items.
-  // We do this safely by not modifying the collection while iterating over it.
+  const keysToRemove = [
+    'v1_storage_cleanup_complete',
+    'v2_storage_cleanup_complete',
+    'dashboard_autoRefresh',
+    'leaderboard_cache'
+  ];
+
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
     if (key && (
       key.startsWith('graph_cache_') ||
-      key.startsWith('events_cache_') ||
-      key === 'leaderboard_cache'
+      key.startsWith('events_cache_')
     )) {
       keysToRemove.push(key);
     }
   }
 
   // 3. Remove all the identified keys.
-  if (keysToRemove.length > 0) {
-    keysToRemove.forEach(key => {
-      try {
+  keysToRemove.forEach(key => {
+    try {
+      if (localStorage.getItem(key) !== null) {
         localStorage.removeItem(key);
         console.log(`Removed deprecated localStorage key: ${key}`);
-      } catch (error) {
-        console.error(`Failed to remove deprecated key "${key}":`, error);
       }
-    });
-  }
+    } catch (error) {
+      console.error(`Failed to remove deprecated key "${key}":`, error);
+    }
+  });
 
-  // 4. Set the flag to prevent this function from ever running again.
+  // 4. Set the flag to prevent this from running again.
   try {
     localStorage.setItem(DEPRECATED_CACHE_CLEANUP_FLAG, 'true');
-    console.log("Deprecated localStorage cache cleanup complete.");
+    console.log("Deprecated localStorage cleanup complete.");
   } catch (error) {
     console.error("Failed to set storage cleanup completion flag:", error);
   }

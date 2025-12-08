@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Trophy, Globe, RefreshCw, FileSearch, Zap, Info } from 'lucide-react';
+import { Users, Trophy, Globe, FileSearch, Zap, Info } from 'lucide-react';
 import { DashboardHeaderProps, ViewButtonProps } from '../types/propTypes';
 
 const ViewButton = ({ active, onClick, icon, text }) => (
@@ -20,9 +20,6 @@ export const DashboardHeader = ({
   unknownMembers,
   view,
   setView,
-  onToggleAutoRefresh,
-  autoRefresh,
-  isRefreshing,
   onOpenSearch,
   onOpenEvents,
   onOpenInfo,
@@ -147,19 +144,6 @@ export const DashboardHeader = ({
                 >
                   <FileSearch className="w-4 h-4" />
                 </button>
-                <button
-                  onClick={onToggleAutoRefresh}
-                  title={autoRefresh ? 'Auto-Refresh ON' : 'Auto-Refresh OFF'}
-                  className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 w-full sm:w-auto transition-colors
-                    ${autoRefresh 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }
-                    ${isRefreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  disabled={isRefreshing}
-                >
-                  <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                </button>
               </div>
             ) : (
               <div className="flex justify-end gap-2 w-full">
@@ -180,19 +164,6 @@ export const DashboardHeader = ({
                     bg-gray-700 text-gray-300 hover:bg-gray-600"
                 >
                   <FileSearch className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={onToggleAutoRefresh}
-                  title={autoRefresh ? 'Auto-Refresh ON' : 'Auto-Refresh OFF'}
-                  className={`px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors
-                    ${autoRefresh 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }
-                    ${isRefreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  disabled={isRefreshing}
-                >
-                  <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 </button>
               </div>
             )}

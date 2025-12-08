@@ -15,7 +15,6 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
     unknownMembers: [],
     globalLeaderboard: []
   });
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [cacheExpiresAt, setCacheExpiresAt] = useState(0);
   const initialLoadTriggered = useRef(false);
@@ -68,7 +67,6 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
   }, [getDataAge]);
 
   const refreshData = useCallback(async (isInitialLoad = false) => {
-    setIsRefreshing(true);
     
     // Only show "loading" toast on manual/auto refreshes, not the initial page load.
     if (!isInitialLoad) { 
@@ -128,7 +126,6 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
       setCacheExpiresAt(Date.now() + RETRY_DELAY_MS);
     } finally {
       setLoading(false);
-      setIsRefreshing(false);
       if (isInitialLoad) {
         initialLoadDone.current = true;
       }
@@ -175,7 +172,6 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
     ...data,
     loading,
     error,
-    isRefreshing,
     refreshData,
     toastMessage,
     setToastMessage,

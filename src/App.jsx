@@ -15,7 +15,7 @@ import GraphModal from './components/GraphModal';
 import EventsModal from './components/EventsModal';
 import InfoModal from './components/InfoModal';
 import Toast from './components/Toast';
-import { getStoredTab, setStoredTab, getStoredAutoRefresh, setStoredAutoRefresh, cleanupDeprecatedCache } from './services/localStorageManager';
+import { getStoredTab, setStoredTab, cleanupDeprecatedCache } from './services/localStorageManager';
 import { ModalProvider } from './context/ModalProvider';
 import { SEASONS, currentSeasonKey } from './services/historicalDataService';
 import { cleanupExpiredCacheItems } from './services/idbCache';
@@ -27,7 +27,7 @@ const App = () => {
   const { graph, season: seasonIdFromUrl, history } = useParams();
   const [modalHistory, setModalHistory] = useState([]);
   const [view, setView] = useState(getStoredTab);
-  const [autoRefresh, setAutoRefresh] = useState(getStoredAutoRefresh);
+  const autoRefresh = true;
   const [eventsModalOpen, setEventsModalState] = useState(false);
   const [eventsModalKey, setEventsModalKey] = useState(null);
   const [searchModalState, setSearchModalState] = useState({ 
@@ -59,7 +59,6 @@ const App = () => {
     currentRubyCutoff,
     loading,
     error,
-    isRefreshing,
     refreshData,
     toastMessage,
     setToastMessage,
@@ -71,35 +70,12 @@ const App = () => {
     cleanupExpiredCacheItems();
   }, []);
 
-  // Save auto-refresh setting to storage when it changes
-  useEffect(() => {
-    setStoredAutoRefresh(autoRefresh);
-  }, [autoRefresh]);
-
   const showToast = useCallback((toastOptions) => {
     setToastMessage({
       timestamp: Date.now(), // required for index/unique
       ...toastOptions
     });
   }, [setToastMessage]);
-
-  const handleToggleAutoRefresh = useCallback(() => {
-    setAutoRefresh(prev => {
-        const nextState = !prev;
-        showToast({
-            message: `Dashboard Auto-Update turned ${nextState ? 'ON' : 'OFF'}.`,
-            type: nextState ? 'success' : 'info'
-        });
-        // When turning auto-refresh ON, trigger an immediate refresh after a short delay.
-        // The delay gives the user time to read the confirmation toast.
-        if (nextState) {
-          setTimeout(() => {
-            refreshData(false);
-          }, 2500);
-        }
-        return nextState;
-    });
-  }, [refreshData, showToast]);
 
   // Load club members data once on page load
   useEffect(() => {
@@ -336,9 +312,6 @@ const App = () => {
               unknownMembers={unknownMembers}
               view={view}
               setView={setView}
-              onToggleAutoRefresh={handleToggleAutoRefresh}
-              autoRefresh={autoRefresh}
-              isRefreshing={isRefreshing}
               onOpenEvents={handleEventsModalOpen}
               onOpenSearch={() => handleSearchModalOpen()}
               onOpenInfo={handleInfoModalOpen}
