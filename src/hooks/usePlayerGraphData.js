@@ -146,6 +146,9 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
       return;
     }
 
+    // SKIP off-leaderboard adjustments here, inject them as new points later.
+    if (event.event_type === 'RS_ADJUSTMENT' && event.details?.is_off_leaderboard) return;
+
     const eventTimestamp = event.start_timestamp * 1000;
     let closestPoint = null;
     let minDiff = Infinity;
@@ -257,6 +260,67 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
       );
       if (pointToFlag) pointToFlag.isFollowedByGap = true;
     }
+  }
+
+  // Inject Off-Leaderboard RS Adjustment Points
+  // These are handled separately because they represent a state where the player is NOT on the leaderboard
+  const offLeaderboardRsEvents = events.filter(e => e.event_type === 'RS_ADJUSTMENT' && e.details?.is_off_leaderboard);
+  
+  if (offLeaderboardRsEvents.length > 0) {
+    // Sort events to insert them in order
+    offLeaderboardRsEvents.sort((a, b) => a.start_timestamp - b.start_timestamp);
+
+    offLeaderboardRsEvents.forEach(event => {
+        const eventTs = event.start_timestamp * 1000;
+        // Calculate estimated score: Old Score - Minimum Loss
+        const estimatedScore = event.details.old_score - event.details.minimum_loss;
+        
+        let insertionIndex = combined.findIndex(p => p.timestamp.getTime() >= eventTs);
+        if (insertionIndex === -1) insertionIndex = combined.length;
+
+        // Cleanup Gap artifacts: If this event occurred during a Gap, must remove the "Gap Bridge".
+        // The Bridge point (which holds the OLD score) causes the graph to draw a line back up to the old score,
+        // conflicting with the fact that the player dropped off the leaderboard here.
+        const prevPoint = combined[insertionIndex - 1];
+        if (prevPoint && prevPoint.isFollowedByGap) {
+             // 1. Remove the gap flag from the previous point, so draw a direct line (Solid Red) to the Event.
+             prevPoint.isFollowedByGap = false;
+
+             // 2. Check if the NEXT point is a synthetic Gap Bridge.
+             // Since Bridge points are usually inserted just before the next real point (at the end of the gap),
+             // 'insertionIndex' will typically point to the Bridge if the Event happened earlier in the gap.
+             const nextPoint = combined[insertionIndex];
+             if (nextPoint && nextPoint.isGapBridge) {
+                 combined.splice(insertionIndex, 1);
+                 // Removed the element at insertionIndex, so the "real" next point is now at this index.
+                 // Don't increment insertionIndex.
+             }
+        }
+        
+        const syntheticPoint = {
+            rankScore: estimatedScore,
+            league: 0, // Unknown/Off-Leaderboard
+            rank: null, // Unknown/Off-Leaderboard
+            timestamp: new Date(eventTs),
+            isInterpolated: true,
+            scoreChanged: true,
+            isRsAdjustmentAnchor: true, // Special flag for the Chart config to render this specifically
+            events: [event]
+        };
+
+        // 3. Determine if a dashed line is needed AFTER this synthetic point.
+        // If there is still a large time gap between the Event and the next real point (B),
+        // mark this synthetic point as followed by a gap.
+        const nextRealPoint = combined[insertionIndex]; // This is 'B' (or whatever was after the bridge)
+        if (nextRealPoint) {
+            const timeDiff = nextRealPoint.timestamp.getTime() - eventTs;
+            if (timeDiff > GAP_THRESHOLD) {
+                syntheticPoint.isFollowedByGap = true;
+            }
+        }
+        
+        combined.splice(insertionIndex, 0, syntheticPoint);
+    });
   }
 
   // Separate ban events to process them robustly.

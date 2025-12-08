@@ -309,6 +309,7 @@ export const useChartConfig = ({
 
     const rsEvent = getRsEvent(ctx);
     if (eventSettings.showRsAdjustment && rsEvent) return 8;
+    if (eventSettings.showRsAdjustment && pointData.isRsAdjustmentAnchor) return 8; // adjusted off lb
 
     // Hide synthetic staircase, gap bridge, and final interpolated points
     if (pointData.isStaircasePoint || pointData.isGapBridge || pointData.isFinalInterpolation) {
@@ -362,7 +363,10 @@ export const useChartConfig = ({
     if (pointData) {
       // Hide tooltips for certain synthetic points, but always show them for ban/unban event anchors.
       const isBanPoint = eventSettings.showSuspectedBan && (pointData.isBanStartAnchor || pointData.isBanEndAnchor || pointData.isUnexpectedReappearance);
-      if (!isBanPoint) {
+      // Also always show tooltip for RS Adjustment anchors
+      const isRsAnchor = eventSettings.showRsAdjustment && pointData.isRsAdjustmentAnchor;
+      
+      if (!isBanPoint && !isRsAnchor) {
         const timeRange = chart.scales.x.max - chart.scales.x.min;
         const isHiddenInterpolatedPoint = (pointData.isInterpolated || pointData.isExtrapolated) &&
           timeRange > TIME.SEVENTY_TWO_HOURS;
@@ -391,7 +395,12 @@ export const useChartConfig = ({
     const isBanStart = pointData && eventSettings.showSuspectedBan && pointData.isBanStartAnchor && banEvent;
     const isBanEnd = pointData && eventSettings.showSuspectedBan && pointData.isBanEndAnchor && banEvent && banEvent.end_timestamp;
     const isUnexpected = pointData && eventSettings.showSuspectedBan && pointData.isUnexpectedReappearance;
-    const hasEventToShow = isBanStart || isBanEnd || isUnexpected;
+    
+    // Check for RS Adjustment Event (either regular or off-leaderboard anchor)
+    const rsEvent = pointData?.events?.find(e => e.event_type === 'RS_ADJUSTMENT');
+    const isRsAdjustment = eventSettings.showRsAdjustment && rsEvent;
+    
+    const hasEventToShow = isBanStart || isBanEnd || isUnexpected || isRsAdjustment;
     const hasScoreContent = !!tooltip.body;
 
     if (hasScoreContent || hasEventToShow) {
@@ -399,7 +408,6 @@ export const useChartConfig = ({
       const bodyLines = tooltip.body.map(b => b.lines);
       const datasetIndex = tooltip.dataPoints[0].datasetIndex;
       const dataPoint = tooltip.dataPoints[0].raw.raw;
-      const rsEvent = dataPoint.events?.find(e => e.event_type === 'RS_ADJUSTMENT');
 
       while (tooltipEl.firstChild) {
         tooltipEl.firstChild.remove();
@@ -576,7 +584,7 @@ export const useChartConfig = ({
         tableRoot.appendChild(rankRow);
       }
 
-      if (eventSettings.showRsAdjustment && rsEvent) {
+      if (isRsAdjustment) {
         const details = rsEvent.details;
 
         const hrRow = document.createElement('tr');
@@ -585,26 +593,43 @@ export const useChartConfig = ({
         hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
         hrRow.appendChild(hrCell);
         tableRoot.appendChild(hrRow);
+        
+        // DIFFERENTIATE BETWEEN ON-LEADERBOARD AND OFF-LEADERBOARD EVENTS
+        if (details.is_off_leaderboard) {
+            const eventTitleRow = document.createElement('tr');
+            eventTitleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: #facc15; padding-bottom: 4px;">RS Adjustment<br>(Off Leaderboard)</td>`;
+            tableRoot.appendChild(eventTitleRow);
 
-        const eventTitleRow = document.createElement('tr');
-        const titleColor = details.change > 0 ? '#4ade80' : '#f87171';
-        eventTitleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: ${titleColor}; padding-bottom: 4px;">RS Adjustment</td>`;
-        tableRoot.appendChild(eventTitleRow);
+            const eventChangeRow = document.createElement('tr');
+            const changeColor = '#EF4444';
+            eventChangeRow.innerHTML = `<td colspan="2" style="font-size: 12px;">Min. Loss: <span style="font-weight: bold; color: ${changeColor};">-${details.minimum_loss.toLocaleString()}</span></td>`;
+            tableRoot.appendChild(eventChangeRow);
+            
+            const infoRow = document.createElement('tr');
+            infoRow.innerHTML = `<td colspan="2" style="font-size: 11px; color: #9ca3af; padding-top: 4px;">Player fell off the ranked leaderboard.</td>`;
+            tableRoot.appendChild(infoRow);
+        } else {
+            // Standard RS Adjustment logic
+            const eventTitleRow = document.createElement('tr');
+            const titleColor = details.change > 0 ? '#4ade80' : '#f87171';
+            eventTitleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: ${titleColor}; padding-bottom: 4px;">RS Adjustment</td>`;
+            tableRoot.appendChild(eventTitleRow);
 
-        const eventChangeRow = document.createElement('tr');
-        const change = details.change;
-        const changeColor = change > 0 ? '#10B981' : '#EF4444';
-        eventChangeRow.innerHTML = `<td colspan="2" style="font-size: 12px;">Change: <span style="font-weight: bold; color: ${changeColor};">${change > 0 ? '+' : ''}${change.toLocaleString()}</span></td>`;
-        tableRoot.appendChild(eventChangeRow);
+            const eventChangeRow = document.createElement('tr');
+            const change = details.change;
+            const changeColor = change > 0 ? '#10B981' : '#EF4444';
+            eventChangeRow.innerHTML = `<td colspan="2" style="font-size: 12px;">Change: <span style="font-weight: bold; color: ${changeColor};">${change > 0 ? '+' : ''}${change.toLocaleString()}</span></td>`;
+            tableRoot.appendChild(eventChangeRow);
 
-        const eventScoreRow = document.createElement('tr');
-        eventScoreRow.innerHTML = `<td colspan="2" style="font-size: 12px;">Score: ${details.old_score.toLocaleString()} → <span style="font-weight: bold;">${details.new_score.toLocaleString()}</span></td>`;
-        tableRoot.appendChild(eventScoreRow);
+            const eventScoreRow = document.createElement('tr');
+            eventScoreRow.innerHTML = `<td colspan="2" style="font-size: 12px;">Score: ${details.old_score.toLocaleString()} → <span style="font-weight: bold;">${details.new_score.toLocaleString()}</span></td>`;
+            tableRoot.appendChild(eventScoreRow);
+        }
       }
 
       // Suspected Ban Event
       if (isBanStart) {
-        if (hasScoreContent || (eventSettings.showRsAdjustment && rsEvent)) {
+        if (hasScoreContent || isRsAdjustment) {
             const hrRow = document.createElement('tr');
             const hrCell = document.createElement('td');
             hrCell.colSpan = 2;
@@ -624,7 +649,7 @@ export const useChartConfig = ({
 
       // Player Reappeared Event
       if (isBanEnd) {
-        if (hasScoreContent || (eventSettings.showRsAdjustment && rsEvent) || isBanStart) {
+        if (hasScoreContent || isRsAdjustment || isBanStart) {
              const hrRow = document.createElement('tr');
              const hrCell = document.createElement('td');
              hrCell.colSpan = 2;
@@ -649,7 +674,7 @@ export const useChartConfig = ({
 
       // Unexpected Reappearance Event
       if (isUnexpected) {
-        if (hasScoreContent || (eventSettings.showRsAdjustment && rsEvent) || isBanStart || isBanEnd) {
+        if (hasScoreContent || isRsAdjustment || isBanStart || isBanEnd) {
              const hrRow = document.createElement('tr');
              const hrCell = document.createElement('td');
              hrCell.colSpan = 2;
@@ -1251,6 +1276,10 @@ export const useChartConfig = ({
       if (rsEvent) {
         return rsEvent.details.change > 0 ? rsUpIcon : rsDownIcon;
       }
+      // Handle anchor points for off-leaderboard adjustments
+      if (pointData?.isRsAdjustmentAnchor) {
+         return rsDownIcon;
+      }
     }
     const direction = getNewLogicPointDirection(ctx);
     return (direction === 'up' || direction === 'down') ? 'triangle' : 'circle';
@@ -1264,7 +1293,7 @@ export const useChartConfig = ({
         (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE')) ||
         (hasVisibleEvent(ctx, 'COMBINED_CHANGE')) ||
         (eventSettings.showSuspectedBan && (pointData?.isUnexpectedReappearance || pointData?.isBanStartAnchor || pointData?.isBanEndAnchor)) ||
-        (eventSettings.showRsAdjustment && getRsEvent(ctx))) {
+        (eventSettings.showRsAdjustment && getRsEvent(ctx)) || (eventSettings.showRsAdjustment && pointData?.isRsAdjustmentAnchor)) {
       return 0;
     }
 
