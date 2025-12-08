@@ -5,7 +5,7 @@ to keep up with it's logic. I'm sorry for the mess.
 */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { X, Plus, Camera, SlidersHorizontal, UserPen, Gavel, ChevronsUpDown, Users } from 'lucide-react';
+import { X, Plus, Camera, SlidersHorizontal, UserPen, Gavel, ChevronsUpDown, Users, AlertTriangle, RefreshCcw } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -21,7 +21,7 @@ import { Line } from 'react-chartjs-2';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import 'chartjs-adapter-date-fns';
-import { GraphModalProps, ComparePlayerModalProps, GraphSettingsModalProps, FilterToggleButtonProps } from '../types/propTypes';
+import { GraphModalProps, GraphErrorViewProps, ComparePlayerModalProps, GraphSettingsModalProps, FilterToggleButtonProps } from '../types/propTypes';
 import { useModal } from '../context/ModalProvider';
 import { usePlayerGraphData } from '../hooks/usePlayerGraphData';
 import { useChartConfig } from '../hooks/useChartConfig';
@@ -82,6 +82,72 @@ const FilterToggleButton = ({ label, isActive, onClick, Icon, textColorClass, ac
             {Icon && <Icon className={`w-4 h-4 ${textColorClass}`} />}
             <span className={textColorClass}>{label}</span>
         </button>
+    );
+};
+
+const GraphErrorView = ({ error, availableSeasons, onSwitchSeason, targetSeasonId }) => {
+    // Determine the error context. If availableSeasons exist, it's a "Not found in this season" error.
+    const isSeasonMismatch = availableSeasons && availableSeasons.length > 0;
+    
+    // Helper to get season name from ID
+    const getSeasonName = (id) => {
+        const season = Object.values(SEASONS).find(s => s.id === id);
+        return season ? season.label : `Season ${id}`;
+    };
+
+    return (
+        <div className="absolute inset-0 flex items-center justify-center bg-[#1a1f2e] z-10 animate-fade-in-fast p-6">
+            <div className="bg-gray-800 p-8 rounded-lg shadow-xl border border-gray-700 max-w-lg w-full text-center">
+                <div className="flex justify-center mb-4">
+                    <div className="p-4 bg-gray-700 rounded-full">
+                        <AlertTriangle className="w-10 h-10 text-yellow-500" />
+                    </div>
+                </div>
+                
+                <h3 className="text-xl font-bold text-white mb-2">
+                    {isSeasonMismatch ? 'Player Not Found in this Season' : 'Unable to Load Graph'}
+                </h3>
+                
+                <p className="text-gray-400 mb-6">
+                    {isSeasonMismatch 
+                        ? `We couldn't find any tracked data for the requested player in ${getSeasonName(targetSeasonId)}. However, data was found in other seasons.` 
+                        : (error || "An unexpected error occurred while loading the data. Please try again later or contact an administrator.")}
+                </p>
+
+                {isSeasonMismatch && (
+                    <div className="animate-fadeIn">
+                        <p className="text-sm text-gray-300 font-semibold mb-3">Available Seasons:</p>
+                        <div className="flex flex-wrap gap-2 justify-center">
+                            {availableSeasons
+                                .sort((a, b) => b.id - a.id) // Sort descending
+                                .map(season => (
+                                    <button
+                                        key={season.id}
+                                        onClick={() => onSwitchSeason(season.id)}
+                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-2"
+                                    >
+                                        {getSeasonName(season.id)}
+                                        <span className="text-blue-200 text-xs">({season.embarkId})</span>
+                                    </button>
+                                ))
+                            }
+                        </div>
+                    </div>
+                )}
+                
+                {!isSeasonMismatch && (
+                    <div className="flex justify-center mt-4">
+                        <button 
+                            onClick={() => window.location.reload()} 
+                            className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors"
+                        >
+                            <RefreshCcw className="w-4 h-4" />
+                            Reload Page
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
     );
 };
 
@@ -316,6 +382,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     comparisonData,
     loading,
     error,
+    errorAvailableSeasons,
     addComparison,
     removeComparison,
     switchSeason,
@@ -598,15 +665,16 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                   </h2>
                   <div ref={seasonDropdownRef} className="relative group flex-shrink-0">
                     <button
-                      onClick={() => setShowSeasonDropdown(p => !p)}
-                      disabled={loading || mainPlayerAvailableSeasons.length <= 1}
-                      className="flex items-center gap-1.5 bg-gray-700 text-blue-300 text-xs font-semibold px-2 py-1 rounded-md disabled:opacity-70 disabled:cursor-not-allowed hover:bg-gray-600 transition-colors"
+                      onClick={() => !error && setShowSeasonDropdown(p => !p)}
+                      disabled={loading || error || mainPlayerAvailableSeasons.length <= 1}
+                      className={`flex items-center gap-1.5 bg-gray-700 text-blue-300 text-xs font-semibold px-2 py-1 rounded-md transition-colors 
+                        ${(loading || error || mainPlayerAvailableSeasons.length <= 1) ? 'opacity-70 cursor-not-allowed' : 'hover:bg-gray-600'}`}
                       title="Switch season"
                     >
                       <span>{isMobile ? seasonKey : currentSeasonLabel}</span>
-                      {mainPlayerAvailableSeasons.length > 1 && <ChevronsUpDown className="w-3 h-3"/>}
+                      {mainPlayerAvailableSeasons.length > 1 && !error && <ChevronsUpDown className="w-3 h-3"/>}
                     </button>
-                    {showSeasonDropdown && (
+                    {showSeasonDropdown && !error && (
                       <div className="absolute top-full left-0 mt-2 w-max min-w-full bg-gray-800 border border-gray-600 rounded-md shadow-lg z-20 animate-fade-in-fast overflow-hidden">
                         {mainPlayerAvailableSeasons
                           .sort((a,b) => b.id - a.id)
@@ -625,7 +693,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                       </div>
                     )}
                   </div>
-                  {data && mainPlayerGameCount > 0 && (
+                  {data && mainPlayerGameCount > 0 && !error && (
                     <div className="relative group flex-shrink-0">
                       <div className="bg-gray-700 text-gray-300 text-xs font-medium px-2 py-1 rounded-md cursor-help">
                         {mainPlayerGameCount} games
@@ -646,13 +714,13 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                   </button>
                 )}
               </div>
-              {data && (
+              {data && data.length > 0 && !error && (
                 <p className="text-sm text-gray-400 mt-1 truncate">
                   {!isMobile ? 'Data available between ' : 'MAX: '} {`${new Date(data[0].timestamp).toLocaleString(undefined, TIME.FORMAT)} - ${new Date(data[data.length - 1].timestamp).toLocaleString(undefined, TIME.FORMAT)}`}
                 </p>
               )}
             </div>
-            {isClubView && (
+            {isClubView && !error && (
               <div className={`flex-1 flex justify-center ${isMobile ? 'flex-col' : 'items-center'} gap-2`}>
                 <p className="text-sm text-blue-400 truncate">
                   Comparing available with club members only
@@ -669,8 +737,9 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
               <div className={`flex items-center flex-wrap ${isMobile ? 'w-full justify-between' : 'justify-end gap-2'}`}>
                 <div className="relative" ref={ssdropdownRef}>
                   <button
-                    onClick={() => setShowDropdown(!showDropdown)}
-                    className="p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative"
+                    onClick={() => !error && setShowDropdown(!showDropdown)}
+                    disabled={!!error}
+                    className={`p-2 rounded-lg relative ${error ? 'text-gray-600 cursor-not-allowed' : 'hover:bg-gray-700 text-gray-400 hover:text-white'}`}
                     title="Screenshot options"
                     aria-haspopup="true"
                     aria-expanded={showDropdown}
@@ -685,7 +754,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                       </div>
                     )}
                   </button>
-                  {showDropdown && (
+                  {showDropdown && !error && (
                     <div className={`absolute ${isMobile ? 'top-full mt-2 left-0' : 'right-0 mt-2'} w-48 bg-gray-800 rounded-md shadow-lg z-10`}>
                       <div className="py-1">
                         <button
@@ -706,7 +775,9 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                 </div>
                  <button
                     onClick={() => setShowSettingsModal(true)}
+                    disabled={!!error}
                     className={`p-2 rounded-lg transition-colors ${
+                      error ? 'text-gray-600 cursor-not-allowed' :
                       areFiltersActive 
                         ? 'bg-green-600 text-white hover:bg-green-500' 
                         : 'hover:bg-gray-700 text-gray-400 hover:text-white'
@@ -715,7 +786,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                 >
                     <SlidersHorizontal className="w-5 h-5" />
                 </button>
-                {comparisonData.size < MAX_COMPARISONS && (
+                {comparisonData.size < MAX_COMPARISONS && !error && (
                   <div className="relative">
                     <button
                       onClick={() => setShowCompareModal(true)}
@@ -745,13 +816,13 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                       key={range}
                       aria-pressed={selectedTimeRange === range}
                       onClick={() => !isHistoricalSeason && setSelectedTimeRange(range)}
-                      disabled={isHistoricalSeason}
+                      disabled={isHistoricalSeason || !!error}
                       title={isHistoricalSeason ? 'Disabled for historical seasons' : 'Select time range'}
                       className={`px-3 py-1 text-sm rounded-md transition-colors ${
                         selectedTimeRange === range
                           ? 'bg-gray-600 text-white'
                           : 'text-gray-400'
-                      } ${isHistoricalSeason
+                      } ${isHistoricalSeason || !!error
                           ? 'cursor-not-allowed'
                           : 'hover:text-white hover:bg-gray-700'
                       } ${isMobile ? 'flex-1' : ''}`}
@@ -764,7 +835,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
             </div>
           </div>
 
-          {comparisonData.size > 0 && (
+          {comparisonData.size > 0 && !error && (
             <div className={`flex gap-2 mt-4 ${
               isMobile
                 ? 'flex-wrap max-h-[100px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600'
@@ -806,7 +877,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
         </div>
 
         <div className="relative w-full min-h-0 min-w-0">
-          {chartData && chartOptions && <Line ref={chartRef} data={chartData} options={chartOptions} />}
+          {chartData && chartOptions && !error && <Line ref={chartRef} data={chartData} options={chartOptions} />}
 
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-[#1a1f2e] z-20 animate-fade-in-fast">
@@ -814,9 +885,12 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
             </div>
           )}
           {error && !loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#1a1f2e] z-20">
-              <div className="text-gray-400 text-center p-4">{error}</div>
-            </div>
+            <GraphErrorView 
+              error={error} 
+              availableSeasons={errorAvailableSeasons}
+              onSwitchSeason={handleSeasonChange}
+              targetSeasonId={currentSeasonId}
+            />
           )}
           {!loading && !error && showZoomHint && (
              <div
@@ -849,6 +923,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
 };
 
 GraphModal.propTypes = GraphModalProps;
+GraphErrorView.propTypes = GraphErrorViewProps;
 ComparePlayerModal.propTypes = ComparePlayerModalProps;
 GraphSettingsModal.propTypes = GraphSettingsModalProps;
 FilterToggleButton.propTypes = FilterToggleButtonProps;

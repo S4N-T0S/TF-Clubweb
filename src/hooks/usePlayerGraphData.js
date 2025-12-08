@@ -484,6 +484,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
   const [mainPlayerGameCount, setMainPlayerGameCount] = useState(0);
   const [mainPlayerAvailableSeasons, setMainPlayerAvailableSeasons] = useState([]);
   const [error, setError] = useState(null);
+  const [errorAvailableSeasons, setErrorAvailableSeasons] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentSeasonId, setCurrentSeasonId] = useState(seasonId);
 
@@ -616,6 +617,8 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
   const loadMainData = useCallback(async (targetEmbarkId, targetSeasonId) => {
     setLoading(true);
     setError(null);
+    setErrorAvailableSeasons(null);
+
     try {
       const result = await fetchGraphData(targetEmbarkId, targetSeasonId);
 
@@ -644,7 +647,13 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       setMainPlayerRaw({ data: result.data, events: result.events });
 
     } catch (error) {
-      setError(`Failed to load player history: ${error.message}`);
+      // Check for specific 404 with available seasons
+      if (error.status === 404 && error.data?.availableSeasons && Array.isArray(error.data.availableSeasons)) {
+        setErrorAvailableSeasons(error.data.availableSeasons);
+        setError(`Player not found in this season.`); // Generic message, UI will prefer errorAvailableSeasons
+      } else {
+        setError(error.details || error.message);
+      }
       setMainPlayerRaw({ data: [], events: [] });
     } finally {
         setLoading(false);
@@ -656,6 +665,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       // Reset state for new player
       setData(null);
       setError(null);
+      setErrorAvailableSeasons(null);
       setEvents([]);
       setMainPlayerCurrentId(embarkId);
       setMainPlayerGameCount(0);
@@ -792,15 +802,20 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     isLoadingRef.current = true;
     setLoading(true);
     setError(null);
+    setErrorAvailableSeasons(null);
     setCurrentSeasonId(newSeasonId); // Update season ID first
+    
+    // Reset raw data to null. 
+    setMainPlayerRaw({ data: null, events: [] }); 
+    setData(null);
 
     try {
       // 1. Fetch main player for the new season using the season-specific embark ID
       const mainPlayerSeasonInfo = mainPlayerAvailableSeasons.find(s => s.id === newSeasonId);
-      if (!mainPlayerSeasonInfo) {
-        throw new Error("Season information not found for main player.");
-      }
-      const mainPlayerIdForNewSeason = mainPlayerSeasonInfo.embarkId;
+      // Fallback: If no availableSeasons populated (e.g. initial load failed),
+      // we try with the current ID.
+      const mainPlayerIdForNewSeason = mainPlayerSeasonInfo ? mainPlayerSeasonInfo.embarkId : mainPlayerCurrentId;
+
       const mainPlayerResult = await fetchGraphData(mainPlayerIdForNewSeason, newSeasonId);
 
       if (mainPlayerResult.data?.length) {
@@ -855,7 +870,13 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       window.history.replaceState(null, '', `/graph/${newSeasonId}/${urlString}`);
 
     } catch (err) {
-        setError(`Failed to switch season: ${err.message}`);
+        // If switching seasons fails, check for specific 404 available seasons again
+        if (err.status === 404 && err.data?.availableSeasons && Array.isArray(err.data.availableSeasons)) {
+            setErrorAvailableSeasons(err.data.availableSeasons);
+            setError(`Player not found in this season.`);
+        } else {
+            setError(err.details || `Failed to switch season: ${err.message}`);
+        }
         setData(null);
         setMainPlayerRaw({ data: [], events: [] });
         setComparisonRaws(new Map());
@@ -863,7 +884,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         setLoading(false);
         isLoadingRef.current = false;
     }
-  }, [mainPlayerAvailableSeasons, comparisonRaws, loadComparisonData]);
+  }, [mainPlayerAvailableSeasons, comparisonRaws, loadComparisonData, mainPlayerCurrentId]);
 
   return {
     data,
@@ -874,6 +895,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     comparisonData,
     loading,
     error,
+    errorAvailableSeasons,
     addComparison,
     removeComparison,
     switchSeason,

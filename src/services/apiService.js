@@ -8,11 +8,12 @@ export const API = {
 
 // --- Custom Error Class for API Failures ---
 export class ApiError extends Error {
-  constructor(message, status, details) {
+  constructor(message, status, details, data = null) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.details = details;
+    this.data = data;
   }
 }
 
@@ -80,18 +81,21 @@ export async function apiFetch(endpoint, options = {}) {
 
   if (!response.ok) {
     let errorDetails = `Request failed with status ${response.status}`;
+    let errorData = null;
     try {
       // Try to parse a JSON error response from the backend
-      const errorData = await response.json();
+      errorData = await response.json();
       errorDetails = errorData.message || errorData.error || JSON.stringify(errorData);
     } catch (_e) {
       // Fallback if the error response isn't JSON
       errorDetails = await response.text();
     }
+    
     throw new ApiError(
       `API Error on ${endpoint}: ${errorDetails}`, 
       response.status, 
-      errorDetails
+      errorDetails,
+      errorData
     );
   }
   

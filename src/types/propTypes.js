@@ -318,6 +318,16 @@ export const GraphSettingsModalProps = {
   hasAnyEvents: PropTypes.bool.isRequired,
 };
 
+export const GraphErrorViewProps = {
+    error: PropTypes.string,
+    availableSeasons: PropTypes.arrayOf(PropTypes.shape({
+        id: PropTypes.number.isRequired,
+        embarkId: PropTypes.string
+    })),
+    onSwitchSeason: PropTypes.func.isRequired,
+    targetSeasonId: PropTypes.number.isRequired
+};
+
 export const InfoModalProps = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
