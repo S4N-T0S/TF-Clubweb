@@ -1,10 +1,52 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchLeaderboardData } from '../services/lb-api';
 import { processLeaderboardData } from '../utils/dataProcessing';
+import { clearCacheStartingWith } from '../services/idbCache';
 
 const MAX_ACCEPTABLE_AGE = 30 * 60; // 30 minutes in seconds
 const MAX_STALE_AGE_FOR_ERROR = 60 * 60; // 60 minutes, beyond this is an error
 const RETRY_DELAY_MS = 2 * 60 * 1000; // 2 minutes
+const GRAPH_CACHE_PREFIX = 'graph_cache_';
+
+const getDataAge = (timestamp) => {
+  if (!timestamp) return Infinity;
+  return Math.floor((Date.now() - timestamp) / 1000);
+};
+
+const getToastConfig = (source, timestamp, ttl) => {
+  const age = getDataAge(timestamp);
+  const isStale = age > MAX_ACCEPTABLE_AGE;
+  const isVeryStale = age > MAX_STALE_AGE_FOR_ERROR;
+
+  if (source === 'client-cache-emergency' || isVeryStale) {
+    return {
+      message: 'Unable to connect to server, using emergency cache.',
+      type: 'error',
+      timestamp,
+      showMeta: true,
+      ttl
+    };
+  }
+
+  if (source.includes('fallback') || source.includes('stale') || isStale) {
+    return {
+      message: 'Leaderboard is using cached data.',
+      type: 'warning',
+      timestamp,
+      showMeta: true,
+      ttl
+    };
+  }
+
+  return {
+    message: 'Leaderboard is up to date.',
+    type: 'success',
+    timestamp,
+    showMeta: true,
+    duration: 3000,
+    ttl
+  };
+};
 
 export const useLeaderboard = (clubMembersData, autoRefresh) => {
   const [loading, setLoading] = useState(true);
@@ -18,57 +60,31 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
   });
   const [toastMessage, setToastMessage] = useState(null);
   const [cacheExpiresAt, setCacheExpiresAt] = useState(0);
+  
+  // Refs
   const initialLoadTriggered = useRef(false);
   const initialLoadDone = useRef(false);
   const lastGlobalLeaderboard = useRef([]);
-
+  const lastTimestampRef = useRef(null);
   const clubMembersDataRef = useRef(clubMembersData);
+  
+  // Track mount status to prevent setting state on unmounted components
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     clubMembersDataRef.current = clubMembersData;
   }, [clubMembersData]);
 
-  const getDataAge = useCallback((timestamp) => {
-    if (!timestamp) return Infinity;
-    return Math.floor((Date.now() - timestamp) / 1000);
-  }, []);
-
-  const getToastConfig = useCallback((source, timestamp, ttl) => {
-    const isStale = getDataAge(timestamp) > MAX_ACCEPTABLE_AGE;
-    const isVeryStale = getDataAge(timestamp) > MAX_STALE_AGE_FOR_ERROR;
-
-    if (source === 'client-cache-emergency' || isVeryStale) {
-      return {
-        message: 'Unable to connect to server, using emergency cache.',
-        type: 'error',
-        timestamp,
-        showMeta: true,
-        ttl
-      };
-    }
-
-    if (source.includes('fallback') || source.includes('stale') || isStale) {
-      return {
-        message: 'Leaderboard is using cached data.',
-        type: 'warning',
-        timestamp,
-        showMeta: true,
-        ttl
-      };
-    }
-
-    // If we reach here, data is fresh from a primary source.
-    return {
-      message: 'Leaderboard is up to date.',
-      type: 'success',
-      timestamp,
-      showMeta: true,
-      duration: 3000,
-      ttl
-    };
-  }, [getDataAge]);
-
   const refreshData = useCallback(async (isInitialLoad = false) => {
-    
+    if (!isMounted.current) return;
+
     // Only show "loading" toast on manual/auto refreshes, not the initial page load.
     if (!isInitialLoad) { 
       setToastMessage({
@@ -83,20 +99,32 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
     
     try {
       const rawData = await fetchLeaderboardData();
-      
+      if (!isMounted.current) return;
       if (!rawData?.data) {
         throw new Error('Invalid data received from API.');
       }
 
+      // Check if this is a fresh update (timestamp is newer than what we have). (skips clearing on new load)
+      if (lastTimestampRef.current && rawData.timestamp > lastTimestampRef.current) {
+         try {
+             await clearCacheStartingWith(GRAPH_CACHE_PREFIX);
+         } catch (clearErr) {
+             console.warn("Failed to clear graph cache:", clearErr);
+         }
+      }
+      lastTimestampRef.current = rawData.timestamp;
+
       setCacheExpiresAt(rawData.expiresAt || 0); // This triggers the next auto-refresh.
       lastGlobalLeaderboard.current = rawData.data;
+      
       const processedData = processLeaderboardData(rawData.data, clubMembersDataRef.current || []);
 
       setData({ ...processedData, lastUpdated: rawData.timestamp });
       setError(null);
       
-      // --- REFINED TOAST LOGIC ---
-      const isVeryStale = getDataAge(rawData.timestamp) > MAX_STALE_AGE_FOR_ERROR;
+      // --- REFINED TOAST LOGIC --
+      const age = getDataAge(rawData.timestamp);
+      const isVeryStale = age > MAX_STALE_AGE_FOR_ERROR;
       const isEmergency = rawData.source === 'client-cache-emergency';
 
       let shouldShowToast = false;
@@ -113,6 +141,8 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
       }
       
     } catch (err) {
+      if (!isMounted.current) return;
+      
       console.error('Error in refreshData:', err);
       setError('Failed to load leaderboard data. Will retry automatically.');
       setToastMessage({
@@ -126,20 +156,21 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
       // The auto-refresh useEffect will pick this up and call refreshData again.
       setCacheExpiresAt(Date.now() + RETRY_DELAY_MS);
     } finally {
-      setLoading(false);
-      if (isInitialLoad) {
-        initialLoadDone.current = true;
+      if (isMounted.current) {
+        setLoading(false);
+        if (isInitialLoad) {
+          initialLoadDone.current = true;
+        }
       }
     }
-  }, [getToastConfig, getDataAge]);
+  }, []); // Dependencies removed because helper functions are now static
 
   // Initial load
   useEffect(() => {
     if (initialLoadTriggered.current) return;
     initialLoadTriggered.current = true;
     refreshData(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshData]); // Keep an eye on this for bugs - readded depend here
 
   // Auto-refresh timer logic (and retry-on-error handler)
   useEffect(() => {
@@ -154,7 +185,7 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
 
     const timer = setTimeout(() => {
       // Re-check autoRefresh state inside timeout in case it was toggled off while waiting
-      if (autoRefresh) refreshData(false);
+      if (autoRefresh && isMounted.current) refreshData(false);
     }, delay);
 
     return () => clearTimeout(timer);
@@ -165,7 +196,9 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
   useEffect(() => {
     if (initialLoadDone.current && clubMembersData?.length > 0 && lastGlobalLeaderboard.current.length > 0) {
       const processedData = processLeaderboardData(lastGlobalLeaderboard.current, clubMembersData);
-      setData(prev => ({ ...processedData, lastUpdated: prev.lastUpdated }));
+      if (isMounted.current) {
+        setData(prev => ({ ...processedData, lastUpdated: prev.lastUpdated }));
+      }
     }
   }, [clubMembersData]);
 

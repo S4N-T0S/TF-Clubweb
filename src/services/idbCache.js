@@ -1,3 +1,5 @@
+// --- START OF FILE idbCache.js.txt ---
+
 // --- IndexedDB Caching Service ---
 
 const DB_NAME = 'ogclub-cache-db';
@@ -136,15 +138,19 @@ export const clearCacheStartingWith = async (prefix) => {
     const db = await initDB();
     const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.openCursor();
+
+    // Use IDBKeyRange to only iterate keys starting with the prefix.
+    // \uffff is the last printable unicode character, creating a bound for the prefix.
+    // This makes the operation O(M) (where M is matching items) rather than O(N) (all items).
+    const range = IDBKeyRange.bound(prefix, prefix + '\uffff');
+    const request = store.openCursor(range);
 
     return new Promise((resolve, reject) => {
       let deletedCount = 0;
       request.onsuccess = (event) => {
         const cursor = event.target.result;
         if (cursor) {
-          const key = cursor.key;
-          if (typeof key === 'string' && key.startsWith(prefix)) {
+          if (typeof cursor.key === 'string' && cursor.key.startsWith(prefix)) {
             cursor.delete();
             deletedCount++;
           }

@@ -1,9 +1,8 @@
 import { getLeagueInfo } from "../utils/leagueUtils";
 import { apiFetch, logApiCall, calculateClientCacheTtl } from "./apiService";
-import { getCacheItem, setCacheItem, clearCacheStartingWith } from "./idbCache";
+import { getCacheItem, setCacheItem } from "./idbCache";
 
 const CACHE_KEY = 'leaderboard_cache';
-const GRAPH_CACHE_PREFIX = 'graph_cache_';
 
 const transformData = (rawData) => {
   return rawData.map(entry => {
@@ -69,13 +68,6 @@ export const fetchLeaderboardData = async () => {
 
     // Store the entire API result in the client cache with the calculated TTL.
     await setCacheItem(CACHE_KEY, result, ttlForCache);
-
-    // After receiving a new lb update, clear cached graph data.
-    try {
-        await clearCacheStartingWith(GRAPH_CACHE_PREFIX);
-    } catch (clearErr) {
-        console.warn("Failed to clear graph cache after leaderboard update:", clearErr);
-    }
 
     return {
       data: transformedData,
