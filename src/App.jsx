@@ -62,6 +62,7 @@ const App = () => {
     refreshData,
     toastMessage,
     setToastMessage,
+    lastUpdated
   } = useLeaderboard(clubMembersData, autoRefresh);
 
   // Run cache cleanup on initial application load
@@ -396,6 +397,7 @@ const App = () => {
             onSwitchToGlobal={() => setView('global')}
             currentRubyCutoff={currentRubyCutoff}
             isMobile={graphModalState.isMobile}
+            lastLeaderboardUpdate={lastUpdated}
           />
         )}
         <Outlet />

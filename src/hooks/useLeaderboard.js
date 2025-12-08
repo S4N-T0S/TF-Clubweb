@@ -13,7 +13,8 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
     clubMembers: [],
     topClubs: [],
     unknownMembers: [],
-    globalLeaderboard: []
+    globalLeaderboard: [],
+    lastUpdated: null
   });
   const [toastMessage, setToastMessage] = useState(null);
   const [cacheExpiresAt, setCacheExpiresAt] = useState(0);
@@ -91,7 +92,7 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
       lastGlobalLeaderboard.current = rawData.data;
       const processedData = processLeaderboardData(rawData.data, clubMembersDataRef.current || []);
 
-      setData(processedData);
+      setData({ ...processedData, lastUpdated: rawData.timestamp });
       setError(null);
       
       // --- REFINED TOAST LOGIC ---
@@ -164,7 +165,7 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
   useEffect(() => {
     if (initialLoadDone.current && clubMembersData?.length > 0 && lastGlobalLeaderboard.current.length > 0) {
       const processedData = processLeaderboardData(lastGlobalLeaderboard.current, clubMembersData);
-      setData(processedData);
+      setData(prev => ({ ...processedData, lastUpdated: prev.lastUpdated }));
     }
   }, [clubMembersData]);
 

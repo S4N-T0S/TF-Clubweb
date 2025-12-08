@@ -888,6 +888,74 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     }
   }, [mainPlayerAvailableSeasons, comparisonRaws, loadComparisonData, mainPlayerCurrentId]);
 
+  const refreshGraph = useCallback(async () => {
+    if (isLoadingRef.current) return;
+    
+    // We only refresh if we have a valid main player ID and season
+    if (!mainPlayerCurrentId || !currentSeasonId) return;
+
+    isLoadingRef.current = true;
+    setLoading(true);
+    // Does NOT clear data/error here to avoid flashing empty state.
+    // The previous data remains visible until new data overwrites it or loading finishes.
+
+    try {
+      // 1. Re-fetch Main Player
+      const mainResult = await fetchGraphData(mainPlayerCurrentId, currentSeasonId);
+      
+      if (mainResult.data?.length) {
+         setMainPlayerRaw({ data: mainResult.data, events: mainResult.events });
+         setMainPlayerGameCount(mainResult.data.filter(i => i.scoreChanged).length + RANKED_PLACEMENTS);
+         setMainPlayerAvailableSeasons(mainResult.availableSeasons);
+         // currentEmbarkId might change? unlikely during a refresh but possible.
+         if (mainResult.currentEmbarkId) setMainPlayerCurrentId(mainResult.currentEmbarkId);
+      } else {
+         // If API returns no data, throw error.
+         throw new Error('No data received during refresh.');
+      }
+
+      // 2. Re-fetch Comparisons
+      const currentCompareIds = Array.from(comparisonRaws.keys());
+      const newComparisonRawMap = new Map();
+      
+      // Execute in parallel
+      const comparePromises = currentCompareIds.map(id => 
+         fetchGraphData(id, currentSeasonId).then(res => ({ id, res })).catch(err => ({ id, error: err }))
+      );
+
+      const compareResults = await Promise.all(comparePromises);
+
+      compareResults.forEach(({ id, res, error }) => {
+        if (!error && res.data?.length) {
+            const key = res.currentEmbarkId || id;
+            newComparisonRawMap.set(key, {
+                data: res.data,
+                gameCount: res.data.filter(item => item.scoreChanged).length + RANKED_PLACEMENTS,
+                events: res.events,
+                availableSeasons: res.availableSeasons
+            });
+        } else {
+            // If refresh fails for a comparison, keep the old one.
+            if (comparisonRaws.has(id)) {
+                newComparisonRawMap.set(id, comparisonRaws.get(id));
+            }
+        }
+      });
+
+      setComparisonRaws(newComparisonRawMap);
+
+    } catch (err) {
+      console.error("Graph refresh failed:", err);
+      // We log but don't set global error if we have data to keep the graph visible.
+      if (!mainPlayerRaw.data || mainPlayerRaw.data.length === 0) {
+          setError(err.message);
+      }
+    } finally {
+      setLoading(false);
+      isLoadingRef.current = false;
+    }
+  }, [mainPlayerCurrentId, currentSeasonId, comparisonRaws, mainPlayerRaw.data]);
+
   return {
     data,
     events,
@@ -901,5 +969,6 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     addComparison,
     removeComparison,
     switchSeason,
+    refreshGraph,
   };
 };

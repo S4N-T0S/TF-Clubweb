@@ -328,7 +328,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
   );
 };
 
-const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isClubView = false, globalLeaderboard = [], onSwitchToGlobal, currentRubyCutoff, isMobile }) => {
+const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isClubView = false, globalLeaderboard = [], onSwitchToGlobal, currentRubyCutoff, isMobile, lastLeaderboardUpdate }) => {
   const { modalRef, isActive } = useModal(isOpen, onClose);
   const chartRef = useRef(null);
   const hasSetInitialTimeRangeRef = useRef(false);
@@ -387,7 +387,22 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     removeComparison,
     switchSeason,
     mainPlayerCurrentId,
+    refreshGraph,
   } = usePlayerGraphData(isOpen, embarkId, compareIds, seasonId, eventSettings);
+
+  // Watch for leaderboard updates to auto-refresh the graph
+  const prevUpdateRef = useRef(lastLeaderboardUpdate);
+
+  useEffect(() => {
+    // If the modal is open, and we receive a NEW timestamp that is different from the previous one...
+    if (isOpen && lastLeaderboardUpdate && prevUpdateRef.current !== lastLeaderboardUpdate) {
+        // ...and it's not the very first render cycle (which usePlayerGraphData handles)
+        console.log("Leaderboard updated, refreshing graph...");
+        refreshGraph();
+    }
+    prevUpdateRef.current = lastLeaderboardUpdate;
+  }, [lastLeaderboardUpdate, isOpen, refreshGraph]);
+
 
   // Handler for zoom/pan to hide hint
   const handleZoomPan = useCallback(() => {
