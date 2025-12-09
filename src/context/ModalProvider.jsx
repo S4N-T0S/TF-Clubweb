@@ -10,8 +10,10 @@ export const ModalProvider = ({ children }) => {
 
   useEffect(() => {
     document.body.style.overflow = isModalOpen ? 'hidden' : 'unset';
+    document.body.style.overscrollBehavior = isModalOpen ? 'none' : 'unset';
     return () => {
       document.body.style.overflow = 'unset';
+      document.body.style.overscrollBehavior = 'unset';
     };
   }, [isModalOpen]);
 
