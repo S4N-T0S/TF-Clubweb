@@ -820,7 +820,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     }
   }, [isOpen, embarkId, currentSeasonId, mainPlayerCurrentId, comparisonRaws]);
 
-  const switchSeason = useCallback(async (newSeasonId) => {
+  const switchSeason = useCallback(async (newSeasonId, specificEmbarkId = null) => {
     if (isLoadingRef.current) return;
     isLoadingRef.current = true;
     setLoading(true);
@@ -833,11 +833,17 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     setData(null);
 
     try {
-      // 1. Fetch main player for the new season using the season-specific embark ID
-      const mainPlayerSeasonInfo = mainPlayerAvailableSeasons.find(s => s.id === newSeasonId);
-      // Fallback: If no availableSeasons populated (e.g. initial load failed),
-      // we try with the current ID.
-      const mainPlayerIdForNewSeason = mainPlayerSeasonInfo ? mainPlayerSeasonInfo.embarkId : mainPlayerCurrentId;
+      // 1. Fetch main player for the new season.
+      // If a specific Embark ID was provided (from the error view list of potential matches), use that.
+      // Otherwise, try to find the embark ID for the new season from the previously loaded availableSeasons list.
+      let mainPlayerIdForNewSeason = specificEmbarkId;
+      
+      if (!mainPlayerIdForNewSeason) {
+        const seasonInfo = mainPlayerAvailableSeasons.find(s => s.id === newSeasonId);
+        // Fallback: If no availableSeasons populated (e.g. initial load failed),
+        // we try with the current ID.
+        mainPlayerIdForNewSeason = seasonInfo ? seasonInfo.embarkId : mainPlayerCurrentId;
+      }
 
       const mainPlayerResult = await fetchGraphData(mainPlayerIdForNewSeason, newSeasonId);
 

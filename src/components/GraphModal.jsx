@@ -5,7 +5,7 @@ to keep up with it's logic. I'm sorry for the mess.
 */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { X, Plus, Camera, SlidersHorizontal, UserPen, Gavel, ChevronsUpDown, Users, AlertTriangle, RefreshCcw } from 'lucide-react';
+import { X, Plus, Camera, SlidersHorizontal, UserPen, Gavel, ChevronsUpDown, Users, AlertTriangle, RefreshCcw, Info } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -105,29 +105,42 @@ const GraphErrorView = ({ error, availableSeasons, onSwitchSeason, targetSeasonI
                 </div>
                 
                 <h3 className="text-xl font-bold text-white mb-2">
-                    {isSeasonMismatch ? 'Player Not Found in this Season' : 'Unable to Load Graph'}
+                    {isSeasonMismatch ? 'EmbarkId Not Found in this Season' : 'Unable to Load Graph'}
                 </h3>
                 
-                <p className="text-gray-400 mb-6">
-                    {isSeasonMismatch 
-                        ? `We couldn't find any tracked data for the requested player in ${getSeasonName(targetSeasonId)}. However, data was found in other seasons.` 
-                        : (error || "An unexpected error occurred while loading the data. Please try again later or contact an administrator.")}
-                </p>
+                <div className="text-gray-400 mb-6 text-sm">
+                    {isSeasonMismatch ? (
+                        <div className="inline-flex flex-wrap justify-center items-center gap-1">
+                            <span>
+                                We couldn&apos;t find tracked data for the requested EmbarkId in {getSeasonName(targetSeasonId)}. However, similar data was found.
+                            </span>
+                            <div className="relative group inline-flex items-center">
+                                <Info className="w-4 h-4 text-gray-500 hover:text-blue-400 cursor-help transition-colors" />
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-900 text-white text-xs rounded-md py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none shadow-lg border border-gray-700 z-50 text-center leading-relaxed">
+                                    Due to tracking limitations, these suggestions have an extremely small chance of referring to different players than the one originally requested.
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-700"></div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        error || "An unexpected error occurred while loading the data. Please try again later or contact an administrator."
+                    )}
+                </div>
 
                 {isSeasonMismatch && (
                     <div className="animate-fadeIn">
-                        <p className="text-sm text-gray-300 font-semibold mb-3">Available Seasons:</p>
-                        <div className="flex flex-wrap gap-2 justify-center">
+                        <p className="text-sm text-gray-300 font-semibold mb-3">Available Data:</p>
+                        <div className="flex flex-wrap gap-2 justify-center max-h-[150px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 pr-1">
                             {availableSeasons
                                 .sort((a, b) => b.id - a.id) // Sort descending
-                                .map(season => (
+                                .map((season, index) => (
                                     <button
-                                        key={season.id}
-                                        onClick={() => onSwitchSeason(season.id)}
-                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-2"
+                                        key={`${season.id}-${season.embarkId}-${index}`}
+                                        onClick={() => onSwitchSeason(season.id, season.embarkId)}
+                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-sm font-medium transition-colors flex flex-col items-center gap-0.5 min-w-[120px]"
                                     >
-                                        {getSeasonName(season.id)}
-                                        <span className="text-blue-200 text-xs">({season.embarkId})</span>
+                                        <span>{getSeasonName(season.id)}</span>
+                                        <span className="text-blue-200 text-[10px] opacity-90">{season.embarkId}</span>
                                     </button>
                                 ))
                             }
@@ -473,10 +486,10 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
       setShowSettingsModal(false);
   }, []);
 
-  const handleSeasonChange = useCallback((newSeasonId) => {
-    if (newSeasonId !== currentSeasonId) {
+  const handleSeasonChange = useCallback((newSeasonId, specificEmbarkId = null) => {
+    if (newSeasonId !== currentSeasonId || specificEmbarkId) {
       setCurrentSeasonId(newSeasonId);
-      switchSeason(newSeasonId);
+      switchSeason(newSeasonId, specificEmbarkId);
       hasSetInitialTimeRangeRef.current = false; // Reset the flag
     }
     setShowSeasonDropdown(false);
@@ -644,9 +657,9 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
       <div
         ref={modalRef}
         className={`
-          bg-[#1a1f2e] rounded-lg p-6 w-full overflow-hidden grid grid-rows-[auto_1fr] gap-4
+          bg-[#1a1f2e] rounded-lg w-full overflow-hidden grid grid-rows-[auto_1fr]
           transition-transform duration-75 ease-out
-          ${isMobile ? 'max-w-[95dvw] h-[95dvh]' : 'max-w-[80dvw] h-[85dvh]'}
+          ${isMobile ? 'max-w-[100dvw] h-[100dvh] rounded-none p-2 gap-2' : 'max-w-[80dvw] h-[85dvh] p-6 gap-4'}
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
         `}
       >
@@ -693,14 +706,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                       <div className="absolute top-full left-0 mt-2 w-max min-w-full bg-gray-800 border border-gray-600 rounded-md shadow-lg z-20 animate-fade-in-fast overflow-hidden">
                         {mainPlayerAvailableSeasons
                           .sort((a,b) => b.id - a.id)
-                          .map(season => (
+                          .map((season, index) => (
                           <button
-                            key={season.id}
-                            onClick={() => handleSeasonChange(season.id)}
-                            className={`w-full text-left px-3 py-2 text-sm transition-colors flex flex-col items-start ${currentSeasonId === season.id ? 'bg-blue-600 text-white' : 'text-gray-200 hover:bg-gray-700'}`}
+                            key={`${season.id}-${season.embarkId}-${index}`}
+                            onClick={() => handleSeasonChange(season.id, season.embarkId)}
+                            className={`w-full text-left px-3 py-2 text-sm transition-colors flex flex-col items-start ${currentSeasonId === season.id && season.embarkId === displayedEmbarkId ? 'bg-blue-600 text-white' : 'text-gray-200 hover:bg-gray-700'}`}
                           >
                             <span className="font-medium">{season.name}</span>
-                            <span className={`text-[11px] mt-0.5 ${currentSeasonId === season.id ? 'text-blue-200' : 'text-gray-400'}`}>
+                            <span className={`text-[11px] mt-0.5 ${currentSeasonId === season.id && season.embarkId === displayedEmbarkId ? 'text-blue-200' : 'text-gray-400'}`}>
                                 as {season.embarkId}
                             </span>
                           </button>

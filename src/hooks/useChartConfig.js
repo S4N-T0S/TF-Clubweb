@@ -308,6 +308,7 @@ export const useChartConfig = ({
 
   const seasonConfig = useMemo(() => Object.values(SEASONS).find(s => s.id === seasonId), [seasonId]);
   const seasonEndDate = useMemo(() => seasonConfig?.endTimestamp ? new Date(seasonConfig.endTimestamp * 1000) : null, [seasonConfig]);
+  const isHistoricalSeason = useMemo(() => seasonConfig && !seasonConfig.isCurrent, [seasonConfig]);
 
   const [manualViewWindow, setManualViewWindow] = useState(null);
   const [isManuallyZoomed, setIsManuallyZoomed] = useState(false);
@@ -1198,7 +1199,11 @@ export const useChartConfig = ({
             align: 'end',
             callback: function (value) {
               const date = new Date(value);
-              return date.toLocaleString(undefined, TIME.FORMAT);
+              const options = { ...TIME.FORMAT };
+              if (isHistoricalSeason) {
+                options.year = 'numeric';
+              }
+              return date.toLocaleString(undefined, options);
             }
           },
           min: activeViewWindow?.min,
@@ -1298,7 +1303,8 @@ export const useChartConfig = ({
     overallTimeDomain,
     onZoomOrPan,
     setSelectedTimeRange,
-    handleChartUpdate
+    handleChartUpdate,
+    isHistoricalSeason
   ]);
 
   const getPointStyle = useCallback((ctx) => {
