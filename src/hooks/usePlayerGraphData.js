@@ -22,6 +22,33 @@ const GAP_THRESHOLD = 2 * TIME.HOUR;
 const NEW_LOGIC_TIMESTAMP_MS = 1750436334 * 1000;
 const COMBINE_EVENT_WINDOW_MS = 60 * 60 * 1000; // Combine club/name changes within 1 hour
 
+// Binary search to find the index of the closest point to a given timestamp.
+const findClosestPointIndex = (data, targetTime) => {
+  let left = 0;
+  let right = data.length - 1;
+  let closestIdx = -1;
+  let minDiff = Infinity;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    const midTime = data[mid].timestamp.getTime();
+    const diff = Math.abs(midTime - targetTime);
+
+    if (diff < minDiff) {
+      minDiff = diff;
+      closestIdx = mid;
+    }
+
+    if (midTime === targetTime) return mid;
+    
+    if (midTime < targetTime) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+  return closestIdx;
+};
 
 // Processes legacy data points using the old interpolation method.
 const legacy_interpolateDataPoints = (rawData, isFinalSegment = true, seasonEndDate = null) => {
@@ -150,26 +177,21 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
     if (event.event_type === 'RS_ADJUSTMENT' && event.details?.is_off_leaderboard) return;
 
     const eventTimestamp = event.start_timestamp * 1000;
-    let closestPoint = null;
-    let minDiff = Infinity;
-
-    // Find the closest point in time
-    parsedData.forEach(point => {
-      const diff = Math.abs(point.timestamp.getTime() - eventTimestamp);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestPoint = point;
-      }
-    });
+    const closestIdx = findClosestPointIndex(parsedData, eventTimestamp);
+    const closestPoint = closestIdx !== -1 ? parsedData[closestIdx] : null;
 
     // For RS_ADJUSTMENT, only attach to points where the score actually changed.
     if (event.event_type === 'RS_ADJUSTMENT' && closestPoint && !closestPoint.scoreChanged) return;
 
-    if (closestPoint && minDiff < 5 * TIME.MINUTE) {
-      if (!closestPoint.events) {
-        closestPoint.events = [];
+    // Calculate diff from the found point
+    if (closestPoint) {
+      const diff = Math.abs(closestPoint.timestamp.getTime() - eventTimestamp);
+      if (diff < 5 * TIME.MINUTE) {
+        if (!closestPoint.events) {
+          closestPoint.events = [];
+        }
+        closestPoint.events.push(event);
       }
-      closestPoint.events.push(event);
     }
   });
 
@@ -468,7 +490,6 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
 
   return combined;
 };
-
 
 export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId, eventSettings) => {
   // --- STATE MANAGEMENT REFACTOR ---

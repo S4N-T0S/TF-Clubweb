@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useState, useEffect } from 'react';
+import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import { Chart as ChartJS } from 'chart.js';
 import { SEASONS } from '../services/historicalDataService';
 import { formatDuration } from '../utils/timeUtils';
@@ -256,6 +256,41 @@ const getBorderDash = (ctx, eventSettings = {}) => {
   return undefined;
 };
 
+// Binary search to find the index of the first point >= minTime
+const findStartIndex = (data, minTime) => {
+  let left = 0;
+  let right = data.length - 1;
+  let result = -1;
+  
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    if (data[mid].timestamp >= minTime) {
+      result = mid;
+      right = mid - 1;
+    } else {
+      left = mid + 1;
+    }
+  }
+  return result === -1 ? data.length : result;
+};
+
+// Binary search to find the index of the last point <= maxTime
+const findEndIndex = (data, maxTime) => {
+  let left = 0;
+  let right = data.length - 1;
+  let result = -1;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    if (data[mid].timestamp <= maxTime) {
+      result = mid;
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+  return result === -1 ? -1 : result;
+};
 
 export const useChartConfig = ({
   data,
@@ -276,6 +311,13 @@ export const useChartConfig = ({
 
   const [manualViewWindow, setManualViewWindow] = useState(null);
   const [isManuallyZoomed, setIsManuallyZoomed] = useState(false);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     // When the user clicks a time range button (24H, 7D, MAX), reset manual zoom.
@@ -292,6 +334,16 @@ export const useChartConfig = ({
     setManualViewWindow(null);
   }, [seasonId]);
 
+  const handleChartUpdate = useCallback((chart) => {
+    // If a frame is already pending, skip this update
+    if (rafRef.current) return;
+
+    rafRef.current = requestAnimationFrame(() => {
+      setManualViewWindow({ min: chart.scales.x.min, max: chart.scales.x.max });
+      if (onZoomOrPan) onZoomOrPan();
+      rafRef.current = null;
+    });
+  }, [onZoomOrPan]);
 
   const getPointRadius = useCallback((ctx) => {
     const pointData = ctx.raw?.raw;
@@ -770,32 +822,19 @@ export const useChartConfig = ({
     if (!data?.length || !timeRange?.min) return { min: 0, max: 50000, stepSize: 10000 };
 
     const getVisibleAndNearestData = (dataset) => {
-      const visiblePoints = dataset.filter(d =>
-        d.timestamp >= timeRange.min &&
-        d.timestamp <= timeRange.max
-      );
-
-      if (visiblePoints.length === 0) {
-        const lastPointBefore = dataset.reduce((nearest, point) => {
-          if (point.timestamp < timeRange.min &&
-            (!nearest || point.timestamp > nearest.timestamp)) {
-            return point;
-          }
-          return nearest;
-        }, null);
-
-        const firstPointAfter = dataset.reduce((nearest, point) => {
-          if (point.timestamp > timeRange.max &&
-            (!nearest || point.timestamp < nearest.timestamp)) {
-            return point;
-          }
-          return nearest;
-        }, null);
-
+      const startIdx = findStartIndex(dataset, timeRange.min);
+      const endIdx = findEndIndex(dataset, timeRange.max);
+      
+      if (startIdx > endIdx) {
+        // No visible points in window
+        const lastPointBefore = startIdx > 0 ? dataset[startIdx - 1] : null;
+        const firstPointAfter = endIdx < dataset.length - 1 ? dataset[endIdx + 1] : null;
         return [lastPointBefore, firstPointAfter].filter(Boolean);
       }
 
-      return visiblePoints;
+      // Return the slice of visible data
+      // slice end is exclusive, so we add 1
+      return dataset.slice(startIdx, endIdx + 1);
     };
 
     const chart = chartRef.current;
@@ -1128,6 +1167,13 @@ export const useChartConfig = ({
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
+      transitions: {
+        active: {
+          animation: {
+            duration: 0
+          }
+        }
+      },
       scales: {
         x: {
           type: 'time',
@@ -1187,9 +1233,7 @@ export const useChartConfig = ({
               setIsManuallyZoomed(true);
               if (onZoomOrPan) onZoomOrPan();
             },
-            onPan: (ctx) => {
-              setManualViewWindow({ min: ctx.chart.scales.x.min, max: ctx.chart.scales.x.max });
-            },
+            onPan: (ctx) => handleChartUpdate(ctx.chart),
             onPanComplete: () => {
               setSelectedTimeRange(null);
             }
@@ -1202,9 +1246,7 @@ export const useChartConfig = ({
               setIsManuallyZoomed(true);
               if (onZoomOrPan) onZoomOrPan();
             },
-            onZoom: (ctx) => {
-              setManualViewWindow({ min: ctx.chart.scales.x.min, max: ctx.chart.scales.x.max });
-            },
+            onZoom: (ctx) => handleChartUpdate(ctx.chart),
             onZoomComplete: () => {
               setSelectedTimeRange(null);
             }
@@ -1255,7 +1297,8 @@ export const useChartConfig = ({
     externalTooltipHandler, 
     overallTimeDomain,
     onZoomOrPan,
-    setSelectedTimeRange
+    setSelectedTimeRange,
+    handleChartUpdate
   ]);
 
   const getPointStyle = useCallback((ctx) => {
@@ -1321,6 +1364,7 @@ export const useChartConfig = ({
     labels: data.map(d => d.timestamp),
     datasets: [{
       label: ` ${embarkId}`,
+      normalized: true,
       data: data.map(d => ({
         x: d.timestamp,
         y: d.rankScore,
@@ -1342,6 +1386,7 @@ export const useChartConfig = ({
     },
     ...Array.from(comparisonData.entries()).map(([compareId, { data: compareData, color }]) => ({
       label: ` ${compareId}`,
+      normalized: true,
       data: compareData.map(d => ({
         x: d.timestamp,
         y: d.rankScore,

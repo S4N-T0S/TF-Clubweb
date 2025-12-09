@@ -53,11 +53,16 @@ export const processLeaderboardData = (rawData, clubMembers) => {
 const processOGMembers = (ogMembersInLeaderboard, clubMembers) => {
   const matchedClubMembers = new Set();
   const unknownMembers = [];
+  const clubMemberMap = new Map();
+
+  clubMembers.forEach(member => {
+    if (member.embarkId) {
+      clubMemberMap.set(member.embarkId.toLowerCase(), member);
+    }
+  });
 
   const matchedMembers = ogMembersInLeaderboard.map(apiMember => {
-    const clubMember = clubMembers.find(member => 
-      member.embarkId.toLowerCase() === apiMember.name.toLowerCase()
-    );
+    const clubMember = clubMemberMap.get(apiMember.name.toLowerCase());
 
     if (clubMember) {
       matchedClubMembers.add(clubMember.embarkId);
