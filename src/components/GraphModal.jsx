@@ -693,16 +693,16 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                   </h2>
                   <div ref={seasonDropdownRef} className="relative group flex-shrink-0">
                     <button
-                      onClick={() => !error && setShowSeasonDropdown(p => !p)}
-                      disabled={loading || error || mainPlayerAvailableSeasons.length <= 1}
+                      onClick={() => setShowSeasonDropdown(p => !p)}
+                      disabled={loading || mainPlayerAvailableSeasons.length <= 1}
                       className={`flex items-center gap-1.5 bg-gray-700 text-blue-300 text-xs font-semibold px-2 py-1 rounded-md transition-colors 
-                        ${(loading || error || mainPlayerAvailableSeasons.length <= 1) ? 'opacity-70 cursor-not-allowed' : 'hover:bg-gray-600'}`}
+                        ${(loading || mainPlayerAvailableSeasons.length <= 1) ? 'opacity-70 cursor-not-allowed' : 'hover:bg-gray-600'}`}
                       title="Switch season"
                     >
                       <span>{isMobile ? seasonKey : currentSeasonLabel}</span>
-                      {mainPlayerAvailableSeasons.length > 1 && !error && <ChevronsUpDown className="w-3 h-3"/>}
+                      {mainPlayerAvailableSeasons.length > 1 && <ChevronsUpDown className="w-3 h-3"/>}
                     </button>
-                    {showSeasonDropdown && !error && (
+                    {showSeasonDropdown && (
                       <div className="absolute top-full left-0 mt-2 w-max min-w-full bg-gray-800 border border-gray-600 rounded-md shadow-lg z-20 animate-fade-in-fast overflow-hidden">
                         {mainPlayerAvailableSeasons
                           .sort((a,b) => b.id - a.id)
