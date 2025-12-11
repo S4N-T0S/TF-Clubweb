@@ -105,9 +105,9 @@ const MemberRow = ({
           </div>
           <div className="flex-shrink-0 mt-auto">
             <LeagueDisplay 
-              league={member.league} 
-              score={member.rankScore} 
-              rank={member.rank}
+              league={member.league}
+              score={member.rankScore}
+              leagueNumber={member.leagueNumber}
               isMobile={isMobile}
             />
           </div>
@@ -163,9 +163,9 @@ const MemberRow = ({
         </div>
       </td>
       <LeagueDisplay 
-        league={member.league} 
-        score={member.rankScore} 
-        rank={member.rank}
+        league={member.league}
+        score={member.rankScore}
+        leagueNumber={member.leagueNumber}
         isMobile={isMobile}
       />
       <td className="px-4 py-2 text-center">

@@ -157,7 +157,7 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-gray-300 truncate">
                   {username}
-                  <span className="text-gray-500">#{discriminator}</span>
+                  {discriminator && <span className="text-gray-500">#{discriminator}</span>}
                 </span>
                 <UserSearch 
                   className="flex-shrink-0 w-6 h-6 p-1 text-gray-400 hover:text-blue-400 cursor-pointer rounded-full hover:bg-gray-700 transition-colors" 
@@ -190,9 +190,9 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
           </div>
           <div className="flex-shrink-0 mt-auto">
             <LeagueDisplay 
-              league={player.league} 
-              score={player.rankScore} 
-              rank={player.rank}
+              league={player.league}
+              score={player.rankScore}
+              leagueNumber={player.leagueNumber}
               isMobile={isMobile}
             />
           </div>
@@ -257,12 +257,12 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
                   [{player.clubTag}]
                 </span>
                 {` ${username}`}
-                <span className="text-gray-500">#{discriminator}</span>
+                {discriminator && <span className="text-gray-500">#{discriminator}</span>}
               </span>
             ) : (
               <span className="text-gray-300">
                 {username}
-                <span className="text-gray-500">#{discriminator}</span>
+                {discriminator && <span className="text-gray-500">#{discriminator}</span>}
               </span>
             )}
             <UserSearch 
@@ -297,7 +297,7 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
       <LeagueDisplay 
         league={player.league} 
         score={player.rankScore} 
-        rank={player.rank}
+        leagueNumber={player.leagueNumber}
         isMobile={isMobile}
       />
       <td className="px-4 py-2 text-center">

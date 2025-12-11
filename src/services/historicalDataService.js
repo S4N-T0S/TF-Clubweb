@@ -1,3 +1,4 @@
+import { getLeagueInfo } from '../utils/leagueUtils';
 import OBData from '../data/Betas/OB-crossplay.json';
 import S1Data from '../data/S1/S1-merged.json';
 import S2Data from '../data/S2/S2-merged.json';
@@ -10,16 +11,16 @@ import S8Data from '../data/S8/S8-crossplay.json';
 
 export const SEASONS = {
   ALL: { label: 'All Seasons', isAggregate: true },
-  OB: { id: 0, data: OBData, label: 'Open Beta', hasRuby: false, hasRankScore: true, scoreKey: 'fame', isGraphable: false },
-  S1: { id: 1, data: S1Data, label: 'Season 1', hasRuby: false, hasRankScore: true, scoreKey: 'fame', isGraphable: false },
+  OB: { id: 0, data: OBData, label: 'Open Beta', hasRuby: false, hasRankScore: true, isGraphable: false },
+  S1: { id: 1, data: S1Data, label: 'Season 1', hasRuby: false, hasRankScore: true, isGraphable: false },
   S2: { id: 2, data: S2Data, label: 'Season 2', hasRuby: false, hasRankScore: false, isGraphable: false },
-  S3: { id: 3, data: S3Data, label: 'Season 3', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: false, rubyCutoff: 63929 },
-  S4: { id: 4, data: S4Data, label: 'Season 4', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: false, rubyCutoff: 46543 },
-  S5: { id: 5, data: S5Data, label: 'Season 5', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1735429827, endTimestamp: 1742498648, rubyCutoff: 49750 },
-  S6: { id: 6, data: S6Data, label: 'Season 6', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1742502488, endTimestamp: 1749721922, rubyCutoff: 50347 },
-  S7: { id: 7, data: S7Data, label: 'Season 7', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1749734705, endTimestamp: 1757514600, rubyCutoff: 51701, hasEvents: true },
-  S8: { id: 8, data: S8Data, label: 'Season 8', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1757516400, endTimestamp: 1765375200, rubyCutoff: 52044, hasEvents: true },
-  S9: { id: 9, data: null, label: 'Season 9', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1765382400, endTimestamp: null, rubyCutoff: null, hasEvents: true, isCurrent: true}
+  S3: { id: 3, data: S3Data, label: 'Season 3', hasRuby: true, hasRankScore: true, isGraphable: false, rubyCutoff: 63929 },
+  S4: { id: 4, data: S4Data, label: 'Season 4', hasRuby: true, hasRankScore: true, isGraphable: false, rubyCutoff: 46543 },
+  S5: { id: 5, data: S5Data, label: 'Season 5', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1735429827, endTimestamp: 1742498648, rubyCutoff: 49750 },
+  S6: { id: 6, data: S6Data, label: 'Season 6', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1742502488, endTimestamp: 1749721922, rubyCutoff: 50347 },
+  S7: { id: 7, data: S7Data, label: 'Season 7', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1749734705, endTimestamp: 1757514600, rubyCutoff: 51701, hasEvents: true },
+  S8: { id: 8, data: S8Data, label: 'Season 8', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1757516400, endTimestamp: 1765375200, rubyCutoff: 52044, hasEvents: true },
+  S9: { id: 9, data: null, label: 'Season 9', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1765382400, endTimestamp: null, rubyCutoff: null, hasEvents: true, isCurrent: true}
 };
 
 export const currentSeasonKey = Object.keys(SEASONS).find(key => SEASONS[key].isCurrent);
@@ -37,9 +38,9 @@ export const getSeasonLeaderboard = (seasonKey) => {
       psnName: player.psnName || null,
       xboxName: player.xboxName || null,
       clubTag: player.clubTag || null,
-      leagueNumber: player.leagueNumber || 0,
-      league: player.league || 'Unknown',
-      rankScore: player[season.scoreKey] || 0
+      leagueNumber: player.leagueNumber !== undefined ? player.leagueNumber : 0,
+      league: getLeagueInfo(player.leagueNumber).name,
+      rankScore: player.rankScore || 0
     }))
     // Filter entries with no valid names
     .filter(player => 
@@ -86,10 +87,10 @@ const processResult = (result, seasonConfig, searchType, originalEmbarkId, seaso
   season: seasonConfig.label,
   seasonKey: seasonKey,
   rank: result.rank,
-  league: result.league,
-  score: seasonConfig.hasRankScore ? result[seasonConfig.scoreKey] : undefined,
+  league: result.league || getLeagueInfo(result.leagueNumber).name,
+  score: seasonConfig.hasRankScore ? result.rankScore : undefined,
   clubTag: result.clubTag || '',
-  name: result.name || '',
+  name: result.name || 'Unknown#0000',
   steamName: result.steamName || '',
   psnName: result.psnName || '',
   xboxName: result.xboxName || '',

@@ -346,7 +346,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
                   </div>
                   
                   <div className="mt-3 pt-3 border-t border-gray-600 flex items-center gap-2">
-                    <Hexagon className={getLeagueInfo(null, result.league).style} />
+                    <Hexagon className={getLeagueInfo(result.leagueNumber).style} />
                     <div className="flex flex-col">
                       <span className="text-gray-200">{result.league}</span>
                       {result.score && (

@@ -1,4 +1,4 @@
-export const getLeagueInfo = (leagueNumber, league = null) => {
+export const getLeagueInfo = (leagueNumber) => {
     const leagueData = {
       0: { name: "Unranked", style: 'text-gray-600' },
       1: { name: "Bronze 4", style: 'text-amber-700' },
@@ -26,23 +26,6 @@ export const getLeagueInfo = (leagueNumber, league = null) => {
   
     if (leagueNumber !== undefined && leagueNumber !== null) {
       return leagueData[leagueNumber] || { name: 'Unknown', style: 'text-gray-600' };
-    }
-  
-    if (league) {
-      const baseLeague = league.split(' ')[0];
-      const leagueStyles = {
-        'Bronze': 'text-amber-700',
-        'Silver': 'text-gray-300',
-        'Gold': 'text-yellow-400',
-        'Platinum': 'text-cyan-300',
-        'Diamond': 'text-blue-400',
-        'Ruby': 'text-red-600',
-        'Unranked': 'text-gray-600'
-      };
-      return {
-        name: league,
-        style: leagueStyles[baseLeague] || 'text-gray-600'
-      };
     }
   
     return { name: 'Unknown', style: 'text-gray-600' };

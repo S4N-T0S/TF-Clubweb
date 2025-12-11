@@ -3,8 +3,8 @@ import { getLeagueInfo } from '../utils/leagueUtils';
 import { LeagueDisplayProps } from '../types/propTypes';
 
 export const LeagueDisplay = ({ league, score, leagueNumber, isMobile }) => {
-  const { style } = getLeagueInfo(leagueNumber, league);
-  const displayLeague = (league || 'Unranked');
+  const { name, style } = getLeagueInfo(leagueNumber);
+  const displayLeague = league || name || 'Unranked';
   
   const content = (
     <div className="flex items-center justify-center gap-2">
