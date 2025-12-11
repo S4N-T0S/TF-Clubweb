@@ -408,14 +408,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
 
   useEffect(() => {
     // If the modal is open, and we receive a NEW timestamp that is different from the previous one...
-    if (isOpen && lastLeaderboardUpdate && prevUpdateRef.current !== lastLeaderboardUpdate) {
+    // AND we are not looking at a historical season (which doesn't receive live updates)
+    if (isOpen && !isHistoricalSeason && lastLeaderboardUpdate && prevUpdateRef.current !== lastLeaderboardUpdate) {
         // ...and it's not the very first render cycle (which usePlayerGraphData handles)
         console.log("Leaderboard updated, refreshing graph...");
         refreshGraph();
     }
     prevUpdateRef.current = lastLeaderboardUpdate;
-  }, [lastLeaderboardUpdate, isOpen, refreshGraph]);
-
+  }, [lastLeaderboardUpdate, isOpen, refreshGraph, isHistoricalSeason]);
 
   // Handler for zoom/pan to hide hint
   const handleZoomPan = useCallback(() => {

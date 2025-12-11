@@ -18,7 +18,7 @@ export const SEASONS = {
   S5: { id: 5, data: S5Data, label: 'Season 5', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1735429827, endTimestamp: 1742498648, rubyCutoff: 49750 },
   S6: { id: 6, data: S6Data, label: 'Season 6', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1742502488, endTimestamp: 1749721922, rubyCutoff: 50347 },
   S7: { id: 7, data: S7Data, label: 'Season 7', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1749734705, endTimestamp: 1757514600, rubyCutoff: 51701, hasEvents: true },
-  S8: { id: 8, data: S8Data, label: 'Season 8', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1757516400, endTimestamp: 1765375200, rubyCutoff: 52069, hasEvents: true },
+  S8: { id: 8, data: S8Data, label: 'Season 8', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1757516400, endTimestamp: 1765375200, rubyCutoff: 52044, hasEvents: true },
   S9: { id: 9, data: null, label: 'Season 9', hasRuby: true, hasRankScore: true, scoreKey: 'rankScore', isGraphable: true, startTimestamp: 1765382400, endTimestamp: null, rubyCutoff: null, hasEvents: true, isCurrent: true}
 };
 
