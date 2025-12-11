@@ -846,6 +846,8 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       }
 
       const mainPlayerResult = await fetchGraphData(mainPlayerIdForNewSeason, newSeasonId);
+      
+      let mainPlayerMaxScore = 0;
 
       if (mainPlayerResult.data?.length) {
         // Set raw data, processing will be handled by the useEffect
@@ -853,6 +855,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         setMainPlayerGameCount(mainPlayerResult.data.filter(i => i.scoreChanged).length + RANKED_PLACEMENTS);
         setMainPlayerCurrentId(mainPlayerResult.currentEmbarkId);
         setMainPlayerAvailableSeasons(mainPlayerResult.availableSeasons);
+        mainPlayerMaxScore = Math.max(...mainPlayerResult.data.map(d => d.rankScore));
       } else {
         setMainPlayerRaw({ data: [], events: [] }); // Clear data
         throw new Error(`Player has no data for the selected season.`);
@@ -864,9 +867,27 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       const currentCompares = Array.from(comparisonRaws.values());
 
       for (const compareValue of currentCompares) {
-        const seasonInfo = compareValue.availableSeasons?.find(s => s.id === newSeasonId);
-        if (seasonInfo) {
-          const embarkIdForNewSeason = seasonInfo.embarkId;
+        // Find all candidates for the new season
+        const candidates = compareValue.availableSeasons?.filter(s => s.id === newSeasonId) || [];
+        
+        let embarkIdForNewSeason = null;
+
+        if (candidates.length > 0) {
+            if (candidates.length === 1) {
+                embarkIdForNewSeason = candidates[0].embarkId;
+            } else {
+                // If multiple candidates exist for the same season, pick the one with rankScore 
+                // closest to the main player's score in the new season.
+                const bestCandidate = candidates.reduce((prev, curr) => {
+                    const prevDiff = Math.abs((prev.rankScore || 0) - mainPlayerMaxScore);
+                    const currDiff = Math.abs((curr.rankScore || 0) - mainPlayerMaxScore);
+                    return currDiff < prevDiff ? curr : prev;
+                });
+                embarkIdForNewSeason = bestCandidate.embarkId;
+            }
+        }
+        
+        if (embarkIdForNewSeason) {
           promises.push(
             loadComparisonData(embarkIdForNewSeason, newSeasonId).then(result => ({ id: embarkIdForNewSeason, result }))
           );
