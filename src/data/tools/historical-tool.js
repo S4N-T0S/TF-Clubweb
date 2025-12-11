@@ -8,7 +8,7 @@ storing it to use later for historical purposes. It transforms the data into a m
 import { promises as fs } from 'fs';
 
 async function fetchEmbarkData() {
-  const url = `https://id.embark.games/the-finals/leaderboards/s7`; // Obviously change depending on the season...
+  const url = `https://id.embark.games/the-finals/leaderboards/s8`; // Obviously change depending on the season...
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -92,7 +92,7 @@ async function main() {
     // Create the final JSON structure
     const finalData = {
       meta: {
-        leaderboardVersion: "s7",
+        leaderboardVersion: "s8",
         leaderboardPlatform: "crossplay"
       },
       count: leaderboardData.length,
