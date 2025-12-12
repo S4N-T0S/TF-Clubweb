@@ -3,7 +3,15 @@ This tool was made to download locally an existing leaderboard from Embark's ser
 storing it to use later for historical purposes. It transforms the data into a more usable format.
 Now with smallest possible file size for archiving - disabled change and league human readable names.
 
-Usage: node historical-tool.js <season_number>
+Added support for non-standard modes (e.g. 'orf', 's8tdm').
+When these modes are used, the full dataset is preserved without filtering keys.
+
+Usage: node historical-tool.js <season_id>
+Examples: 
+  node historical-tool.js 3      (Downloads Season 3, minimal format)
+  node historical-tool.js s5     (Downloads Season 5, minimal format)
+  node historical-tool.js orf    (Downloads ORF, full raw format)
+  node historical-tool.js s8tdm  (Downloads S8TDM, full raw format)
 
 -- Made by S4N-T0S
 */
@@ -11,11 +19,18 @@ Usage: node historical-tool.js <season_number>
 import { promises as fs } from 'fs';
 import { argv, exit } from 'process';
 
-// Get season from command line args, defaulting to '3' if not provided
+// Get season from command line args, defaulting to 's3' if not provided
 const args = argv.slice(2);
-let seasonId = args[0] ? `s${args[0].replace(/^s/, '')}` : 's3';
+const rawArg = args[0] || 's3';
 
-async function fetchEmbarkData(season) {
+const seasonId = /^\d+$/.test(rawArg) ? `s${rawArg}` : rawArg;
+
+// Determine if we should perform minimal filtering or keep full data.
+// We assume standard seasons (s1, s2...) use the minimal schema to save space.
+// Any other input (orf, s8tdm) is treated as a special mode requiring full data preservation.
+const isStandardSeason = /^s\d+$/.test(seasonId);
+
+async function fetchEmbarkData(season, minimalMode) {
   const url = `https://id.embark.games/the-finals/leaderboards/${season}`;
 
   console.log(`Requesting data from: ${url}`);
@@ -45,10 +60,15 @@ async function fetchEmbarkData(season) {
     throw new Error('JSON structure changed, could not find entries.');
   }
 
-  return transformLeaderboardData(jsonData.props.pageProps.entries);
+  return transformLeaderboardData(jsonData.props.pageProps.entries, minimalMode);
 }
 
-function transformLeaderboardData(entries) {
+function transformLeaderboardData(entries, minimalMode) {
+  if (!minimalMode) {
+    console.log("Non-standard mode detected. Preserving full dataset.");
+    return entries;
+  }
+
   const len = entries.length;
   const result = new Array(len);
 
@@ -69,6 +89,7 @@ function transformLeaderboardData(entries) {
     if (isValidString(entry[7])) player.psnName = entry[7];
     if (isValidString(entry[8])) player.xboxName = entry[8];
     if (isValidString(entry[12])) player.clubTag = entry[12];
+    //if (isValidString(entry[13])) player.clubUUId = entry[13];
 
     result[i] = player;
   }
@@ -82,14 +103,17 @@ function isValidString(str) {
 
 async function main() {
   try {
-    console.log("Fetching leaderboard data...");
-    const leaderboardData = await fetchEmbarkData(seasonId);
+    console.log(`Fetching leaderboard data for ${seasonId}...`);
+    
+    // Pass the 'isStandardSeason' flag to determine if we should minimise the data
+    const leaderboardData = await fetchEmbarkData(seasonId, isStandardSeason);
     
     // Create the final JSON structure
     const finalData = {
       meta: {
         leaderboardVersion: seasonId,
-        leaderboardPlatform: "crossplay"
+        leaderboardPlatform: "crossplay",
+        dataMode: isStandardSeason ? "minimal" : "full"
       },
       count: leaderboardData.length,
       data: leaderboardData
