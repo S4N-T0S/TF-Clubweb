@@ -43,15 +43,15 @@ const ClubRow = ({ club, onClubClick, isMobile }) => {
           </div>
         </div>
         <div className="flex justify-between items-center">
-          <div className="text-gray-400">Total Score</div>
-          <div className="text-gray-300 font-semibold">
-            {club.totalScore.toLocaleString()}
-          </div>
-        </div>
-        <div className="flex justify-between items-center">
           <div className="text-gray-400">Avg Score</div>
           <div className="text-gray-300 font-semibold">
             {Math.round(club.averageScore).toLocaleString()}
+          </div>
+        </div>
+        <div className="flex justify-between items-center">
+          <div className="text-gray-400">Total Score</div>
+          <div className="text-gray-300 font-semibold">
+            {club.totalScore.toLocaleString()}
           </div>
         </div>
       </div>
@@ -81,10 +81,10 @@ const ClubRow = ({ club, onClubClick, isMobile }) => {
         {club.memberCount.toLocaleString()}
       </td>
       <td className="px-4 py-2 text-gray-300">
-        {club.totalScore.toLocaleString()}
+        {Math.round(club.averageScore).toLocaleString()}
       </td>
       <td className="px-4 py-2 text-gray-300">
-        {Math.round(club.averageScore).toLocaleString()}
+        {club.totalScore.toLocaleString()}
       </td>
     </tr>
   );
@@ -193,9 +193,9 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
                   </th>
                   <th className="px-4 py-2 text-left text-gray-300">
                     <div className="flex items-center">
-                      Total Score
+                      Avg Score
                       <SortButton
-                        field="totalScore"
+                        field="averageScore"
                         sortConfig={sortConfig}
                         onSort={handleSort}
                       />
@@ -203,9 +203,9 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
                   </th>
                   <th className="px-4 py-2 text-left text-gray-300">
                     <div className="flex items-center">
-                      Avg Score
+                      Total Score
                       <SortButton
-                        field="averageScore"
+                        field="totalScore"
                         sortConfig={sortConfig}
                         onSort={handleSort}
                       />
