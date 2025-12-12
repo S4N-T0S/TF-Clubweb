@@ -28,7 +28,8 @@ export const processLeaderboardData = (rawData, clubMembers) => {
     .map(([tag, data]) => ({
       tag,
       totalScore: data.score,
-      memberCount: data.members
+      memberCount: data.members,
+      averageScore: data.members > 0 ? data.score / data.members : 0
     }))
     .sort((a, b) => b.totalScore - a.totalScore)
 

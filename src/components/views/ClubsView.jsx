@@ -48,6 +48,12 @@ const ClubRow = ({ club, onClubClick, isMobile }) => {
             {club.totalScore.toLocaleString()}
           </div>
         </div>
+        <div className="flex justify-between items-center">
+          <div className="text-gray-400">Avg Score</div>
+          <div className="text-gray-300 font-semibold">
+            {Math.round(club.averageScore).toLocaleString()}
+          </div>
+        </div>
       </div>
     );
   }
@@ -76,6 +82,9 @@ const ClubRow = ({ club, onClubClick, isMobile }) => {
       </td>
       <td className="px-4 py-2 text-gray-300">
         {club.totalScore.toLocaleString()}
+      </td>
+      <td className="px-4 py-2 text-gray-300">
+        {Math.round(club.averageScore).toLocaleString()}
       </td>
     </tr>
   );
@@ -192,12 +201,22 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
                       />
                     </div>
                   </th>
+                  <th className="px-4 py-2 text-left text-gray-300">
+                    <div className="flex items-center">
+                      Avg Score
+                      <SortButton
+                        field="averageScore"
+                        sortConfig={sortConfig}
+                        onSort={handleSort}
+                      />
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {currentItems.length === 0 ? (
                   <tr>
-                    <td colSpan="4">
+                    <td colSpan="5">
                       <NoResultsMessage />
                     </td>
                   </tr>

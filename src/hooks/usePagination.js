@@ -110,6 +110,9 @@ export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {
           case 'totalScore':
             comparison = a.totalScore - b.totalScore;
             break;
+          case 'averageScore':
+            comparison = a.averageScore - b.averageScore;
+            break;
           case 'score':
             comparison = a.rankScore - b.rankScore;
             break;
