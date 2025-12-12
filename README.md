@@ -10,9 +10,11 @@ A leaderboard website for The Finals game built with React. Originally made to t
 - 🎮 OG club members stats
 - 📱 Fully responsive mobile design for on-the-go stat tracking
 
-![Desktop Preview](https://github.com/S4N-T0S/TF-Clubweb/blob/main/public/assets/desktop-preview.gif)
-
-![Mobile Preview](https://github.com/S4N-T0S/TF-Clubweb/blob/main/public/assets/mobile-preview.gif)
+<p align="center">
+  <img src="https://github.com/S4N-T0S/TF-Clubweb/blob/main/public/assets/desktop-preview.gif">
+  <br>
+  <img src="https://github.com/S4N-T0S/TF-Clubweb/blob/main/public/assets/mobile-preview.gif">
+</p>
 
 ## About
 
@@ -20,4 +22,4 @@ I'm mainly a backend developer working with C++ and Rust, so I built this to try
 
 ## Acknowledgments
 
-Thanks to [@leonlarsson](https://github.com/leonlarsson) for providing the historical player data which is used in the Player History Search.
+`Open Beta -> Season 2` historical player data provided by [@leonlarsson](https://github.com/leonlarsson)
