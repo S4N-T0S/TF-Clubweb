@@ -88,6 +88,7 @@ const processResult = (result, seasonConfig, searchType, originalEmbarkId, seaso
   seasonKey: seasonKey,
   rank: result.rank,
   league: result.league || getLeagueInfo(result.leagueNumber).name,
+  leagueNumber: result.leagueNumber,
   score: seasonConfig.hasRankScore ? result.rankScore : undefined,
   clubTag: result.clubTag || '',
   name: result.name || 'Unknown#0000',
