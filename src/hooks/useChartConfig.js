@@ -801,15 +801,41 @@ export const useChartConfig = ({
     };
   }, [data, comparisonData]);
 
-  const calculateViewWindow = useCallback((data, range, overallMinTimestamp) => {
+  const calculateViewWindow = useCallback((data, range, timeDomain) => {
     if (!data?.length || !TIME.RANGES[range]) return null;
 
     const now = seasonEndDate || new Date();
-    const endTime = new Date(now.getTime() + TIME.HOUR);
+    
+    // Determine right-side padding based on range to prevent points hugging the edge.
+    // 24H: ~1.2 hours padding. 7D: ~8 hours padding.
+    let rightPadding = TIME.HOUR;
+    if (range === '24H') rightPadding = TIME.HOUR * 1.25;
+    if (range === '7D') rightPadding = TIME.HOUR * 8;
+
+    const endTime = new Date(now.getTime() + rightPadding);
     const timeRangeMs = TIME.RANGES[range];
 
     if (range === 'MAX') {
-      const min = overallMinTimestamp || data[0].timestamp;
+      const start = timeDomain.min || data[0].timestamp;
+      const domainMax = timeDomain.max || data[data.length - 1].timestamp;
+      
+      const duration = domainMax.getTime() - start.getTime();
+
+      // If data spans less than 2 days, use dynamic padding to center/fit the data nicely
+      // rather than forcing a large 12h buffer which pushes sparse data to the right.
+      if (duration < TIME.DAY * 2) {
+          // Use 2 hours or 20% of duration (whichever is larger) as padding.
+          // This matches the zoom limits (min - 2h) closer, preventing a "snap" effect on interaction.
+          const padding = Math.max(TIME.TWO_HOURS, duration * 0.2);
+          
+          const min = new Date(start.getTime() - padding);
+          const max = new Date(domainMax.getTime() + padding);
+
+          return { min, max };
+      }
+
+      // For larger datasets, standard logic: Start - 12H to End + Padding
+      const min = new Date(start.getTime() - (TIME.DAY / 2));
       return { min, max: endTime };
     }
 
@@ -817,7 +843,7 @@ export const useChartConfig = ({
     return { min: viewMin, max: endTime };
   }, [seasonEndDate]);
 
-  const viewWindow = useMemo(() => calculateViewWindow(data, selectedTimeRange, overallTimeDomain.min), [data, selectedTimeRange, calculateViewWindow, overallTimeDomain.min]);
+  const viewWindow = useMemo(() => calculateViewWindow(data, selectedTimeRange, overallTimeDomain), [data, selectedTimeRange, calculateViewWindow, overallTimeDomain]);
 
   const calculateYAxisBounds = useCallback((data, timeRange) => {
     if (!data?.length || !timeRange?.min) return { min: 0, max: 50000, stepSize: 10000 };

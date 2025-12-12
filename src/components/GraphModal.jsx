@@ -514,6 +514,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
   // Function to determine the appropriate default time range based on actual game data points
   const determineDefaultTimeRange = useCallback((data) => {
     if (!data?.length) return '24H';
+
+    // If the data spans a short period (e.g., less than 12 hours), default to 'MAX'.
+    const firstPoint = data[0];
+    const lastPoint = data[data.length - 1];
+    const dataDuration = lastPoint.timestamp.getTime() - firstPoint.timestamp.getTime();
+    
+    if (dataDuration < (TIME.DAY / 2)) return 'MAX';
+
     // Set now to the end of the season if available (historical), otherwise use current time
     const now = seasonConfig?.endTimestamp ? new Date(seasonConfig.endTimestamp * 1000) : new Date();
 

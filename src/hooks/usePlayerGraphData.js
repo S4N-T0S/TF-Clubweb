@@ -539,10 +539,8 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         seasonEndDate,
         eventSettings
     );
-    if (processedMain.length < 2 && mainPlayerRaw.data.length > 0) {
-        setError('Not enough data points to display a meaningful graph.');
-    } else if (mainPlayerRaw.data.length > 0) {
-        setError(null); // Clear previous errors if we have data now
+    if (mainPlayerRaw.data.length > 0) {
+        setError(null);
     }
     setData(processedMain);
     setEvents(mainPlayerRaw.events);
