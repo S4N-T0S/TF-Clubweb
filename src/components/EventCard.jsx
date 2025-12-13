@@ -59,6 +59,8 @@ const getEventConfig = (event) => {
     }
     case 'CLUB_CHANGE':
       return { Icon: Users, title: 'Club Event', colorClass: 'text-teal-400' };
+    case 'CLUB_RENAME':
+      return { Icon: Users, title: 'Club Rename', colorClass: 'text-teal-400' };
     default:
       return { Icon: Zap, title: 'Unknown Event', colorClass: 'text-gray-400' };
   }
@@ -250,6 +252,17 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
         </div>
       );
     }
+    case 'CLUB_RENAME': {
+        return (
+            <div className="text-gray-400 leading-relaxed">
+                <span>The club </span>
+                <ClubTag tag={d.old_club_tag} onClubClick={onClubClick} />
+                <span> was renamed to </span>
+                <ClubTag tag={d.new_club_tag} onClubClick={onClubClick} />
+                <span>.</span>
+            </div>
+        );
+    }
 
     default:
       return <p className="text-gray-500">Unknown event type: {event_type}</p>;
@@ -271,10 +284,15 @@ export const EventCard = ({ event, onPlayerSearch, onClubClick, onGraphOpen, isM
         {/* Header: Title and Graph Icon */}
         <div className="flex justify-between items-start mb-1">
           <h3 className={`font-bold text-lg ${colorClass} pr-2`}>{title}</h3>
-          <LineChart
-            className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer flex-shrink-0"
-            onClick={() => onGraphOpen(event.current_embark_id)}
-          />
+          
+          {/* Only show the graph icon if a player ID is associated with the event.
+              CLUB_RENAME events have a null current_embark_id. */}
+          {event.current_embark_id && (
+            <LineChart
+              className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer flex-shrink-0"
+              onClick={() => onGraphOpen(event.current_embark_id)}
+            />
+          )}
         </div>
         
         {/* Event Details Content */}

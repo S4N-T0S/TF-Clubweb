@@ -111,6 +111,7 @@ https://API.ogclub.s4nt0s.eu
       psnName?: string | null;
       xboxName?: string | null;
       clubTag?: string | null;
+      clubUUId?: string | null;
     }
     ```
 
@@ -194,16 +195,16 @@ https://API.ogclub.s4nt0s.eu
 
     // Generic Event structure. The `details` object changes based on `event_type`.
     interface EventEntry {
-      id: number; // Unique ID for the event.
-      event_type: 'NAME_CHANGE' | 'SUSPECTED_BAN' | 'RS_ADJUSTMENT' | 'CLUB_CHANGE';
+      id: number | string; // Unique ID for the event. (Club Renames use string IDs)
+      event_type: 'NAME_CHANGE' | 'SUSPECTED_BAN' | 'RS_ADJUSTMENT' | 'CLUB_CHANGE' | 'CLUB_RENAME';
       start_timestamp: number; // Unix timestamp when the event occurred.
       // For `SUSPECTED_BAN` events, this marks the time the player reappeared on the leaderboard.
       // A non-null value indicates the ban/disappearance event is resolved. This could mean the
       // player was unbanned, or they have climbed back onto the leaderboard after a significant
       // rank score loss that was initially (and incorrectly) flagged as a ban.
       end_timestamp: number | null;
-      current_embark_id: string; // The player's current name.
-      details: NameChangeDetails | SuspectedBanDetails | RsAdjustmentDetails | ClubChangeDetails;
+      current_embark_id: string | null; // The player's current name. Null for Club Renames.
+      details: NameChangeDetails | SuspectedBanDetails | RsAdjustmentDetails | ClubChangeDetails | ClubRenameDetails;
     }
     ```
 *   **Event `details` Payloads:**
@@ -217,6 +218,11 @@ https://API.ogclub.s4nt0s.eu
           rank_score: number;
           old_club_tag: string | null;
           new_club_tag: string | null;
+          // UUIDs are provided if the player is in a club.
+          // If the player moved clubs, both are present. If they stayed in the same club, only 'club_uuid' might be present.
+          old_club_uuid?: string; 
+          new_club_uuid?: string;
+          club_uuid?: string;
         }
         ```
 
@@ -227,6 +233,7 @@ https://API.ogclub.s4nt0s.eu
           last_known_rank: number;
           last_known_rank_score: number;
           last_known_club_tag: string | null;
+          club_uuid: string | null;
           // The following fields are ONLY present if the event is resolved (i.e., end_timestamp on the parent EventEntry is not null).
           reappeared_at_rank?: number;
           reappeared_at_rank_score?: number;
@@ -257,6 +264,7 @@ https://API.ogclub.s4nt0s.eu
           old_rank: number;
           new_rank: number;
           club_tag: string | null;
+          club_uuid: string | null;
         }
         
         // --- CASE 2: Player falls OFF the leaderboard ---
@@ -271,10 +279,11 @@ https://API.ogclub.s4nt0s.eu
           // This is useful for display (e.g., "Lost at least 4500 RS").
           minimum_loss: number;
           club_tag: string | null;
+          club_uuid: string | null;
         }
         ```
 
-    4.  **`CLUB_CHANGE`**: A player changed their club affiliation. The `is_mass_change` flag helps differentiate between a single player's action and a coordinated change involving multiple players (e.g., a club owner renaming the club tag).
+    4.  **`CLUB_CHANGE`**: A player changed their club affiliation.
         ```typescript
         interface ClubChangeDetails {
           name: string;
@@ -282,7 +291,18 @@ https://API.ogclub.s4nt0s.eu
           new_club: string | null;
           rank: number; // The player's rank at the time of the change.
           rank_score: number; // The player's rank score at the time of the change.
-          is_mass_change: boolean;
+          old_club_uuid: string | null;
+          new_club_uuid: string | null;
+          is_mass_change?: boolean; // [DEPRECATED] No longer used in Season 9+ | Previously used to flag a clubwide rename.
+        }
+        ```
+
+    5.  **`CLUB_RENAME`**: A global event indicating that a specific club UUID has changed its Tag. This event is injected into the feed dynamically and is not attached to a specific player ID.
+        ```typescript
+        interface ClubRenameDetails {
+          old_club_tag: string;
+          new_club_tag: string;
+          club_uuid: string;
         }
         ```
 ---

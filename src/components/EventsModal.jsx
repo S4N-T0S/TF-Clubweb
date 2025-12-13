@@ -94,7 +94,7 @@ const EventInfoPopup = ({ onClose }) => {
             </div>
             <div>
               <strong className="text-teal-400 flex items-center gap-2"><Users className="w-4 h-4" /> Club Event:</strong>
-              <p className="text-gray-400 ml-8">Records when a player joins, leaves, or changes their club affiliation. When a player leaves and joins a club within one event, it could be that they truly left the club or that their club was renamed. We try to tag mass club changes (when it&apos;s more likely to be a rename), but if only one person from the club is on the leaderboard, we won&apos;t catch it. Furthermore, Embark changes inappropriate club names to a random 1 letter 4 number club name, such as I3037 F9029.</p>
+              <p className="text-gray-400 ml-8">Records when a player joins, leaves, or changes their club affiliation. Includes Club Renames, where a club changes its tag globally.</p>
             </div>
             <div>
               <strong className="text-gray-200 flex items-center gap-2"><SlidersHorizontal className="w-4 h-4" /> Filter Status:</strong>
@@ -138,6 +138,7 @@ const getRankInfoFromEvent = (event) => {
       return { rank: d.new_rank, score: d.new_score };
     }
     case 'CLUB_CHANGE': return { rank: d.rank, score: d.rank_score };
+    case 'CLUB_RENAME': return { rank: null, score: null };
     default: return { rank: null, score: null };
   }
 };
@@ -149,6 +150,8 @@ const isQueryInEvent = (event, query) => {
   // 1. Collect all potential event data.
   const d = event.details;
   const eventNames = [ event.current_embark_id, d.old_name, d.new_name, d.last_known_name, d.name ].filter(Boolean).map(n => n.toLowerCase());
+  
+  // Note: old_club_tag and new_club_tag exist on both CLUB_CHANGE and CLUB_RENAME details
   const eventClubTags = [ d.club_tag, d.old_club_tag, d.new_club_tag, d.last_known_club_tag, d.old_club, d.new_club ].filter(Boolean).map(t => t.toLowerCase());
   
   // 2. Perform filter checks based on the parsed query.
@@ -422,11 +425,11 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
         (event.event_type === 'NAME_CHANGE' && !filters.showNameChange) ||
         (event.event_type === 'SUSPECTED_BAN' && !filters.showSuspectedBan) ||
         (event.event_type === 'RS_ADJUSTMENT' && !filters.showRsAdjustment) ||
-        (event.event_type === 'CLUB_CHANGE' && !filters.showClubChange)
+        ((event.event_type === 'CLUB_CHANGE' || event.event_type === 'CLUB_RENAME') && !filters.showClubChange)
       ) return false;
       
       const { rank, score } = getRankInfoFromEvent(event);
-      // For some events (like old Club Changes), rank/score might not be available.
+      // For some events (like old Club Changes or Club Renames), rank/score might not be available.
       // If null, leagueIndex will also be null.
       const leagueIndex = getLeagueIndexForFilter(rank, score);
       
