@@ -3,7 +3,7 @@ import { fetchLeaderboardData } from '../services/lb-api';
 import { processLeaderboardData } from '../utils/dataProcessing';
 import { clearCacheStartingWith } from '../services/idbCache';
 
-const MAX_ACCEPTABLE_AGE = 30 * 60; // 30 minutes in seconds
+const MAX_ACCEPTABLE_AGE = 35 * 60; // 35 minutes in seconds
 const MAX_STALE_AGE_FOR_ERROR = 60 * 60; // 60 minutes, beyond this is an error
 const RETRY_DELAY_MS = 2 * 60 * 1000; // 2 minutes
 const GRAPH_CACHE_PREFIX = 'graph_cache_';
