@@ -4,7 +4,10 @@ import { processLeaderboardData } from '../utils/dataProcessing';
 import { clearCacheStartingWith } from '../services/idbCache';
 
 const MAX_ACCEPTABLE_AGE = 35 * 60; // 35 minutes in seconds
-const MAX_STALE_AGE_FOR_ERROR = 60 * 60; // 60 minutes, beyond this is an error
+const MAX_STALE_AGE_FOR_ERROR = 60 * 60; // 60 minutes
+// The backend caches for 20 mins. If lastCheck is > 25 mins, the backend is likely failing to reach Embark.
+const MAX_HEARTBEAT_AGE = 25 * 60; 
+
 const RETRY_DELAY_MS = 2 * 60 * 1000; // 2 minutes
 const GRAPH_CACHE_PREFIX = 'graph_cache_';
 
@@ -13,14 +16,21 @@ const getDataAge = (timestamp) => {
   return Math.floor((Date.now() - timestamp) / 1000);
 };
 
-const getToastConfig = (source, timestamp, ttl) => {
-  const age = getDataAge(timestamp);
-  const isStale = age > MAX_ACCEPTABLE_AGE;
-  const isVeryStale = age > MAX_STALE_AGE_FOR_ERROR;
+const getToastConfig = (source, timestamp, lastCheck, ttl) => {
+  const dataAge = getDataAge(timestamp);
+  const heartbeatAge = getDataAge(lastCheck);
+  
+  const isDataStale = dataAge > MAX_ACCEPTABLE_AGE;
+  const isDataVeryStale = dataAge > MAX_STALE_AGE_FOR_ERROR;
+  
+  // If the backend has successfully checked recently (within 25 mins), 
+  // the system is healthy even if the leaderboard data itself hasn't changed.
+  const isBackendHealthy = heartbeatAge < MAX_HEARTBEAT_AGE;
 
-  if (source === 'client-cache-emergency' || isVeryStale) {
+  // 1. Critical Failure: System is using emergency cache (network down)
+  if (source === 'client-cache-emergency') {
     return {
-      message: 'Unable to connect to server, using emergency cache.',
+      message: 'Unable to connect to server, using emergency cache. (Contact admin)',
       type: 'error',
       timestamp,
       showMeta: true,
@@ -28,7 +38,32 @@ const getToastConfig = (source, timestamp, ttl) => {
     };
   }
 
-  if (source.includes('fallback') || source.includes('stale') || isStale) {
+  // 2. Backend Failure: Data is old AND the backend hasn't checked in recently.
+  // This implies the backend is running but failing to fetch from Embark, or is down.
+  if (isDataVeryStale && !isBackendHealthy) {
+    return {
+      message: 'Leaderboard data is stale (Server unreachable, contact admin)',
+      type: 'error',
+      timestamp,
+      showMeta: true,
+      ttl
+    };
+  }
+
+  // 3. Quiet State: Data is old, BUT backend checked recently.
+  // This means the leaderboard simply hasn't changed (e.g. slow hours).
+  if (isDataVeryStale && isBackendHealthy) {
+    return {
+      message: 'No recent rank changes detected. Still waiting on Embark.',
+      type: 'info',
+      timestamp,
+      showMeta: true,
+      ttl
+    };
+  }
+
+  // 4. Client Cache / Standard Stale Warning
+  if (source.includes('fallback') || source.includes('stale') || isDataStale) {
     return {
       message: 'Leaderboard is using cached data.',
       type: 'warning',
@@ -38,6 +73,7 @@ const getToastConfig = (source, timestamp, ttl) => {
     };
   }
 
+  // 5. Success
   return {
     message: 'Leaderboard is up to date.',
     type: 'success',
@@ -129,7 +165,7 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
 
       let shouldShowToast = false;
       if (isInitialLoad) {
-        // On initial load, only show a toast for critical issues.
+        // On initial load, only show a toast for critical issues OR if data is old.
         shouldShowToast = isEmergency || isVeryStale;
       } else {
         // On subsequent refreshes, always show a toast to provide feedback.
@@ -137,7 +173,12 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
       }
 
       if (shouldShowToast) {
-        setToastMessage(getToastConfig(rawData.source, rawData.timestamp, rawData.remainingTtl));
+        setToastMessage(getToastConfig(
+          rawData.source, 
+          rawData.timestamp, 
+          rawData.lastCheck, 
+          rawData.remainingTtl
+        ));
       }
       
     } catch (err) {
@@ -163,14 +204,14 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
         }
       }
     }
-  }, []); // Dependencies removed because helper functions are now static
+  }, []);
 
   // Initial load
   useEffect(() => {
     if (initialLoadTriggered.current) return;
     initialLoadTriggered.current = true;
     refreshData(true);
-  }, [refreshData]); // Keep an eye on this for bugs - readded depend here
+  }, [refreshData]);
 
   // Auto-refresh timer logic (and retry-on-error handler)
   useEffect(() => {

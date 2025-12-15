@@ -91,19 +91,29 @@ https://API.ogclub.s4nt0s.eu
 
 *   **Endpoint:** `GET /leaderboard`
 *   **Auth:** None.
-*   **Purpose:** Fetches the current state of the main "Ranked" leaderboard. The backend caches this data heavily.
-*   **Caching:** The API uses the standard `Expires` HTTP header to communicate cache duration. Clients should rely on this header for caching instead of any fields in the response body.
+*   **Purpose:** Fetches the current state of the main "Ranked" leaderboard. The backend strictly validates this data, filtering out anomalies or invalid Embark IDs before caching.
+*   **Caching:** The API uses the `Expires` HTTP header to control client-side caching based on data freshness:
+    *   **Fresh Data:** Defaults to a 20-minute cache duration (aligned with the data source).
+    *   **Stale Data:** If the backend fails to fetch new data, it serves the last known valid snapshot (`kv-cache-fallback`) with a reduced 2-minute cache duration.
 *   **Response Structure:**
     ```typescript
     interface LeaderboardResponse {
       data: PlayerEntry[];
       source: 'kv-cache' | 'kv-cache-fallback';
-      timestamp: number; // Unix timestamp of the data
+
+      // Unix timestamp of the actual data content. 
+      // This only updates when the leaderboard rankings/scores actually change.
+      timestamp: number;
+
+      // Unix timestamp of the last successful check against the Embark API.
+      // This acts as a "heartbeat". If this is recent but 'timestamp' is old, 
+      // it means the system is working but the leaderboard hasn't changed.
+      lastCheck: number;
     }
 
     interface PlayerEntry {
       rank: number;
-      change: number; // Rank change since last update
+      change: number; // Rank change within last 24h
       name: string; // Embark ID
       leagueNumber: number;
       rankScore: number;

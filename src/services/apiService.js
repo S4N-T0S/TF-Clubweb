@@ -144,12 +144,23 @@ export const logApiCall = (source, info) => {
   const now = Date.now();
   const timestamp = info.timestamp ? (String(info.timestamp).length > 10 ? info.timestamp : info.timestamp * 1000) : null;
   const age = timestamp ? Math.floor((now - timestamp) / 1000) : 'N/A';
+  const lastCheck = info.lastCheck ? (String(info.lastCheck).length > 10 ? info.lastCheck : info.lastCheck * 1000) : null;
+  const heartbeatAge = lastCheck ? Math.floor((now - lastCheck) / 1000) : 'N/A';
 
   console.groupCollapsed(`API Call: ${info.groupName || 'Data Fetch'}`);
   console.log(`%cSource: ${source}`, styles[source.toLowerCase().replace(/[- ]/g, '')] || 'color: white');
   if (info.embarkId) console.log('Embark ID:', info.embarkId);
-  if (timestamp) console.log('Timestamp:', new Date(timestamp).toLocaleString());
-  if (age !== 'N/A') console.log('Cache Age:', `${age}s`);
+  
+  if (timestamp) {
+    console.log('Data Timestamp:', new Date(timestamp).toLocaleString());
+    if (age !== 'N/A') console.log('Data Age:', `${age}s`);
+  }
+  
+  if (lastCheck) {
+    console.log('Heartbeat Check:', new Date(lastCheck).toLocaleString());
+    if (heartbeatAge !== 'N/A') console.log('Heartbeat Age:', `${heartbeatAge}s`);
+  }
+
   if (info.remainingTtl) console.log('TTL Remaining:', `${info.remainingTtl}s`);
   console.groupEnd();
 };

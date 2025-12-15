@@ -35,12 +35,15 @@ export const fetchLeaderboardData = async () => {
       logApiCall(source, {
         groupName: 'Leaderboard',
         timestamp: cachePayload.timestamp,
+        lastCheck: cachePayload.lastCheck,
         remainingTtl,
       });
+
       return {
         data: transformData(cachePayload.data),
         source,
         timestamp: cachePayload.timestamp * 1000,
+        lastCheck: (cachePayload.lastCheck || cachePayload.timestamp) * 1000,
         remainingTtl,
         expiresAt: cachedEntry.expiresAt,
       };
@@ -56,6 +59,7 @@ export const fetchLeaderboardData = async () => {
 
     const transformedData = transformData(result.data);
     const timestampMs = result.timestamp * 1000;
+    const lastCheckMs = (result.lastCheck || result.timestamp) * 1000;
 
     // Use new centralized TTL calculator.
     const ttlForCache = calculateClientCacheTtl(headers, 120, 'leaderboard');
@@ -63,6 +67,7 @@ export const fetchLeaderboardData = async () => {
     logApiCall(result.source, {
       groupName: 'Leaderboard',
       timestamp: result.timestamp,
+      lastCheck: result.lastCheck,
       remainingTtl: ttlForCache,
     });
 
@@ -73,6 +78,7 @@ export const fetchLeaderboardData = async () => {
       data: transformedData,
       source: result.source,
       timestamp: timestampMs,
+      lastCheck: lastCheckMs,
       remainingTtl: ttlForCache,
       expiresAt: Date.now() + (ttlForCache * 1000),
     };
@@ -91,12 +97,14 @@ export const fetchLeaderboardData = async () => {
       logApiCall(source, {
         groupName: 'Leaderboard',
         timestamp: cachePayload.timestamp,
+        lastCheck: cachePayload.lastCheck,
         remainingTtl,
       });
       return {
         data: transformData(cachePayload.data),
         source,
         timestamp: cachePayload.timestamp * 1000,
+        lastCheck: (cachePayload.lastCheck || cachePayload.timestamp) * 1000,
         remainingTtl,
         expiresAt: newExpiresAt,
       };
