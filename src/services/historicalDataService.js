@@ -83,7 +83,7 @@ const filterPlayers = (players, searchQuery, searchType) => {
   });
 };
 
-const processResult = (result, seasonConfig, searchType, originalEmbarkId, seasonKey) => ({
+const processResult = (result, seasonConfig, originalEmbarkId, seasonKey, isWeakLink) => ({
   season: seasonConfig.label,
   seasonKey: seasonKey,
   rank: result.rank,
@@ -95,7 +95,7 @@ const processResult = (result, seasonConfig, searchType, originalEmbarkId, seaso
   steamName: result.steamName || '',
   psnName: result.psnName || '',
   xboxName: result.xboxName || '',
-  foundViaSteamName: searchType === 'steam' && (!result.name || result.name.toLowerCase() !== originalEmbarkId.toLowerCase()),
+  foundViaSteamName: isWeakLink && (!result.name || result.name.toLowerCase() !== originalEmbarkId.toLowerCase()),
   isTop500: (result.rank <= 500) && !seasonConfig.hasRuby
 });
 
@@ -109,53 +109,79 @@ const getSeasonData = (season, currentSeasonData) => {
   return season.data?.data || [];
 };
 
-export const searchPlayerHistory = async (embarkId, currentSeasonData = null) => {
+export const searchPlayerHistory = async (initialEmbarkId, currentSeasonData = null) => {
   const allResults = new Map();
-  const platformNames = { steam: new Set(), psn: new Set(), xbox: new Set() };
+  
+  // Track visited identifiers to prevent infinite loops and re-searches.
+  const visited = {
+    embarkId: new Set(),
+    steam: new Set(),
+    psn: new Set(),
+    xbox: new Set()
+  };
 
-  // Process all seasons including current
-  for (const [seasonKey, seasonConfig] of Object.entries(SEASONS)) {
-    const currentSeasonPlayers = getSeasonData(seasonConfig, currentSeasonData);
+  // Queue for Breadth-First Search (BFS).
+  // 'isWeakChain' tracks if we are currently traversing a path dependent on a Steam link.
+  const searchQueue = [{ type: 'embarkId', value: initialEmbarkId, isWeakChain: false }];
+  
+  while (searchQueue.length > 0) {
+    const { type, value, isWeakChain } = searchQueue.shift();
     
-    // Search by Embark ID and collect platform names
-    const embarkResults = filterPlayers(currentSeasonPlayers, embarkId, 'embarkId');
+    const checkValue = type === 'embarkId' ? value.toLowerCase() : value;
     
-    embarkResults.forEach(result => {
-      if (result.steamName) platformNames.steam.add(result.steamName);
-      if (result.psnName) platformNames.psn.add(result.psnName);
-      if (result.xboxName) platformNames.xbox.add(result.xboxName);
-      
-      const resultKey = `${seasonConfig.label}-${result.name}-${result.steamName}-${result.psnName}-${result.xboxName}`;
-      if (!allResults.has(resultKey)) {
-        allResults.set(resultKey, processResult(result, seasonConfig, 'embarkId', embarkId, seasonKey));
-      }
-    });
-  }
+    if (visited[type].has(checkValue)) continue;
+    visited[type].add(checkValue);
 
-  // Search by platform names across all seasons
-  const searchPlatformNames = async (names, type) => {
     for (const [seasonKey, seasonConfig] of Object.entries(SEASONS)) {
       const currentSeasonPlayers = getSeasonData(seasonConfig, currentSeasonData);
       
-      for (const name of names) {
-        const platformResults = filterPlayers(currentSeasonPlayers, name, type);
+      if (!currentSeasonPlayers) continue;
+
+      const matches = filterPlayers(currentSeasonPlayers, value, type);
+      
+      for (const player of matches) {
+        const resultKey = `${seasonConfig.label}-${player.name}-${player.steamName}-${player.psnName}-${player.xboxName}`;
         
-        platformResults.forEach(result => {
-          const resultKey = `${seasonConfig.label}-${result.name}-${result.steamName}-${result.psnName}-${result.xboxName}`;
-          if (!allResults.has(resultKey)) {
-            allResults.set(resultKey, processResult(result, seasonConfig, type, embarkId, seasonKey));
+        // Logic to determine if this specific finding is "Weak" (needs warning).
+        // 1. System arrived here via a previous weak link (isWeakChain = true)
+        // 2. OR system arrived here specifically via Steam (the current step is the weak link)
+        // 3. AND the Embark ID does not match the original search (which would "heal" the chain)
+        
+        const isSteamStep = type === 'steam';
+        const isOriginalIdentity = player.name && player.name.toLowerCase() === initialEmbarkId.toLowerCase();
+        
+        const isResultWeak = (isWeakChain || isSteamStep) && !isOriginalIdentity;
+
+        // If result exists, we only overwrite if the new finding is 'Stronger' (not weak) than the old one.
+        const existing = allResults.get(resultKey);
+        
+        if (!existing || (existing.foundViaSteamName && !isResultWeak)) {
+          allResults.set(resultKey, processResult(player, seasonConfig, initialEmbarkId, seasonKey, isResultWeak));
+
+          if (player.name) {
+             const nextVal = player.name;
+             if (!visited.embarkId.has(nextVal.toLowerCase())) {
+               searchQueue.push({ type: 'embarkId', value: nextVal, isWeakChain: isResultWeak });
+             }
           }
-        });
+          
+          if (player.psnName && !visited.psn.has(player.psnName)) {
+            searchQueue.push({ type: 'psn', value: player.psnName, isWeakChain: isResultWeak });
+          }
+          
+          if (player.xboxName && !visited.xbox.has(player.xboxName)) {
+            searchQueue.push({ type: 'xbox', value: player.xboxName, isWeakChain: isResultWeak });
+          }
+
+          // Steam last to prioritize other results, bugfix for unecessary UI warning
+          if (player.steamName && !visited.steam.has(player.steamName)) {
+            searchQueue.push({ type: 'steam', value: player.steamName, isWeakChain: isResultWeak });
+          }
+        }
       }
     }
-  };
-
-  await Promise.all([
-    searchPlatformNames(platformNames.psn, 'psn'),
-    searchPlatformNames(platformNames.xbox, 'xbox'),
-    searchPlatformNames(platformNames.steam, 'steam') // Steam last to prioritize other results, bugfix for unecessary UI warning
-  ]);
-
+  }
+  
   // Sort results by season
   const seasonOrder = Object.values(SEASONS)
     .filter(s => s.label && s.id !== undefined && !s.isAggregate)
