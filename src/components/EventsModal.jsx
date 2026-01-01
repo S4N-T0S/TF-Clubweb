@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { fetchRecentEvents } from '../services/ev-api';
+import { fetchRecentEvents, fetchAllSeasonsEvents } from '../services/ev-api';
 import { usePagination } from '../hooks/usePagination';
 import { useSwipe } from '../hooks/useSwipe';
 import { useModal } from '../context/ModalProvider';
@@ -202,7 +202,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   const [isAnimatingRefresh, setIsAnimatingRefresh] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const initialSettings = getStoredEventsSettings();
-  const [selectedSeason, setSelectedSeason] = useState(currentSeasonKey);
+  const [selectedSeason, setSelectedSeason] = useState('ALL');
   
   // States with persistence
   const [autoRefresh, setAutoRefresh] = useState(initialSettings.autoRefresh);
@@ -217,27 +217,41 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     ...initialSettings.filters,
   });
 
-  // Derived state for easier conditional logic
-  const isCurrentSeasonSelected = selectedSeason === currentSeasonKey;
+  // Derived state for easier conditional logic.
+  // Allow auto-refresh if the current season is selected OR if "ALL" is selected (which includes current season).
+  const canAutoRefresh = selectedSeason === currentSeasonKey || selectedSeason === 'ALL';
 
-  const eventSeasons = useMemo(() => 
-    Object.entries(SEASONS)
+  const eventSeasons = useMemo(() => {
+    // Generate the list of individual seasons
+    const seasonsList = Object.entries(SEASONS)
       .filter(([, season]) => season.hasEvents)
       .map(([key, season]) => ({ key, label: season.label }))
-      .sort((a, b) => SEASONS[b.key].id - SEASONS[a.key].id), // Sort descending by season ID
-    []
-  );
-
+      .sort((a, b) => SEASONS[b.key].id - SEASONS[a.key].id); // Sort descending by season ID
+      
+    // Prepend "All Seasons" option
+    return [
+      { key: 'ALL', label: 'All Seasons' },
+      ...seasonsList
+    ];
+  }, []);
 
   const handleFilterChange = useCallback((key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   }, []);
 
-  const handleGraphOpenWithSeason = useCallback((embarkId) => {
-    onGraphOpen(embarkId, selectedSeason);
+  const handleGraphOpenWithSeason = useCallback((embarkId, seasonKey) => {
+    // Prefer the seasonKey passed from the event (if available), fallback to selectedSeason, then current.
+    const targetSeason = seasonKey || (selectedSeason === 'ALL' ? currentSeasonKey : selectedSeason);
+    onGraphOpen(embarkId, targetSeason);
   }, [onGraphOpen, selectedSeason]);
 
-  // Save settings to localStorage whenever they change (except for search query)
+  const handleClubClickWithSeason = useCallback((tag, seasonKey) => {
+    // Prefer the seasonKey passed from the event (if available), fallback to selectedSeason, then current.
+    const targetSeason = seasonKey || (selectedSeason === 'ALL' ? currentSeasonKey : selectedSeason);
+    onClubClick(tag, targetSeason);
+  }, [onClubClick, selectedSeason]);
+
+  // Save settings to localStorage whenever they change (except for search query and season selection)
   const { minLeague, showNameChange, showSuspectedBan, showRsAdjustment, showClubChange } = filters;
   useEffect(() => {
     const settings = {
@@ -260,7 +274,16 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     const oldEventsMap = new Map(eventsRef.current.map(e => [e.id, JSON.stringify(e)]));
 
     try {
-      const result = await fetchRecentEvents(forceRefresh, seasonToLoad);
+      let result;
+      
+      if (seasonToLoad === 'ALL') {
+        // Use the aggregate fetcher for "All Seasons"
+        result = await fetchAllSeasonsEvents(forceRefresh);
+      } else {
+        // Use the single season fetcher
+        result = await fetchRecentEvents(forceRefresh, seasonToLoad);
+      }
+      
       const newEvents = result.data;
       setEvents(newEvents);
       setCacheExpiresAt(result.expiresAt || 0);
@@ -294,14 +317,15 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
         }
       }
     } catch (_err) {
-      setError(`Failed to load events for ${SEASONS[seasonToLoad]?.label || 'the selected season'}.`);
+      const seasonLabel = seasonToLoad === 'ALL' ? 'All Seasons' : (SEASONS[seasonToLoad]?.label || 'the selected season');
+      setError(`Failed to load events for ${seasonLabel}.`);
       showToast({ message: 'Could not fetch recent events.', type: 'error' });
     } finally {
       setLoading(false);
     }
   }, [showToast]);
   
-  const forceLoadWithAnimation = useCallback(async () => {
+  const forceLoadWithAnimation = useCallback(async (shouldForce = true) => {
     setIsAnimatingRefresh(true);
     
     // Create a promise that resolves after a minimum duration.
@@ -309,7 +333,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
 
     try {
       // Wait for both the data fetch and the minimum animation time to complete.
-      await Promise.all([loadEvents(true, selectedSeason), minAnimationPromise]);
+      await Promise.all([loadEvents(shouldForce, selectedSeason), minAnimationPromise]);
     } catch (err) {
       // Errors will be caught and handled by loadEvents, but we catch here to ensure finally is always reached.
       console.error("Error during forced event load:", err);
@@ -345,14 +369,14 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     // When it mounts, `hasInitialized.current` is false, so this block runs.
     if (isOpen && !hasInitialized.current) {
         handleFilterChange('searchQuery', '');
-        setSelectedSeason(currentSeasonKey); // Always reset to current season on open
-        loadEvents(false, currentSeasonKey); // Explicitly load current season's events
+        // Initial load using the default 'ALL' season
+        loadEvents(false, selectedSeason);
         // Then set the flag to true, so subsequent re-renders of this same instance
         // (e.g., when a child modal opens) will not re-trigger this logic.
         hasInitialized.current = true;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, handleFilterChange, isMobile]); // `loadEvents` is removed to prevent re-triggering
+  }, [isOpen, handleFilterChange, isMobile]); // `loadEvents` and `selectedSeason` removed to prevent re-triggering loop
 
   // Effect for when user changes the season in the dropdown
   useEffect(() => {
@@ -366,8 +390,8 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
 
   // Auto-refresh timer: sets when modal opens, clears when it closes.
   useEffect(() => {
-    // Only refresh if this is the top-most modal AND the current season is selected.
-    if (!isOpen || !isTopModal || !autoRefresh || !cacheExpiresAt || !isCurrentSeasonSelected) {
+    // Refresh if: Open, Top Modal, Auto-Refresh ON, Has Expiry, AND (Current Season OR All Seasons).
+    if (!isOpen || !isTopModal || !autoRefresh || !cacheExpiresAt || !canAutoRefresh) {
       return; // Do nothing if modal is closed, not on top, auto-refresh is off, no expiry time, or not current season.
     }
 
@@ -376,7 +400,11 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     
     const timer = setTimeout(() => {
       // Double check in case state changed
-      if (isOpen && isTopModal && autoRefresh && isCurrentSeasonSelected) forceLoadWithAnimation();
+      if (isOpen && isTopModal && autoRefresh && canAutoRefresh) {
+        // Pass false here, ensuring fetchAllSeasonsEvents uses cached data for valid (historical) seasons
+        // and only hits the network for expired (current/failed) seasons.
+        forceLoadWithAnimation(false);
+      }
     }, delay + 1000);
 
     // This cleanup function is crucial. It runs when the component unmounts
@@ -384,7 +412,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     return () => {
         clearTimeout(timer);
     };
-  }, [isOpen, isTopModal, autoRefresh, cacheExpiresAt, forceLoadWithAnimation, isCurrentSeasonSelected]);
+  }, [isOpen, isTopModal, autoRefresh, cacheExpiresAt, forceLoadWithAnimation, canAutoRefresh]);
 
   const toggleAutoRefresh = () => {
     const nextState = !autoRefresh;
@@ -411,6 +439,8 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
       !filters.showClubChange
     );
   }, [filters]);
+
+  const isSeasonFiltered = useMemo(() => selectedSeason !== 'ALL', [selectedSeason]);
 
   const filteredEvents = useMemo(() => {
     // Sort events by their most recent timestamp (endTimestamp or startTimestamp)
@@ -497,9 +527,9 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
             {/* Left side controls */}
             <div className="flex items-center gap-2">
                 <button
-                  onClick={!isCurrentSeasonSelected ? undefined : toggleAutoRefresh}
-                  className={`p-2 rounded-full transition-colors ${autoRefresh && isCurrentSeasonSelected ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'} ${!isCurrentSeasonSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  title={!isCurrentSeasonSelected ? 'Auto-refresh only available for current season' : (autoRefresh ? 'Auto-refresh is ON' : 'Auto-refresh is OFF')}
+                  onClick={!canAutoRefresh ? undefined : toggleAutoRefresh}
+                  className={`p-2 rounded-full transition-colors ${autoRefresh && canAutoRefresh ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'} ${!canAutoRefresh ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title={!canAutoRefresh ? 'Auto-refresh not available for historical seasons' : (autoRefresh ? 'Auto-refresh is ON' : 'Auto-refresh is OFF')}
                 >
                   <RefreshCw className={`w-5 h-5 ${isAnimatingRefresh ? 'animate-spin' : ''}`} />
                 </button>
@@ -518,7 +548,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
             </div>
             <div className="hidden sm:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
                 <span className="text-xl font-bold text-white">
-                    {isCurrentSeasonSelected && autoRefresh ? 'Live ' : ''}Events Feed
+                    {canAutoRefresh && autoRefresh ? 'Live ' : ''}Events Feed
                 </span>
             </div>
 
@@ -528,11 +558,15 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
                     <select
                       value={selectedSeason}
                       onChange={(e) => setSelectedSeason(e.target.value)}
-                      className="appearance-none bg-gray-700 text-gray-200 text-sm font-medium rounded-md py-1 pl-3 pr-7 border border-gray-600 hover:border-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors cursor-pointer"
+                      className={`appearance-none bg-gray-700 text-sm font-medium rounded-md py-1 pl-3 pr-7 border transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500
+                        ${isSeasonFiltered 
+                          ? 'text-yellow-400 border-yellow-400' 
+                          : 'text-gray-200 border-gray-600 hover:border-gray-500'}`}
                     >
                       {eventSeasons.map(season => <option key={season.key} value={season.key} className="bg-gray-800 text-white">{season.label}</option>)}
                     </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-gray-400">
+                    <div className={`pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 
+                      ${isSeasonFiltered ? 'text-yellow-400' : 'text-gray-400'}`}>
                         <ChevronsUpDown className="w-4 h-4" />
                     </div>
                 </div>
@@ -591,12 +625,21 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
           </div>
 
             {loading && events.length === 0 ? <LoadingDisplay variant="component" /> :
-             error ? <ErrorDisplay error={error} onRetry={forceLoadWithAnimation} variant="component" /> :
+             error ? <ErrorDisplay error={error} onRetry={() => forceLoadWithAnimation(true)} variant="component" /> :
              <div className="page-transition-container">
                 <div className={`page-content ${slideDirection}`} key={currentPage}>
                     <div className="flex flex-col gap-2">
                         {currentItems.length > 0 ? (
-                            currentItems.map((event) => <EventCard key={event.id} event={event} onPlayerSearch={onPlayerSearch} onClubClick={onClubClick} onGraphOpen={handleGraphOpenWithSeason} isMobile={isMobile} />)
+                            currentItems.map((event) => (
+                              <EventCard 
+                                key={event.id} 
+                                event={event} 
+                                onPlayerSearch={onPlayerSearch} 
+                                onClubClick={handleClubClickWithSeason} 
+                                onGraphOpen={handleGraphOpenWithSeason} 
+                                isMobile={isMobile} 
+                              />
+                            ))
                         ) : (
                             <div className="text-center text-gray-400 p-8 bg-gray-800 rounded-lg">No events match your current filters.</div>
                         )}
