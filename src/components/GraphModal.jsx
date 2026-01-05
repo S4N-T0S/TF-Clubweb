@@ -492,13 +492,20 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
   }, []);
 
   const handleSeasonChange = useCallback((newSeasonId, specificEmbarkId = null) => {
-    if (newSeasonId !== currentSeasonId || specificEmbarkId) {
-      setCurrentSeasonId(newSeasonId);
-      switchSeason(newSeasonId, specificEmbarkId);
-      hasSetInitialTimeRangeRef.current = false; // Reset the flag
+    // Prevent reloading if selecting the current season and player
+    const isSameSeason = newSeasonId === currentSeasonId;
+    const isSamePlayer = !specificEmbarkId || specificEmbarkId === displayedEmbarkId;
+
+    if (isSameSeason && isSamePlayer) {
+      setShowSeasonDropdown(false);
+      return;
     }
+
+    setCurrentSeasonId(newSeasonId);
+    switchSeason(newSeasonId, specificEmbarkId);
+    hasSetInitialTimeRangeRef.current = false; // Reset the flag
     setShowSeasonDropdown(false);
-  }, [currentSeasonId, switchSeason]);
+  }, [currentSeasonId, switchSeason, displayedEmbarkId]);
 
 
   const hasAnyEvents = useMemo(() => {
