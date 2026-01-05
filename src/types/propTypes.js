@@ -216,7 +216,8 @@ export const PaginationProps = {
 };
 
 export const LoadingDisplayProps = {
-  variant: PropTypes.string
+  variant: PropTypes.string,
+  message: PropTypes.string
 }
 
 export const ErrorDisplayProps = {

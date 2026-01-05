@@ -150,6 +150,7 @@ export const logApiCall = (source, info) => {
   console.groupCollapsed(`API Call: ${info.groupName || 'Data Fetch'}`);
   console.log(`%cSource: ${source}`, styles[source.toLowerCase().replace(/[- ]/g, '')] || 'color: white');
   if (info.embarkId) console.log('Embark ID:', info.embarkId);
+  if (info.seasonId) console.log('Season ID:', info.seasonId);
   
   if (timestamp) {
     console.log('Data Timestamp:', new Date(timestamp).toLocaleString());

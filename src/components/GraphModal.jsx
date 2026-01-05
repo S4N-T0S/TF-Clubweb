@@ -410,9 +410,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
     // If the modal is open, and we receive a NEW timestamp that is different from the previous one...
     // AND we are not looking at a historical season (which doesn't receive live updates)
     if (isOpen && !isHistoricalSeason && lastLeaderboardUpdate && prevUpdateRef.current !== lastLeaderboardUpdate) {
-        // ...and it's not the very first render cycle (which usePlayerGraphData handles)
-        console.log("Leaderboard updated, refreshing graph...");
+      // Check if we are transitioning from "No Data" to "Data".
+      // Since the GraphModal mounts and fetches its own data independently, we don't need to 'refresh' 
+      // just because the background app finished loading. We only want to refresh on SUBSEQUENT updates.
+      const isInitialLoad = !prevUpdateRef.current  
+      if (!isInitialLoad) {
+        console.log("Leaderboard updated (live), refreshing graph...");
         refreshGraph();
+      }
     }
     prevUpdateRef.current = lastLeaderboardUpdate;
   }, [lastLeaderboardUpdate, isOpen, refreshGraph, isHistoricalSeason]);

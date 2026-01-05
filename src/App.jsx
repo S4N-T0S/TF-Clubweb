@@ -285,7 +285,6 @@ const App = () => {
   }, [location.pathname, modalHistory]);
 
   if (error) return <ErrorDisplay error={error} onRetry={() => refreshData(true)} />;
-  if (loading || clubMembersLoading) return <LoadingDisplay />;
 
   return (
     <div className="min-h-screen bg-gray-900 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
@@ -307,57 +306,64 @@ const App = () => {
             onClose={toastMessage.onClose}
           />
         )}
-        <div className="max-w-7xl mx-auto p-4">
-          <div className="bg-gray-800 rounded-lg shadow-xl p-6 mb-6">
-            <DashboardHeader
-              unknownMembers={unknownMembers}
-              view={view}
-              setView={setView}
-              onOpenEvents={handleEventsModalOpen}
-              onOpenSearch={() => handleSearchModalOpen()}
-              onOpenInfo={handleInfoModalOpen}
-              isMobile={isMobile}
-            />
-
-            {view === 'members' && (
-              <MembersView 
-                clubMembers={clubMembers} 
-                totalMembers={clubMembersData.length} 
-                onPlayerSearch={(name) => handleSearchModalOpen(name)}
-                clubMembersData={clubMembersData} // Pass club members data to members view
-                onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
+        
+        {/* Main Content: Conditionally rendered based on loading state*/}
+        { (loading || clubMembersLoading) ? (
+          <LoadingDisplay />
+        ) : (
+          <div className="max-w-7xl mx-auto p-4">
+            <div className="bg-gray-800 rounded-lg shadow-xl p-6 mb-6">
+              <DashboardHeader
+                unknownMembers={unknownMembers}
+                view={view}
                 setView={setView}
-                setGlobalSearchQuery={setGlobalSearchQuery}
+                onOpenEvents={handleEventsModalOpen}
+                onOpenSearch={() => handleSearchModalOpen()}
+                onOpenInfo={handleInfoModalOpen}
                 isMobile={isMobile}
               />
-            )}
-            {view === 'clubs' && (
-              <ClubsView 
-                topClubs={topClubs} 
-                onClubClick={handleClubClick}
-                isMobile={isMobile}
-              />
-            )}
-            {view === 'global' && (
-              <GlobalView 
-                currentSeason={currentSeason}
-                selectedSeason={selectedSeason}
-                setSelectedSeason={setSelectedSeason}
-                globalLeaderboard={globalLeaderboard}
-                currentRubyCutoff={currentRubyCutoff}
-                onPlayerSearch={(name) => handleSearchModalOpen(name)}
-                searchQuery={globalSearchQuery}
-                setSearchQuery={setGlobalSearchQuery}
-                onGraphOpen={(embarkId, seasonKey) => handleGraphModalOpen(embarkId, [], seasonKey)}
-                isMobile={isMobile}
-                showFavourites={showFavourites}
-                setShowFavourites={setShowFavourites}
-                showToast={showToast}
-              />
-            )}
-          </div>
-        </div>
 
+              {view === 'members' && (
+                <MembersView 
+                  clubMembers={clubMembers} 
+                  totalMembers={clubMembersData.length} 
+                  onPlayerSearch={(name) => handleSearchModalOpen(name)}
+                  clubMembersData={clubMembersData} // Pass club members data to members view
+                  onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
+                  setView={setView}
+                  setGlobalSearchQuery={setGlobalSearchQuery}
+                  isMobile={isMobile}
+                />
+              )}
+              {view === 'clubs' && (
+                <ClubsView 
+                  topClubs={topClubs} 
+                  onClubClick={handleClubClick}
+                  isMobile={isMobile}
+                />
+              )}
+              {view === 'global' && (
+                <GlobalView 
+                  currentSeason={currentSeason}
+                  selectedSeason={selectedSeason}
+                  setSelectedSeason={setSelectedSeason}
+                  globalLeaderboard={globalLeaderboard}
+                  currentRubyCutoff={currentRubyCutoff}
+                  onPlayerSearch={(name) => handleSearchModalOpen(name)}
+                  searchQuery={globalSearchQuery}
+                  setSearchQuery={setGlobalSearchQuery}
+                  onGraphOpen={(embarkId, seasonKey) => handleGraphModalOpen(embarkId, [], seasonKey)}
+                  isMobile={isMobile}
+                  showFavourites={showFavourites}
+                  setShowFavourites={setShowFavourites}
+                  showToast={showToast}
+                />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Modals: Rendered OUTSIDE the loading conditional so they persist across loading states */}
         <InfoModal
           isOpen={location.pathname.startsWith('/info')}
           onClose={handleInfoModalClose}
@@ -383,6 +389,7 @@ const App = () => {
           onSearch={handleSearchSubmit}
           isMobile={isMobile}
           onClubClick={handleClubClick}
+          isLeaderboardLoading={loading}
         />
 
         {graphModalState.isOpen && (

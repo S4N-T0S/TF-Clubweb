@@ -492,10 +492,10 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
 };
 
 export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId, eventSettings) => {
-  // --- STATE MANAGEMENT REFACTOR ---
   // State for PROCESSED data, which is passed to the chart
   const [data, setData] = useState(null);
   const [comparisonData, setComparisonData] = useState(new Map());
+  const activeParamsRef = useRef({ embarkId: null, seasonId: null });
 
   // State for RAW data fetched from the API
   const [mainPlayerRaw, setMainPlayerRaw] = useState({ data: [], events: [] });
@@ -639,6 +639,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     setLoading(true);
     setError(null);
     setErrorAvailableSeasons(null);
+    isLoadingRef.current = true;
 
     try {
       const result = await fetchGraphData(targetEmbarkId, targetSeasonId);
@@ -678,11 +679,27 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       setMainPlayerRaw({ data: [], events: [] });
     } finally {
         setLoading(false);
+        isLoadingRef.current = false;
     }
   }, []);
 
   useEffect(() => {
     if (isOpen && embarkId && seasonId) {
+      // Check if the requested props match what we have already actively fetched.
+      // If so, this is a redundant re-render from the parent; enable URL following and exit.
+      if (
+          activeParamsRef.current.embarkId === embarkId && 
+          activeParamsRef.current.seasonId === seasonId
+      ) {
+          shouldFollowUrlRef.current = true;
+          return;
+      }
+
+      // If we proceed, it means the props have changed significantly.
+      // Update the gatekeeper immediately.
+      activeParamsRef.current = { embarkId, seasonId };
+      shouldFollowUrlRef.current = true;
+
       // Reset state for new player
       setData(null);
       setError(null);
@@ -696,35 +713,38 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       setComparisonRaws(new Map());
       setCurrentSeasonId(seasonId); // Reset internal season state
       loadedCompareIdsRef.current.clear();
-      shouldFollowUrlRef.current = true;
       isLoadingRef.current = false;
 
-      loadMainData(embarkId, seasonId);
+      loadMainData(embarkId, seasonId); // fetch
     }
   }, [isOpen, embarkId, seasonId, loadMainData]);
 
   useEffect(() => {
     const loadedIds = loadedCompareIdsRef.current;
     const shouldFollowUrl = shouldFollowUrlRef.current;
-    let isLoading = isLoadingRef.current;
+    
+    // Check constraints: prevent running if explicitly disabled (during switchSeason) or loading.
+    if (!isOpen || !shouldFollowUrl || !mainPlayerCurrentId || !initialCompareIds?.length) {
+        return;
+    }
+    
+    if (loading || isLoadingRef.current) return;
 
     const loadInitialComparisons = async () => {
-      if (!isOpen || isLoading || !shouldFollowUrl || !mainPlayerCurrentId) {
-        return;
-      }
-
       // Start with a unique list of IDs from the URL. We won't filter the main player yet,
       // as their name might have changed. We'll handle all de-duplication after fetching.
       const uniqueCompareIds = initialCompareIds?.length
         ? [...new Set(initialCompareIds)]
         : [];
 
+      // Check if we actually need to load anything new
+      const needsLoading = uniqueCompareIds.some(id => !comparisonRaws.has(id) && id !== mainPlayerCurrentId);
+      
       // If there's nothing to load from the URL, and we have no comparisons, we're done.
-      if (uniqueCompareIds.length === 0 && comparisonRaws.size === 0) {
+      if (!needsLoading) {
         return;
       }
 
-      isLoading = true;
       isLoadingRef.current = true;
 
       try {
@@ -737,9 +757,9 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         );
         const results = await Promise.all(promises);
 
-        const newRawComparisons = new Map();
+        const newRawComparisons = new Map(comparisonRaws);
         // The set of loaded IDs starts with the main player's current ID to avoid adding them as a comparison.
-        const loadedEmbarkIds = new Set([mainPlayerCurrentId]);
+        const loadedEmbarkIds = new Set([mainPlayerCurrentId, ...comparisonRaws.keys()]);
         const finalCompareIds = [];
 
         // Process all results to build a sanitized list of comparisons.
@@ -763,24 +783,20 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
           }
         }
 
-        const currentComparisonKeys = Array.from(comparisonRaws.keys()).sort();
-        const newComparisonKeys = Array.from(newRawComparisons.keys()).sort();
-
-        // If the final set of players is identical to what's already loaded, we don't need to set state.
-        // This prevents re-renders and re-fetches if the only change was resolving an old name in the URL.
-        if (JSON.stringify(currentComparisonKeys) !== JSON.stringify(newComparisonKeys)) {
-          setComparisonRaws(newRawComparisons);
+        // Only update state if we actually changed something
+        if (newRawComparisons.size !== comparisonRaws.size) {
+            setComparisonRaws(newRawComparisons);
         }
 
         // Always ensure the URL is up-to-date with the correct, sanitized list of player IDs.
-        const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, newComparisonKeys);
+        const currentKeys = Array.from(newRawComparisons.keys());
+        const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, currentKeys);
         const newUrl = `/graph/${currentSeasonId}/${urlString}`;
         if (window.location.pathname !== newUrl) {
           window.history.replaceState(null, '', newUrl);
         }
 
       } finally {
-        isLoading = false;
         isLoadingRef.current = false;
       }
     };
@@ -790,11 +806,10 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     return () => {
       if (!isOpen) {
         loadedIds.clear();
-        shouldFollowUrlRef.current = true;
-        isLoadingRef.current = false;
+        // Reset flags on cleanup if needed, though usually handled by main init effect
       }
     };
-  }, [isOpen, initialCompareIds, comparisonRaws, loadComparisonData, mainPlayerCurrentId, currentSeasonId]);
+  }, [isOpen, initialCompareIds, comparisonRaws, loadComparisonData, mainPlayerCurrentId, currentSeasonId, loading]);
 
   useEffect(() => {
     // This effect updates the URL if a name change was detected on load.
@@ -805,7 +820,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
 
     // isLoadingRef.current is true while initial comparison players are being fetched.
     // We wait for that process to finish (by re-running when comparisonData updates) before touching the URL.
-    if (isLoadingRef.current) {
+    if (isLoadingRef.current || loading) {
       return;
     }
 
@@ -816,16 +831,24 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     if (window.location.pathname !== newUrl) {
       window.history.replaceState(null, '', newUrl);
     }
-  }, [isOpen, embarkId, currentSeasonId, mainPlayerCurrentId, comparisonRaws]);
+  }, [isOpen, embarkId, currentSeasonId, mainPlayerCurrentId, comparisonRaws, loading]);
 
   const switchSeason = useCallback(async (newSeasonId, specificEmbarkId = null) => {
     if (isLoadingRef.current) return;
     isLoadingRef.current = true;
+    
+    // Block URL-following logic immediately. We are handling this transition manually.
+    // This prevents the URL update at the end of this function from triggering a race condition in the effects.
+    shouldFollowUrlRef.current = false;
+
     setLoading(true);
     setError(null);
     setErrorAvailableSeasons(null);
     setCurrentSeasonId(newSeasonId); // Update season ID first
     
+    const expectedMainId = specificEmbarkId || mainPlayerCurrentId; 
+    activeParamsRef.current = { embarkId: expectedMainId, seasonId: newSeasonId };
+
     // Reset raw data to null. 
     setMainPlayerRaw({ data: null, events: [] }); 
     setData(null);
@@ -843,6 +866,9 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         mainPlayerIdForNewSeason = seasonInfo ? seasonInfo.embarkId : mainPlayerCurrentId;
       }
 
+      // Update ref again with exact ID being fetched
+      activeParamsRef.current = { embarkId: mainPlayerIdForNewSeason, seasonId: newSeasonId };
+
       const mainPlayerResult = await fetchGraphData(mainPlayerIdForNewSeason, newSeasonId);
       
       let mainPlayerMaxScore = 0;
@@ -854,6 +880,9 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         setMainPlayerCurrentId(mainPlayerResult.currentEmbarkId);
         setMainPlayerAvailableSeasons(mainPlayerResult.availableSeasons);
         mainPlayerMaxScore = Math.max(...mainPlayerResult.data.map(d => d.rankScore));
+        
+        // Final update with confirmed ID
+        activeParamsRef.current = { embarkId: mainPlayerResult.currentEmbarkId, seasonId: newSeasonId };
       } else {
         setMainPlayerRaw({ data: [], events: [] }); // Clear data
         throw new Error(`Player has no data for the selected season.`);
@@ -913,7 +942,8 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       // 3. Update comparison raw state, which will trigger re-processing
       setComparisonRaws(newComparisonRawMap);
       
-      // 4. Update URL with the new main player ID and filtered comparison IDs
+      // 4. Update URL with the new main player ID and filtered comparison IDs.
+      // Note: activeParamsRef prevents the resulting prop update from triggering a re-fetch.
       const urlString = formatMultipleUsernamesForUrl(mainPlayerResult.currentEmbarkId, finalCompareIds);
       window.history.replaceState(null, '', `/graph/${newSeasonId}/${urlString}`);
 
@@ -931,6 +961,8 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     } finally {
         setLoading(false);
         isLoadingRef.current = false;
+        // We do not re-enable shouldFollowUrlRef here immediately. 
+        // We allow the component to update props first, then the main effect enables it.
     }
   }, [mainPlayerAvailableSeasons, comparisonRaws, loadComparisonData, mainPlayerCurrentId]);
 

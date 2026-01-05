@@ -6,23 +6,35 @@ const loadingMessages = [
   "Stealing cashout...",
   "Wiping enemy teams...",
   "Preparing destructible environments...",
-  "Loading grappling hooks...",
+  "Equipping comically large spoon...",
+  "Popping. Pouring. Performing...",
+  "Nerfing the Stun Gun (again)...",
+  "Renewing Holtow Sun Insurance...",
+  "Checking Scotty's caffeine levels...",
   "Calculating vault locations...",
+  "Getting winched by a Heavy...",
   "Charge 'N' Slamming the enemies...",
+  "Signing with ISEUL-T...",
+  "Reviving teammate in the gas...",
+  "Solo-queueing with two Lights...",
   "Activating thermal vision...",
-  "Recruiting contestants...",
+  "Drinking 6 cans of OSPUZE...",
   "Buffing server performance...",
-  "Counting prize money...",
   "Deleting Kyoto 1568...",
-  "Warming up the audience..."
+  "Whiffing the RPG...",
+  "Counting prize money...",
+  "Complaining about Light players..."
 ];
 
-export const LoadingDisplay = ({ variant = 'page' }) => {
+export const LoadingDisplay = ({ variant = 'page', message }) => {
   const [currentMessage, setCurrentMessage] = useState(
     loadingMessages[Math.floor(Math.random() * loadingMessages.length)]
   );
 
   useEffect(() => {
+    // If a specific message is provided, do not rotate messages
+    if (message) return;
+
     const interval = setInterval(() => {
       setCurrentMessage(prevMessage => {
         const currentIndex = loadingMessages.indexOf(prevMessage);
@@ -32,7 +44,7 @@ export const LoadingDisplay = ({ variant = 'page' }) => {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [message]);
 
   const isPage = variant === 'page';
   
@@ -46,9 +58,9 @@ export const LoadingDisplay = ({ variant = 'page' }) => {
   return (
     <div className={containerClass}>
       <Loader2 className={`${iconClass} animate-spin text-blue-500`} />
-      <p className={`mt-4 ${textClass} text-gray-300`}>{currentMessage}</p>
+      <p className={`mt-4 ${textClass} text-gray-300`}>{message || currentMessage}</p>
     </div>
   );
 };
 
-LoadingDisplay.propTypes =  LoadingDisplayProps;
+LoadingDisplay.propTypes = LoadingDisplayProps;

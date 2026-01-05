@@ -7,8 +7,9 @@ import { getLeagueInfo } from '../utils/leagueUtils';
 import { SearchModalProps } from '../types/propTypes';
 import { isValidEmbarkId, formatUsernameForUrl } from '../utils/urlHandler';
 import { useModal } from '../context/ModalProvider';
+import { LoadingDisplay } from './LoadingDisplay';
 
-const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClubClick }) => {
+const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClubClick, isLeaderboardLoading }) => {
   // `useModal` now also returns `isActive`, which handles animation state internally.
   const { modalRef, isActive } = useModal(isOpen, onClose);
   const [searchState, setSearchState] = useState({
@@ -22,7 +23,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
   
   const [isExplanationExpanded, setIsExplanationExpanded] = useState(false);
   const inputRef = useRef(null);
-  const initialSearchRef = useRef(false);
+  const initialSearchPerformedRef = useRef(false);
 
   const toggleExplanation = () => {
     setIsExplanationExpanded(!isExplanationExpanded);
@@ -154,12 +155,9 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
   };
 
   useEffect(() => {
-    if (isOpen && initialSearch && !initialSearchRef.current) {
-      initialSearchRef.current = true;
-      setSearchState(prev => ({ ...prev, query: initialSearch }));
-      handleSearch(initialSearch, true); // Skip URL update for initial search
-    } else if (!isOpen) {
-      initialSearchRef.current = false;
+    // 1. If modal is closed, reset the ref so we can search again next time it opens
+    if (!isOpen) {
+      initialSearchPerformedRef.current = false;
       setSearchState({
         query: '',
         results: [],
@@ -168,8 +166,24 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
         suggestions: [],
         selectedIndex: -1
       });
+      return;
     }
-  }, [isOpen, initialSearch, handleSearch]);
+    // 2. If open, we have an initial search string, but we haven't done it yet...
+    if (isOpen && initialSearch && !initialSearchPerformedRef.current) {
+      
+      // 3. WAIT if the leaderboard is still loading, do not search yet.
+      // The effect will re-run when isLeaderboardLoading changes to false.
+      if (isLeaderboardLoading) {
+        setSearchState(prev => ({ ...prev, query: initialSearch }));
+        return;
+      }
+
+      // 4. Data is ready. Execute search.
+      initialSearchPerformedRef.current = true;
+      setSearchState(prev => ({ ...prev, query: initialSearch }));
+      handleSearch(initialSearch, true); // true = skip URL update
+    }
+  }, [isOpen, initialSearch, handleSearch, isLeaderboardLoading]);
 
   if (!isOpen) return null;
 
@@ -221,6 +235,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
                   ref={inputRef}
                   type="text"
                   value={searchState.query}
+                  disabled={isLeaderboardLoading}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyPress}
                   placeholder="Enter Embark ID (e.g. 00#0000)"
@@ -247,7 +262,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
               </div>
               <button
                 onClick={() => handleSearch(searchState.query)}
-                disabled={searchState.isSearching}
+                disabled={searchState.isSearching || isLeaderboardLoading}
                 title="Search"
                 aria-label="Search"
                 className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center"
@@ -263,103 +278,111 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
           )}
         </div>
         <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {searchState.results.length === 0 && !searchState.error && !searchState.isSearching && searchState.query && (
-              <div className="col-span-1 sm:col-span-2 p-4 bg-gray-700 rounded-lg text-gray-300 text-center">
-                No results found
-              </div>
-            )}
-            {searchState.results.map((result, index) => (
-              <div 
-                key={`${result.season}-${index}`}
-                className={`p-4 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors
-                  ${result.foundViaSteamName ? 'border-2 border-yellow-500' : ''}`}
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <span className="text-lg font-medium text-blue-400">{result.season}</span>
-                  {result.rank && (
-                    <div className="flex flex-col items-end gap-1">
-                      <span className={`text-gray-300 ${result.isTop500 ? 'border-2 border-red-500 rounded px-2' : ''}`}>
-                        Rank #{result.rank.toLocaleString()}
-                      </span>
-                      {!result.name && (
-                        <div className="flex items-center gap-1">
-                          <AlertTriangle className="w-4 h-4 text-red-500" />
-                          <span className="text-xs text-red-400">
-                            Platform-specific leaderboard rank
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+          
+          {/* Conditional Rendering: Loading State vs Results Grid */}
+          {(isLeaderboardLoading && initialSearch && searchState.results.length === 0) ? (
+             <div className="h-full min-h-[150px] flex items-center justify-center">
+                <LoadingDisplay variant="component" />
+             </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {searchState.results.length === 0 && !searchState.error && !searchState.isSearching && searchState.query && (
+                <div className="col-span-1 sm:col-span-2 p-4 bg-gray-700 rounded-lg text-gray-300 text-center">
+                  No results found
                 </div>
-                <div className="space-y-2 text-gray-300">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {result.name && (
-                      <p title="Embark username" className="flex items-center">
-                        <PlatformIcons.Embark />
-                        {result.name}
-                      </p>
-                    )}
-                    {result.clubTag && (
-                      <p title="Club membership" className="flex items-center">
-                        <Users className="w-4 h-4 inline-block mr-1" />
-                        <span
-                          className="text-blue-400 hover:text-blue-300 cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onClubClick(result.clubTag, result.seasonKey);
-                          }}
-                        >
-                          {result.clubTag}
+              )}
+              {searchState.results.map((result, index) => (
+                <div 
+                  key={`${result.season}-${index}`}
+                  className={`p-4 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors
+                    ${result.foundViaSteamName ? 'border-2 border-yellow-500' : ''}`}
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <span className="text-lg font-medium text-blue-400">{result.season}</span>
+                    {result.rank && (
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`text-gray-300 ${result.isTop500 ? 'border-2 border-red-500 rounded px-2' : ''}`}>
+                          Rank #{result.rank.toLocaleString()}
                         </span>
-                      </p>
-                    )}
-                    {result.steamName && (
-                      <div className="flex items-center gap-2">
-                        <p title="Steam display name" className="flex items-center">
-                          <PlatformIcons.Steam />
-                          {result.steamName}
-                        </p>
-                        {result.foundViaSteamName && (
-                          <div className="relative group">
-                            <AlertTriangle className="w-4 h-4 text-yellow-400 hover:cursor-help" />
-                            <span className="absolute hidden group-hover:block bg-gray-900 text-white px-2 py-1 rounded text-sm -top-10 left-1/2 -translate-x-1/2 z-50 w-48 hover:cursor-help">
-                              Steam names are not unique, this could be a different player.
+                        {!result.name && (
+                          <div className="flex items-center gap-1">
+                            <AlertTriangle className="w-4 h-4 text-red-500" />
+                            <span className="text-xs text-red-400">
+                              Platform-specific leaderboard rank
                             </span>
                           </div>
                         )}
                       </div>
                     )}
-                    {result.psnName && (
-                      <p title="PSN username" className="flex items-center">
-                        <PlatformIcons.PSN />
-                        {result.psnName}
-                      </p>
-                    )}
-                    {result.xboxName && (
-                      <p title="Xbox username" className="flex items-center">
-                        <PlatformIcons.Xbox />
-                        {result.xboxName}
-                      </p>
-                    )}
                   </div>
-                  
-                  <div className="mt-3 pt-3 border-t border-gray-600 flex items-center gap-2">
-                    <Hexagon className={getLeagueInfo(result.leagueNumber).style} />
-                    <div className="flex flex-col">
-                      <span className="text-gray-200">{result.league}</span>
-                      {result.score && (
-                        <span className="text-sm text-gray-400">
-                          {result.score.toLocaleString()} points
-                        </span>
+                  <div className="space-y-2 text-gray-300">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {result.name && (
+                        <p title="Embark username" className="flex items-center">
+                          <PlatformIcons.Embark />
+                          {result.name}
+                        </p>
                       )}
+                      {result.clubTag && (
+                        <p title="Club membership" className="flex items-center">
+                          <Users className="w-4 h-4 inline-block mr-1" />
+                          <span
+                            className="text-blue-400 hover:text-blue-300 cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onClubClick(result.clubTag, result.seasonKey);
+                            }}
+                          >
+                            {result.clubTag}
+                          </span>
+                        </p>
+                      )}
+                      {result.steamName && (
+                        <div className="flex items-center gap-2">
+                          <p title="Steam display name" className="flex items-center">
+                            <PlatformIcons.Steam />
+                            {result.steamName}
+                          </p>
+                          {result.foundViaSteamName && (
+                            <div className="relative group">
+                              <AlertTriangle className="w-4 h-4 text-yellow-400 hover:cursor-help" />
+                              <span className="absolute hidden group-hover:block bg-gray-900 text-white px-2 py-1 rounded text-sm -top-10 left-1/2 -translate-x-1/2 z-50 w-48 hover:cursor-help">
+                                Steam names are not unique, this could be a different player.
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {result.psnName && (
+                        <p title="PSN username" className="flex items-center">
+                          <PlatformIcons.PSN />
+                          {result.psnName}
+                        </p>
+                      )}
+                      {result.xboxName && (
+                        <p title="Xbox username" className="flex items-center">
+                          <PlatformIcons.Xbox />
+                          {result.xboxName}
+                        </p>
+                      )}
+                    </div>
+                    
+                    <div className="mt-3 pt-3 border-t border-gray-600 flex items-center gap-2">
+                      <Hexagon className={getLeagueInfo(result.leagueNumber).style} />
+                      <div className="flex flex-col">
+                        <span className="text-gray-200">{result.league}</span>
+                        {result.score && (
+                          <span className="text-sm text-gray-400">
+                            {result.score.toLocaleString()} points
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

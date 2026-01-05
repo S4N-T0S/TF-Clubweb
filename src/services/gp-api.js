@@ -16,6 +16,7 @@ export const fetchGraphData = async (embarkId, seasonId = null) => {
     logApiCall('Client Cache', {
       groupName: 'Player Graph',
       embarkId,
+      seasonId,
       timestamp: cachedData.timestamp,
       remainingTtl: Math.floor((cachedEntry.expiresAt - Date.now()) / 1000),
     });
@@ -44,6 +45,7 @@ export const fetchGraphData = async (embarkId, seasonId = null) => {
     logApiCall(result.source || 'Direct', {
       groupName: 'Player Graph',
       embarkId,
+      seasonId,
       timestamp: result.timestamp
     });
     
