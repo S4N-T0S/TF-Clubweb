@@ -14,7 +14,8 @@ function parseCsvData(csvText) {
         embarkId: embarkId?.trim() || null,
         //discord: discord?.trim() || null -- Discord Link Removed.
       };
-    });
+    })
+    .filter(player => player.embarkId !== null && player.embarkId !== ''); // Filter out entries where embarkId is null or empty
 };
 
 export async function fetchClubMembers() {
