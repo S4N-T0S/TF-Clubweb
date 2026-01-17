@@ -288,6 +288,21 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
       setEvents(newEvents);
       setCacheExpiresAt(result.expiresAt || 0);
       setError(null);
+
+      // Check for Partial Failures
+      if (result.failedSeasons && result.failedSeasons.length > 0) {
+        const failedLabels = result.failedSeasons
+            .map(k => SEASONS[k]?.label || k)
+            .join(', ');
+        
+        showToast({ 
+            title: 'Loaded partial events data.',
+            message: `Failed to load: ${failedLabels}`,
+            type: 'warning',
+            duration: 5000
+        });
+      }
+
       if (forceRefresh) {
         // Check for new or updated events to provide a more informative toast.
         let newEventCount = 0;
@@ -304,22 +319,27 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
           }
         });
         
-        if (newEventCount > 0 || updatedEventCount > 0) {
-          const parts = [];
-          if (newEventCount > 0) {
-            parts.push(`${newEventCount} new event${newEventCount > 1 ? 's' : ''}`);
+        // Only show success toast if we didn't just show a partial failure warning
+        if (!result.failedSeasons || result.failedSeasons.length === 0) {
+          if (newEventCount > 0 || updatedEventCount > 0) {
+            const parts = [];
+            if (newEventCount > 0) {
+              parts.push(`${newEventCount} new event${newEventCount > 1 ? 's' : ''}`);
+            }
+            if (updatedEventCount > 0) {
+              parts.push(`${updatedEventCount} updated event${updatedEventCount > 1 ? 's' : ''}`);
+            }
+            const message = `Events feed updated with ${parts.join(' and ')}.`;
+            showToast({ message, type: 'success' });
           }
-          if (updatedEventCount > 0) {
-            parts.push(`${updatedEventCount} updated event${updatedEventCount > 1 ? 's' : ''}`);
-          }
-          const message = `Events feed updated with ${parts.join(' and ')}.`;
-          showToast({ message, type: 'success' });
         }
       }
     } catch (_err) {
       const seasonLabel = seasonToLoad === 'ALL' ? 'All Seasons' : (SEASONS[seasonToLoad]?.label || 'the selected season');
       setError(`Failed to load events for ${seasonLabel}.`);
       showToast({ message: 'Could not fetch recent events.', type: 'error' });
+      // Set a retry delay on error to prevent infinite loops when 'error' is added to the useEffect dependencies.
+      setCacheExpiresAt(Date.now() + 30000);
     } finally {
       setLoading(false);
     }
@@ -403,7 +423,9 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
       if (isOpen && isTopModal && autoRefresh && canAutoRefresh) {
         // Pass false here, ensuring fetchAllSeasonsEvents uses cached data for valid (historical) seasons
         // and only hits the network for expired (current/failed) seasons.
-        forceLoadWithAnimation(false);
+        // If we are in an error state, pass true to force the refresh to bypass browser cache.
+        const shouldForce = !!error;
+        forceLoadWithAnimation(shouldForce);
       }
     }, delay + 1000);
 
@@ -412,7 +434,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     return () => {
         clearTimeout(timer);
     };
-  }, [isOpen, isTopModal, autoRefresh, cacheExpiresAt, forceLoadWithAnimation, canAutoRefresh]);
+  }, [isOpen, isTopModal, autoRefresh, cacheExpiresAt, forceLoadWithAnimation, canAutoRefresh, error]);
 
   const toggleAutoRefresh = () => {
     const nextState = !autoRefresh;

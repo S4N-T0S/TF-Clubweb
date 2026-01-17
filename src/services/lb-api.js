@@ -22,36 +22,49 @@ const transformData = (rawData) => {
   });
 };
 
-export const fetchLeaderboardData = async () => {
+/**
+ * Fetches leaderboard data.
+ * @param {boolean} forceRefresh - If true, bypasses the fresh cache check and forces a network reload.
+ */
+export const fetchLeaderboardData = async (forceRefresh = false) => {
   try {
     // 1. Check for fresh client cache from IndexedDB
-    const cachedEntry = await getCacheItem(CACHE_KEY);
+    // If forceRefresh is true, we SKIP this step to ensure we attempt a network call.
+    if (!forceRefresh) {
+      const cachedEntry = await getCacheItem(CACHE_KEY);
 
-    if (cachedEntry) {
-      const cachePayload = cachedEntry.data; // The full API response is in the 'data' property
-      const source = cachePayload.source === 'kv-cache-fallback' ? 'client-cache-fallback' : 'client-cache';
-      const remainingTtl = Math.floor((cachedEntry.expiresAt - Date.now()) / 1000);
-      
-      logApiCall(source, {
-        groupName: 'Leaderboard',
-        timestamp: cachePayload.timestamp,
-        lastCheck: cachePayload.lastCheck,
-        remainingTtl,
-      });
+      if (cachedEntry) {
+        const cachePayload = cachedEntry.data; // The full API response is in the 'data' property
+        const source = cachePayload.source === 'kv-cache-fallback' ? 'client-cache-fallback' : 'client-cache';
+        const remainingTtl = Math.floor((cachedEntry.expiresAt - Date.now()) / 1000);
+        
+        logApiCall(source, {
+          groupName: 'Leaderboard',
+          timestamp: cachePayload.timestamp,
+          lastCheck: cachePayload.lastCheck,
+          remainingTtl,
+        });
 
-      return {
-        data: transformData(cachePayload.data),
-        source,
-        timestamp: cachePayload.timestamp * 1000,
-        lastCheck: (cachePayload.lastCheck || cachePayload.timestamp) * 1000,
-        remainingTtl,
-        expiresAt: cachedEntry.expiresAt,
-      };
+        return {
+          data: transformData(cachePayload.data),
+          source,
+          timestamp: cachePayload.timestamp * 1000,
+          lastCheck: (cachePayload.lastCheck || cachePayload.timestamp) * 1000,
+          remainingTtl,
+          expiresAt: cachedEntry.expiresAt,
+        };
+      }
     }
 
     // 2. Fetch from the network
-    // Use the updated apiFetch to get both data and headers
-    const { data: result, headers } = await apiFetch('/leaderboard', { returnHeaders: true });
+    // If forceRefresh is true, use 'reload' to bypass the browser's internal HTTP cache.
+    // This fixes issues where the browser persistently serves a 304 or failed connection state.
+    const fetchOptions = { 
+      returnHeaders: true,
+      cache: forceRefresh ? 'reload' : 'default'
+    };
+
+    const { data: result, headers } = await apiFetch('/leaderboard', fetchOptions);
     
     if (!result.data) {
       throw new Error('No data in API response');

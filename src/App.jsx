@@ -284,7 +284,13 @@ const App = () => {
     setEventsModalState(shouldEventsBeOpen);
   }, [location.pathname, modalHistory]);
 
-  if (error) return <ErrorDisplay error={error} onRetry={() => refreshData(true)} />;
+  if (error) return (
+    <ErrorDisplay 
+      error={error} 
+      // Force refresh (bypass IDB read + browser cache reload)
+      onRetry={() => refreshData(true, true)} 
+    />
+  );
 
   return (
     <div className="min-h-screen bg-gray-900 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">

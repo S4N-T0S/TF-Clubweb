@@ -118,7 +118,7 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
     clubMembersDataRef.current = clubMembersData;
   }, [clubMembersData]);
 
-  const refreshData = useCallback(async (isInitialLoad = false) => {
+  const refreshData = useCallback(async (isInitialLoad = false, forceRefresh = false) => {
     if (!isMounted.current) return;
 
     // Only show "loading" toast on manual/auto refreshes, not the initial page load.
@@ -134,7 +134,7 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
     }
     
     try {
-      const rawData = await fetchLeaderboardData();
+      const rawData = await fetchLeaderboardData(forceRefresh);
       if (!isMounted.current) return;
       if (!rawData?.data) {
         throw new Error('Invalid data received from API.');
@@ -179,6 +179,8 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
           rawData.lastCheck, 
           rawData.remainingTtl
         ));
+      } else {
+        setToastMessage(null);
       }
       
     } catch (err) {
@@ -226,11 +228,17 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
 
     const timer = setTimeout(() => {
       // Re-check autoRefresh state inside timeout in case it was toggled off while waiting
-      if (autoRefresh && isMounted.current) refreshData(false);
+      if (autoRefresh && isMounted.current) {
+        // If we currently have an error, we assume the previous fetch failed.
+        // Therefore, we force this automatic retry to bypass the browser cache (true).
+        // If we are healthy (no error), we allow standard caching (false).
+        const shouldForce = !!error;
+        refreshData(false, shouldForce);
+      }
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [autoRefresh, cacheExpiresAt, refreshData]);
+  }, [autoRefresh, cacheExpiresAt, refreshData, error]);
 
 
   // Update processed data when club members data arrives after the initial load

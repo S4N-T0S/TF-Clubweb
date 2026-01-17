@@ -18,6 +18,8 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
   const effectiveSeasonKey = seasonKey || currentSeasonKey;
   const cacheKey = getCacheKey(effectiveSeasonKey);
   
+  // 1. Check for fresh client cache from IndexedDB
+  // Skip this step if forceRefresh is true
   if (!forceRefresh) {
     const cached = await getCacheItem(cacheKey);
     if (cached) {
@@ -41,8 +43,15 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
     const season = SEASONS[effectiveSeasonKey];
     const endpoint = `/events/${season.id}`;
 
+    // 2. Fetch from Network
+    // If forceRefresh is true, we use 'reload' to bypass the browser's HTTP cache.
+    const fetchOptions = { 
+        returnHeaders: true,
+        cache: forceRefresh ? 'reload' : 'default'
+    };
+
     // Use the updated apiFetch to get both data and headers.
-    const { data: result, headers } = await apiFetch(endpoint, { returnHeaders: true });
+    const { data: result, headers } = await apiFetch(endpoint, fetchOptions);
     
     if (!result.data || !Array.isArray(result.data)) {
       throw new Error('Invalid events data received from API');
@@ -72,7 +81,20 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
     if (!(error instanceof ApiError)) {
         console.error(`Failed to fetch events for season ${effectiveSeasonKey}:`, error);
     }
-    throw error; // Re-throw to be handled by the calling component
+    
+    // If network fails (even on forceRefresh), try to return stale cache if it exists.
+    const staleCache = await getCacheItem(cacheKey, { ignoreExpiration: true });
+    if (staleCache) {
+        console.warn(`Returning stale event cache for season ${effectiveSeasonKey} due to network error.`);
+        return { 
+            ...staleCache.data, 
+            data: staleCache.data.data.map(e => transformEventData(e, effectiveSeasonKey)),
+            expiresAt: Date.now() + 30000, // Short TTL for stale data
+            timestamp: staleCache.data.timestamp * 1000,
+        };
+    }
+
+    throw error; // Re-throw if no fallback is possible
   }
 };
 
@@ -88,14 +110,17 @@ export const fetchAllSeasonsEvents = async (forceRefresh = false) => {
     // Only the current season is likely to hit the API network.
     const resultsPromises = validSeasons.map(key => 
       fetchRecentEvents(forceRefresh, key)
-        .then(res => ({ ...res, seasonKey: key })) // Attach key to result wrapper for identification
+        .then(res => ({ ...res, seasonKey: key, success: true })) // Attach key to result wrapper for identification
         .catch(err => {
           console.warn(`Failed to fetch events for subset season ${key} in aggregate view:`, err);
-          return { data: [], expiresAt: 0, seasonKey: key }; // Fail gracefully for individual seasons
+          return { data: [], expiresAt: 0, seasonKey: key, success: false }; // Fail gracefully for individual seasons
         })
     );
 
     const results = await Promise.all(resultsPromises);
+    
+    // Identify failed seasons to report back to UI
+    const failedSeasons = results.filter(r => !r.success).map(r => r.seasonKey);
 
     // Flatten all data arrays
     const allEvents = results.flatMap(r => r.data);
@@ -118,6 +143,7 @@ export const fetchAllSeasonsEvents = async (forceRefresh = false) => {
       data: allEvents,
       expiresAt: aggregateExpiresAt,
       timestamp: Date.now(), // Timestamp of the aggregation
+      failedSeasons // Pass this up so the UI can display a toast
     };
   } catch (error) {
     console.error('Failed to aggregate all season events:', error);
