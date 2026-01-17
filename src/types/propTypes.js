@@ -42,12 +42,12 @@ export const SortButtonProps = {
 };
 
 export const DashboardHeaderProps = {
-  unknownMembers: PropTypes.arrayOf(PropTypes.object).isRequired,
-  view: PropTypes.oneOf(['members', 'clubs', 'global']).isRequired,
+  view: PropTypes.oneOf(['hub', 'clubs', 'global']).isRequired,
   setView: PropTypes.func.isRequired,
   onOpenSearch: PropTypes.func.isRequired,
   onOpenEvents: PropTypes.func.isRequired,
   onOpenInfo: PropTypes.func.isRequired,
+  onOpenMembers: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired,
 };
 
@@ -137,33 +137,23 @@ export const LeagueRangeSliderProps = {
   onChange: PropTypes.func.isRequired,
 };
 
-export const MembersViewProps = {
-  clubMembers: PropTypes.arrayOf(PropTypes.shape(PlayerType)).isRequired,
-  totalMembers: PropTypes.number.isRequired,
-  onPlayerSearch: PropTypes.func.isRequired,
-  clubMembersData: PropTypes.arrayOf(PropTypes.shape({
-    embarkId: PropTypes.string.isRequired,
-    discord: PropTypes.string
-  })),
+export const MembersModalProps = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)).isRequired,
   onGraphOpen: PropTypes.func.isRequired,
-  isMobile: PropTypes.bool.isRequired,
-  setView: PropTypes.func.isRequired,
-  setGlobalSearchQuery: PropTypes.func.isRequired
-};
-
-export const MemberRowProps = {
-  member: PropTypes.shape(PlayerType).isRequired,
-  onSearchClick: PropTypes.func.isRequired,
-  onGraphClick: PropTypes.func.isRequired,
-  clubMembersData: PropTypes.arrayOf(PropTypes.shape({
-    embarkId: PropTypes.string.isRequired
-  })),
+  onPlayerSearch: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired
 };
 
-export const MembersNoResultsProps = {
-  searchQuery: PropTypes.string.isRequired,
-  onSwitchToGlobalSearch: PropTypes.func.isRequired
+export const MemberRowProps = {
+  member: PropTypes.object.isRequired,
+  onGraphOpen: PropTypes.func.isRequired,
+  onSearch: PropTypes.func.isRequired
+};
+
+export const StatusBadgeProps = {
+    status: PropTypes.string.isRequired
 };
 
 export const ToastProps = {
@@ -247,9 +237,7 @@ export const GraphModalProps = {
   embarkId: PropTypes.string.isRequired,
   seasonId: PropTypes.number.isRequired,
   compareIds: PropTypes.arrayOf(PropTypes.string),
-  isClubView: PropTypes.bool,
   globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)),
-  onSwitchToGlobal: PropTypes.func,
   currentRubyCutoff: PropTypes.oneOfType([PropTypes.number, PropTypes.bool]),
   isMobile: PropTypes.bool.isRequired
 };

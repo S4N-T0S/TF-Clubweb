@@ -37,7 +37,7 @@ const setStoredJsonItem = (key, value) => {
 
 // View Tab (stores a simple string, not JSON)
 const LAST_TAB_KEY = 'dashboard_tab';
-const VALID_TABS = ['members', 'clubs', 'global'];
+const VALID_TABS = ['clubs', 'global', 'hub'];
 export const getStoredTab = () => {
     try {
         const storedTab = localStorage.getItem(LAST_TAB_KEY);

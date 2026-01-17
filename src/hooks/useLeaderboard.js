@@ -84,14 +84,13 @@ const getToastConfig = (source, timestamp, lastCheck, ttl) => {
   };
 };
 
-export const useLeaderboard = (clubMembersData, autoRefresh) => {
+export const useLeaderboard = (autoRefresh) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState({
-    clubMembers: [],
     topClubs: [],
-    unknownMembers: [],
     globalLeaderboard: [],
+    currentRubyCutoff: false,
     lastUpdated: null
   });
   const [toastMessage, setToastMessage] = useState(null);
@@ -100,9 +99,7 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
   // Refs
   const initialLoadTriggered = useRef(false);
   const initialLoadDone = useRef(false);
-  const lastGlobalLeaderboard = useRef([]);
   const lastTimestampRef = useRef(null);
-  const clubMembersDataRef = useRef(clubMembersData);
   
   // Track mount status to prevent setting state on unmounted components
   const isMounted = useRef(true);
@@ -113,10 +110,6 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
       isMounted.current = false;
     };
   }, []);
-
-  useEffect(() => {
-    clubMembersDataRef.current = clubMembersData;
-  }, [clubMembersData]);
 
   const refreshData = useCallback(async (isInitialLoad = false, forceRefresh = false) => {
     if (!isMounted.current) return;
@@ -151,9 +144,8 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
       lastTimestampRef.current = rawData.timestamp;
 
       setCacheExpiresAt(rawData.expiresAt || 0); // This triggers the next auto-refresh.
-      lastGlobalLeaderboard.current = rawData.data;
       
-      const processedData = processLeaderboardData(rawData.data, clubMembersDataRef.current || []);
+      const processedData = processLeaderboardData(rawData.data);
 
       setData({ ...processedData, lastUpdated: rawData.timestamp });
       setError(null);
@@ -239,17 +231,6 @@ export const useLeaderboard = (clubMembersData, autoRefresh) => {
 
     return () => clearTimeout(timer);
   }, [autoRefresh, cacheExpiresAt, refreshData, error]);
-
-
-  // Update processed data when club members data arrives after the initial load
-  useEffect(() => {
-    if (initialLoadDone.current && clubMembersData?.length > 0 && lastGlobalLeaderboard.current.length > 0) {
-      const processedData = processLeaderboardData(lastGlobalLeaderboard.current, clubMembersData);
-      if (isMounted.current) {
-        setData(prev => ({ ...processedData, lastUpdated: prev.lastUpdated }));
-      }
-    }
-  }, [clubMembersData]);
 
   return {
     ...data,

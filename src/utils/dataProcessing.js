@@ -1,4 +1,4 @@
-export const processLeaderboardData = (rawData, clubMembers) => {
+export const processLeaderboardData = (rawData) => {
   // Find Ruby cutoff score
   const rubyPlayers = rawData.filter(player => player.leagueNumber === 21); // Ruby League remember to change if API changes
   const currentRubyCutoff = rubyPlayers.length > 0 ? rubyPlayers.reduce((lowest, player) => // Either returns RS of lowest ruby player or false if no ruby players
@@ -31,63 +31,95 @@ export const processLeaderboardData = (rawData, clubMembers) => {
       memberCount: data.members,
       averageScore: data.members > 0 ? data.score / data.members : 0
     }))
-    .sort((a, b) => b.totalScore - a.totalScore)
-
-  const ogMembersInLeaderboard = rawData.filter(player => 
-    player?.clubTag === 'OG'
-  );
-
-  const { matchedMembers, unknownMembers, matchedClubMembers } = processOGMembers(ogMembersInLeaderboard, clubMembers);
-  const unrankedMembers = getUnrankedMembers(matchedClubMembers, clubMembers);
-  const finalClubMembers = [...matchedMembers, ...unrankedMembers];
+    .sort((a, b) => b.totalScore - a.totalScore);
 
   return {
-    clubMembers: finalClubMembers,
-    rankedClubMembers: ogMembersInLeaderboard,
     topClubs,
-    unknownMembers,
     globalLeaderboard,
     currentRubyCutoff
   };
 };
 
-const processOGMembers = (ogMembersInLeaderboard, clubMembers) => {
-  const matchedClubMembers = new Set();
-  const unknownMembers = [];
-  const clubMemberMap = new Map();
+/**
+ * Calculates member status by comparing Spreadsheet data vs Global Leaderboard data.
+ * Statuses:
+ * - Verified (Normal): In Spreadsheet AND In Leaderboard with OG tag.
+ * - Wrong Tag (Red): In Spreadsheet AND In Leaderboard BUT has different/no tag.
+ * - Unranked (Yellow): In Spreadsheet BUT NOT in Leaderboard.
+ * - Newbs (Light Green): NOT in Spreadsheet BUT In Leaderboard with OG tag.
+ */
+export const calculateMemberStatus = (globalLeaderboard, spreadsheetMembers) => {
+  const processedMembers = [];
+  
+  // Create a map of leaderboard players by Embark ID (lowercase) for fast lookup
+  const leaderboardMap = new Map();
+  const ogTagInLeaderboard = [];
 
-  clubMembers.forEach(member => {
-    if (member.embarkId) {
-      clubMemberMap.set(member.embarkId.toLowerCase(), member);
+  globalLeaderboard.forEach(p => {
+    const key = p.name.toLowerCase();
+    leaderboardMap.set(key, p);
+    if (p.clubTag === 'OG') {
+      ogTagInLeaderboard.push(p);
     }
   });
 
-  const matchedMembers = ogMembersInLeaderboard.map(apiMember => {
-    const clubMember = clubMemberMap.get(apiMember.name.toLowerCase());
+  // Track which leaderboard OG members are actually in the spreadsheet
+  const foundSpreadsheetIds = new Set();
 
-    if (clubMember) {
-      matchedClubMembers.add(clubMember.embarkId);
+  // 1. Iterate through Spreadsheet Members (The source of truth)
+  spreadsheetMembers.forEach(sheetMember => {
+    const key = sheetMember.embarkId.toLowerCase();
+    const lbData = leaderboardMap.get(key);
+
+    if (!lbData) {
+      // Case: Unranked / Unknown (Yellow)
+      processedMembers.push({
+        ...sheetMember,
+        name: sheetMember.embarkId,
+        status: 'unranked',
+        rankScore: 0,
+        league: 'Unranked',
+        rank: null
+      });
     } else {
-      unknownMembers.push(apiMember);
+      // Found in Leaderboard
+      foundSpreadsheetIds.add(key);
+      
+      if (lbData.clubTag === 'OG') {
+        // Case: Verified (Normal)
+        processedMembers.push({
+          ...lbData,
+          discord: sheetMember.discord,
+          status: 'verified'
+        });
+      } else {
+        // Case: Wrong Tag (Red) - In LB but left club or changed tag
+        processedMembers.push({
+          ...lbData,
+          discord: sheetMember.discord,
+          status: 'wrong_tag'
+        });
+      }
     }
-
-    return {
-      ...apiMember,
-      discord: clubMember?.discord || null
-    };
   });
 
-  return { matchedMembers, unknownMembers, matchedClubMembers };
-};
+  // 2. Find Newbs (Light Green)
+  // Users in Leaderboard with OG tag, but NOT in the Spreadsheet
+  ogTagInLeaderboard.forEach(lbMember => {
+    const key = lbMember.name.toLowerCase();
+    if (!foundSpreadsheetIds.has(key)) {
+      processedMembers.push({
+        ...lbMember,
+        status: 'new_member'
+      });
+    }
+  });
 
-const getUnrankedMembers = (matchedClubMembers, clubMembers) => {
-  return clubMembers
-    .filter(member => !matchedClubMembers.has(member.embarkId))
-    .map(member => ({
-      name: member.embarkId,
-      discord: member.discord,
-      rankScore: 0,
-      league: 'Unranked',
-      notInLeaderboard: true
-    }));
+  // Sort by Rank by default.
+  // Players without a rank (Unranked) go to the bottom.
+  return processedMembers.sort((a, b) => {
+    const rankA = a.rank || Infinity;
+    const rankB = b.rank || Infinity;
+    return rankA - rankB;
+  });
 };

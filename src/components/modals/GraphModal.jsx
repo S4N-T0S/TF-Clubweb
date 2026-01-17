@@ -21,15 +21,15 @@ import { Line } from 'react-chartjs-2';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import 'chartjs-adapter-date-fns';
-import { GraphModalProps, GraphErrorViewProps, ComparePlayerModalProps, GraphSettingsModalProps, FilterToggleButtonProps } from '../types/propTypes';
-import { useModal } from '../context/ModalProvider';
-import { usePlayerGraphData } from '../hooks/usePlayerGraphData';
-import { useChartConfig } from '../hooks/useChartConfig';
-import { LoadingDisplay } from './LoadingDisplay';
-import { SearchBar } from './SearchBar';
-import { getStoredGraphSettings, setStoredGraphSettings } from '../services/localStorageManager';
-import { SEASONS, getSeasonLeaderboard } from '../services/historicalDataService';
-import { filterPlayerByQuery } from '../utils/searchUtils';
+import { GraphModalProps, GraphErrorViewProps, ComparePlayerModalProps, GraphSettingsModalProps, FilterToggleButtonProps } from '../../types/propTypes';
+import { useModal } from '../../context/ModalProvider';
+import { usePlayerGraphData } from '../../hooks/usePlayerGraphData';
+import { useChartConfig } from '../../hooks/useChartConfig';
+import { LoadingDisplay } from '../LoadingDisplay';
+import { SearchBar } from '../SearchBar';
+import { getStoredGraphSettings, setStoredGraphSettings } from '../../services/localStorageManager';
+import { SEASONS, getSeasonLeaderboard } from '../../services/historicalDataService';
+import { filterPlayerByQuery } from '../../utils/searchUtils';
 
 ChartJS.register(
   CategoryScale,
@@ -341,7 +341,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
   );
 };
 
-const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isClubView = false, globalLeaderboard = [], onSwitchToGlobal, currentRubyCutoff, isMobile, lastLeaderboardUpdate }) => {
+const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, globalLeaderboard = [], currentRubyCutoff, isMobile, lastLeaderboardUpdate }) => {
   const { modalRef, isActive } = useModal(isOpen, onClose);
   const chartRef = useRef(null);
   const hasSetInitialTimeRangeRef = useRef(false);
@@ -460,10 +460,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
 
     const seasonKeyForLeaderboard = Object.keys(SEASONS).find(key => SEASONS[key].id === currentSeasonId);
 
-    if (isClubView) {
-      // isClubView is always current season, globalLeaderboard prop contains rankedClubMembers
-      setComparisonLeaderboard(globalLeaderboard);
-    } else if (seasonKeyForLeaderboard && !SEASONS[seasonKeyForLeaderboard].isCurrent) {
+    if (seasonKeyForLeaderboard && !SEASONS[seasonKeyForLeaderboard].isCurrent) {
       // Historical season
       const { leaderboard } = getSeasonLeaderboard(seasonKeyForLeaderboard);
       setComparisonLeaderboard(leaderboard);
@@ -472,7 +469,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
       setComparisonLeaderboard(globalLeaderboard);
     }
     setIsLeaderboardLoading(false);
-  }, [isOpen, currentSeasonId, isClubView, globalLeaderboard]);
+  }, [isOpen, currentSeasonId, globalLeaderboard]);
 
 
   const displayedEmbarkId = mainPlayerCurrentId || embarkId;
@@ -768,19 +765,6 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, isCl
                 </p>
               )}
             </div>
-            {isClubView && !error && (
-              <div className={`flex-1 flex justify-center ${isMobile ? 'flex-col' : 'items-center'} gap-2`}>
-                <p className="text-sm text-blue-400 truncate">
-                  Comparing available with club members only
-                </p>
-                <button
-                  onClick={() => onSwitchToGlobal()}
-                  className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-full transition-colors whitespace-nowrap"
-                >
-                  Switch to Global View
-                </button>
-              </div>
-            )}
             <div className={`relative flex flex-col ${isMobile ? 'w-full' : 'flex-shrink min-w-0'}`}>
               <div className={`flex items-center flex-wrap ${isMobile ? 'w-full justify-between' : 'justify-end gap-2'}`}>
                 <div className="relative" ref={ssdropdownRef}>

@@ -115,7 +115,7 @@ export async function apiFetch(endpoint, options = {}) {
 export async function fetchWithRetry(url, retryCount = 1, retryDelay = 50) {
   for (let attempt = 1; attempt <= retryCount + 1; attempt++) {
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, {cache: 'reload'});
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

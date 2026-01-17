@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Users, Trophy, Globe, FileSearch, Zap, Info } from 'lucide-react';
+import { Users, Trophy, Globe, UserSearch, Zap, Info, House } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { DashboardHeaderProps, ViewButtonProps } from '../types/propTypes';
 
 const ViewButton = ({ active, onClick, icon, text }) => (
@@ -17,14 +18,14 @@ const ViewButton = ({ active, onClick, icon, text }) => (
 );
 
 export const DashboardHeader = ({ 
-  unknownMembers,
   view,
-  setView,
   onOpenSearch,
   onOpenEvents,
   onOpenInfo,
+  onOpenMembers,
   isMobile,
 }) => {
+  const navigate = useNavigate();
   const [isScrolledToBottom, setIsScrolledToBottom] = useState(false);
   const [isAnimatingZap, setIsAnimatingZap] = useState(true);
 
@@ -52,9 +53,9 @@ export const DashboardHeader = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, [isMobile]);
 
-  const handleMobileViewChange = (newView) => {
-    setView(newView);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleNav = (path) => {
+    navigate(path);
+    if (isMobile) window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -97,38 +98,32 @@ export const DashboardHeader = ({
                 <Info className="w-5 h-5"/>
               </button>
             </div>
-             {view === 'members' && unknownMembers && unknownMembers.length > 0 && (
-            <p className={`text-sm ${unknownMembers.length < 10 ? 'text-yellow-400' : 'text-red-400'}`}>
-              {unknownMembers.length < 10 
-                ? `${unknownMembers.length} member(s) in top 10k not found in clublist.`
-                : 'Failed to load an asset, refreshing the page will likely fix this.'}
-            </p>
-          )}
           </div>
           <div className="flex items-center gap-2 ml-auto">
             {!isMobile ? (
               <div className="flex items-center gap-2 flex-nowrap">
                 <ViewButton
-                  active={view === 'members'}
-                  onClick={() => setView('members')}
-                  icon={<Users className="w-4 h-4" />}
-                  text="OG Members"
+                  active={view === 'hub'}
+                  onClick={() => handleNav('/hub')}
+                  icon={<House className="w-4 h-4" />}
+                  text="Hub"
                 />
                 <ViewButton
                   active={view === 'clubs'}
-                  onClick={() => setView('clubs')}
+                  onClick={() => handleNav('/clubs')}
                   icon={<Trophy className="w-4 h-4" />}
                   text="Top Clubs"
                 />
                 <ViewButton
                   active={view === 'global'}
-                  onClick={() => setView('global')}
+                  onClick={() => handleNav('/leaderboard')}
                   icon={<Globe className="w-4 h-4" />}
-                  text="Global"
+                  text="Leaderboard"
                 />
                 <button
                   onClick={onOpenEvents}
                   className="relative px-4 py-2 rounded-lg flex items-center justify-center bg-gray-700 text-gray-300 hover:bg-gray-600 w-full sm:w-auto"
+                  title="Events Feed"
                 >
                   {/* Base icon, changes to yellow during anim */}
                   <Zap className={`relative w-4 h-4 transition-colors duration-500 ${isAnimatingZap ? 'text-yellow-400' : ''}`} />
@@ -141,8 +136,17 @@ export const DashboardHeader = ({
                   onClick={onOpenSearch}
                   className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 
                     bg-gray-700 text-gray-300 hover:bg-gray-600 w-full sm:w-auto"
+                  title="Historical Search"
                 >
-                  <FileSearch className="w-4 h-4" />
+                  <UserSearch className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={onOpenMembers}
+                  className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 
+                    bg-gray-700 text-gray-300 hover:bg-gray-600 w-full sm:w-auto"
+                  title="OG Club Members"
+                >
+                  <Users className="w-4 h-4" />
                 </button>
               </div>
             ) : (
@@ -163,7 +167,14 @@ export const DashboardHeader = ({
                   className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 
                     bg-gray-700 text-gray-300 hover:bg-gray-600"
                 >
-                  <FileSearch className="w-4 h-4" />
+                  <UserSearch className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={onOpenMembers}
+                  className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 
+                    bg-gray-700 text-gray-300 hover:bg-gray-600"
+                >
+                  <Users className="w-4 h-4" />
                 </button>
               </div>
             )}
@@ -174,16 +185,16 @@ export const DashboardHeader = ({
       {isMobile && !isScrolledToBottom && (
         <div className="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 z-50">
           <div className="flex justify-around py-3">
-            <button 
-              onClick={() => handleMobileViewChange('members')}
+             <button 
+              onClick={() => handleNav('/hub')}
               className={`flex flex-col items-center justify-center w-14 h-6 ${
-                view === 'members' ? 'text-blue-400' : 'text-gray-400'
+                view === 'hub' ? 'text-blue-400' : 'text-gray-400'
               }`}
             >
-              <Users className="w-6 h-6" />
+              <House className="w-6 h-6" />
             </button>
             <button 
-              onClick={() => handleMobileViewChange('clubs')}
+              onClick={() => handleNav('/clubs')}
               className={`flex flex-col items-center justify-center w-14 h-6 ${
                 view === 'clubs' ? 'text-blue-400' : 'text-gray-400'
               }`}
@@ -191,7 +202,7 @@ export const DashboardHeader = ({
               <Trophy className="w-6 h-6" />
             </button>
             <button 
-              onClick={() => handleMobileViewChange('global')}
+              onClick={() => handleNav('/leaderboard')}
               className={`flex flex-col items-center justify-center w-14 h-6 ${
                 view === 'global' ? 'text-blue-400' : 'text-gray-400'
               }`}

@@ -7,30 +7,19 @@ const router = createBrowserRouter([
     path: '/',
     element: <App />,
     children: [
-      {
-        path: 'graph/:season/:graph',
-        element: null // Handled by App component
-      },
-      {
-        path: 'graph/:graph', // Kept for backward compatibility with old links
-        element: null // Handled by App component
-      },
-      {
-        path: 'history',
-        element: null // Handled by App component
-      },
-      {
-        path: 'history/:history',
-        element: null // Handled by App component
-      },
-      {
-        path: 'events',
-        element: null // Handled by App component
-      },
-      {
-        path: 'info',
-        element: null // Handled by App component
-      },
+      { path: 'hub', element: null },
+      { path: 'leaderboard', element: null },
+      { path: 'clubs', element: null },
+      
+      { path: 'graph/:season/:graph', element: null },
+      { path: 'graph/:graph', element: null }, // Backward compat
+      
+      { path: 'history', element: null },
+      { path: 'history/:history', element: null },
+      
+      { path: 'members', element: null },
+      { path: 'events', element: null },
+      { path: 'info', element: null },
     ]
   },
   {

@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, AlertTriangle, X, ChevronUp, ChevronDown, Users } from 'lucide-react';
-import { searchPlayerHistory } from '../services/historicalDataService';
-import { Hexagon } from './icons/Hexagon';
-import { PlatformIcons } from './icons/Platforms';
-import { getLeagueInfo } from '../utils/leagueUtils';
-import { SearchModalProps } from '../types/propTypes';
-import { isValidEmbarkId, formatUsernameForUrl } from '../utils/urlHandler';
-import { useModal } from '../context/ModalProvider';
-import { LoadingDisplay } from './LoadingDisplay';
+import { searchPlayerHistory } from '../../services/historicalDataService';
+import { Hexagon } from '../icons/Hexagon';
+import { PlatformIcons } from '../icons/Platforms';
+import { getLeagueInfo } from '../../utils/leagueUtils';
+import { SearchModalProps } from '../../types/propTypes';
+import { isValidEmbarkId, formatUsernameForUrl } from '../../utils/urlHandler';
+import { useModal } from '../../context/ModalProvider';
+import { LoadingDisplay } from '../LoadingDisplay';
 
 const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClubClick, isLeaderboardLoading }) => {
   // `useModal` now also returns `isActive`, which handles animation state internally.

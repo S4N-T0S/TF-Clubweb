@@ -2,11 +2,11 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { useModal } from '../context/ModalProvider';
-import { LoadingDisplay } from './LoadingDisplay';
+import { useModal } from '../../context/ModalProvider';
+import { LoadingDisplay } from '../LoadingDisplay';
 import { X, ExternalLink, ChevronRight } from 'lucide-react';
-import { InfoModalProps, LinkRendererProps, CollapsibleMarkdownSectionProps } from '../types/propTypes';
-import { useSwipe } from '../hooks/useSwipe';
+import { InfoModalProps, LinkRendererProps, CollapsibleMarkdownSectionProps } from '../../types/propTypes';
+import { useSwipe } from '../../hooks/useSwipe';
 
 // Fetches and parses the markdown content file from the public folder.
 const fetchAndParseContent = async () => {

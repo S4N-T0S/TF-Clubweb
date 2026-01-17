@@ -1,19 +1,19 @@
 import { useParams, useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import { useLeaderboard } from './hooks/useLeaderboard';
-import { MembersView } from './components/views/MembersView';
 import { ClubsView } from './components/views/ClubsView';
 import { GlobalView } from './components/views/GlobalView';
+import { HubView } from './components/views/HubView';
 import { ErrorDisplay } from './components/ErrorDisplay';
 import { LoadingDisplay } from './components/LoadingDisplay';
 import { DashboardHeader } from './components/DashboardHeader';
-import { fetchClubMembers } from './services/mb-api';
 import { safeParseUsernameFromUrl, formatUsernameForUrl, parseMultipleUsernamesFromUrl, formatMultipleUsernamesForUrl } from './utils/urlHandler';
 import { useMobileDetect } from './hooks/useMobileDetect';
-import SearchModal from './components/SearchModal';
-import GraphModal from './components/GraphModal';
-import EventsModal from './components/EventsModal';
-import InfoModal from './components/InfoModal';
+import { MembersModal } from './components/modals/MembersModal';
+import SearchModal from './components/modals/SearchModal';
+import GraphModal from './components/modals/GraphModal';
+import EventsModal from './components/modals/EventsModal';
+import InfoModal from './components/modals/InfoModal';
 import Toast from './components/Toast';
 import { getStoredTab, setStoredTab, cleanupDeprecatedCache } from './services/localStorageManager';
 import { ModalProvider } from './context/ModalProvider';
@@ -26,7 +26,17 @@ const App = () => {
   const location = useLocation();
   const { graph, season: seasonIdFromUrl, history } = useParams();
   const [modalHistory, setModalHistory] = useState([]);
-  const [view, setView] = useState(getStoredTab);
+  
+  // State for view selection.
+  const [view, setView] = useState(() => {
+    const path = location.pathname;
+    if (path.startsWith('/leaderboard')) return 'global';
+    if (path.startsWith('/clubs')) return 'clubs';
+    if (path.startsWith('/hub')) return 'hub';
+    
+    return getStoredTab();
+  });
+  
   const autoRefresh = true;
   const [eventsModalOpen, setEventsModalState] = useState(false);
   const [eventsModalKey, setEventsModalKey] = useState(null);
@@ -40,21 +50,19 @@ const App = () => {
     embarkId: null,
     compareIds: [],
     seasonId: null,
-    isClubView: false,
     isMobile
   });
+  
+  const [membersModalOpen, setMembersModalOpen] = useState(false);
+  const [membersModalKey, setMembersModalKey] = useState(null);
+
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
-  const [clubMembersData, setClubMembersData] = useState([]);
-  const [clubMembersLoading, setClubMembersLoading] = useState(true);
   const [showFavourites, setShowFavourites] = useState(false);
 
   const currentSeason = currentSeasonKey;
   const [selectedSeason, setSelectedSeason] = useState(currentSeason);
   const {
-    clubMembers,
-    rankedClubMembers,
     topClubs,
-    unknownMembers,
     globalLeaderboard,
     currentRubyCutoff,
     loading,
@@ -63,7 +71,7 @@ const App = () => {
     toastMessage,
     setToastMessage,
     lastUpdated
-  } = useLeaderboard(clubMembersData, autoRefresh);
+  } = useLeaderboard(autoRefresh);
 
   // Run cache cleanup on initial application load
   useEffect(() => {
@@ -78,30 +86,61 @@ const App = () => {
     });
   }, [setToastMessage]);
 
-  // Load club members data once on page load
+  // Handle Root Path Redirect & View Switching
   useEffect(() => {
-    const loadClubMembers = async () => {
-      try {
-        const members = await fetchClubMembers();
-        setClubMembersData(members);
-      } catch (error) {
-        console.error('Failed to load club members:', error);
-        showToast({
-          message: 'Failed to load club members data',
-          type: 'error'
-        });
-      } finally {
-        setClubMembersLoading(false);
-      }
-    };
+    const path = location.pathname;
 
-    loadClubMembers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // This effect must only run once on mount.
+    // 1. If at root '/', instantly redirect to the stored preference URL
+    if (path === '/') {
+      const stored = getStoredTab();
+      const routeMap = {
+        'hub': '/hub',
+        'global': '/leaderboard',
+        'clubs': '/clubs'
+      };
+      // Default to /leaderboard if something goes wrong, though getStoredTab defaults to 'global'
+      navigate(routeMap[stored] || '/leaderboard', { replace: true });
+      return;
+    }
+    
+    // 2. Sync 'view' state with current URL
+    if (path.startsWith('/hub')) {
+      setView('hub');
+    } else if (path.startsWith('/leaderboard')) {
+      setView('global');
+    } else if (path.startsWith('/clubs')) {
+      setView('clubs');
+    }
+    // Note: Modals (like /graph) do not change the background view
+  }, [location.pathname, navigate]);
+
+  // Handle URL-based Modal State for Members
+  useEffect(() => {
+    const path = location.pathname;
+    const isOverlayModalPath = path.startsWith('/graph') || path.startsWith('/history');
+    
+    const lastPath = modalHistory.length > 0 ? modalHistory[modalHistory.length - 1] : '/';
+    
+    // Keep Members modal open if:
+    // 1. We are explicitly at /members
+    // 2. OR we are at an overlay path (like graph) AND the previous path was members
+    const shouldMembersBeOpen = path.startsWith('/members') || (isOverlayModalPath && lastPath.startsWith('/members'));
+
+    if (shouldMembersBeOpen) {
+      setMembersModalOpen(true);
+      // Ensure we have a valid key if opening via URL
+      setMembersModalKey(prev => prev || Date.now());
+    } else {
+      setMembersModalOpen(false);
+    }
+  }, [location.pathname, modalHistory]);
+
 
   // Update localstorage whenever view changes
   useEffect(() => {
-    setStoredTab(view);
+    if (['hub', 'clubs', 'global'].includes(view)) {
+      setStoredTab(view);
+    }
   }, [view]);
 
   // Reset states when view changes
@@ -139,7 +178,7 @@ const App = () => {
     // Close all modals and reset history before changing view
     closeAllModals();
   
-    setView('global');
+    navigate('/leaderboard', { replace: true });
     setGlobalSearchQuery(`[${clubTag}]`);
     setSelectedSeason(seasonKey);
   
@@ -155,7 +194,7 @@ const App = () => {
       textSize: 'normal',
       duration: 3500
     });
-  }, [closeAllModals, currentSeason, showToast]);
+  }, [closeAllModals, currentSeason, showToast, navigate]);
 
 
   // --- Modal-specific Open/Close Handlers ---
@@ -179,6 +218,12 @@ const App = () => {
 
   const handleInfoModalOpen = useCallback(() => openModal('/info'), [openModal]);
   const handleInfoModalClose = useCallback(() => closeModal(), [closeModal]);
+
+  const handleMembersModalOpen = useCallback(() => {
+    setMembersModalKey(Date.now());
+    openModal('/members');
+  }, [openModal]);
+  const handleMembersModalClose = useCallback(() => closeModal(), [closeModal]);
 
   // Handle search submission
   const handleSearchSubmit = (query) => {
@@ -211,7 +256,6 @@ const App = () => {
         return;
       }
       
-      const isClubView = view === 'members';
       const currentSeasonId = SEASONS[currentSeason].id;
       const seasonId = seasonIdFromUrl ? parseInt(seasonIdFromUrl, 10) : currentSeasonId;
       
@@ -228,7 +272,6 @@ const App = () => {
           !prev.isOpen ||
           prev.embarkId !== main || 
           JSON.stringify(prev.compareIds) !== JSON.stringify(compare) ||
-          prev.isClubView !== isClubView ||
           prev.isMobile !== isMobile ||
           prev.seasonId !== seasonId;
 
@@ -240,7 +283,6 @@ const App = () => {
           isOpen: true,
           embarkId: main,
           compareIds: compare,
-          isClubView: isClubView,
           isMobile,
           seasonId: seasonId,
         };
@@ -314,32 +356,22 @@ const App = () => {
         )}
         
         {/* Main Content: Conditionally rendered based on loading state*/}
-        { (loading || clubMembersLoading) ? (
+        {loading ? (
           <LoadingDisplay />
         ) : (
           <div className="max-w-7xl mx-auto p-4">
             <div className="bg-gray-800 rounded-lg shadow-xl p-6 mb-6">
               <DashboardHeader
-                unknownMembers={unknownMembers}
                 view={view}
-                setView={setView}
                 onOpenEvents={handleEventsModalOpen}
                 onOpenSearch={() => handleSearchModalOpen()}
                 onOpenInfo={handleInfoModalOpen}
+                onOpenMembers={handleMembersModalOpen}
                 isMobile={isMobile}
               />
 
-              {view === 'members' && (
-                <MembersView 
-                  clubMembers={clubMembers} 
-                  totalMembers={clubMembersData.length} 
-                  onPlayerSearch={(name) => handleSearchModalOpen(name)}
-                  clubMembersData={clubMembersData} // Pass club members data to members view
-                  onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
-                  setView={setView}
-                  setGlobalSearchQuery={setGlobalSearchQuery}
-                  isMobile={isMobile}
-                />
+              {view === 'hub' && (
+                <HubView />
               )}
               {view === 'clubs' && (
                 <ClubsView 
@@ -376,6 +408,16 @@ const App = () => {
           isMobile={isMobile}
         />
 
+        <MembersModal 
+           key={membersModalKey}
+           isOpen={membersModalOpen}
+           onClose={handleMembersModalClose}
+           globalLeaderboard={globalLeaderboard}
+           onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
+           onPlayerSearch={(name) => handleSearchModalOpen(name)}
+           isMobile={isMobile}
+        />
+
         <EventsModal
           key={eventsModalKey}
           isOpen={eventsModalOpen}
@@ -405,9 +447,7 @@ const App = () => {
             embarkId={graphModalState.embarkId}
             compareIds={graphModalState.compareIds}
             seasonId={graphModalState.seasonId}
-            isClubView={graphModalState.isClubView}
-            globalLeaderboard={graphModalState.isClubView ? rankedClubMembers : globalLeaderboard}
-            onSwitchToGlobal={() => setView('global')}
+            globalLeaderboard={globalLeaderboard}
             currentRubyCutoff={currentRubyCutoff}
             isMobile={graphModalState.isMobile}
             lastLeaderboardUpdate={lastUpdated}

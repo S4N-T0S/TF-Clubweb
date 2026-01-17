@@ -1,20 +1,20 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { fetchRecentEvents, fetchAllSeasonsEvents } from '../services/ev-api';
-import { usePagination } from '../hooks/usePagination';
-import { useSwipe } from '../hooks/useSwipe';
-import { useModal } from '../context/ModalProvider';
-import { SearchBar } from './SearchBar';
-import { Pagination } from './Pagination';
-import { LoadingDisplay } from './LoadingDisplay';
-import { ErrorDisplay } from './ErrorDisplay';
-import { EventCard } from './EventCard';
-import { LeagueRangeSlider } from './LeagueRangeSlider';
-import { getLeagueIndexForFilter } from '../utils/leagueUtils';
-import { parseSearchQuery } from '../utils/searchUtils';
-import { getStoredEventsSettings, setStoredEventsSettings } from '../services/localStorageManager';
-import { SEASONS, currentSeasonKey } from '../services/historicalDataService';
+import { fetchRecentEvents, fetchAllSeasonsEvents } from '../../services/ev-api';
+import { usePagination } from '../../hooks/usePagination';
+import { useSwipe } from '../../hooks/useSwipe';
+import { useModal } from '../../context/ModalProvider';
+import { SearchBar } from '../SearchBar';
+import { Pagination } from '../Pagination';
+import { LoadingDisplay } from '../LoadingDisplay';
+import { ErrorDisplay } from '../ErrorDisplay';
+import { EventCard } from '../EventCard';
+import { LeagueRangeSlider } from '../LeagueRangeSlider';
+import { getLeagueIndexForFilter } from '../../utils/leagueUtils';
+import { parseSearchQuery } from '../../utils/searchUtils';
+import { getStoredEventsSettings, setStoredEventsSettings } from '../../services/localStorageManager';
+import { SEASONS, currentSeasonKey } from '../../services/historicalDataService';
 import { UserPen, Gavel, ChevronsUpDown, Users, X, RefreshCw, SlidersHorizontal, Info } from 'lucide-react';
-import { EventsModalProps, FilterToggleButtonProps, EventsModal_InfoPopupProps } from '../types/propTypes';
+import { EventsModalProps, FilterToggleButtonProps, EventsModal_InfoPopupProps } from '../../types/propTypes';
 
 // Helper component for filter buttons, now with enhanced styling capabilities.
 const FilterToggleButton = ({ label, isActive, onClick, Icon, colorClass, textColorClass, activeBorderClass }) => {
