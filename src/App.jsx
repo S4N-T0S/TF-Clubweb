@@ -19,6 +19,7 @@ import { getStoredTab, setStoredTab, cleanupDeprecatedCache } from './services/l
 import { ModalProvider } from './context/ModalProvider';
 import { SEASONS, currentSeasonKey } from './services/historicalDataService';
 import { cleanupExpiredCacheItems } from './services/idbCache';
+import { SEOHead } from './components/SEOHead';
 
 const App = () => {
   const isMobile = useMobileDetect() || false;
@@ -337,6 +338,15 @@ const App = () => {
   return (
     <div className="min-h-screen bg-gray-900 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
       <ModalProvider>
+        <SEOHead 
+          view={view}
+          searchModalState={searchModalState}
+          graphModalState={graphModalState}
+          membersModalOpen={membersModalOpen}
+          eventsModalOpen={eventsModalOpen}
+          infoModalOpen={location.pathname.startsWith('/info')}
+        />
+
         {toastMessage && (
           <Toast 
             message={toastMessage.message}

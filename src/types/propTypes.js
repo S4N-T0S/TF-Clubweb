@@ -328,3 +328,22 @@ export const LinkRendererProps = {
 export const CollapsibleMarkdownSectionProps = {
   content: PropTypes.string.isRequired,
 };
+
+export const SEOHeadProps = {
+  view: PropTypes.oneOf(['hub', 'clubs', 'global']).isRequired,
+  searchModalState: PropTypes.shape({
+    isOpen: PropTypes.bool,
+    initialSearch: PropTypes.string,
+    isMobile: PropTypes.bool
+  }),
+  graphModalState: PropTypes.shape({
+    isOpen: PropTypes.bool,
+    embarkId: PropTypes.string,
+    compareIds: PropTypes.arrayOf(PropTypes.string),
+    seasonId: PropTypes.number,
+    isMobile: PropTypes.bool
+  }),
+  membersModalOpen: PropTypes.bool,
+  eventsModalOpen: PropTypes.bool,
+  infoModalOpen: PropTypes.bool
+};

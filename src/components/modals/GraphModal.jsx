@@ -6,6 +6,7 @@ to keep up with it's logic. I'm sorry for the mess.
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { X, Plus, Camera, SlidersHorizontal, UserPen, Gavel, ChevronsUpDown, Users, AlertTriangle, RefreshCcw, Info } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -342,6 +343,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
 };
 
 const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, globalLeaderboard = [], currentRubyCutoff, isMobile, lastLeaderboardUpdate }) => {
+  const navigate = useNavigate();
   const { modalRef, isActive } = useModal(isOpen, onClose);
   const chartRef = useRef(null);
   const hasSetInitialTimeRangeRef = useRef(false);
@@ -386,6 +388,11 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
     return !eventSettings.showNameChange || !eventSettings.showClubChange || !eventSettings.showRsAdjustment || !eventSettings.showSuspectedBan;
   }, [eventSettings]);
 
+  // Callback to update the URL using React Router
+  const handleUrlChange = useCallback((url) => {
+    navigate(url, { replace: true });
+  }, [navigate]);
+
   // Custom hook for data fetching and management
   const {
     data,
@@ -401,7 +408,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
     switchSeason,
     mainPlayerCurrentId,
     refreshGraph,
-  } = usePlayerGraphData(isOpen, embarkId, compareIds, seasonId, eventSettings);
+  } = usePlayerGraphData(
+    isOpen, 
+    embarkId, 
+    compareIds, 
+    seasonId, 
+    eventSettings,
+    handleUrlChange
+  );
 
   // Watch for leaderboard updates to auto-refresh the graph
   const prevUpdateRef = useRef(lastLeaderboardUpdate);

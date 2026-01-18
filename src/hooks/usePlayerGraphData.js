@@ -491,7 +491,7 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
   return combined;
 };
 
-export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId, eventSettings) => {
+export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId, eventSettings, onUrlChange) => {
   // State for PROCESSED data, which is passed to the chart
   const [data, setData] = useState(null);
   const [comparisonData, setComparisonData] = useState(new Map());
@@ -612,12 +612,14 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
 
         const currentCompares = Array.from(next.keys());
         const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, currentCompares);
-        window.history.replaceState(null, '', `/graph/${currentSeasonId}/${urlString}`);
+        if (onUrlChange) {
+            onUrlChange(`/graph/${currentSeasonId}/${urlString}`);
+        }
 
         return next;
       });
     }
-  }, [loadComparisonData, comparisonRaws, mainPlayerCurrentId, currentSeasonId]);
+  }, [loadComparisonData, comparisonRaws, mainPlayerCurrentId, currentSeasonId, onUrlChange]);
 
   const removeComparison = useCallback((compareEmbarkId) => {
     shouldFollowUrlRef.current = false;
@@ -629,11 +631,13 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
 
       const currentCompares = Array.from(next.keys());
       const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, currentCompares);
-      window.history.replaceState(null, '', `/graph/${currentSeasonId}/${urlString}`);
+      if (onUrlChange) {
+        onUrlChange(`/graph/${currentSeasonId}/${urlString}`);
+      }
 
       return next;
     });
-  }, [mainPlayerCurrentId, currentSeasonId]);
+  }, [mainPlayerCurrentId, currentSeasonId, onUrlChange]);
 
   const loadMainData = useCallback(async (targetEmbarkId, targetSeasonId) => {
     setLoading(true);
@@ -792,8 +796,8 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         const currentKeys = Array.from(newRawComparisons.keys());
         const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, currentKeys);
         const newUrl = `/graph/${currentSeasonId}/${urlString}`;
-        if (window.location.pathname !== newUrl) {
-          window.history.replaceState(null, '', newUrl);
+        if (onUrlChange && window.location.pathname !== newUrl) {
+            onUrlChange(newUrl);
         }
 
       } finally {
@@ -809,7 +813,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         // Reset flags on cleanup if needed, though usually handled by main init effect
       }
     };
-  }, [isOpen, initialCompareIds, comparisonRaws, loadComparisonData, mainPlayerCurrentId, currentSeasonId, loading]);
+  }, [isOpen, initialCompareIds, comparisonRaws, loadComparisonData, mainPlayerCurrentId, currentSeasonId, loading, onUrlChange]);
 
   useEffect(() => {
     // This effect updates the URL if a name change was detected on load.
@@ -828,10 +832,10 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, compareIdsFromState);
     const newUrl = `/graph/${currentSeasonId}/${urlString}`;
 
-    if (window.location.pathname !== newUrl) {
-      window.history.replaceState(null, '', newUrl);
+    if (onUrlChange && window.location.pathname !== newUrl) {
+        onUrlChange(newUrl);
     }
-  }, [isOpen, embarkId, currentSeasonId, mainPlayerCurrentId, comparisonRaws, loading]);
+  }, [isOpen, embarkId, currentSeasonId, mainPlayerCurrentId, comparisonRaws, loading, onUrlChange]);
 
   const switchSeason = useCallback(async (newSeasonId, specificEmbarkId = null) => {
     if (isLoadingRef.current) return;
@@ -945,7 +949,9 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       // 4. Update URL with the new main player ID and filtered comparison IDs.
       // Note: activeParamsRef prevents the resulting prop update from triggering a re-fetch.
       const urlString = formatMultipleUsernamesForUrl(mainPlayerResult.currentEmbarkId, finalCompareIds);
-      window.history.replaceState(null, '', `/graph/${newSeasonId}/${urlString}`);
+      if (onUrlChange) {
+        onUrlChange(`/graph/${newSeasonId}/${urlString}`);
+      }
 
     } catch (err) {
         // If switching seasons fails, check for specific 404 available seasons again
@@ -964,7 +970,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         // We do not re-enable shouldFollowUrlRef here immediately. 
         // We allow the component to update props first, then the main effect enables it.
     }
-  }, [mainPlayerAvailableSeasons, comparisonRaws, loadComparisonData, mainPlayerCurrentId]);
+  }, [mainPlayerAvailableSeasons, comparisonRaws, loadComparisonData, mainPlayerCurrentId, onUrlChange]);
 
   const refreshGraph = useCallback(async () => {
     if (isLoadingRef.current) return;
