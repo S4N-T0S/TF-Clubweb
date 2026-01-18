@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { memo, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { fetchRecentEvents, fetchAllSeasonsEvents } from '../../services/ev-api';
 import { usePagination } from '../../hooks/usePagination';
 import { useSwipe } from '../../hooks/useSwipe';
@@ -190,7 +190,6 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   const searchInputRef = useRef(null);
   const scrollContainerRef = useRef(null); // Ref for the scrollable content area
   const scrollPositionRef = useRef(0); // Ref to store the scroll position
-  const hasInitialized = useRef(false);
   const [events, setEvents] = useState([]);
   const eventsRef = useRef(events); // Create a ref to hold the current events
   useEffect(() => {
@@ -378,35 +377,26 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     }
   }, [isActive]);
 
-  // Checks the `hasInitialized` ref to ensure it only runs ONCE per mount.
+  // Initial Auto-Focus
   useEffect(() => {
     // Auto-focus the search input on desktop when the modal opens.
-    if (isOpen && searchInputRef.current && !isMobile && !hasInitialized.current) {
-      searchInputRef.current.focus();
+    if (isOpen && searchInputRef.current && !isMobile) {
+      setTimeout(() => {
+          if (searchInputRef.current) {
+              searchInputRef.current.focus();
+          }
+      }, 100);
     }
+  }, [isOpen, isMobile]);
 
-    // The `key` prop from App.jsx ensures this component is brand new on a "fresh" open.
-    // When it mounts, `hasInitialized.current` is false, so this block runs.
-    if (isOpen && !hasInitialized.current) {
-        handleFilterChange('searchQuery', '');
-        // Initial load using the default 'ALL' season
-        loadEvents(false, selectedSeason);
-        // Then set the flag to true, so subsequent re-renders of this same instance
-        // (e.g., when a child modal opens) will not re-trigger this logic.
-        hasInitialized.current = true;
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, handleFilterChange, isMobile]); // `loadEvents` and `selectedSeason` removed to prevent re-triggering loop
-
-  // Effect for when user changes the season in the dropdown
   useEffect(() => {
-    if (!hasInitialized.current) return; // Don't run on initial mount
-
-    setEvents([]); // Clear old events
-    handlePageChange(1); // Go to page 1
-    loadEvents(false, selectedSeason);
+    if (isOpen) {
+      setEvents([]); // Clear old events
+      handlePageChange(1); // Go to page 1
+      loadEvents(false, selectedSeason);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSeason]);
+  }, [selectedSeason, isOpen]);
 
   // Auto-refresh timer: sets when modal opens, clears when it closes.
   useEffect(() => {
@@ -701,4 +691,4 @@ EventsModal.propTypes = EventsModalProps;
 FilterToggleButton.propTypes = FilterToggleButtonProps;
 EventInfoPopup.propTypes = EventsModal_InfoPopupProps;
 
-export default EventsModal;
+export default memo(EventsModal);

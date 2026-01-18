@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { memo, useState, useEffect, useMemo, useRef } from 'react';
 import { X, Search, ShieldAlert, CheckCircle, UserX, Users, LineChart, UserPlus } from 'lucide-react';
 import { fetchClubMembers } from '../../services/mb-api';
 import { calculateMemberStatus } from '../../utils/dataProcessing';
@@ -83,7 +83,6 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
   const { modalRef, isActive } = useModal(isOpen, onClose);
   const scrollContainerRef = useRef(null);
   const scrollPositionRef = useRef(0);
-  const hasInitialized = useRef(false);
   
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState([]);
@@ -93,7 +92,7 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
 
   // 1. Data Loading Effect
   useEffect(() => {
-    if (isOpen && globalLeaderboard.length > 0 && !hasInitialized.current) {
+    if (isOpen && globalLeaderboard.length > 0) {
       const loadData = async () => {
         setLoading(true);
         try {
@@ -108,7 +107,6 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
             unranked: processedMembers.filter(m => m.status === 'unranked').length,
             new_member: processedMembers.filter(m => m.status === 'new_member').length,
           });
-          hasInitialized.current = true;
         } catch (error) {
           console.error("Failed to load members:", error);
         } finally {
@@ -238,3 +236,5 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
 
 MembersModal.propTypes = MembersModalProps;
 MemberRow.propTypes = MemberRowProps;
+
+export default memo(MembersModal);

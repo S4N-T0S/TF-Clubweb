@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { memo, useState, useEffect, useRef, useCallback } from 'react';
 import { Search, AlertTriangle, X, ChevronUp, ChevronDown, Users } from 'lucide-react';
 import { searchPlayerHistory } from '../../services/historicalDataService';
 import { Hexagon } from '../icons/Hexagon';
@@ -23,7 +23,9 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
   
   const [isExplanationExpanded, setIsExplanationExpanded] = useState(false);
   const inputRef = useRef(null);
-  const initialSearchPerformedRef = useRef(false);
+
+  // Used to prevent re-running search on same prop, but key change handles full reset now.
+  const [hasProcessedInitial, setHasProcessedInitial] = useState(false);
 
   const toggleExplanation = () => {
     setIsExplanationExpanded(!isExplanationExpanded);
@@ -155,35 +157,22 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
   };
 
   useEffect(() => {
-    // 1. If modal is closed, reset the ref so we can search again next time it opens
-    if (!isOpen) {
-      initialSearchPerformedRef.current = false;
-      setSearchState({
-        query: '',
-        results: [],
-        isSearching: false,
-        error: '',
-        suggestions: [],
-        selectedIndex: -1
-      });
-      return;
-    }
-    // 2. If open, we have an initial search string, but we haven't done it yet...
-    if (isOpen && initialSearch && !initialSearchPerformedRef.current) {
+    // 1. If open, we have an initial search string, but we haven't done it yet...
+    if (isOpen && initialSearch && !hasProcessedInitial) {
       
-      // 3. WAIT if the leaderboard is still loading, do not search yet.
+      // 2. WAIT if the leaderboard is still loading, do not search yet.
       // The effect will re-run when isLeaderboardLoading changes to false.
       if (isLeaderboardLoading) {
         setSearchState(prev => ({ ...prev, query: initialSearch }));
         return;
       }
 
-      // 4. Data is ready. Execute search.
-      initialSearchPerformedRef.current = true;
+      // 3. Data is ready. Execute search.
+      setHasProcessedInitial(true);
       setSearchState(prev => ({ ...prev, query: initialSearch }));
       handleSearch(initialSearch, true); // true = skip URL update
     }
-  }, [isOpen, initialSearch, handleSearch, isLeaderboardLoading]);
+  }, [isOpen, initialSearch, handleSearch, isLeaderboardLoading, hasProcessedInitial]);
 
   if (!isOpen) return null;
 
@@ -391,4 +380,4 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
 
 SearchModal.propTypes = SearchModalProps;
 
-export default SearchModal;
+export default memo(SearchModal);

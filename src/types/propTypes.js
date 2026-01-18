@@ -43,7 +43,6 @@ export const SortButtonProps = {
 
 export const DashboardHeaderProps = {
   view: PropTypes.oneOf(['hub', 'clubs', 'global']).isRequired,
-  setView: PropTypes.func.isRequired,
   onOpenSearch: PropTypes.func.isRequired,
   onOpenEvents: PropTypes.func.isRequired,
   onOpenInfo: PropTypes.func.isRequired,

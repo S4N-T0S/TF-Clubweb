@@ -4,7 +4,7 @@ working with chart.js so it's not coded in the best way possible, so I need all 
 to keep up with it's logic. I'm sorry for the mess.
 */
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { X, Plus, Camera, SlidersHorizontal, UserPen, Gavel, ChevronsUpDown, Users, AlertTriangle, RefreshCcw, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -923,7 +923,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
         </div>
 
         <div className="relative w-full min-h-0 min-w-0">
-          {chartData && chartOptions && !error && <Line ref={chartRef} data={chartData} options={chartOptions} />}
+          {isOpen && chartData && chartOptions && !error && <Line ref={chartRef} data={chartData} options={chartOptions} />}
 
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-[#1a1f2e] z-20 animate-fade-in-fast">
@@ -974,4 +974,4 @@ ComparePlayerModal.propTypes = ComparePlayerModalProps;
 GraphSettingsModal.propTypes = GraphSettingsModalProps;
 FilterToggleButton.propTypes = FilterToggleButtonProps;
 
-export default GraphModal;
+export default memo(GraphModal);

@@ -1,6 +1,14 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { memo, useState, useEffect, useMemo, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'; // Reduce file size by importing only needed languages
+import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
+import json from 'react-syntax-highlighter/dist/esm/languages/prism/json';
+import http from 'react-syntax-highlighter/dist/esm/languages/prism/http';
+
+// Register the languages used for InfoContent.md
+SyntaxHighlighter.registerLanguage('typescript', typescript);
+SyntaxHighlighter.registerLanguage('json', json);
+SyntaxHighlighter.registerLanguage('http', http);
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useModal } from '../../context/ModalProvider';
 import { LoadingDisplay } from '../LoadingDisplay';
@@ -274,4 +282,4 @@ InfoModal.propTypes = InfoModalProps;
 LinkRenderer.propTypes = LinkRendererProps;
 CollapsibleMarkdownSection.propTypes = CollapsibleMarkdownSectionProps;
 
-export default InfoModal;
+export default memo(InfoModal);

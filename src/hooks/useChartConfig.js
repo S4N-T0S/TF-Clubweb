@@ -1378,7 +1378,7 @@ export const useChartConfig = ({
   }, [eventSettings]);
 
   const getPointBackgroundColor = useCallback((ctx, color) => {
-    if (ctx.raw.raw?.isExtrapolated || ctx.raw.raw?.isInterpolated) return '#7d7c7b';
+    if (ctx.raw?.raw?.isExtrapolated || ctx.raw?.raw?.isInterpolated) return '#7d7c7b';
     const direction = getNewLogicPointDirection(ctx);
     if (direction === 'up') return '#10B981';
     if (direction === 'down') return '#EF4444';
@@ -1386,7 +1386,7 @@ export const useChartConfig = ({
   }, []);
 
   const getPointBorderColor = useCallback((ctx, color) => {
-    if (ctx.raw.raw?.isExtrapolated || ctx.raw.raw?.isInterpolated) return '#8a8988';
+    if (ctx.raw?.raw?.isExtrapolated || ctx.raw?.raw?.isInterpolated) return '#8a8988';
     const direction = getNewLogicPointDirection(ctx);
     if (direction === 'up' || direction === 'down') return '#FAF9F6';
     return color;
