@@ -8,6 +8,7 @@
 // urlHandler.js
 const URL_HASH_REPLACEMENT = '+';
 const COMPARE_SEPARATOR = '&';
+const BASE_URL = 'https://ogclub.s4nt0s.eu';
 
 const BOT_USER_AGENTS = /bot|crawler|spider|crawling|facebookexternalhit|twitterbot|discordbot|whatsapp|skype|slack|line|vkshare|telegram|applebot|bingbot/i;
 
@@ -41,18 +42,17 @@ function parseMultipleUsernames(urlString) {
  */
 function generateMetadata(url) {
   const path = url.pathname;
+  let canonicalPath = path;
   
   let meta = {
     title: 'OG Club Dashboard',
     description: 'The Finals OG Club Dashboard. Track The Finals players in real time. View graphs, clubs, historical seasons, name changes and ban events.',
     keywords: 'THE FINALS OG CLUB, PLAYER STATS, TOP CLUBS, TOP PLAYERS, LEADERBOARDS, GRAPHS, CHARTS, TRACKING, THE FINALS',
-    url: url.href
+    url: '' // Computed at the end
   };
 
   const parts = path.split('/').filter(Boolean);
-  if (parts.length === 0) return meta;
-
-  const baseRoute = parts[0];
+  const baseRoute = parts.length > 0 ? parts[0] : '';
 
   if (baseRoute === 'graph') {
     let seasonId = null;
@@ -79,6 +79,12 @@ function generateMetadata(url) {
       meta.description = `View detailed rank progression and score history for ${name} in The Finals.`;
       meta.keywords = `${name}, ${name} stats, rank graph, the finals tracker, rank charts, the finals`;
     }
+
+    // SEO Fix: Mirroring SEOHead.jsx legacy graph route to new graph route
+    if (seasonId && !canonicalPath.includes(`/${seasonId}/`)) {
+       const urlSafeId = canonicalPath.split('/').pop();
+       canonicalPath = `/graph/${seasonId}/${urlSafeId}`;
+    }
   } else if (baseRoute === 'history' && parts.length > 1) {
     const name = parseUsername(parts.slice(1).join('/'));
     meta.title = `${name} History | OG Club`;
@@ -104,9 +110,33 @@ function generateMetadata(url) {
     meta.title = 'Ranked Leaderboard | OG Club';
     meta.description = 'Live leaderboard for The Finals. Track top 10000 players, score cutoffs, and rank distribution. Graphing and historical data available.';
     meta.keywords = 'the finals tracker, the finals leaderboard, ranked leaderboard, top players, player stats, historical ranks, seasonal data';
+  } else {
+    // Resolves root to /hub mirroring SEOHead.jsx
+    if (canonicalPath === '/') canonicalPath = '/hub';
   }
 
+  // Construct final canonical URL matching SEOHead.jsx
+  const cleanPath = canonicalPath.endsWith('/') && canonicalPath.length > 1 
+    ? canonicalPath.slice(0, -1) 
+    : canonicalPath;
+    
+  meta.url = `${BASE_URL}${cleanPath}`;
+
   return meta;
+}
+
+// Appends missing tags dynamically
+class HeadHandler {
+  constructor(meta) {
+    this.meta = meta;
+  }
+  element(element) {
+    element.append(`<meta property="og:url" content="${this.meta.url}" />`, { html: true });
+    element.append(`<link rel="canonical" href="${this.meta.url}" />`, { html: true });
+    element.append(`<meta name="twitter:card" content="summary" />`, { html: true });
+    element.append(`<meta name="twitter:title" content="${this.meta.title}" />`, { html: true });
+    element.append(`<meta name="twitter:description" content="${this.meta.description}" />`, { html: true });
+  }
 }
 
 class TitleHandler {
@@ -125,14 +155,12 @@ class MetaHandler {
   element(element) {
     const name = element.getAttribute('name') || element.getAttribute('property');
     
-    if (['description', 'og:description', 'twitter:description'].includes(name)) {
+    if (['description', 'og:description'].includes(name)) {
       element.setAttribute('content', this.meta.description);
-    } else if (['og:title', 'twitter:title'].includes(name)) {
+    } else if (name === 'og:title') {
       element.setAttribute('content', this.meta.title);
     } else if (name === 'keywords') {
       element.setAttribute('content', this.meta.keywords);
-    } else if (name === 'og:url') {
-      element.setAttribute('content', this.meta.url);
     }
   }
 }
@@ -162,6 +190,7 @@ export async function onRequest({ request, next }) {
 
   // Stream the HTML through our rewriter to swap the tags for crawlers
   return new HTMLRewriter()
+    .on('head', new HeadHandler(meta))
     .on('title', new TitleHandler(meta))
     .on('meta', new MetaHandler(meta))
     .transform(response);
