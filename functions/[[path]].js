@@ -10,18 +10,62 @@ const URL_HASH_REPLACEMENT = '+';
 const COMPARE_SEPARATOR = '&';
 const BASE_URL = 'https://ogclub.s4nt0s.eu';
 
+// Default to a fallback season for legacy URLs
+const FALLBACK_SEASON_ID = '9';
+
 const BOT_USER_AGENTS = /bot|crawler|spider|crawling|facebookexternalhit|twitterbot|discordbot|whatsapp|skype|slack|line|vkshare|telegram|applebot|bingbot/i;
 
 /**
+ * Sanitise HTML
+ */
+function escapeHTML(str) {
+  if (!str) return '';
+  return String(str).replace(/[&<>"']/g, match => {
+    const escapeMap = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    };
+    return escapeMap[match];
+  });
+}
+
+/**
+ * Validates an Embark ID to prevent nonsensical or malicious inputs.
+ * Mirrors the logic from urlHandler.isValidEmbarkId.
+ */
+function isValidEmbarkId(id) {
+  if (!id || typeof id !== 'string') return false;
+  
+  const parts = id.split('#');
+  if (parts.length !== 2) return false;
+  
+  const [name, discriminator] = parts;
+  
+  // Must have a strictly 4-digit discriminator
+  if (!/^\d{4}$/.test(discriminator)) return false;
+  
+  // Name validation (alphanumeric, dots, dashes, underscores)
+  if (!/^(?=.*[\p{L}0-9])[\p{L}0-9._-]+$/u.test(name)) return false;
+  
+  return true;
+}
+
+/**
  * Parses a single username, converting the URL-safe format back to the standard format.
+ * Includes format validation to prevent rendering invalid or malicious strings.
  */
 function parseUsername(urlUsername) {
   if (!urlUsername) return '';
   try {
     const decoded = decodeURIComponent(urlUsername);
-    return decoded.split(URL_HASH_REPLACEMENT).join('#');
+    const reconstructed = decoded.split(URL_HASH_REPLACEMENT).join('#');
+    return isValidEmbarkId(reconstructed) ? reconstructed : 'Player';
   } catch (_e) {
-    return urlUsername.split(URL_HASH_REPLACEMENT).join('#');
+    const reconstructed = urlUsername.split(URL_HASH_REPLACEMENT).join('#');
+    return isValidEmbarkId(reconstructed) ? reconstructed : 'Player';
   }
 }
 
@@ -31,9 +75,14 @@ function parseUsername(urlUsername) {
 function parseMultipleUsernames(urlString) {
   if (!urlString) return { main: '', compare:[] };
   const parts = urlString.split(COMPARE_SEPARATOR);
+  
   const main = parseUsername(parts[0]);
-  const compare = parts.slice(1).map(parseUsername).filter(Boolean);
-  return { main, compare };
+  
+  const compare = parts.slice(1)
+    .map(parseUsername)
+    .filter(name => name !== 'Player' && Boolean(name)); // Filter out invalid comparison names
+    
+  return { main: main !== 'Player' ? main : '', compare };
 }
 
 /**
@@ -63,13 +112,14 @@ function generateMetadata(url) {
       graphStr = parts.slice(2).join('/');
     } else if (parts.length === 2) {
       graphStr = parts[1];
+      seasonId = FALLBACK_SEASON_ID;
     }
 
     const parsed = parseMultipleUsernames(graphStr);
     const seasonText = seasonId ? `(Season ${seasonId})` : '';
 
     if (parsed.compare.length > 0) {
-      const names =[parsed.main, ...parsed.compare].join(' vs ');
+      const names = [parsed.main || 'Player', ...parsed.compare].join(' vs ');
       meta.title = `Comparison: ${names} ${seasonText} | OG Club`.trim();
       meta.description = `Compare The Finals rank history and stats for ${names} on the OG Club Dashboard.`;
       meta.keywords = `${names}, comparison, rank graph, stats, the finals, rank charts`;
@@ -131,11 +181,11 @@ class HeadHandler {
     this.meta = meta;
   }
   element(element) {
-    element.append(`<meta property="og:url" content="${this.meta.url}" />`, { html: true });
-    element.append(`<link rel="canonical" href="${this.meta.url}" />`, { html: true });
-    element.append(`<meta name="twitter:card" content="summary" />`, { html: true });
-    element.append(`<meta name="twitter:title" content="${this.meta.title}" />`, { html: true });
-    element.append(`<meta name="twitter:description" content="${this.meta.description}" />`, { html: true });
+    element.append(`<meta property="og:url" content="${escapeHTML(this.meta.url)}" />\n`, { html: true });
+    element.append(`<link rel="canonical" href="${escapeHTML(this.meta.url)}" />\n`, { html: true });
+    element.append(`<meta name="twitter:card" content="summary" />\n`, { html: true });
+    element.append(`<meta name="twitter:title" content="${escapeHTML(this.meta.title)}" />\n`, { html: true });
+    element.append(`<meta name="twitter:description" content="${escapeHTML(this.meta.description)}" />\n`, { html: true });
   }
 }
 

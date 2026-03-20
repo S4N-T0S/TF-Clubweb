@@ -23,7 +23,7 @@ export const SEASONS = {
   S9: { id: 9, data: null, label: 'Season 9', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1765382400, endTimestamp: null, rubyCutoff: null, hasEvents: true, isCurrent: true}
 };
 
-export const currentSeasonKey = Object.keys(SEASONS).find(key => SEASONS[key].isCurrent);
+export const currentSeasonKey = Object.keys(SEASONS).find(key => SEASONS[key].isCurrent); // Reminder: update CF worker when season changes
 
 export const getSeasonLeaderboard = (seasonKey) => {
   const season = SEASONS[seasonKey];
