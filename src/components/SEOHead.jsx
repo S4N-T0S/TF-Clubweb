@@ -1,5 +1,8 @@
 import { Helmet } from 'react-helmet-async';
+import { useLocation } from 'react-router-dom';
 import { SEOHeadProps } from '../types/propTypes';
+
+const BASE_URL = 'https://ogclub.s4nt0s.eu';
 
 export const SEOHead = ({ 
   view, 
@@ -9,10 +12,13 @@ export const SEOHead = ({
   eventsModalOpen,
   infoModalOpen
 }) => {
+  const location = useLocation();
+
   // Default / Hub Metadata
   let title = 'OG Club Dashboard';
   let description = 'The Finals OG Club Dashboard. Track The Finals players in real time. View graphs, clubs, historical seasons, name changes and ban events.';
   let keywords = 'THE FINALS OG CLUB, PLAYER STATS, TOP CLUBS, TOP PLAYERS, LEADERBOARDS, GRAPHS, CHARTS, TRACKING, THE FINALS';
+  let canonicalPath = location.pathname;
 
   // 1. Priority: Graph Modal
   if (graphModalState && graphModalState.isOpen) {
@@ -28,6 +34,13 @@ export const SEOHead = ({
       title = `${name} Graph ${seasonText} | OG Club`;
       description = `View detailed rank progression and score history for ${name} in The Finals.`;
       keywords = `${name}, ${name} stats, rank graph, the finals tracker, rank charts, the finals`;
+    }
+
+    // SEO Fix: Force the legacy `/graph/:graph` route to point to the new `/graph/:season/:graph` route
+    if (graphModalState.seasonId && !canonicalPath.includes(`/${graphModalState.seasonId}/`)) {
+       // If URL is /graph/x&a&b, this pops 'x&a&b' and formats it properly as /graph/9/x&a&b
+       const urlSafeId = canonicalPath.split('/').pop();
+       canonicalPath = `/graph/${graphModalState.seasonId}/${urlSafeId}`;
     }
   } 
   // 2. Priority: History/Search Modal
@@ -70,10 +83,19 @@ export const SEOHead = ({
         break;
       case 'hub':
       default:
-        // Keeps the default variables defined at the top
+        // Resolves the root `/` to point to `/hub`
+        if (canonicalPath === '/') canonicalPath = '/hub'; 
         break;
     }
   }
+
+  // Construct the final full URL.
+  // Remove trailing slashes to unify /events/ and /events
+  const cleanPath = canonicalPath.endsWith('/') && canonicalPath.length > 1 
+    ? canonicalPath.slice(0, -1) 
+    : canonicalPath;
+    
+  const canonicalUrl = `${BASE_URL}${cleanPath}`;
 
   return (
     <Helmet>
@@ -82,9 +104,14 @@ export const SEOHead = ({
       <meta name="description" content={description} />
       <meta name="keywords" content={keywords} />
 
+      {/* Clean canonical urls */}
+      <link rel="canonical" href={canonicalUrl} />
+
       {/* Open Graph (Social Media) */}
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
+      {/* Updates og:url to ensure Discord unfurls the exact page */}
+      <meta property="og:url" content={canonicalUrl} />
       
       {/* Twitter */}
       <meta name="twitter:title" content={title} />

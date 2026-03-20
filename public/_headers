@@ -1,6 +1,5 @@
 /*
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-  Link: https://ogclub.s4nt0s.eu; rel="canonical"
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   X-XSS-Protection: 1; mode=block

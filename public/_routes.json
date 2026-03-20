@@ -1,10 +1,10 @@
 {
-    "version": 1,
-    "include": ["/*"],
-    "exclude": [
-      "/assets/*",
-      "/_worker.js",
-      "/_headers",
-      "/_redicts"
-    ]
-  }
+  "version": 1,
+  "include": ["/*"],
+  "exclude":[
+    "/assets/*",
+    "/_worker.js",
+    "/_headers",
+    "/_redirects"
+  ]
+}
