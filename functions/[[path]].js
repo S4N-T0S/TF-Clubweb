@@ -94,7 +94,7 @@ function generateMetadata(url) {
   let canonicalPath = path;
   
   let meta = {
-    title: 'The Finals Tracker Dashboard',
+    title: 'THE FINALS Tracker Dashboard',
     description: 'The Finals OG Club Dashboard. Track The Finals players in real time. View graphs, clubs, historical seasons, name changes and ban events.',
     keywords: 'THE FINALS OG CLUB, PLAYER STATS, TOP CLUBS, TOP PLAYERS, LEADERBOARDS, GRAPHS, CHARTS, TRACKING, THE FINALS',
     url: '' // Computed at the end
@@ -120,12 +120,12 @@ function generateMetadata(url) {
 
     if (parsed.compare.length > 0) {
       const names = [parsed.main || 'Player', ...parsed.compare].join(' vs ');
-      meta.title = `Comparison: ${names} ${seasonText} | The Finals Tracker`.trim();
+      meta.title = `Comparison: ${names} ${seasonText} | THE FINALS Tracker`.trim();
       meta.description = `Compare The Finals rank history and stats for ${names} on the OG Club Dashboard.`;
       meta.keywords = `${names}, comparison, rank graph, stats, the finals, rank charts`;
     } else {
       const name = parsed.main || 'Player';
-      meta.title = `${name} Graph ${seasonText} | The Finals Tracker`.trim();
+      meta.title = `${name} Graph ${seasonText} | THE FINALS Tracker`.trim();
       meta.description = `View detailed rank progression and score history for ${name} in The Finals.`;
       meta.keywords = `${name}, ${name} stats, rank graph, the finals tracker, rank charts, the finals`;
     }
@@ -137,27 +137,27 @@ function generateMetadata(url) {
     }
   } else if (baseRoute === 'history' && parts.length > 1) {
     const name = parseUsername(parts.slice(1).join('/'));
-    meta.title = `${name} History | The Finals Tracker`;
+    meta.title = `${name} History | THE FINALS Tracker`;
     meta.description = `Deep dive into ${name}'s leaderboard history, rank changes, and club affiliation.`;
     meta.keywords = `${name}, ${name} history, player stats, embark id, search tool, the finals, history`;
   } else if (baseRoute === 'members') {
-    meta.title = 'Club Members | The Finals Tracker';
+    meta.title = 'Club Members | THE FINALS Tracker';
     meta.description = 'View the list of verified OG Club members, their current ranks, and status.';
     meta.keywords = 'OG members, club roster, verified players, the finals clan';
   } else if (baseRoute === 'events') {
-    meta.title = 'Live Events | The Finals Tracker';
+    meta.title = 'Live Events | THE FINALS Tracker';
     meta.description = 'Track recent bans, name changes, club changes, and significant rank movements in The Finals.';
     meta.keywords = 'ban waves, name changes, the finals bans, live events, rank updates, the finals name change';
   } else if (baseRoute === 'info') {
-    meta.title = 'Information | The Finals Tracker';
+    meta.title = 'Information | THE FINALS Tracker';
     meta.description = 'Learn more about the OG Club Dashboard, methodology, and features.';
     meta.keywords = 'about og club, faq, methodology, features, api details';
   } else if (baseRoute === 'clubs') {
-    meta.title = 'Top Clubs | The Finals Tracker';
+    meta.title = 'Top Clubs | THE FINALS Tracker';
     meta.description = 'Leaderboard of the top performing clubs in The Finals based on aggregate score.';
     meta.keywords = 'top clubs, clan leaderboard, best clubs, the finals teams';
   } else if (baseRoute === 'leaderboard') {
-    meta.title = 'Ranked Leaderboard | The Finals Tracker';
+    meta.title = 'Ranked Leaderboard | THE FINALS Tracker';
     meta.description = 'Live leaderboard for The Finals. Track top 10000 players, score cutoffs, and rank distribution. Graphing and historical data available.';
     meta.keywords = 'the finals tracker, the finals leaderboard, ranked leaderboard, top players, player stats, historical ranks, seasonal data';
   } else {
