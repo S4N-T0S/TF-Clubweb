@@ -5,7 +5,7 @@ to keep up with it's logic. I'm sorry for the mess.
 */
 
 import { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { X, Plus, Camera, SlidersHorizontal, UserPen, Gavel, ChevronsUpDown, Users, AlertTriangle, RefreshCcw, Info } from 'lucide-react';
+import { X, Plus, SlidersHorizontal, UserPen, Gavel, ChevronsUpDown, Users, AlertTriangle, RefreshCcw, Info, Trophy, Flame, TrendingUp, TrendingDown, Calendar, Activity, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   Chart as ChartJS,
@@ -22,7 +22,7 @@ import { Line } from 'react-chartjs-2';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import 'chartjs-adapter-date-fns';
-import { GraphModalProps, GraphErrorViewProps, ComparePlayerModalProps, GraphSettingsModalProps, FilterToggleButtonProps } from '../../types/propTypes';
+import { GraphModalProps, GraphErrorViewProps, ComparePlayerModalProps, GraphSettingsModalProps, FilterToggleButtonProps, PlayerStatsModalProps } from '../../types/propTypes';
 import { useModal } from '../../context/ModalProvider';
 import { usePlayerGraphData } from '../../hooks/usePlayerGraphData';
 import { useChartConfig } from '../../hooks/useChartConfig';
@@ -84,6 +84,120 @@ const FilterToggleButton = ({ label, isActive, onClick, Icon, textColorClass, ac
             <span className={textColorClass}>{label}</span>
         </button>
     );
+};
+
+const PlayerStatsModal = ({ stats, gameCount, onClose }) => {
+  const modalOptions = useMemo(() => ({ type: 'nested' }), []);
+  const { modalRef } = useModal(true, onClose, modalOptions);
+
+  if (!stats) return null;
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    const [y, m, d] = dateStr.split('-');
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const formatChange = (change) => {
+    if (change > 0) return `+${change.toLocaleString()}`;
+    return change.toLocaleString();
+  };
+
+  const getValueColor = (val) => {
+    if (val > 0) return 'text-emerald-400';
+    if (val < 0) return 'text-rose-400';
+    return 'text-white';
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
+      <div ref={modalRef} className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border border-gray-700 shadow-2xl relative">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold text-white flex items-center gap-2">
+            <Activity className="w-5 h-5 text-blue-400" />
+            Seasonal Statistics
+          </h3>
+          <button onClick={onClose} aria-label="Close stats" className="text-gray-400 hover:text-white transition-colors bg-gray-700/50 hover:bg-gray-700 p-1.5 rounded-lg">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Hero Stat: Win Rate */}
+          <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 border border-blue-500/30 p-4 rounded-xl flex items-center justify-between">
+            <div>
+              <p className="text-blue-200 text-sm font-medium mb-1 flex items-center gap-1.5"><Trophy className="w-4 h-4"/> Win Rate (+RS)</p>
+              <p className="text-3xl font-bold text-white">{stats.winrate}%</p>
+            </div>
+            <div className="text-right">
+              <p className="text-blue-200/70 text-xs mb-1">Total Tracked</p>
+              <p className="text-xl font-semibold text-white">{gameCount} <span className="text-sm font-normal text-gray-400">games</span></p>
+            </div>
+          </div>
+
+          {/* Grid for Wins/Losses */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-gray-800/80 border border-gray-700 p-3 rounded-xl shadow-inner">
+              <p className="text-gray-400 text-xs font-medium mb-1 flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5 text-emerald-400"/> Games Won</p>
+              <p className="text-xl font-bold text-emerald-400">{stats.wins}</p>
+            </div>
+            <div className="bg-gray-800/80 border border-gray-700 p-3 rounded-xl shadow-inner">
+              <p className="text-gray-400 text-xs font-medium mb-1 flex items-center gap-1.5"><TrendingDown className="w-3.5 h-3.5 text-rose-400"/> Games Lost</p>
+              <p className="text-xl font-bold text-rose-400">{stats.losses}</p>
+            </div>
+          </div>
+
+          {/* Grid for Streaks */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-gray-800/80 border border-gray-700 p-3 rounded-xl shadow-inner">
+              <p className="text-gray-400 text-xs font-medium mb-1 flex items-center gap-1.5"><Flame className="w-3.5 h-3.5 text-orange-400"/> Best Streak</p>
+              <p className="text-lg font-bold text-white">{stats.maxWinStreak} <span className="text-xs font-normal text-gray-500">wins</span></p>
+            </div>
+            <div className="bg-gray-800/80 border border-gray-700 p-3 rounded-xl shadow-inner">
+              <p className="text-gray-400 text-xs font-medium mb-1 flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-red-400"/> Worst Streak</p>
+              <p className="text-lg font-bold text-white">{stats.maxLossStreak} <span className="text-xs font-normal text-gray-500">losses</span></p>
+            </div>
+          </div>
+
+          {/* Days Active */}
+          <div className="bg-gray-800/80 border border-gray-700 p-3.5 rounded-xl shadow-inner flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-xs font-medium mb-1 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5"/> Days Active</p>
+              <p className="text-lg font-bold text-white">{stats.daysActiveCount} <span className="text-sm font-normal text-gray-500">of {stats.totalSeasonDays}</span></p>
+            </div>
+            <div className="text-right">
+              <div className="inline-flex items-center justify-center h-10 px-3 rounded-lg bg-gray-700/50 border border-gray-600">
+                <span className="text-sm font-bold text-gray-300">{stats.daysActivePercent}%</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Best/Worst Day */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-emerald-900/10 border border-emerald-500/20 p-3 rounded-xl">
+              <p className="text-emerald-400/80 text-xs font-medium mb-1">Best Day</p>
+              {stats.bestDay ? (
+                <>
+                  <p className={`text-lg font-bold ${getValueColor(stats.bestDay.change)}`}>{formatChange(stats.bestDay.change)}</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">{formatDate(stats.bestDay.date)}</p>
+                </>
+              ) : <p className="text-gray-600 text-sm">N/A</p>}
+            </div>
+            <div className="bg-rose-900/10 border border-rose-500/20 p-3 rounded-xl">
+              <p className="text-rose-400/80 text-xs font-medium mb-1">Worst Day</p>
+              {stats.worstDay ? (
+                <>
+                  <p className={`text-lg font-bold ${getValueColor(stats.worstDay.change)}`}>{formatChange(stats.worstDay.change)}</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">{formatDate(stats.worstDay.date)}</p>
+                </>
+              ) : <p className="text-gray-600 text-sm">N/A</p>}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const GraphErrorView = ({ error, availableSeasons, onSwitchSeason, targetSeasonId }) => {
@@ -354,12 +468,10 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
   const [showCompareModal, setShowCompareModal] = useState(false);
   const [showCompareHint, setShowCompareHint] = useState(true);
   const [showZoomHint, setShowZoomHint] = useState(true);
-  const [notifScreenshot, setNotifScreenshot] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const ssdropdownRef = useRef(null);
   const [showSeasonDropdown, setShowSeasonDropdown] = useState(false);
   const seasonDropdownRef = useRef(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showStatsModal, setShowStatsModal] = useState(false);
   const [eventSettings, setEventSettings] = useState(getStoredGraphSettings);
 
   const [comparisonLeaderboard, setComparisonLeaderboard] = useState([]);
@@ -398,6 +510,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
     data,
     events,
     mainPlayerGameCount,
+    mainPlayerStats,
     mainPlayerAvailableSeasons,
     comparisonData,
     loading,
@@ -416,6 +529,8 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
     eventSettings,
     handleUrlChange
   );
+
+  const mainPlayerWinrate = mainPlayerStats?.winrate || null;
 
   // Watch for leaderboard updates to auto-refresh the graph
   const prevUpdateRef = useRef(lastLeaderboardUpdate);
@@ -466,6 +581,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
     eventSettings,
     seasonId: currentSeasonId,
     rubyCutoff: rubyCutoffForChart,
+    mainPlayerWinrate,
   });
 
   useEffect(() => {
@@ -602,14 +718,11 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (ssdropdownRef.current && !ssdropdownRef.current.contains(event.target)) {
-        setShowDropdown(false);
-      }
       if (seasonDropdownRef.current && !seasonDropdownRef.current.contains(event.target)) {
         setShowSeasonDropdown(false);
       }
     };
-    if (showDropdown || showSeasonDropdown) {
+    if (showSeasonDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('touchstart', handleClickOutside);
     }
@@ -617,59 +730,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
     };
-  }, [showDropdown, showSeasonDropdown]);
-
-  const handleScreenshot = async (withBackground = true) => {
-    const canvas = chartRef.current?.canvas;
-    if (!canvas) return;
-
-    try {
-      const tempCanvas = document.createElement('canvas');
-      const ctx = tempCanvas.getContext('2d');
-
-      tempCanvas.width = canvas.width;
-      tempCanvas.height = canvas.height;
-
-      if (withBackground) {
-        ctx.fillStyle = '#1a1f2e';
-        ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-      }
-
-      ctx.drawImage(canvas, 0, 0);
-
-      ctx.save();
-      ctx.globalAlpha = 0.15;
-      ctx.font = 'bold 24px Arial';
-      ctx.fillStyle = 'white';
-
-      const watermarkText = 'https://ogclub.s4nt0s.eu';
-      const textMetrics = ctx.measureText(watermarkText);
-
-      ctx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
-
-      if (isMobile) {
-        ctx.translate(tempCanvas.width / 8, tempCanvas.height / 4);
-      }
-
-      ctx.rotate(-Math.PI / 6);
-      ctx.fillText(watermarkText, -textMetrics.width / 2, 0);
-      ctx.restore();
-
-      const blob = await new Promise(resolve => tempCanvas.toBlob(resolve, 'image/png'));
-
-      await navigator.clipboard.write([
-        new ClipboardItem({ 'image/png': blob })
-      ]);
-
-      setNotifScreenshot(true);
-      setTimeout(() => setNotifScreenshot(false), 1000);
-
-      setShowDropdown(false);
-    } catch (err) {
-      console.error('Failed to copy chart:', err);
-      alert('Screenshot failed, please report this error.')
-    }
-  };
+  }, [showSeasonDropdown]);
 
   const { seasonKey, currentSeasonLabel } = useMemo(() => {
     const key = Object.keys(SEASONS).find(k => SEASONS[k].id === currentSeasonId);
@@ -684,13 +745,13 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
   if (!isOpen || !embarkId) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4`}>
+    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 ${isMobile ? 'p-0' : 'p-4'}`}>
       <div
         ref={modalRef}
         className={`
           bg-[#1a1f2e] rounded-lg w-full overflow-hidden grid grid-rows-[auto_1fr]
           transition-transform duration-75 ease-out
-          ${isMobile ? 'max-w-[100dvw] h-[100dvh] rounded-none p-2 gap-2' : 'max-w-[80dvw] h-[85dvh] p-6 gap-4'}
+          ${isMobile ? 'w-full h-full max-w-none rounded-none p-2 gap-2' : 'max-w-[80dvw] h-[85dvh] p-6 gap-4'}
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
         `}
       >
@@ -712,6 +773,13 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                 onSettingsChange={setEventSettings}
                 onClose={handleCloseSettingsModal}
                 hasAnyEvents={hasAnyEvents}
+            />
+        )}
+        {showStatsModal && mainPlayerStats && (
+            <PlayerStatsModal
+                stats={mainPlayerStats}
+                gameCount={mainPlayerGameCount}
+                onClose={() => setShowStatsModal(false)}
             />
         )}
         <div>
@@ -752,16 +820,6 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                       </div>
                     )}
                   </div>
-                  {data && mainPlayerGameCount > 0 && !error && (
-                    <div className="relative group flex-shrink-0">
-                      <div className="bg-gray-700 text-gray-300 text-xs font-medium px-2 py-1 rounded-md cursor-help">
-                        {mainPlayerGameCount} games
-                      </div>
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[80vw] sm:max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30 shadow-lg border border-gray-700 whitespace-normal">
-                        {GAME_COUNT_TOOLTIP}
-                      </div>
-                    </div>
-                  )}
                 </div>
                 {isMobile && (
                   <button
@@ -774,89 +832,91 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                 )}
               </div>
               {data && data.length > 0 && !error && (
-                <p className="text-sm text-gray-400 mt-1 truncate">
-                  {!isMobile ? 'Data available between ' : 'MAX: '} {`${new Date(data[0].timestamp).toLocaleString(undefined, TIME.FORMAT)} - ${new Date(data[data.length - 1].timestamp).toLocaleString(undefined, TIME.FORMAT)}`}
-                </p>
+                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-gray-400 mt-1">
+                  {mainPlayerGameCount > 0 && (
+                    <>
+                      <div className="relative group inline-flex items-center">
+                        <span className="text-gray-300 font-medium cursor-help border-b border-dotted border-gray-500 hover:border-gray-400 transition-colors">
+                          {mainPlayerGameCount} Games
+                        </span>
+                        <div className="absolute top-full left-0 mt-2 w-max max-w-[80vw] sm:max-w-[250px] bg-gray-900 text-white text-left text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30 shadow-lg border border-gray-700 whitespace-normal">
+                          {GAME_COUNT_TOOLTIP}
+                        </div>
+                      </div>
+                      <span className="text-gray-600">•</span>
+                      {mainPlayerWinrate !== null && (
+                        <>
+                          <button 
+                            onClick={() => setShowStatsModal(true)}
+                            className={`font-medium transition-colors border-b border-dotted cursor-pointer ${
+                              parseFloat(mainPlayerWinrate) > 50 ? 'text-green-400 border-green-500/50 hover:border-green-400' :
+                              parseFloat(mainPlayerWinrate) < 50 ? 'text-red-400 border-red-500/50 hover:border-red-400' :
+                              'text-orange-400 border-orange-500/50 hover:border-orange-400'
+                            }`}
+                            title="Click to view Seasonal Stats"
+                          >
+                            {mainPlayerWinrate}% WR*
+                          </button>
+                          <span className="text-gray-600">•</span>
+                        </>
+                      )}
+                    </>
+                  )}
+                  <span>
+                    {(() => {
+                      const start = data[0].timestamp;
+                      const end = data[data.length - 1].timestamp;
+                      const currentYear = new Date().getFullYear();
+                      const needsYear = start.getFullYear() !== currentYear || end.getFullYear() !== currentYear;
+                      const opts = { day: 'numeric', month: 'short' };
+                      if (needsYear) opts.year = 'numeric';
+                      return `${start.toLocaleDateString(undefined, opts)} - ${end.toLocaleDateString(undefined, opts)}`;
+                    })()}
+                  </span>
+                </div>
               )}
             </div>
             <div className={`relative flex flex-col ${isMobile ? 'w-full' : 'flex-shrink min-w-0'}`}>
-              <div className={`flex items-center flex-wrap ${isMobile ? 'w-full justify-between' : 'justify-end gap-2'}`}>
-                <div className="relative" ref={ssdropdownRef}>
+              <div className={`flex items-center flex-wrap ${isMobile ? 'w-full justify-between gap-2' : 'justify-end gap-2'}`}>
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={() => !error && setShowDropdown(!showDropdown)}
-                    disabled={!!error}
-                    className={`p-2 rounded-lg relative ${error ? 'text-gray-600 cursor-not-allowed' : 'hover:bg-gray-700 text-gray-400 hover:text-white'}`}
-                    title="Screenshot options"
-                    aria-haspopup="true"
-                    aria-expanded={showDropdown}
+                      onClick={() => setShowSettingsModal(true)}
+                      disabled={!!error}
+                      className={`p-2 rounded-lg transition-colors ${
+                        error ? 'text-gray-600 cursor-not-allowed' :
+                        areFiltersActive 
+                          ? 'bg-green-600 text-white hover:bg-green-500' 
+                          : 'hover:bg-gray-700 text-gray-400 hover:text-white'
+                      }`}
+                      title="Event Settings"
                   >
-                    <Camera className="w-5 h-5" />
-                    {notifScreenshot && (
-                      <div
-                        className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-gray-800 text-white text-xs py-1 px-2 rounded-md shadow-lg animate-fadeIn pointer-events-none"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Screenshot copied! 📋
-                      </div>
-                    )}
+                      <SlidersHorizontal className="w-5 h-5" />
                   </button>
-                  {showDropdown && !error && (
-                    <div className={`absolute ${isMobile ? 'top-full mt-2 left-0' : 'right-0 mt-2'} w-48 bg-gray-800 rounded-md shadow-lg z-10`}>
-                      <div className="py-1">
-                        <button
-                          onClick={() => handleScreenshot(true)}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700"
-                        >
-                          With background
-                        </button>
-                        <button
-                          onClick={() => handleScreenshot(false)}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700"
-                        >
-                          Without background
-                        </button>
-                      </div>
+                  {comparisonData.size < MAX_COMPARISONS && !error && (
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowCompareModal(true)}
+                        className={`p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative transition-all duration-200 group`}
+                        title="Compare with another player"
+                        aria-label="Compare with another player"
+                        disabled={isLeaderboardLoading}
+                      >
+                        <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
+                        {showCompareHint && (
+                          <div className="absolute -bottom-2 -right-2 w-5 h-5 bg-blue-500 rounded-full animate-pulse z-30" />
+                        )}
+
+                        {showCompareHint && (
+                          <div className={`absolute top-full mt-2 whitespace-nowrap bg-gray-800 text-white text-xs py-1 px-2 rounded fade-out pointer-events-none z-30
+                            ${isMobile ? 'left-0' : 'left-1/2 -translate-x-1/2'}`}>
+                            Try comparing!
+                          </div>
+                        )}
+                      </button>
                     </div>
                   )}
                 </div>
-                 <button
-                    onClick={() => setShowSettingsModal(true)}
-                    disabled={!!error}
-                    className={`p-2 rounded-lg transition-colors ${
-                      error ? 'text-gray-600 cursor-not-allowed' :
-                      areFiltersActive 
-                        ? 'bg-green-600 text-white hover:bg-green-500' 
-                        : 'hover:bg-gray-700 text-gray-400 hover:text-white'
-                    }`}
-                    title="Event Settings"
-                >
-                    <SlidersHorizontal className="w-5 h-5" />
-                </button>
-                {comparisonData.size < MAX_COMPARISONS && !error && (
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowCompareModal(true)}
-                      className={`p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative transition-all duration-200 group
-                        ${isMobile ? 'mr-4' : ''}`}
-                      title="Compare with another player"
-                      aria-label="Compare with another player"
-                      disabled={isLeaderboardLoading}
-                    >
-                      <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
-                      {showCompareHint && (
-                        <div className="absolute -bottom-2 -right-2 w-5 h-5 bg-blue-500 rounded-full animate-pulse z-30" />
-                      )}
-
-                      {showCompareHint && (
-                        <div className={`absolute top-full mt-2 whitespace-nowrap bg-gray-800 text-white text-xs py-1 px-2 rounded fade-out pointer-events-none z-30
-                          ${isMobile ? 'left-0' : 'left-1/2 -translate-x-1/2'}`}>
-                          Try comparing!
-                        </div>
-                      )}
-                    </button>
-                  </div>
-                )}
-                <div className={`flex gap-2 bg-gray-800 rounded-lg p-1 ${isMobile ? 'flex-1 justify-center ml-2' : ''}`}>
+                <div className={`flex gap-2 bg-gray-800 rounded-lg p-1 ${isMobile ? 'flex-1 justify-center' : ''}`}>
                   {Object.keys(TIME.RANGES).map((range) => (
                     <button
                       key={range}
@@ -899,7 +959,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                     isMobile ? (
                       <span className="text-gray-400 text-xs">({gameCount})</span>
                     ) : (
-                      <div className="relative group">
+                      <div className="relative group inline-flex items-center">
                         <span className="text-gray-400 text-xs cursor-help">({gameCount})</span>
                         <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[80vw] sm:max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30 shadow-lg border border-gray-700 whitespace-normal">
                           {GAME_COUNT_TOOLTIP}
@@ -973,5 +1033,6 @@ GraphErrorView.propTypes = GraphErrorViewProps;
 ComparePlayerModal.propTypes = ComparePlayerModalProps;
 GraphSettingsModal.propTypes = GraphSettingsModalProps;
 FilterToggleButton.propTypes = FilterToggleButtonProps;
+PlayerStatsModal.propTypes = PlayerStatsModalProps;
 
 export default memo(GraphModal);

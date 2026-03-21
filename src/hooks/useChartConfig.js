@@ -304,6 +304,7 @@ export const useChartConfig = ({
   eventSettings,
   seasonId,
   rubyCutoff,
+  mainPlayerWinrate,
 }) => {
 
   const seasonConfig = useMemo(() => Object.values(SEASONS).find(s => s.id === seasonId), [seasonId]);
@@ -1395,7 +1396,9 @@ export const useChartConfig = ({
   const chartData = useMemo(() => data ? {
     labels: data.map(d => d.timestamp),
     datasets: [{
-      label: ` ${embarkId}`,
+      label: comparisonData.size > 0 && mainPlayerWinrate !== null 
+        ? ` ${embarkId} (${mainPlayerWinrate}% WR)` 
+        : ` ${embarkId}`,
       normalized: true,
       data: data.map(d => ({
         x: d.timestamp,
@@ -1416,8 +1419,8 @@ export const useChartConfig = ({
       pointHoverRadius: ctx => getPointRadius(ctx) * 1.5,
       tension: 0.01
     },
-    ...Array.from(comparisonData.entries()).map(([compareId, { data: compareData, color }]) => ({
-      label: ` ${compareId}`,
+    ...Array.from(comparisonData.entries()).map(([compareId, { data: compareData, color, winrate }]) => ({
+      label: winrate !== null ? ` ${compareId} (${winrate}% WR)` : ` ${compareId}`,
       normalized: true,
       data: compareData.map(d => ({
         x: d.timestamp,
@@ -1438,7 +1441,7 @@ export const useChartConfig = ({
       pointHoverRadius: ctx => getPointRadius(ctx) * 1.5,
       tension: 0.01
     }))]
-  } : null, [data, embarkId, comparisonData, eventSettings, getPointRadius, getPointStyle, getPointRotation, getPointBackgroundColor, getPointBorderColor]);
+  } : null, [data, embarkId, comparisonData, eventSettings, getPointRadius, getPointStyle, getPointRotation, getPointBackgroundColor, getPointBorderColor, mainPlayerWinrate]);
 
   return { chartOptions, chartData };
 };

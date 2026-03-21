@@ -230,6 +230,30 @@ export const ComparePlayerModalProps = {
   isMobile: PropTypes.bool.isRequired
 };
 
+export const PlayerStatsModalProps = {
+  stats: PropTypes.shape({
+    wins: PropTypes.number.isRequired,
+    losses: PropTypes.number.isRequired,
+    trackedGames: PropTypes.number.isRequired,
+    winrate: PropTypes.string.isRequired,
+    maxWinStreak: PropTypes.number.isRequired,
+    maxLossStreak: PropTypes.number.isRequired,
+    daysActiveCount: PropTypes.number.isRequired,
+    totalSeasonDays: PropTypes.number.isRequired,
+    daysActivePercent: PropTypes.string.isRequired,
+    bestDay: PropTypes.shape({
+      date: PropTypes.string.isRequired,
+      change: PropTypes.number.isRequired
+    }),
+    worstDay: PropTypes.shape({
+      date: PropTypes.string.isRequired,
+      change: PropTypes.number.isRequired
+    })
+  }),
+  gameCount: PropTypes.number.isRequired,
+  onClose: PropTypes.func.isRequired
+};
+
 export const GraphModalProps = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,

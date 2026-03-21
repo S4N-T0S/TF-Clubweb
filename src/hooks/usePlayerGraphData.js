@@ -22,6 +22,110 @@ const GAP_THRESHOLD = 2 * TIME.HOUR;
 const NEW_LOGIC_TIMESTAMP_MS = 1750436334 * 1000;
 const COMBINE_EVENT_WINDOW_MS = 60 * 60 * 1000; // Combine club/name changes within 1 hour
 
+// Helper to calculate comprehensive player stats from a processed dataset
+const calculatePlayerStats = (dataset, seasonId) => {
+  if (!dataset || !dataset.length) return null;
+  
+  let wins = 0;
+  let losses = 0;
+  let totalGames = 0;
+  let previousScore = null;
+  
+  let currentWinStreak = 0;
+  let maxWinStreak = 0;
+  let currentLossStreak = 0;
+  let maxLossStreak = 0;
+
+  const dailyChanges = {};
+  const activeDays = new Set();
+  
+  for (const point of dataset) {
+    if (point.scoreChanged && !point.isInterpolated && !point.isExtrapolated && !point.isStaircasePoint && !point.isGapBridge && !point.isRsAdjustmentAnchor) {
+      const currentScore = point.rankScore;
+      const pointDate = point.timestamp;
+      
+      const localDateStr = `${pointDate.getFullYear()}-${String(pointDate.getMonth() + 1).padStart(2, '0')}-${String(pointDate.getDate()).padStart(2, '0')}`;
+      
+      activeDays.add(localDateStr);
+
+      if (previousScore !== null) {
+        totalGames++;
+        const change = currentScore - previousScore;
+        
+        if (!dailyChanges[localDateStr]) {
+            dailyChanges[localDateStr] = 0;
+        }
+        dailyChanges[localDateStr] += change;
+
+        if (change > 0) {
+          wins++;
+          currentWinStreak++;
+          currentLossStreak = 0;
+          if (currentWinStreak > maxWinStreak) maxWinStreak = currentWinStreak;
+        } else if (change < 0) {
+          losses++;
+          currentLossStreak++;
+          currentWinStreak = 0;
+          if (currentLossStreak > maxLossStreak) maxLossStreak = currentLossStreak;
+        } else {
+          currentWinStreak = 0;
+          currentLossStreak = 0;
+        }
+      }
+      previousScore = currentScore;
+    }
+  }
+
+  if (totalGames === 0) return null;
+
+  let bestDay = null;
+  let worstDay = null;
+  
+  for (const [day, change] of Object.entries(dailyChanges)) {
+    if (!bestDay || change > bestDay.change) {
+      bestDay = { date: day, change };
+    }
+    if (!worstDay || change < worstDay.change) {
+      worstDay = { date: day, change };
+    }
+  }
+
+  const seasonConfig = Object.values(SEASONS).find(s => s.id === seasonId);
+  let totalSeasonDays = 1;
+
+  if (seasonConfig && seasonConfig.startTimestamp) {
+     const seasonStart = new Date(seasonConfig.startTimestamp * 1000);
+     const seasonEnd = seasonConfig.endTimestamp ? new Date(seasonConfig.endTimestamp * 1000) : new Date();
+     const endToUse = seasonEnd > new Date() ? new Date() : seasonEnd;
+     const msInDay = 24 * 60 * 60 * 1000;
+     totalSeasonDays = Math.max(1, Math.ceil((endToUse - seasonStart) / msInDay));
+  } else {
+     const firstPointDate = dataset[0].timestamp;
+     const lastPointDate = dataset[dataset.length - 1].timestamp;
+     const msInDay = 24 * 60 * 60 * 1000;
+     totalSeasonDays = Math.max(1, Math.ceil((lastPointDate - firstPointDate) / msInDay));
+  }
+
+  const daysActiveCount = activeDays.size;
+  const daysActivePercent = Math.min(100, (daysActiveCount / totalSeasonDays) * 100).toFixed(0);
+
+  const winrate = ((wins / totalGames) * 100).toFixed(1);
+
+  return {
+    wins,
+    losses,
+    trackedGames: totalGames,
+    winrate,
+    maxWinStreak,
+    maxLossStreak,
+    daysActiveCount,
+    totalSeasonDays,
+    daysActivePercent,
+    bestDay,
+    worstDay
+  };
+};
+
 // Binary search to find the index of the closest point to a given timestamp.
 const findClosestPointIndex = (data, targetTime) => {
   let left = 0;
@@ -505,6 +609,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
   const [events, setEvents] = useState([]);
   const [mainPlayerCurrentId, setMainPlayerCurrentId] = useState(embarkId);
   const [mainPlayerGameCount, setMainPlayerGameCount] = useState(0);
+  const [mainPlayerStats, setMainPlayerStats] = useState(null);
   const [mainPlayerAvailableSeasons, setMainPlayerAvailableSeasons] = useState([]);
   const [error, setError] = useState(null);
   const [errorAvailableSeasons, setErrorAvailableSeasons] = useState(null);
@@ -544,6 +649,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     }
     setData(processedMain);
     setEvents(mainPlayerRaw.events);
+    setMainPlayerStats(calculatePlayerStats(processedMain, currentSeasonId));
 
     // Process comparison data
     const newComparisonMap = new Map();
@@ -560,6 +666,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
                 data: processedCompare,
                 color: COMPARISON_COLORS[index],
                 gameCount: rawValue.gameCount,
+                winrate: calculatePlayerStats(processedCompare, currentSeasonId)?.winrate || null,
                 events: rawValue.events,
                 availableSeasons: rawValue.availableSeasons,
             });
@@ -711,6 +818,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       setEvents([]);
       setMainPlayerCurrentId(embarkId);
       setMainPlayerGameCount(0);
+      setMainPlayerStats(null);
       setMainPlayerAvailableSeasons([]);
       setComparisonData(new Map());
       setMainPlayerRaw({ data: null, events: [] }); // Use null to indicate not yet fetched
@@ -856,6 +964,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     // Reset raw data to null. 
     setMainPlayerRaw({ data: null, events: [] }); 
     setData(null);
+    setMainPlayerStats(null);
 
     try {
       // 1. Fetch main player for the new season.
@@ -1045,6 +1154,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     events,
     mainPlayerCurrentId,
     mainPlayerGameCount,
+    mainPlayerStats,
     mainPlayerAvailableSeasons,
     comparisonData,
     loading,
