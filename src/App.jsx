@@ -33,7 +33,7 @@ const App = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { graph, season: seasonIdFromUrl, history } = useParams();
-  
+
   // --> Global View State
   const [view, setView] = useState(() => {
     const path = location.pathname;
@@ -42,15 +42,15 @@ const App = () => {
     if (path.startsWith('/hub')) return 'hub';
     return getStoredTab();
   });
-  
+
   const [modalHistory, setModalHistory] = useState([]);
-  
+
   // --> Derived Modal Data
-  
+
   // Graph Data
-  const { main: graphEmbarkId, compare: graphCompareIds } = useMemo(() => 
-    graph ? parseMultipleUsernamesFromUrl(graph) : { main: null, compare: [] }, 
-  [graph]);
+  const { main: graphEmbarkId, compare: graphCompareIds } = useMemo(() =>
+    graph ? parseMultipleUsernamesFromUrl(graph) : { main: null, compare: [] },
+    [graph]);
 
   const graphSeasonId = useMemo(() => {
     if (!seasonIdFromUrl) return SEASONS[currentSeasonKey]?.id;
@@ -61,7 +61,7 @@ const App = () => {
   const initialSearchQuery = history ? safeParseUsernameFromUrl(history) : '';
 
   // --> Stacked Modal Logic
-  
+
   const isOverlayModalPath = location.pathname.startsWith('/graph') || location.pathname.startsWith('/history');
   const lastPath = modalHistory.length > 0 ? modalHistory[modalHistory.length - 1] : '/';
 
@@ -161,7 +161,7 @@ const App = () => {
     // Small timeout ensures the State update (History) is processed 
     // before the Router update (Location) hits. This prevents premature unmounting.
     setTimeout(() => {
-        navigate(newPath, { replace: true });
+      navigate(newPath, { replace: true });
     }, 10);
   }, [location.pathname, navigate]);
 
@@ -169,16 +169,16 @@ const App = () => {
     // Pop the last path from our manual history stack
     const newHistory = [...modalHistory];
     const previousPath = newHistory.pop() || '/'; // Default to root if history is empty
-    
+
     // 1. Navigate back to the "Background" modal. 
     // Since it's already open, this is seamless.
     navigate(previousPath, { replace: true });
-    
+
     // 2. Delay the history update slightly.
     // This allows React Router to update `location.pathname` to the new path (e.g., /members)
     // BEFORE we remove /members from the history stack. This prevents flash unmounts.
     setTimeout(() => {
-        setModalHistory(newHistory);
+      setModalHistory(newHistory);
     }, 20);
   }, [modalHistory, navigate]);
 
@@ -194,11 +194,11 @@ const App = () => {
     navigate('/leaderboard', { replace: true });
     setGlobalSearchQuery(`[${clubTag}]`);
     setSelectedSeason(seasonKey);
-  
-    const message = /\d/.test(seasonKey) 
-      ? `Searching in Season ${seasonKey.slice(1)}.` 
+
+    const message = /\d/.test(seasonKey)
+      ? `Searching in Season ${seasonKey.slice(1)}.`
       : `Searching in ${seasonKey}.`;
-    
+
     showToast({
       title: `Club Search: ${clubTag}`,
       message: message,
@@ -244,15 +244,15 @@ const App = () => {
   const handleSearchSubmit = useCallback((query) => {
     navigate(`/history/${query}`, { replace: true });
   }, [navigate]);
-  
+
   const handleGraphModalOpen = useCallback((embarkId, compareIds = [], seasonKey = null) => {
     // If no seasonKey is provided, default to the current season.
     const effectiveSeasonKey = seasonKey || currentSeason;
     const seasonId = SEASONS[effectiveSeasonKey]?.id;
 
     if (seasonId === undefined || seasonId === null) {
-        showToast({ message: `Cannot open graph for season ${effectiveSeasonKey}. No data available.`, type: 'error' });
-        return;
+      showToast({ message: `Cannot open graph for season ${effectiveSeasonKey}. No data available.`, type: 'error' });
+      return;
     }
 
     // Only refresh key if we aren't ALREADY in the graph modal.
@@ -268,17 +268,17 @@ const App = () => {
   // --> 8. Render
 
   if (error) return (
-    <ErrorDisplay 
-      error={error} 
+    <ErrorDisplay
+      error={error}
       // Force refresh (bypass IDB read + browser cache reload)
-      onRetry={() => refreshData(true, true)} 
+      onRetry={() => refreshData(true, true)}
     />
   );
 
   return (
     <div className="min-h-screen bg-gray-900 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
       <ModalProvider>
-        <SEOHead 
+        <SEOHead
           view={view}
           searchModalState={{ isOpen: isSearchOpen, initialSearch: initialSearchQuery }}
           graphModalState={{ isOpen: isGraphOpen, embarkId: graphEmbarkId, compareIds: graphCompareIds, seasonId: graphSeasonId }}
@@ -288,13 +288,13 @@ const App = () => {
         />
 
         {toastMessage && (
-          <Toast 
+          <Toast
             {...toastMessage}
             onClose={toastMessage.onClose}
             isMobile={isMobile}
           />
         )}
-        
+
         {/* Main Content: Conditionally rendered based on loading state*/}
         {loading ? (
           <LoadingDisplay />
@@ -314,14 +314,14 @@ const App = () => {
                 <HubView />
               )}
               {view === 'clubs' && (
-                <ClubsView 
-                  topClubs={topClubs} 
+                <ClubsView
+                  topClubs={topClubs}
                   onClubClick={handleClubClick}
                   isMobile={isMobile}
                 />
               )}
               {view === 'global' && (
-                <GlobalView 
+                <GlobalView
                   currentSeason={currentSeason}
                   selectedSeason={selectedSeason}
                   setSelectedSeason={setSelectedSeason}
@@ -343,78 +343,78 @@ const App = () => {
 
         {/* Modals: Rendered OUTSIDE the loading conditional */}
         <ModalPortal>
-            {isInfoOpen && (
-                <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"><LoadingDisplay variant="component" /></div>}>
-                    <InfoModal
-                        key={`info-${modalKeys.info}`}
-                        isOpen={isInfoOpen}
-                        onClose={closeModal}
-                        isMobile={isMobile}
-                    />
-                </Suspense>
-            )}
+          {isInfoOpen && (
+            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"><LoadingDisplay variant="component" /></div>}>
+              <InfoModal
+                key={`info-${modalKeys.info}`}
+                isOpen={isInfoOpen}
+                onClose={closeModal}
+                isMobile={isMobile}
+              />
+            </Suspense>
+          )}
 
-            {isMembersOpen && (
-                <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"><LoadingDisplay variant="component" /></div>}>
-                    <MembersModal 
-                        key={`members-${modalKeys.members}`}
-                        isOpen={isMembersOpen}
-                        onClose={closeModal}
-                        globalLeaderboard={globalLeaderboard}
-                        onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
-                        onPlayerSearch={(name) => handleSearchModalOpen(name)}
-                        isMobile={isMobile}
-                    />
-                </Suspense>
-            )}
+          {isMembersOpen && (
+            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"><LoadingDisplay variant="component" /></div>}>
+              <MembersModal
+                key={`members-${modalKeys.members}`}
+                isOpen={isMembersOpen}
+                onClose={closeModal}
+                globalLeaderboard={globalLeaderboard}
+                onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
+                onPlayerSearch={(name) => handleSearchModalOpen(name)}
+                isMobile={isMobile}
+              />
+            </Suspense>
+          )}
 
-            {isEventsOpen && (
-                <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"><LoadingDisplay variant="component" /></div>}>
-                    <EventsModal
-                        key={`events-${modalKeys.events}`}
-                        isOpen={isEventsOpen}
-                        onClose={closeModal}
-                        isMobile={isMobile}
-                        onPlayerSearch={handleSearchModalOpen}
-                        onClubClick={handleClubClick}
-                        onGraphOpen={(embarkId, seasonKey) => handleGraphModalOpen(embarkId, [], seasonKey)}
-                        showToast={showToast}
-                    />
-                </Suspense>
-            )}
+          {isEventsOpen && (
+            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"><LoadingDisplay variant="component" /></div>}>
+              <EventsModal
+                key={`events-${modalKeys.events}`}
+                isOpen={isEventsOpen}
+                onClose={closeModal}
+                isMobile={isMobile}
+                onPlayerSearch={handleSearchModalOpen}
+                onClubClick={handleClubClick}
+                onGraphOpen={(embarkId, seasonKey) => handleGraphModalOpen(embarkId, [], seasonKey)}
+                showToast={showToast}
+              />
+            </Suspense>
+          )}
 
-            {isSearchOpen && (
-                <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"><LoadingDisplay variant="component" /></div>}>
-                    <SearchModal 
-                        key={`search-${modalKeys.search}`}
-                        isOpen={isSearchOpen}
-                        onClose={closeModal}
-                        initialSearch={initialSearchQuery}
-                        currentSeasonData={globalLeaderboard}
-                        onSearch={handleSearchSubmit}
-                        isMobile={isMobile}
-                        onClubClick={handleClubClick}
-                        isLeaderboardLoading={loading}
-                    />
-                </Suspense>
-            )}
+          {isSearchOpen && (
+            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"><LoadingDisplay variant="component" /></div>}>
+              <SearchModal
+                key={`search-${modalKeys.search}`}
+                isOpen={isSearchOpen}
+                onClose={closeModal}
+                initialSearch={initialSearchQuery}
+                currentSeasonData={globalLeaderboard}
+                onSearch={handleSearchSubmit}
+                isMobile={isMobile}
+                onClubClick={handleClubClick}
+                isLeaderboardLoading={loading}
+              />
+            </Suspense>
+          )}
 
-            {isGraphOpen && (
-                <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"><LoadingDisplay variant="component" /></div>}>
-                    <GraphModal
-                        key={`graph-${modalKeys.graph}`}
-                        isOpen={isGraphOpen}
-                        onClose={closeModal}
-                        embarkId={graphEmbarkId}
-                        compareIds={graphCompareIds}
-                        seasonId={graphSeasonId}
-                        globalLeaderboard={globalLeaderboard}
-                        currentRubyCutoff={currentRubyCutoff}
-                        isMobile={isMobile}
-                        lastLeaderboardUpdate={lastUpdated}
-                    />
-                </Suspense>
-            )}
+          {isGraphOpen && (
+            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"><LoadingDisplay variant="component" /></div>}>
+              <GraphModal
+                key={`graph-${modalKeys.graph}`}
+                isOpen={isGraphOpen}
+                onClose={closeModal}
+                embarkId={graphEmbarkId}
+                compareIds={graphCompareIds}
+                seasonId={graphSeasonId}
+                globalLeaderboard={globalLeaderboard}
+                currentRubyCutoff={currentRubyCutoff}
+                isMobile={isMobile}
+                lastLeaderboardUpdate={lastUpdated}
+              />
+            </Suspense>
+          )}
         </ModalPortal>
 
         <Outlet />

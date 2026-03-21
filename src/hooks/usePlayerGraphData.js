@@ -25,12 +25,12 @@ const COMBINE_EVENT_WINDOW_MS = 60 * 60 * 1000; // Combine club/name changes wit
 // Helper to calculate comprehensive player stats from a processed dataset
 const calculatePlayerStats = (dataset, seasonId) => {
   if (!dataset || !dataset.length) return null;
-  
+
   let wins = 0;
   let losses = 0;
   let totalGames = 0;
   let previousScore = null;
-  
+
   let currentWinStreak = 0;
   let maxWinStreak = 0;
   let currentLossStreak = 0;
@@ -38,22 +38,22 @@ const calculatePlayerStats = (dataset, seasonId) => {
 
   const dailyChanges = {};
   const activeDays = new Set();
-  
+
   for (const point of dataset) {
     if (point.scoreChanged && !point.isInterpolated && !point.isExtrapolated && !point.isStaircasePoint && !point.isGapBridge && !point.isRsAdjustmentAnchor) {
       const currentScore = point.rankScore;
       const pointDate = point.timestamp;
-      
+
       const localDateStr = `${pointDate.getFullYear()}-${String(pointDate.getMonth() + 1).padStart(2, '0')}-${String(pointDate.getDate()).padStart(2, '0')}`;
-      
+
       activeDays.add(localDateStr);
 
       if (previousScore !== null) {
         totalGames++;
         const change = currentScore - previousScore;
-        
+
         if (!dailyChanges[localDateStr]) {
-            dailyChanges[localDateStr] = 0;
+          dailyChanges[localDateStr] = 0;
         }
         dailyChanges[localDateStr] += change;
 
@@ -80,7 +80,7 @@ const calculatePlayerStats = (dataset, seasonId) => {
 
   let bestDay = null;
   let worstDay = null;
-  
+
   for (const [day, change] of Object.entries(dailyChanges)) {
     if (!bestDay || change > bestDay.change) {
       bestDay = { date: day, change };
@@ -94,16 +94,16 @@ const calculatePlayerStats = (dataset, seasonId) => {
   let totalSeasonDays = 1;
 
   if (seasonConfig && seasonConfig.startTimestamp) {
-     const seasonStart = new Date(seasonConfig.startTimestamp * 1000);
-     const seasonEnd = seasonConfig.endTimestamp ? new Date(seasonConfig.endTimestamp * 1000) : new Date();
-     const endToUse = seasonEnd > new Date() ? new Date() : seasonEnd;
-     const msInDay = 24 * 60 * 60 * 1000;
-     totalSeasonDays = Math.max(1, Math.ceil((endToUse - seasonStart) / msInDay));
+    const seasonStart = new Date(seasonConfig.startTimestamp * 1000);
+    const seasonEnd = seasonConfig.endTimestamp ? new Date(seasonConfig.endTimestamp * 1000) : new Date();
+    const endToUse = seasonEnd > new Date() ? new Date() : seasonEnd;
+    const msInDay = 24 * 60 * 60 * 1000;
+    totalSeasonDays = Math.max(1, Math.ceil((endToUse - seasonStart) / msInDay));
   } else {
-     const firstPointDate = dataset[0].timestamp;
-     const lastPointDate = dataset[dataset.length - 1].timestamp;
-     const msInDay = 24 * 60 * 60 * 1000;
-     totalSeasonDays = Math.max(1, Math.ceil((lastPointDate - firstPointDate) / msInDay));
+    const firstPointDate = dataset[0].timestamp;
+    const lastPointDate = dataset[dataset.length - 1].timestamp;
+    const msInDay = 24 * 60 * 60 * 1000;
+    totalSeasonDays = Math.max(1, Math.ceil((lastPointDate - firstPointDate) / msInDay));
   }
 
   const daysActiveCount = activeDays.size;
@@ -144,7 +144,7 @@ const findClosestPointIndex = (data, targetTime) => {
     }
 
     if (midTime === targetTime) return mid;
-    
+
     if (midTime < targetTime) {
       left = mid + 1;
     } else {
@@ -391,61 +391,61 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
   // Inject Off-Leaderboard RS Adjustment Points
   // These are handled separately because they represent a state where the player is NOT on the leaderboard
   const offLeaderboardRsEvents = events.filter(e => e.event_type === 'RS_ADJUSTMENT' && e.details?.is_off_leaderboard);
-  
+
   if (offLeaderboardRsEvents.length > 0) {
     // Sort events to insert them in order
     offLeaderboardRsEvents.sort((a, b) => a.start_timestamp - b.start_timestamp);
 
     offLeaderboardRsEvents.forEach(event => {
-        const eventTs = event.start_timestamp * 1000;
-        // Calculate estimated score: Old Score - Minimum Loss
-        const estimatedScore = event.details.old_score - event.details.minimum_loss;
-        
-        let insertionIndex = combined.findIndex(p => p.timestamp.getTime() >= eventTs);
-        if (insertionIndex === -1) insertionIndex = combined.length;
+      const eventTs = event.start_timestamp * 1000;
+      // Calculate estimated score: Old Score - Minimum Loss
+      const estimatedScore = event.details.old_score - event.details.minimum_loss;
 
-        // Cleanup Gap artifacts: If this event occurred during a Gap, must remove the "Gap Bridge".
-        // The Bridge point (which holds the OLD score) causes the graph to draw a line back up to the old score,
-        // conflicting with the fact that the player dropped off the leaderboard here.
-        const prevPoint = combined[insertionIndex - 1];
-        if (prevPoint && prevPoint.isFollowedByGap) {
-             // 1. Remove the gap flag from the previous point, so draw a direct line (Solid Red) to the Event.
-             prevPoint.isFollowedByGap = false;
+      let insertionIndex = combined.findIndex(p => p.timestamp.getTime() >= eventTs);
+      if (insertionIndex === -1) insertionIndex = combined.length;
 
-             // 2. Check if the NEXT point is a synthetic Gap Bridge.
-             // Since Bridge points are usually inserted just before the next real point (at the end of the gap),
-             // 'insertionIndex' will typically point to the Bridge if the Event happened earlier in the gap.
-             const nextPoint = combined[insertionIndex];
-             if (nextPoint && nextPoint.isGapBridge) {
-                 combined.splice(insertionIndex, 1);
-                 // Removed the element at insertionIndex, so the "real" next point is now at this index.
-                 // Don't increment insertionIndex.
-             }
+      // Cleanup Gap artifacts: If this event occurred during a Gap, must remove the "Gap Bridge".
+      // The Bridge point (which holds the OLD score) causes the graph to draw a line back up to the old score,
+      // conflicting with the fact that the player dropped off the leaderboard here.
+      const prevPoint = combined[insertionIndex - 1];
+      if (prevPoint && prevPoint.isFollowedByGap) {
+        // 1. Remove the gap flag from the previous point, so draw a direct line (Solid Red) to the Event.
+        prevPoint.isFollowedByGap = false;
+
+        // 2. Check if the NEXT point is a synthetic Gap Bridge.
+        // Since Bridge points are usually inserted just before the next real point (at the end of the gap),
+        // 'insertionIndex' will typically point to the Bridge if the Event happened earlier in the gap.
+        const nextPoint = combined[insertionIndex];
+        if (nextPoint && nextPoint.isGapBridge) {
+          combined.splice(insertionIndex, 1);
+          // Removed the element at insertionIndex, so the "real" next point is now at this index.
+          // Don't increment insertionIndex.
         }
-        
-        const syntheticPoint = {
-            rankScore: estimatedScore,
-            league: 0, // Unknown/Off-Leaderboard
-            rank: null, // Unknown/Off-Leaderboard
-            timestamp: new Date(eventTs),
-            isInterpolated: true,
-            scoreChanged: true,
-            isRsAdjustmentAnchor: true, // Special flag for the Chart config to render this specifically
-            events: [event]
-        };
+      }
 
-        // 3. Determine if a dashed line is needed AFTER this synthetic point.
-        // If there is still a large time gap between the Event and the next real point (B),
-        // mark this synthetic point as followed by a gap.
-        const nextRealPoint = combined[insertionIndex]; // This is 'B' (or whatever was after the bridge)
-        if (nextRealPoint) {
-            const timeDiff = nextRealPoint.timestamp.getTime() - eventTs;
-            if (timeDiff > GAP_THRESHOLD) {
-                syntheticPoint.isFollowedByGap = true;
-            }
+      const syntheticPoint = {
+        rankScore: estimatedScore,
+        league: 0, // Unknown/Off-Leaderboard
+        rank: null, // Unknown/Off-Leaderboard
+        timestamp: new Date(eventTs),
+        isInterpolated: true,
+        scoreChanged: true,
+        isRsAdjustmentAnchor: true, // Special flag for the Chart config to render this specifically
+        events: [event]
+      };
+
+      // 3. Determine if a dashed line is needed AFTER this synthetic point.
+      // If there is still a large time gap between the Event and the next real point (B),
+      // mark this synthetic point as followed by a gap.
+      const nextRealPoint = combined[insertionIndex]; // This is 'B' (or whatever was after the bridge)
+      if (nextRealPoint) {
+        const timeDiff = nextRealPoint.timestamp.getTime() - eventTs;
+        if (timeDiff > GAP_THRESHOLD) {
+          syntheticPoint.isFollowedByGap = true;
         }
-        
-        combined.splice(insertionIndex, 0, syntheticPoint);
+      }
+
+      combined.splice(insertionIndex, 0, syntheticPoint);
     });
   }
 
@@ -629,9 +629,9 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
   // This is the core of the fix, as it separates processing from fetching.
   useEffect(() => {
     if (!mainPlayerRaw.data) {
-        return; // Wait for raw data to be fetched
+      return; // Wait for raw data to be fetched
     }
-    
+
     // Don't show loader for simple filter changes, only for new data
     // setLoading(true); 
 
@@ -639,13 +639,13 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
 
     // Process main player data
     const processedMain = processGraphData(
-        mainPlayerRaw.data,
-        mainPlayerRaw.events,
-        seasonEndDate,
-        eventSettings
+      mainPlayerRaw.data,
+      mainPlayerRaw.events,
+      seasonEndDate,
+      eventSettings
     );
     if (mainPlayerRaw.data.length > 0) {
-        setError(null);
+      setError(null);
     }
     setData(processedMain);
     setEvents(mainPlayerRaw.events);
@@ -654,23 +654,23 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     // Process comparison data
     const newComparisonMap = new Map();
     Array.from(comparisonRaws.entries()).forEach(([id, rawValue], index) => {
-        const processedCompare = processGraphData(
-            rawValue.data,
-            rawValue.events,
-            seasonEndDate,
-            eventSettings
-        );
-        
-        if (processedCompare.length >= 2) {
-             newComparisonMap.set(id, {
-                data: processedCompare,
-                color: COMPARISON_COLORS[index],
-                gameCount: rawValue.gameCount,
-                winrate: calculatePlayerStats(processedCompare, currentSeasonId)?.winrate || null,
-                events: rawValue.events,
-                availableSeasons: rawValue.availableSeasons,
-            });
-        }
+      const processedCompare = processGraphData(
+        rawValue.data,
+        rawValue.events,
+        seasonEndDate,
+        eventSettings
+      );
+
+      if (processedCompare.length >= 2) {
+        newComparisonMap.set(id, {
+          data: processedCompare,
+          color: COMPARISON_COLORS[index],
+          gameCount: rawValue.gameCount,
+          winrate: calculatePlayerStats(processedCompare, currentSeasonId)?.winrate || null,
+          events: rawValue.events,
+          availableSeasons: rawValue.availableSeasons,
+        });
+      }
     });
 
     setComparisonData(newComparisonMap);
@@ -720,7 +720,9 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         const currentCompares = Array.from(next.keys());
         const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, currentCompares);
         if (onUrlChange) {
+          requestAnimationFrame(() => {
             onUrlChange(`/graph/${currentSeasonId}/${urlString}`);
+          });
         }
 
         return next;
@@ -739,7 +741,9 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       const currentCompares = Array.from(next.keys());
       const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, currentCompares);
       if (onUrlChange) {
-        onUrlChange(`/graph/${currentSeasonId}/${urlString}`);
+        requestAnimationFrame(() => {
+          onUrlChange(`/graph/${currentSeasonId}/${urlString}`);
+        });
       }
 
       return next;
@@ -772,10 +776,10 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         setMainPlayerRaw({ data: [], events: [] });
         return;
       }
-      
+
       setMainPlayerGameCount(activeData.length + RANKED_PLACEMENTS);
       setMainPlayerAvailableSeasons(result.availableSeasons);
-      
+
       // Set raw data, which will trigger the processing useEffect
       setMainPlayerRaw({ data: result.data, events: result.events });
 
@@ -789,8 +793,8 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       }
       setMainPlayerRaw({ data: [], events: [] });
     } finally {
-        setLoading(false);
-        isLoadingRef.current = false;
+      setLoading(false);
+      isLoadingRef.current = false;
     }
   }, []);
 
@@ -799,11 +803,11 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       // Check if the requested props match what we have already actively fetched.
       // If so, this is a redundant re-render from the parent; enable URL following and exit.
       if (
-          activeParamsRef.current.embarkId === embarkId && 
-          activeParamsRef.current.seasonId === seasonId
+        activeParamsRef.current.embarkId === embarkId &&
+        activeParamsRef.current.seasonId === seasonId
       ) {
-          shouldFollowUrlRef.current = true;
-          return;
+        shouldFollowUrlRef.current = true;
+        return;
       }
 
       // If we proceed, it means the props have changed significantly.
@@ -834,12 +838,12 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
   useEffect(() => {
     const loadedIds = loadedCompareIdsRef.current;
     const shouldFollowUrl = shouldFollowUrlRef.current;
-    
+
     // Check constraints: prevent running if explicitly disabled (during switchSeason) or loading.
     if (!isOpen || !shouldFollowUrl || !mainPlayerCurrentId || !initialCompareIds?.length) {
-        return;
+      return;
     }
-    
+
     if (loading || isLoadingRef.current) return;
 
     const loadInitialComparisons = async () => {
@@ -851,7 +855,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
 
       // Check if we actually need to load anything new
       const needsLoading = uniqueCompareIds.some(id => !comparisonRaws.has(id) && id !== mainPlayerCurrentId);
-      
+
       // If there's nothing to load from the URL, and we have no comparisons, we're done.
       if (!needsLoading) {
         return;
@@ -897,7 +901,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
 
         // Only update state if we actually changed something
         if (newRawComparisons.size !== comparisonRaws.size) {
-            setComparisonRaws(newRawComparisons);
+          setComparisonRaws(newRawComparisons);
         }
 
         // Always ensure the URL is up-to-date with the correct, sanitized list of player IDs.
@@ -905,7 +909,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, currentKeys);
         const newUrl = `/graph/${currentSeasonId}/${urlString}`;
         if (onUrlChange && window.location.pathname !== newUrl) {
-            onUrlChange(newUrl);
+          onUrlChange(newUrl);
         }
 
       } finally {
@@ -941,14 +945,14 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     const newUrl = `/graph/${currentSeasonId}/${urlString}`;
 
     if (onUrlChange && window.location.pathname !== newUrl) {
-        onUrlChange(newUrl);
+      onUrlChange(newUrl);
     }
   }, [isOpen, embarkId, currentSeasonId, mainPlayerCurrentId, comparisonRaws, loading, onUrlChange]);
 
   const switchSeason = useCallback(async (newSeasonId, specificEmbarkId = null) => {
     if (isLoadingRef.current) return;
     isLoadingRef.current = true;
-    
+
     // Block URL-following logic immediately. We are handling this transition manually.
     // This prevents the URL update at the end of this function from triggering a race condition in the effects.
     shouldFollowUrlRef.current = false;
@@ -957,12 +961,12 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     setError(null);
     setErrorAvailableSeasons(null);
     setCurrentSeasonId(newSeasonId); // Update season ID first
-    
-    const expectedMainId = specificEmbarkId || mainPlayerCurrentId; 
+
+    const expectedMainId = specificEmbarkId || mainPlayerCurrentId;
     activeParamsRef.current = { embarkId: expectedMainId, seasonId: newSeasonId };
 
     // Reset raw data to null. 
-    setMainPlayerRaw({ data: null, events: [] }); 
+    setMainPlayerRaw({ data: null, events: [] });
     setData(null);
     setMainPlayerStats(null);
 
@@ -971,7 +975,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       // If a specific Embark ID was provided (from the error view list of potential matches), use that.
       // Otherwise, try to find the embark ID for the new season from the previously loaded availableSeasons list.
       let mainPlayerIdForNewSeason = specificEmbarkId;
-      
+
       if (!mainPlayerIdForNewSeason) {
         const seasonInfo = mainPlayerAvailableSeasons.find(s => s.id === newSeasonId);
         // Fallback: If no availableSeasons populated (e.g. initial load failed),
@@ -983,7 +987,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       activeParamsRef.current = { embarkId: mainPlayerIdForNewSeason, seasonId: newSeasonId };
 
       const mainPlayerResult = await fetchGraphData(mainPlayerIdForNewSeason, newSeasonId);
-      
+
       let mainPlayerMaxScore = 0;
 
       if (mainPlayerResult.data?.length) {
@@ -993,7 +997,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         setMainPlayerCurrentId(mainPlayerResult.currentEmbarkId);
         setMainPlayerAvailableSeasons(mainPlayerResult.availableSeasons);
         mainPlayerMaxScore = Math.max(...mainPlayerResult.data.map(d => d.rankScore));
-        
+
         // Final update with confirmed ID
         activeParamsRef.current = { embarkId: mainPlayerResult.currentEmbarkId, seasonId: newSeasonId };
       } else {
@@ -1009,24 +1013,24 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       for (const compareValue of currentCompares) {
         // Find all candidates for the new season
         const candidates = compareValue.availableSeasons?.filter(s => s.id === newSeasonId) || [];
-        
+
         let embarkIdForNewSeason = null;
 
         if (candidates.length > 0) {
-            if (candidates.length === 1) {
-                embarkIdForNewSeason = candidates[0].embarkId;
-            } else {
-                // If multiple candidates exist for the same season, pick the one with rankScore 
-                // closest to the main player's score in the new season.
-                const bestCandidate = candidates.reduce((prev, curr) => {
-                    const prevDiff = Math.abs((prev.rankScore || 0) - mainPlayerMaxScore);
-                    const currDiff = Math.abs((curr.rankScore || 0) - mainPlayerMaxScore);
-                    return currDiff < prevDiff ? curr : prev;
-                });
-                embarkIdForNewSeason = bestCandidate.embarkId;
-            }
+          if (candidates.length === 1) {
+            embarkIdForNewSeason = candidates[0].embarkId;
+          } else {
+            // If multiple candidates exist for the same season, pick the one with rankScore 
+            // closest to the main player's score in the new season.
+            const bestCandidate = candidates.reduce((prev, curr) => {
+              const prevDiff = Math.abs((prev.rankScore || 0) - mainPlayerMaxScore);
+              const currDiff = Math.abs((curr.rankScore || 0) - mainPlayerMaxScore);
+              return currDiff < prevDiff ? curr : prev;
+            });
+            embarkIdForNewSeason = bestCandidate.embarkId;
+          }
         }
-        
+
         if (embarkIdForNewSeason) {
           promises.push(
             loadComparisonData(embarkIdForNewSeason, newSeasonId).then(result => ({ id: embarkIdForNewSeason, result }))
@@ -1051,10 +1055,10 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
           }
         }
       });
-      
+
       // 3. Update comparison raw state, which will trigger re-processing
       setComparisonRaws(newComparisonRawMap);
-      
+
       // 4. Update URL with the new main player ID and filtered comparison IDs.
       // Note: activeParamsRef prevents the resulting prop update from triggering a re-fetch.
       const urlString = formatMultipleUsernamesForUrl(mainPlayerResult.currentEmbarkId, finalCompareIds);
@@ -1063,27 +1067,27 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       }
 
     } catch (err) {
-        // If switching seasons fails, check for specific 404 available seasons again
-        if (err.status === 404 && err.data?.availableSeasons && Array.isArray(err.data.availableSeasons)) {
-            setErrorAvailableSeasons(err.data.availableSeasons);
-            setError(`Player not found in this season.`);
-        } else {
-            setError(err.details || `Failed to switch season: ${err.message}`);
-        }
-        setData(null);
-        setMainPlayerRaw({ data: [], events: [] });
-        setComparisonRaws(new Map());
+      // If switching seasons fails, check for specific 404 available seasons again
+      if (err.status === 404 && err.data?.availableSeasons && Array.isArray(err.data.availableSeasons)) {
+        setErrorAvailableSeasons(err.data.availableSeasons);
+        setError(`Player not found in this season.`);
+      } else {
+        setError(err.details || `Failed to switch season: ${err.message}`);
+      }
+      setData(null);
+      setMainPlayerRaw({ data: [], events: [] });
+      setComparisonRaws(new Map());
     } finally {
-        setLoading(false);
-        isLoadingRef.current = false;
-        // We do not re-enable shouldFollowUrlRef here immediately. 
-        // We allow the component to update props first, then the main effect enables it.
+      setLoading(false);
+      isLoadingRef.current = false;
+      // We do not re-enable shouldFollowUrlRef here immediately. 
+      // We allow the component to update props first, then the main effect enables it.
     }
   }, [mainPlayerAvailableSeasons, comparisonRaws, loadComparisonData, mainPlayerCurrentId, onUrlChange]);
 
   const refreshGraph = useCallback(async () => {
     if (isLoadingRef.current) return;
-    
+
     // We only refresh if we have a valid main player ID and season
     if (!mainPlayerCurrentId || !currentSeasonId) return;
 
@@ -1095,43 +1099,43 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     try {
       // 1. Re-fetch Main Player
       const mainResult = await fetchGraphData(mainPlayerCurrentId, currentSeasonId);
-      
+
       if (mainResult.data?.length) {
-         setMainPlayerRaw({ data: mainResult.data, events: mainResult.events });
-         setMainPlayerGameCount(mainResult.data.filter(i => i.scoreChanged).length + RANKED_PLACEMENTS);
-         setMainPlayerAvailableSeasons(mainResult.availableSeasons);
-         // currentEmbarkId might change? unlikely during a refresh but possible.
-         if (mainResult.currentEmbarkId) setMainPlayerCurrentId(mainResult.currentEmbarkId);
+        setMainPlayerRaw({ data: mainResult.data, events: mainResult.events });
+        setMainPlayerGameCount(mainResult.data.filter(i => i.scoreChanged).length + RANKED_PLACEMENTS);
+        setMainPlayerAvailableSeasons(mainResult.availableSeasons);
+        // currentEmbarkId might change? unlikely during a refresh but possible.
+        if (mainResult.currentEmbarkId) setMainPlayerCurrentId(mainResult.currentEmbarkId);
       } else {
-         // If API returns no data, throw error.
-         throw new Error('No data received during refresh.');
+        // If API returns no data, throw error.
+        throw new Error('No data received during refresh.');
       }
 
       // 2. Re-fetch Comparisons
       const currentCompareIds = Array.from(comparisonRaws.keys());
       const newComparisonRawMap = new Map();
-      
+
       // Execute in parallel
-      const comparePromises = currentCompareIds.map(id => 
-         fetchGraphData(id, currentSeasonId).then(res => ({ id, res })).catch(err => ({ id, error: err }))
+      const comparePromises = currentCompareIds.map(id =>
+        fetchGraphData(id, currentSeasonId).then(res => ({ id, res })).catch(err => ({ id, error: err }))
       );
 
       const compareResults = await Promise.all(comparePromises);
 
       compareResults.forEach(({ id, res, error }) => {
         if (!error && res.data?.length) {
-            const key = res.currentEmbarkId || id;
-            newComparisonRawMap.set(key, {
-                data: res.data,
-                gameCount: res.data.filter(item => item.scoreChanged).length + RANKED_PLACEMENTS,
-                events: res.events,
-                availableSeasons: res.availableSeasons
-            });
+          const key = res.currentEmbarkId || id;
+          newComparisonRawMap.set(key, {
+            data: res.data,
+            gameCount: res.data.filter(item => item.scoreChanged).length + RANKED_PLACEMENTS,
+            events: res.events,
+            availableSeasons: res.availableSeasons
+          });
         } else {
-            // If refresh fails for a comparison, keep the old one.
-            if (comparisonRaws.has(id)) {
-                newComparisonRawMap.set(id, comparisonRaws.get(id));
-            }
+          // If refresh fails for a comparison, keep the old one.
+          if (comparisonRaws.has(id)) {
+            newComparisonRawMap.set(id, comparisonRaws.get(id));
+          }
         }
       });
 
@@ -1141,7 +1145,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       console.error("Graph refresh failed:", err);
       // We log but don't set global error if we have data to keep the graph visible.
       if (!mainPlayerRaw.data || mainPlayerRaw.data.length === 0) {
-          setError(err.message);
+        setError(err.message);
       }
     } finally {
       setLoading(false);

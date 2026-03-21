@@ -226,6 +226,7 @@ export const ComparePlayerModalProps = {
   onClose: PropTypes.func.isRequired,
   comparisonData: PropTypes.instanceOf(Map).isRequired,
   mainPlayerLastDataPoint: PropTypes.object,
+  seasonKey: PropTypes.string.isRequired,
   currentSeasonLabel: PropTypes.string.isRequired,
   isMobile: PropTypes.bool.isRequired
 };
@@ -324,7 +325,9 @@ export const GraphSettingsModalProps = {
   }).isRequired,
   onSettingsChange: PropTypes.func.isRequired,
   onClose: PropTypes.func.isRequired,
-  hasAnyEvents: PropTypes.bool.isRequired,
+  comparisonData: PropTypes.instanceOf(Map).isRequired,
+  mainEvents: PropTypes.array,
+  mainPlayerId : PropTypes.string.isRequired,
 };
 
 export const GraphErrorViewProps = {

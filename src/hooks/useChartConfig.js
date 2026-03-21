@@ -160,16 +160,18 @@ const createTooltip = (chart) => {
   const tooltipEl = document.createElement('div');
   tooltipEl.className = 'rank-tooltip';
   Object.assign(tooltipEl.style, {
-    background: '#1f2937',
+    background: 'rgba(31, 41, 55, 0.85)', // Transparent gray-800
+    backdropFilter: 'blur(8px)',          // Glass effect
+    WebkitBackdropFilter: 'blur(8px)',    // Safari support
     borderRadius: '8px',
-    border: '1px solid #374151',
+    border: '1px solid rgba(75, 85, 99, 0.4)', // Softer gray border
     color: '#FAF9F6',
     opacity: 0,
     pointerEvents: 'none',
     position: 'absolute',
-    transition: 'opacity 0.15s ease-out',
+    transition: 'opacity 0.15s ease-out, left 0.1s ease-out, top 0.1s ease-out',
     padding: '12px',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)'
   });
 
   tooltipEl.appendChild(document.createElement('table'));
@@ -261,7 +263,7 @@ const findStartIndex = (data, minTime) => {
   let left = 0;
   let right = data.length - 1;
   let result = -1;
-  
+
   while (left <= right) {
     const mid = Math.floor((left + right) / 2);
     if (data[mid].timestamp >= minTime) {
@@ -419,7 +421,7 @@ export const useChartConfig = ({
       const isBanPoint = eventSettings.showSuspectedBan && (pointData.isBanStartAnchor || pointData.isBanEndAnchor || pointData.isUnexpectedReappearance);
       // Also always show tooltip for RS Adjustment anchors
       const isRsAnchor = eventSettings.showRsAdjustment && pointData.isRsAdjustmentAnchor;
-      
+
       if (!isBanPoint && !isRsAnchor) {
         const timeRange = chart.scales.x.max - chart.scales.x.min;
         const isHiddenInterpolatedPoint = (pointData.isInterpolated || pointData.isExtrapolated) &&
@@ -449,11 +451,11 @@ export const useChartConfig = ({
     const isBanStart = pointData && eventSettings.showSuspectedBan && pointData.isBanStartAnchor && banEvent;
     const isBanEnd = pointData && eventSettings.showSuspectedBan && pointData.isBanEndAnchor && banEvent && banEvent.end_timestamp;
     const isUnexpected = pointData && eventSettings.showSuspectedBan && pointData.isUnexpectedReappearance;
-    
+
     // Check for RS Adjustment Event (either regular or off-leaderboard anchor)
     const rsEvent = pointData?.events?.find(e => e.event_type === 'RS_ADJUSTMENT');
     const isRsAdjustment = eventSettings.showRsAdjustment && rsEvent;
-    
+
     const hasEventToShow = isBanStart || isBanEnd || isUnexpected || isRsAdjustment;
     const hasScoreContent = !!tooltip.body;
 
@@ -648,49 +650,49 @@ export const useChartConfig = ({
         hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
         hrRow.appendChild(hrCell);
         tableRoot.appendChild(hrRow);
-        
+
         // DIFFERENTIATE BETWEEN ON-LEADERBOARD AND OFF-LEADERBOARD EVENTS
         if (details.is_off_leaderboard) {
-            const eventTitleRow = document.createElement('tr');
-            eventTitleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: #facc15; padding-bottom: 4px;">RS Adjustment<br>(Off Leaderboard)</td>`;
-            tableRoot.appendChild(eventTitleRow);
+          const eventTitleRow = document.createElement('tr');
+          eventTitleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: #facc15; padding-bottom: 4px;">RS Adjustment<br>(Off Leaderboard)</td>`;
+          tableRoot.appendChild(eventTitleRow);
 
-            const eventChangeRow = document.createElement('tr');
-            const changeColor = '#EF4444';
-            eventChangeRow.innerHTML = `<td colspan="2" style="font-size: 12px;">Min. Loss: <span style="font-weight: bold; color: ${changeColor};">-${details.minimum_loss.toLocaleString()}</span></td>`;
-            tableRoot.appendChild(eventChangeRow);
-            
-            const infoRow = document.createElement('tr');
-            infoRow.innerHTML = `<td colspan="2" style="font-size: 11px; color: #9ca3af; padding-top: 4px;">Player fell off the ranked leaderboard.</td>`;
-            tableRoot.appendChild(infoRow);
+          const eventChangeRow = document.createElement('tr');
+          const changeColor = '#EF4444';
+          eventChangeRow.innerHTML = `<td colspan="2" style="font-size: 12px;">Min. Loss: <span style="font-weight: bold; color: ${changeColor};">-${details.minimum_loss.toLocaleString()}</span></td>`;
+          tableRoot.appendChild(eventChangeRow);
+
+          const infoRow = document.createElement('tr');
+          infoRow.innerHTML = `<td colspan="2" style="font-size: 11px; color: #9ca3af; padding-top: 4px;">Player fell off the ranked leaderboard.</td>`;
+          tableRoot.appendChild(infoRow);
         } else {
-            // Standard RS Adjustment logic
-            const eventTitleRow = document.createElement('tr');
-            const titleColor = details.change > 0 ? '#4ade80' : '#f87171';
-            eventTitleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: ${titleColor}; padding-bottom: 4px;">RS Adjustment</td>`;
-            tableRoot.appendChild(eventTitleRow);
+          // Standard RS Adjustment logic
+          const eventTitleRow = document.createElement('tr');
+          const titleColor = details.change > 0 ? '#4ade80' : '#f87171';
+          eventTitleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: ${titleColor}; padding-bottom: 4px;">RS Adjustment</td>`;
+          tableRoot.appendChild(eventTitleRow);
 
-            const eventChangeRow = document.createElement('tr');
-            const change = details.change;
-            const changeColor = change > 0 ? '#10B981' : '#EF4444';
-            eventChangeRow.innerHTML = `<td colspan="2" style="font-size: 12px;">Change: <span style="font-weight: bold; color: ${changeColor};">${change > 0 ? '+' : ''}${change.toLocaleString()}</span></td>`;
-            tableRoot.appendChild(eventChangeRow);
+          const eventChangeRow = document.createElement('tr');
+          const change = details.change;
+          const changeColor = change > 0 ? '#10B981' : '#EF4444';
+          eventChangeRow.innerHTML = `<td colspan="2" style="font-size: 12px;">Change: <span style="font-weight: bold; color: ${changeColor};">${change > 0 ? '+' : ''}${change.toLocaleString()}</span></td>`;
+          tableRoot.appendChild(eventChangeRow);
 
-            const eventScoreRow = document.createElement('tr');
-            eventScoreRow.innerHTML = `<td colspan="2" style="font-size: 12px;">Score: ${details.old_score.toLocaleString()} → <span style="font-weight: bold;">${details.new_score.toLocaleString()}</span></td>`;
-            tableRoot.appendChild(eventScoreRow);
+          const eventScoreRow = document.createElement('tr');
+          eventScoreRow.innerHTML = `<td colspan="2" style="font-size: 12px;">Score: ${details.old_score.toLocaleString()} → <span style="font-weight: bold;">${details.new_score.toLocaleString()}</span></td>`;
+          tableRoot.appendChild(eventScoreRow);
         }
       }
 
       // Suspected Ban Event
       if (isBanStart) {
         if (hasScoreContent || isRsAdjustment) {
-            const hrRow = document.createElement('tr');
-            const hrCell = document.createElement('td');
-            hrCell.colSpan = 2;
-            hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
-            hrRow.appendChild(hrCell);
-            tableRoot.appendChild(hrRow);
+          const hrRow = document.createElement('tr');
+          const hrCell = document.createElement('td');
+          hrCell.colSpan = 2;
+          hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
+          hrRow.appendChild(hrCell);
+          tableRoot.appendChild(hrRow);
         }
         const titleRow = document.createElement('tr');
         titleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: #ef4444; padding-bottom: 4px;">Suspected Ban</td>`;
@@ -705,12 +707,12 @@ export const useChartConfig = ({
       // Player Reappeared Event
       if (isBanEnd) {
         if (hasScoreContent || isRsAdjustment || isBanStart) {
-             const hrRow = document.createElement('tr');
-             const hrCell = document.createElement('td');
-             hrCell.colSpan = 2;
-             hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
-             hrRow.appendChild(hrCell);
-             tableRoot.appendChild(hrRow);
+          const hrRow = document.createElement('tr');
+          const hrCell = document.createElement('td');
+          hrCell.colSpan = 2;
+          hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
+          hrRow.appendChild(hrCell);
+          tableRoot.appendChild(hrRow);
         }
         const titleRow = document.createElement('tr');
         titleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: #4ade80; padding-bottom: 4px;">Player Reappeared</td>`;
@@ -730,12 +732,12 @@ export const useChartConfig = ({
       // Unexpected Reappearance Event
       if (isUnexpected) {
         if (hasScoreContent || isRsAdjustment || isBanStart || isBanEnd) {
-             const hrRow = document.createElement('tr');
-             const hrCell = document.createElement('td');
-             hrCell.colSpan = 2;
-             hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
-             hrRow.appendChild(hrCell);
-             tableRoot.appendChild(hrRow);
+          const hrRow = document.createElement('tr');
+          const hrCell = document.createElement('td');
+          hrCell.colSpan = 2;
+          hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
+          hrRow.appendChild(hrCell);
+          tableRoot.appendChild(hrRow);
         }
         const titleRow = document.createElement('tr');
         titleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: #facc15; padding-bottom: 4px;">Unexpected Reappearance</td>`;
@@ -757,22 +759,22 @@ export const useChartConfig = ({
     const tooltipWidth = tooltipEl.offsetWidth;
     const tooltipHeight = tooltipEl.offsetHeight;
     const chartWidth = chart.width;
- 
+
     // Horizontal position: Center by default, but shift if it clips the edges.
     let left = positionX + tooltip.caretX - (tooltipWidth / 2);
     if (left < 5) { // Check left boundary
-        left = 5;
+      left = 5;
     }
     if (left + tooltipWidth > chartWidth - 5) { // Check right boundary
-        left = chartWidth - tooltipWidth - 5;
+      left = chartWidth - tooltipWidth - 5;
     }
- 
+
     // Vertical position: Place above the point by default. If it clips the top, place it below.
     let top = positionY + tooltip.caretY - tooltipHeight - 10; // 10px gap above
     if (top < 5) {
-        top = positionY + tooltip.caretY + 15; // 15px gap below
+      top = positionY + tooltip.caretY + 15; // 15px gap below
     }
- 
+
     tooltipEl.style.opacity = 1;
     tooltipEl.style.left = left + 'px';
     tooltipEl.style.top = top + 'px';
@@ -807,7 +809,7 @@ export const useChartConfig = ({
     if (!data?.length || !TIME.RANGES[range]) return null;
 
     const now = seasonEndDate || new Date();
-    
+
     // Determine right-side padding based on range to prevent points hugging the edge.
     // 24H: ~1.2 hours padding. 7D: ~8 hours padding.
     let rightPadding = TIME.HOUR;
@@ -820,20 +822,20 @@ export const useChartConfig = ({
     if (range === 'MAX') {
       const start = timeDomain.min || data[0].timestamp;
       const domainMax = timeDomain.max || data[data.length - 1].timestamp;
-      
+
       const duration = domainMax.getTime() - start.getTime();
 
       // If data spans less than 2 days, use dynamic padding to center/fit the data nicely
       // rather than forcing a large 12h buffer which pushes sparse data to the right.
       if (duration < TIME.DAY * 2) {
-          // Use 2 hours or 20% of duration (whichever is larger) as padding.
-          // This matches the zoom limits (min - 2h) closer, preventing a "snap" effect on interaction.
-          const padding = Math.max(TIME.TWO_HOURS, duration * 0.2);
-          
-          const min = new Date(start.getTime() - padding);
-          const max = new Date(domainMax.getTime() + padding);
+        // Use 2 hours or 20% of duration (whichever is larger) as padding.
+        // This matches the zoom limits (min - 2h) closer, preventing a "snap" effect on interaction.
+        const padding = Math.max(TIME.TWO_HOURS, duration * 0.2);
 
-          return { min, max };
+        const min = new Date(start.getTime() - padding);
+        const max = new Date(domainMax.getTime() + padding);
+
+        return { min, max };
       }
 
       // For larger datasets, standard logic: Start - 12H to End + Padding
@@ -853,7 +855,7 @@ export const useChartConfig = ({
     const getVisibleAndNearestData = (dataset) => {
       const startIdx = findStartIndex(dataset, timeRange.min);
       const endIdx = findEndIndex(dataset, timeRange.max);
-      
+
       if (startIdx > endIdx) {
         // No visible points in window
         const lastPointBefore = startIdx > 0 ? dataset[startIdx - 1] : null;
@@ -1018,7 +1020,7 @@ export const useChartConfig = ({
             color = '#2dd4bf';
             shouldShow = true;
           }
-          
+
           if (shouldShow) {
             const eventId = event.event_id || `${event.event_type}-${point.timestamp.getTime()}`;
             annotations.push({
@@ -1123,9 +1125,9 @@ export const useChartConfig = ({
         borderDash: [2, 2],
         // Use the 'display' property to let the plugin handle visibility.
         display: (ctx) => {
-            const yAxis = ctx.chart.scales.y;
-            // Only display if the rank is within the current y-axis view.
-            return rank.y >= yAxis.min && rank.y <= yAxis.max;
+          const yAxis = ctx.chart.scales.y;
+          // Only display if the rank is within the current y-axis view.
+          return rank.y >= yAxis.min && rank.y <= yAxis.max;
         },
         label: {
           content: rank.label,
@@ -1142,40 +1144,40 @@ export const useChartConfig = ({
         }
       }));
 
-      const seasonConfig = Object.values(SEASONS).find(s => s.id === seasonId);
+    const seasonConfig = Object.values(SEASONS).find(s => s.id === seasonId);
 
-      if (seasonConfig && seasonConfig.hasRuby && typeof rubyCutoff === 'number') {
-          annotations.push({
-              type: 'line',
-              drawTime: 'beforeDatasetsDraw',
-              id: 'rank-line-ruby',
-              yMin: rubyCutoff,
-              yMax: rubyCutoff,
-              borderColor: '#dc2626',
-              borderWidth: 1.5,
-              borderDash: [2, 2],
-              // Also control the Ruby line's visibility dynamically.
-              display: (ctx) => {
-                const yAxis = ctx.chart.scales.y;
-                return rubyCutoff >= yAxis.min && rubyCutoff <= yAxis.max;
-              },
-              label: {
-                content: 'Ruby',
-                display: true,
-                position: 'center',
-                color: '#dc2626',
-                font: {
-                  size: 11
-                },
-                padding: {
-                  left: 8,
-                  right: 8
-                }
-              }
-          });
-      }
+    if (seasonConfig && seasonConfig.hasRuby && typeof rubyCutoff === 'number') {
+      annotations.push({
+        type: 'line',
+        drawTime: 'beforeDatasetsDraw',
+        id: 'rank-line-ruby',
+        yMin: rubyCutoff,
+        yMax: rubyCutoff,
+        borderColor: '#dc2626',
+        borderWidth: 1.5,
+        borderDash: [2, 2],
+        // Also control the Ruby line's visibility dynamically.
+        display: (ctx) => {
+          const yAxis = ctx.chart.scales.y;
+          return rubyCutoff >= yAxis.min && rubyCutoff <= yAxis.max;
+        },
+        label: {
+          content: 'Ruby',
+          display: true,
+          position: 'center',
+          color: '#dc2626',
+          font: {
+            size: 11
+          },
+          padding: {
+            left: 8,
+            right: 8
+          }
+        }
+      });
+    }
 
-      return annotations;
+    return annotations;
   }, [data, seasonId, rubyCutoff]);
 
   const chartOptions = useMemo(() => {
@@ -1320,14 +1322,14 @@ export const useChartConfig = ({
       }
     };
   }, [
-    data, 
-    viewWindow, 
-    isManuallyZoomed, 
-    manualViewWindow, 
-    calculateYAxisBounds, 
-    getRankAnnotations, 
-    getEventAnnotations, 
-    externalTooltipHandler, 
+    data,
+    viewWindow,
+    isManuallyZoomed,
+    manualViewWindow,
+    calculateYAxisBounds,
+    getRankAnnotations,
+    getEventAnnotations,
+    externalTooltipHandler,
     overallTimeDomain,
     onZoomOrPan,
     setSelectedTimeRange,
@@ -1355,7 +1357,7 @@ export const useChartConfig = ({
       }
       // Handle anchor points for off-leaderboard adjustments
       if (pointData?.isRsAdjustmentAnchor) {
-         return rsDownIcon;
+        return rsDownIcon;
       }
     }
     const direction = getNewLogicPointDirection(ctx);
@@ -1367,10 +1369,10 @@ export const useChartConfig = ({
     const pointData = ctx.raw?.raw;
     // Events with custom directional icons (name, club, RS adjustment) should not be rotated.
     if ((eventSettings.showNameChange && hasVisibleEvent(ctx, 'NAME_CHANGE')) ||
-        (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE')) ||
-        (hasVisibleEvent(ctx, 'COMBINED_CHANGE')) ||
-        (eventSettings.showSuspectedBan && (pointData?.isUnexpectedReappearance || pointData?.isBanStartAnchor || pointData?.isBanEndAnchor)) ||
-        (eventSettings.showRsAdjustment && getRsEvent(ctx)) || (eventSettings.showRsAdjustment && pointData?.isRsAdjustmentAnchor)) {
+      (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE')) ||
+      (hasVisibleEvent(ctx, 'COMBINED_CHANGE')) ||
+      (eventSettings.showSuspectedBan && (pointData?.isUnexpectedReappearance || pointData?.isBanStartAnchor || pointData?.isBanEndAnchor)) ||
+      (eventSettings.showRsAdjustment && getRsEvent(ctx)) || (eventSettings.showRsAdjustment && pointData?.isRsAdjustmentAnchor)) {
       return 0;
     }
 
@@ -1397,8 +1399,8 @@ export const useChartConfig = ({
   const chartData = useMemo(() => data ? {
     labels: data.map(d => d.timestamp),
     datasets: [{
-      label: comparisonData.size > 0 && mainPlayerWinrate !== null 
-        ? ` ${embarkId} (${mainPlayerWinrate}% WR)` 
+      label: comparisonData.size > 0 && mainPlayerWinrate !== null
+        ? ` ${embarkId} (${mainPlayerWinrate}% WR)`
         : ` ${embarkId}`,
       normalized: true,
       data: data.map(d => ({

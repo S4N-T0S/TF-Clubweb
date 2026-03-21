@@ -70,20 +70,20 @@ TIME.RANGES = {
 };
 
 const FilterToggleButton = ({ label, isActive, onClick, Icon, textColorClass, activeBorderClass }) => {
-    const baseClasses = "flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all w-full border";
-    const dynamicClasses = isActive
-        ? `${activeBorderClass || 'border-blue-500'} bg-gray-800/80 shadow-inner`
-        : 'border-gray-700 bg-gray-800/30 hover:bg-gray-700/50 opacity-60 hover:opacity-100 grayscale-[0.5]';
+  const baseClasses = "flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all w-full border";
+  const dynamicClasses = isActive
+    ? `${activeBorderClass || 'border-blue-500'} bg-gray-800/80 shadow-inner`
+    : 'border-gray-700 bg-gray-800/30 hover:bg-gray-700/50 opacity-60 hover:opacity-100 grayscale-[0.5]';
 
-    return (
-        <button
-            onClick={onClick}
-            className={`${baseClasses} ${dynamicClasses}`}
-        >
-            {Icon && <Icon className={`w-4 h-4 ${isActive ? textColorClass : 'text-gray-400'}`} />}
-            <span className={isActive ? textColorClass : 'text-gray-400 font-medium'}>{label}</span>
-        </button>
-    );
+  return (
+    <button
+      onClick={onClick}
+      className={`${baseClasses} ${dynamicClasses}`}
+    >
+      {Icon && <Icon className={`w-4 h-4 ${isActive ? textColorClass : 'text-gray-400'}`} />}
+      <span className={isActive ? textColorClass : 'text-gray-400 font-medium'}>{label}</span>
+    </button>
+  );
 };
 
 const PlayerStatsModal = ({ stats, gameCount, onClose }) => {
@@ -201,120 +201,120 @@ const PlayerStatsModal = ({ stats, gameCount, onClose }) => {
 };
 
 const GraphErrorView = ({ error, availableSeasons, onSwitchSeason, targetSeasonId }) => {
-    // Determine the error context. If availableSeasons exist, it's a "Not found in this season" error.
-    const isSeasonMismatch = availableSeasons && availableSeasons.length > 0;
-    
-    // Helper to get season name from ID
-    const getSeasonName = (id) => {
-        const season = Object.values(SEASONS).find(s => s.id === id);
-        return season ? season.label : `Season ${id}`;
-    };
+  // Determine the error context. If availableSeasons exist, it's a "Not found in this season" error.
+  const isSeasonMismatch = availableSeasons && availableSeasons.length > 0;
 
-    return (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#1a1f2e] z-10 animate-fade-in-fast p-6">
-            <div className="bg-gray-800 p-8 rounded-lg shadow-xl border border-gray-700 max-w-lg w-full text-center">
-                <div className="flex justify-center mb-4">
-                    <div className="p-4 bg-gray-700 rounded-full">
-                        <AlertTriangle className="w-10 h-10 text-yellow-500" />
-                    </div>
-                </div>
-                
-                <h3 className="text-xl font-bold text-white mb-2">
-                    {isSeasonMismatch ? 'EmbarkId Not Found in this Season' : 'Unable to Load Graph'}
-                </h3>
-                
-                <div className="text-gray-400 mb-6 text-sm">
-                    {isSeasonMismatch ? (
-                        <div className="inline-flex flex-wrap justify-center items-center gap-1">
-                            <span>
-                                We couldn&apos;t find tracked data for the requested EmbarkId in {getSeasonName(targetSeasonId)}. However, similar data was found.
-                            </span>
-                            <div className="relative group inline-flex items-center">
-                                <Info className="w-4 h-4 text-gray-500 hover:text-blue-400 cursor-help transition-colors" />
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-900 text-white text-xs rounded-md py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none shadow-lg border border-gray-700 z-50 text-center leading-relaxed">
-                                    Due to tracking limitations, these suggestions have an extremely small chance of referring to different players than the one originally requested.
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-700"></div>
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        error || "An unexpected error occurred while loading the data. Please try again later or contact an administrator."
-                    )}
-                </div>
+  // Helper to get season name from ID
+  const getSeasonName = (id) => {
+    const season = Object.values(SEASONS).find(s => s.id === id);
+    return season ? season.label : `Season ${id}`;
+  };
 
-                {isSeasonMismatch && (
-                    <div className="animate-fadeIn">
-                        <p className="text-sm text-gray-300 font-semibold mb-3">Available Data:</p>
-                        <div className="flex flex-wrap gap-2 justify-center max-h-[150px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 pr-1">
-                            {availableSeasons
-                                .sort((a, b) => b.id - a.id) // Sort descending
-                                .map((season, index) => (
-                                    <button
-                                        key={`${season.id}-${season.embarkId}-${index}`}
-                                        onClick={() => onSwitchSeason(season.id, season.embarkId)}
-                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-sm font-medium transition-colors flex flex-col items-center gap-0.5 min-w-[120px]"
-                                    >
-                                        <span>{getSeasonName(season.id)}</span>
-                                        <span className="text-blue-200 text-[10px] opacity-90">{season.embarkId}</span>
-                                    </button>
-                                ))
-                            }
-                        </div>
-                    </div>
-                )}
-                
-                {!isSeasonMismatch && (
-                    <div className="flex justify-center mt-4">
-                        <button 
-                            onClick={() => window.location.reload()} 
-                            className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors"
-                        >
-                            <RefreshCcw className="w-4 h-4" />
-                            Reload Page
-                        </button>
-                    </div>
-                )}
-            </div>
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-[#1a1f2e] z-10 animate-fade-in-fast p-6">
+      <div className="bg-gray-800 p-8 rounded-lg shadow-xl border border-gray-700 max-w-lg w-full text-center">
+        <div className="flex justify-center mb-4">
+          <div className="p-4 bg-gray-700 rounded-full">
+            <AlertTriangle className="w-10 h-10 text-yellow-500" />
+          </div>
         </div>
-    );
+
+        <h3 className="text-xl font-bold text-white mb-2">
+          {isSeasonMismatch ? 'EmbarkId Not Found in this Season' : 'Unable to Load Graph'}
+        </h3>
+
+        <div className="text-gray-400 mb-6 text-sm">
+          {isSeasonMismatch ? (
+            <div className="inline-flex flex-wrap justify-center items-center gap-1">
+              <span>
+                We couldn&apos;t find tracked data for the requested EmbarkId in {getSeasonName(targetSeasonId)}. However, similar data was found.
+              </span>
+              <div className="relative group inline-flex items-center">
+                <Info className="w-4 h-4 text-gray-500 hover:text-blue-400 cursor-help transition-colors" />
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-900 text-white text-xs rounded-md py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none shadow-lg border border-gray-700 z-50 text-center leading-relaxed">
+                  Due to tracking limitations, these suggestions have an extremely small chance of referring to different players than the one originally requested.
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-700"></div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            error || "An unexpected error occurred while loading the data. Please try again later or contact an administrator."
+          )}
+        </div>
+
+        {isSeasonMismatch && (
+          <div className="animate-fadeIn">
+            <p className="text-sm text-gray-300 font-semibold mb-3">Available Data:</p>
+            <div className="flex flex-wrap gap-2 justify-center max-h-[150px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 pr-1">
+              {availableSeasons
+                .sort((a, b) => b.id - a.id) // Sort descending
+                .map((season, index) => (
+                  <button
+                    key={`${season.id}-${season.embarkId}-${index}`}
+                    onClick={() => onSwitchSeason(season.id, season.embarkId)}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-sm font-medium transition-colors flex flex-col items-center gap-0.5 min-w-[120px]"
+                  >
+                    <span>{getSeasonName(season.id)}</span>
+                    <span className="text-blue-200 text-[10px] opacity-90">{season.embarkId}</span>
+                  </button>
+                ))
+              }
+            </div>
+          </div>
+        )}
+
+        {!isSeasonMismatch && (
+          <div className="flex justify-center mt-4">
+            <button
+              onClick={() => window.location.reload()}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors"
+            >
+              <RefreshCcw className="w-4 h-4" />
+              Reload Page
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
 
 const getMiniEventConfig = (event) => {
-    const d = event.details || {};
-    switch (event.event_type) {
-        case 'NAME_CHANGE':
-            return { Icon: UserPen, colorClass: 'text-indigo-400', text: `Name changed from ${d.old_name} to ${d.new_name}` };
-        case 'CLUB_CHANGE': {
-            let text = "Changed club";
-            if (d.new_club && d.old_club) text = `Changed club from [${d.old_club}] to [${d.new_club}]`;
-            else if (d.new_club) text = `Joined [${d.new_club}]`;
-            else if (d.old_club) text = `Left [${d.old_club}]`;
-            return { Icon: Users, colorClass: 'text-teal-400', text };
-        }
-        case 'RS_ADJUSTMENT': {
-            if (d.is_off_leaderboard) {
-                return { Icon: TrendingDown, colorClass: 'text-red-400', text: `Fell off leaderboard (Min. -${d.minimum_loss.toLocaleString()} RS)` };
-            }
-            const isLoss = d.change < 0;
-            return {
-                Icon: isLoss ? TrendingDown : TrendingUp,
-                colorClass: isLoss ? 'text-red-400' : 'text-green-400',
-                text: `RS Adjustment (${d.change > 0 ? '+' : ''}${d.change.toLocaleString()} RS)`
-            };
-        }
-        case 'SUSPECTED_BAN':
-            if (event.end_timestamp) {
-                return { Icon: Gavel, colorClass: 'text-green-400', text: `Reappeared on leaderboard` };
-            }
-            return { Icon: Gavel, colorClass: 'text-red-500', text: `Suspected Ban` };
-        case 'COMBINED_CHANGE': {
-            const oldStr = `${d.old_club ? `[${d.old_club}] ` : ''}${d.old_name}`;
-            const newStr = `${d.new_club ? `[${d.new_club}] ` : ''}${d.new_name}`;
-            return { Icon: Zap, colorClass: 'text-purple-400', text: `Changed from ${oldStr} to ${newStr}` };
-        }
-        default:
-            return { Icon: Info, colorClass: 'text-gray-400', text: 'Unknown Event' };
+  const d = event.details || {};
+  switch (event.event_type) {
+    case 'NAME_CHANGE':
+      return { Icon: UserPen, colorClass: 'text-indigo-400', text: `Name changed from ${d.old_name} to ${d.new_name}` };
+    case 'CLUB_CHANGE': {
+      let text = "Changed club";
+      if (d.new_club && d.old_club) text = `Changed club from [${d.old_club}] to [${d.new_club}]`;
+      else if (d.new_club) text = `Joined [${d.new_club}]`;
+      else if (d.old_club) text = `Left [${d.old_club}]`;
+      return { Icon: Users, colorClass: 'text-teal-400', text };
     }
+    case 'RS_ADJUSTMENT': {
+      if (d.is_off_leaderboard) {
+        return { Icon: TrendingDown, colorClass: 'text-red-400', text: `Fell off leaderboard (Min. -${d.minimum_loss.toLocaleString()} RS)` };
+      }
+      const isLoss = d.change < 0;
+      return {
+        Icon: isLoss ? TrendingDown : TrendingUp,
+        colorClass: isLoss ? 'text-red-400' : 'text-green-400',
+        text: `RS Adjustment (${d.change > 0 ? '+' : ''}${d.change.toLocaleString()} RS)`
+      };
+    }
+    case 'SUSPECTED_BAN':
+      if (event.end_timestamp) {
+        return { Icon: Gavel, colorClass: 'text-green-400', text: `Reappeared on leaderboard` };
+      }
+      return { Icon: Gavel, colorClass: 'text-red-500', text: `Suspected Ban` };
+    case 'COMBINED_CHANGE': {
+      const oldStr = `${d.old_club ? `[${d.old_club}] ` : ''}${d.old_name}`;
+      const newStr = `${d.new_club ? `[${d.new_club}] ` : ''}${d.new_name}`;
+      return { Icon: Zap, colorClass: 'text-purple-400', text: `Changed from ${oldStr} to ${newStr}` };
+    }
+    default:
+      return { Icon: Info, colorClass: 'text-gray-400', text: 'Unknown Event' };
+  }
 };
 
 const GraphSettingsModal = ({ settings, onSettingsChange, onClose, mainEvents, comparisonData, mainPlayerId }) => {
@@ -322,27 +322,27 @@ const GraphSettingsModal = ({ settings, onSettingsChange, onClose, mainEvents, c
   const { modalRef } = useModal(true, onClose, modalOptions);
 
   const handleFilterChange = (key, value) => {
-      onSettingsChange(prev => ({ ...prev, [key]: value }));
+    onSettingsChange(prev => ({ ...prev, [key]: value }));
   };
 
   const visibleEvents = useMemo(() => {
-        let all =[];
-        if (mainEvents) all.push(...mainEvents.map(e => ({ ...e, _player: mainPlayerId })));
-        if (comparisonData) {
-            for (const [id, data] of comparisonData.entries()) {
-                if (data.events) all.push(...data.events.map(e => ({ ...e, _player: id })));
-            }
-        }
+    let all = [];
+    if (mainEvents) all.push(...mainEvents.map(e => ({ ...e, _player: mainPlayerId })));
+    if (comparisonData) {
+      for (const [id, data] of comparisonData.entries()) {
+        if (data.events) all.push(...data.events.map(e => ({ ...e, _player: id })));
+      }
+    }
 
-        return all.filter(e => {
-            if (e.event_type === 'NAME_CHANGE' && !settings.showNameChange) return false;
-            if (e.event_type === 'CLUB_CHANGE' && !settings.showClubChange) return false;
-            if (e.event_type === 'RS_ADJUSTMENT' && !settings.showRsAdjustment) return false;
-            if (e.event_type === 'SUSPECTED_BAN' && !settings.showSuspectedBan) return false;
-            if (e.event_type === 'COMBINED_CHANGE' && (!settings.showNameChange && !settings.showClubChange)) return false;
+    return all.filter(e => {
+      if (e.event_type === 'NAME_CHANGE' && !settings.showNameChange) return false;
+      if (e.event_type === 'CLUB_CHANGE' && !settings.showClubChange) return false;
+      if (e.event_type === 'RS_ADJUSTMENT' && !settings.showRsAdjustment) return false;
+      if (e.event_type === 'SUSPECTED_BAN' && !settings.showSuspectedBan) return false;
+      if (e.event_type === 'COMBINED_CHANGE' && (!settings.showNameChange && !settings.showClubChange)) return false;
 
-            return true;
-        }).sort((a, b) => b.start_timestamp - a.start_timestamp);
+      return true;
+    }).sort((a, b) => b.start_timestamp - a.start_timestamp);
   }, [mainEvents, comparisonData, mainPlayerId, settings]);
 
   return (
@@ -366,51 +366,51 @@ const GraphSettingsModal = ({ settings, onSettingsChange, onClose, mainEvents, c
         </div>
 
         <div className="flex-1 min-h-[220px] flex flex-col bg-gray-900/50 rounded-xl border border-gray-700 overflow-hidden shadow-inner">
-            <div className="px-4 py-2.5 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
-                <span className="text-sm font-semibold text-gray-300">Visible Events Log</span>
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-700 text-gray-400">{visibleEvents.length}</span>
-            </div>
-            <div className="p-3 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent flex-1 space-y-2">
-                {visibleEvents.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-2 py-8">
-                        <Info className="w-8 h-8 opacity-20" />
-                        <span className="text-sm text-gray-400">No events match your filters.</span>
+          <div className="px-4 py-2.5 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
+            <span className="text-sm font-semibold text-gray-300">Visible Events Log</span>
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-700 text-gray-400">{visibleEvents.length}</span>
+          </div>
+          <div className="p-3 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent flex-1 space-y-2">
+            {visibleEvents.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-2 py-8">
+                <Info className="w-8 h-8 opacity-20" />
+                <span className="text-sm text-gray-400">No events match your filters.</span>
+              </div>
+            ) : (
+              visibleEvents.map((event, i) => {
+                const config = getMiniEventConfig(event);
+                return (
+                  <div key={i} className="flex gap-3 items-start p-2.5 rounded-lg bg-gray-800/40 hover:bg-gray-800/80 border border-gray-700/30 hover:border-gray-600 transition-all">
+                    <div className={`mt-0.5 p-1.5 rounded-md bg-gray-900 border border-gray-700/50 ${config.colorClass}`}>
+                      <config.Icon className="w-3.5 h-3.5" />
                     </div>
-                ) : (
-                    visibleEvents.map((event, i) => {
-                        const config = getMiniEventConfig(event);
-                        return (
-                            <div key={i} className="flex gap-3 items-start p-2.5 rounded-lg bg-gray-800/40 hover:bg-gray-800/80 border border-gray-700/30 hover:border-gray-600 transition-all">
-                                <div className={`mt-0.5 p-1.5 rounded-md bg-gray-900 border border-gray-700/50 ${config.colorClass}`}>
-                                    <config.Icon className="w-3.5 h-3.5" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex justify-between items-baseline mb-1">
-                                        <span className="text-xs font-bold text-gray-200 truncate pr-2">{event._player}</span>
-                                        <span className="text-[10px] text-gray-500 flex-shrink-0 font-medium">
-                                            {new Date(event.start_timestamp * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                        </span>
-                                    </div>
-                                    <p className="text-[13px] text-gray-400 leading-snug break-words">
-                                        {config.text}
-                                    </p>
-                                </div>
-                            </div>
-                        )
-                    })
-                )}
-            </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex justify-between items-baseline mb-1">
+                        <span className="text-xs font-bold text-gray-200 truncate pr-2">{event._player}</span>
+                        <span className="text-[10px] text-gray-500 flex-shrink-0 font-medium">
+                          {new Date(event.start_timestamp * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-[13px] text-gray-400 leading-snug break-words">
+                        {config.text}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
         </div>
-        
+
         <p className="text-xs text-gray-500 text-center mt-4 flex-shrink-0">
-            Hidden event types will not appear on the graph or in this log.
+          Hidden event types will not appear on the graph or in this log.
         </p>
       </div>
     </div>
   );
 };
 
-const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comparisonData, mainPlayerLastDataPoint, currentSeasonLabel, isMobile }) => {
+const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comparisonData, mainPlayerLastDataPoint, seasonKey, currentSeasonLabel, isMobile }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredPlayers, setFilteredPlayers] = useState([]);
   const searchInputRef = useRef(null);
@@ -421,7 +421,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
       searchInputRef.current.focus();
     }
   }, [isMobile]);
-  
+
   // Stabilize options with useMemo to prevent re-renders in useModal.
   const modalOptions = useMemo(() => ({ type: 'nested' }), []);
   const { modalRef: modalContentRef } = useModal(true, onClose, modalOptions);
@@ -486,13 +486,13 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
             <Users className="w-5 h-5 text-blue-400" />
             Compare Players
-            <span className="text-sm font-medium text-gray-500 ml-1">({currentSeasonLabel})</span>
+            <span className="text-sm font-medium text-gray-500 ml-1">({isMobile ? seasonKey : currentSeasonLabel})</span>
           </h3>
           <button onClick={onClose} aria-label="Close comparisons" className="text-gray-400 hover:text-white transition-colors bg-gray-700/50 hover:bg-gray-700 p-1.5 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
-        
+
         <div className="px-6 py-4 flex-shrink-0 bg-gray-900/30 border-b border-gray-700/50">
           <SearchBar
             value={searchTerm}
@@ -501,12 +501,12 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
             searchInputRef={searchInputRef}
           />
         </div>
-        
+
         <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent p-4 space-y-1">
           {filteredPlayers.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-gray-500 space-y-2">
-                <Info className="w-8 h-8 opacity-20" />
-                <span className="text-sm text-gray-400">No matching players found.</span>
+              <Info className="w-8 h-8 opacity-20" />
+              <span className="text-sm text-gray-400">No matching players found.</span>
             </div>
           ) : (
             filteredPlayers.map((player) => {
@@ -516,26 +516,26 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
               return (
                 <div
                   key={player.name}
-                  className="flex items-center justify-between p-3 hover:bg-gray-700/60 rounded-xl cursor-pointer transition-all duration-200 group border border-transparent hover:border-gray-600"
+                  className="flex items-center justify-between p-3 hover:bg-gray-700/80 rounded-xl cursor-pointer transition-all duration-200 group border border-transparent hover:border-gray-500/50 hover:shadow-lg hover:-translate-y-0.5"
                   onClick={() => onSelect(player)}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="text-gray-500 font-medium w-10 flex-shrink-0 text-right pr-2">#{player.rank}</span>
                     <span className="text-gray-200 font-medium truncate">
                       {player.clubTag && (
-                        <span className={`text-blue-400 ${isMobile ? 'hidden' : 'inline-block'}`}>[{player.clubTag}] </span>
+                        <span className={`text-blue-400 mr-1 ${isMobile ? 'hidden' : ''}`}>[{player.clubTag}]</span>
                       )}
                       {player.name}
                     </span>
                     <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md flex-shrink-0 shadow-sm
-                        ${scoreDiff > 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 
-                          scoreDiff < 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 
+                        ${scoreDiff > 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                        scoreDiff < 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
                           'bg-gray-600/30 text-gray-400 border border-gray-600/50'}`}>
                       {scoreDiff > 0 ? '↑' : scoreDiff < 0 ? '↓' : '~'} {Math.abs(scoreDiff).toLocaleString()}
                     </span>
                   </div>
                   <div className="p-1.5 rounded-lg bg-gray-700/0 group-hover:bg-blue-500/20 transition-colors">
-                      <Plus className="w-5 h-5 text-gray-500 group-hover:text-blue-400 flex-shrink-0 transition-colors" />
+                    <Plus className="w-5 h-5 text-gray-500 group-hover:text-blue-400 flex-shrink-0 transition-colors" />
                   </div>
                 </div>
               );
@@ -613,10 +613,10 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
     mainPlayerCurrentId,
     refreshGraph,
   } = usePlayerGraphData(
-    isOpen, 
-    embarkId, 
-    compareIds, 
-    seasonId, 
+    isOpen,
+    embarkId,
+    compareIds,
+    seasonId,
     eventSettings,
     handleUrlChange
   );
@@ -633,7 +633,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
       // Check if we are transitioning from "No Data" to "Data".
       // Since the GraphModal mounts and fetches its own data independently, we don't need to 'refresh' 
       // just because the background app finished loading. We only want to refresh on SUBSEQUENT updates.
-      const isInitialLoad = !prevUpdateRef.current  
+      const isInitialLoad = !prevUpdateRef.current
       if (!isInitialLoad) {
         console.log("Leaderboard updated (live), refreshing graph...");
         refreshGraph();
@@ -697,16 +697,16 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
 
   // --- Stabilized Callbacks for Nested Modals ---
   const handleSelectPlayer = useCallback((player) => {
-      addComparison(player);
-      setShowCompareModal(false);
+    addComparison(player);
+    setShowCompareModal(false);
   }, [addComparison]);
 
   const handleCloseCompareModal = useCallback(() => {
-      setShowCompareModal(false);
+    setShowCompareModal(false);
   }, []);
 
   const handleCloseSettingsModal = useCallback(() => {
-      setShowSettingsModal(false);
+    setShowSettingsModal(false);
   }, []);
 
   const handleSeasonChange = useCallback((newSeasonId, specificEmbarkId = null) => {
@@ -734,7 +734,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
     const firstPoint = data[0];
     const lastPoint = data[data.length - 1];
     const dataDuration = lastPoint.timestamp.getTime() - firstPoint.timestamp.getTime();
-    
+
     if (dataDuration < (TIME.DAY / 2)) return 'MAX';
 
     // Set now to the end of the season if available (historical), otherwise use current time
@@ -821,7 +821,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
   if (!isOpen || !embarkId) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 ${isMobile ? 'p-0' : 'p-4'}`}>
+    <div className={`fixed inset-0 bg-[#0f121b]/80 backdrop-blur-sm flex items-center justify-center z-50 ${isMobile ? 'p-0' : 'p-4'}`}>
       <div
         ref={modalRef}
         className={`
@@ -839,26 +839,27 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
             onClose={handleCloseCompareModal}
             comparisonData={comparisonData}
             mainPlayerLastDataPoint={data?.[data.length - 1]}
+            seasonKey={seasonKey}
             currentSeasonLabel={currentSeasonLabel}
             isMobile={isMobile}
           />
         )}
         {showSettingsModal && (
-            <GraphSettingsModal
-                settings={eventSettings}
-                onSettingsChange={setEventSettings}
-                onClose={handleCloseSettingsModal}
-                mainEvents={events}
-                comparisonData={comparisonData}
-                mainPlayerId={displayedEmbarkId}
-            />
+          <GraphSettingsModal
+            settings={eventSettings}
+            onSettingsChange={setEventSettings}
+            onClose={handleCloseSettingsModal}
+            mainEvents={events}
+            comparisonData={comparisonData}
+            mainPlayerId={displayedEmbarkId}
+          />
         )}
         {showStatsModal && mainPlayerStats && (
-            <PlayerStatsModal
-                stats={mainPlayerStats}
-                gameCount={mainPlayerGameCount}
-                onClose={() => setShowStatsModal(false)}
-            />
+          <PlayerStatsModal
+            stats={mainPlayerStats}
+            gameCount={mainPlayerGameCount}
+            onClose={() => setShowStatsModal(false)}
+          />
         )}
         <div>
           <div className={`${isMobile ? 'flex flex-col gap-2' : 'flex justify-between items-center gap-4'}`}>
@@ -872,8 +873,8 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                     <button
                       onClick={() => setShowSeasonDropdown(p => !p)}
                       disabled={loading || mainPlayerAvailableSeasons.length <= 1}
-                      className={`flex items-center gap-1.5 bg-gray-700 text-blue-300 text-xs font-semibold px-2 py-1 rounded-md transition-colors 
-                        ${(loading || mainPlayerAvailableSeasons.length <= 1) ? 'opacity-70 cursor-not-allowed' : 'hover:bg-gray-600'}`}
+                      className={`flex items-center gap-1.5 bg-gray-700 border border-gray-600 shadow-sm text-blue-300 text-xs font-semibold px-2.5 py-1 rounded-lg transition-all duration-200 
+                        ${(loading || mainPlayerAvailableSeasons.length <= 1) ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-600 hover:border-gray-500 hover:shadow-md hover:-translate-y-px'}`}
                       title="Switch season"
                     >
                       <span>{isMobile ? seasonKey : currentSeasonLabel}</span>
@@ -884,17 +885,17 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                         {mainPlayerAvailableSeasons
                           .sort((a,b) => b.id - a.id)
                           .map((season, index) => (
-                          <button
-                            key={`${season.id}-${season.embarkId}-${index}`}
-                            onClick={() => handleSeasonChange(season.id, season.embarkId)}
-                            className={`w-full text-left px-3 py-2 text-sm transition-colors flex flex-col items-start ${currentSeasonId === season.id && season.embarkId === displayedEmbarkId ? 'bg-blue-600 text-white' : 'text-gray-200 hover:bg-gray-700'}`}
-                          >
-                            <span className="font-medium">{season.name}</span>
-                            <span className={`text-[11px] mt-0.5 ${currentSeasonId === season.id && season.embarkId === displayedEmbarkId ? 'text-blue-200' : 'text-gray-400'}`}>
+                            <button
+                              key={`${season.id}-${season.embarkId}-${index}`}
+                              onClick={() => handleSeasonChange(season.id, season.embarkId)}
+                              className={`w-full text-left px-3 py-2 text-sm transition-colors flex flex-col items-start ${currentSeasonId === season.id && season.embarkId === displayedEmbarkId ? 'bg-blue-600 text-white' : 'text-gray-200 hover:bg-gray-700'}`}
+                            >
+                              <span className="font-medium">{season.name}</span>
+                              <span className={`text-[11px] mt-0.5 ${currentSeasonId === season.id && season.embarkId === displayedEmbarkId ? 'text-blue-200' : 'text-gray-400'}`}>
                                 as {season.embarkId}
-                            </span>
-                          </button>
-                        ))}
+                              </span>
+                            </button>
+                          ))}
                       </div>
                     )}
                   </div>
@@ -924,7 +925,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                       <span className="text-gray-600">•</span>
                       {mainPlayerWinrate !== null && (
                         <>
-                          <button 
+                          <button
                             onClick={() => setShowStatsModal(true)}
                             className={`font-medium transition-colors border-b border-dotted cursor-pointer ${
                               parseFloat(mainPlayerWinrate) > 50 ? 'text-green-400 border-green-500/50 hover:border-green-400' :
@@ -958,15 +959,15 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
               <div className={`flex items-center flex-wrap ${isMobile ? 'w-full justify-between gap-2' : 'justify-end gap-2'}`}>
                 <div className="flex items-center gap-2">
                   <button
-                      onClick={() => setShowSettingsModal(true)}
-                      disabled={!!error}
-                      className={`p-2 rounded-lg transition-colors ${
-                        error ? 'text-gray-600 cursor-not-allowed' :
-                        areFiltersActive 
-                          ? 'bg-green-600 text-white hover:bg-green-500' 
-                          : 'hover:bg-gray-700 text-gray-400 hover:text-white'
-                      }`}
-                      title="Event Settings"
+                    onClick={() => setShowSettingsModal(true)}
+                    disabled={!!error}
+                    className={`p-2 rounded-lg transition-colors ${
+                      error ? 'text-gray-600 cursor-not-allowed' :
+                      areFiltersActive
+                        ? 'bg-green-600 text-white hover:bg-green-500'
+                        : 'hover:bg-gray-700 text-gray-400 hover:text-white'
+                    }`}
+                    title="Event Settings"
                   >
                     <ListFilter className="w-5 h-5" />
                   </button>
@@ -1002,12 +1003,12 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                       onClick={() => !isHistoricalSeason && setSelectedTimeRange(range)}
                       disabled={isHistoricalSeason || !!error}
                       title={isHistoricalSeason ? 'Disabled for historical seasons' : 'Select time range'}
-                      className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                      className={`px-3 py-1 text-sm rounded-md transition-all duration-200 ${
                         selectedTimeRange === range
-                          ? 'bg-gray-600 text-white'
+                          ? 'bg-blue-600/90 text-white shadow-sm ring-1 ring-blue-500/50'
                           : 'text-gray-400'
                       } ${isHistoricalSeason || !!error
-                          ? 'cursor-not-allowed'
+                          ? 'cursor-not-allowed opacity-50'
                           : 'hover:text-white hover:bg-gray-700'
                       } ${isMobile ? 'flex-1' : ''}`}
                     >
@@ -1069,15 +1070,15 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
             </div>
           )}
           {error && !loading && (
-            <GraphErrorView 
-              error={error} 
+            <GraphErrorView
+              error={error}
               availableSeasons={errorAvailableSeasons}
               onSwitchSeason={handleSeasonChange}
               targetSeasonId={currentSeasonId}
             />
           )}
           {!loading && !error && showZoomHint && (
-             <div
+            <div
               className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800 bg-opacity-90 text-white px-4 py-2 rounded-lg transition-opacity duration-300 cursor-pointer z-10 animate-fadeIn shadow-lg"
               onClick={() => setShowZoomHint(false)}
               style={{ backdropFilter: 'blur(2px)' }}
@@ -1098,7 +1099,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                   <span>{isMobile ? 'Touch and drag to pan' : 'Click and drag to pan'}</span>
                 </div>
               </div>
-             </div>
+            </div>
           )}
         </div>
       </div>
