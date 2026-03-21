@@ -86,7 +86,7 @@ const FilterToggleButton = ({ label, isActive, onClick, Icon, textColorClass, ac
   );
 };
 
-const PlayerStatsModal = ({ stats, gameCount, onClose }) => {
+const PlayerStatsModal = ({ stats, gameCount, playerName, onClose }) => {
   const modalOptions = useMemo(() => ({ type: 'nested' }), []);
   const { modalRef } = useModal(true, onClose, modalOptions);
 
@@ -114,9 +114,9 @@ const PlayerStatsModal = ({ stats, gameCount, onClose }) => {
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
       <div ref={modalRef} className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border border-gray-700 shadow-2xl relative">
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-bold text-white flex items-center gap-2">
-            <Activity className="w-5 h-5 text-blue-400" />
-            Seasonal Statistics
+          <h3 className="text-xl font-bold text-white flex items-center gap-2 truncate pr-4">
+            <Activity className="w-5 h-5 text-blue-400 flex-shrink-0" />
+            <span className="truncate">{playerName ? `${playerName}'s Stats` : 'Seasonal Statistics'}</span>
           </h3>
           <button onClick={onClose} aria-label="Close stats" className="text-gray-400 hover:text-white transition-colors bg-gray-700/50 hover:bg-gray-700 p-1.5 rounded-lg">
             <X className="w-5 h-5" />
@@ -562,7 +562,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
   const [showSeasonDropdown, setShowSeasonDropdown] = useState(false);
   const seasonDropdownRef = useRef(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showStatsModal, setShowStatsModal] = useState(false);
+  const [statsPlayerId, setStatsPlayerId] = useState(null);
   const [eventSettings, setEventSettings] = useState(getStoredGraphSettings);
 
   const [comparisonLeaderboard, setComparisonLeaderboard] = useState([]);
@@ -707,6 +707,10 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
 
   const handleCloseSettingsModal = useCallback(() => {
     setShowSettingsModal(false);
+  }, []);
+
+  const handleCloseStatsModal = useCallback(() => {
+    setStatsPlayerId(null);
   }, []);
 
   const handleSeasonChange = useCallback((newSeasonId, specificEmbarkId = null) => {
@@ -854,11 +858,12 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
             mainPlayerId={displayedEmbarkId}
           />
         )}
-        {showStatsModal && mainPlayerStats && (
+        {statsPlayerId && (
           <PlayerStatsModal
-            stats={mainPlayerStats}
-            gameCount={mainPlayerGameCount}
-            onClose={() => setShowStatsModal(false)}
+            stats={statsPlayerId === displayedEmbarkId ? mainPlayerStats : comparisonData.get(statsPlayerId)?.stats}
+            gameCount={statsPlayerId === displayedEmbarkId ? mainPlayerGameCount : comparisonData.get(statsPlayerId)?.gameCount}
+            playerName={statsPlayerId}
+            onClose={handleCloseStatsModal}
           />
         )}
         <div>
@@ -926,7 +931,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                       {mainPlayerWinrate !== null && (
                         <>
                           <button
-                            onClick={() => setShowStatsModal(true)}
+                            onClick={() => setStatsPlayerId(displayedEmbarkId)}
                             className={`font-medium transition-colors border-b border-dotted cursor-pointer ${
                               parseFloat(mainPlayerWinrate) > 50 ? 'text-green-400 border-green-500/50 hover:border-green-400' :
                               parseFloat(mainPlayerWinrate) < 50 ? 'text-red-400 border-red-500/50 hover:border-red-400' :
@@ -1032,7 +1037,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                   className={`flex items-center gap-2 bg-gray-700 rounded-lg px-3 py-1
                     ${isMobile ? 'flex-basis-[140px]' : 'whitespace-nowrap'}`}
                 >
-                  <span className="text-sm truncate" style={{ color: color }}>{compareId}</span>
+                  <button
+                    onClick={() => setStatsPlayerId(compareId)}
+                    className="text-sm truncate transition-colors hover:brightness-125 hover:underline cursor-pointer"
+                    style={{ color: color }}
+                    title={`View ${compareId}'s stats`}
+                  >
+                    {compareId}
+                  </button>
 
                   {gameCount > 0 && (
                     isMobile ? (

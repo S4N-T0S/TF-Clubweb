@@ -662,11 +662,13 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       );
 
       if (processedCompare.length >= 2) {
+        const compareStats = calculatePlayerStats(processedCompare, currentSeasonId);
         newComparisonMap.set(id, {
           data: processedCompare,
           color: COMPARISON_COLORS[index],
           gameCount: rawValue.gameCount,
-          winrate: calculatePlayerStats(processedCompare, currentSeasonId)?.winrate || null,
+          winrate: compareStats?.winrate || null,
+          stats: compareStats,
           events: rawValue.events,
           availableSeasons: rawValue.availableSeasons,
         });

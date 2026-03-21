@@ -252,6 +252,7 @@ export const PlayerStatsModalProps = {
     })
   }),
   gameCount: PropTypes.number.isRequired,
+  playerName: PropTypes.string,
   onClose: PropTypes.func.isRequired
 };
 
