@@ -5,7 +5,7 @@ to keep up with it's logic. I'm sorry for the mess.
 */
 
 import { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { X, Plus, SlidersHorizontal, UserPen, Gavel, ChevronsUpDown, Users, AlertTriangle, RefreshCcw, Info, Trophy, Flame, TrendingUp, TrendingDown, Calendar, Activity, Zap } from 'lucide-react';
+import { X, Plus, ListFilter, UserPen, Gavel, ChevronsUpDown, Users, AlertTriangle, RefreshCcw, Info, Trophy, Flame, TrendingUp, TrendingDown, Calendar, Activity, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   Chart as ChartJS,
@@ -70,18 +70,18 @@ TIME.RANGES = {
 };
 
 const FilterToggleButton = ({ label, isActive, onClick, Icon, textColorClass, activeBorderClass }) => {
-    const baseClasses = "flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors w-full border";
+    const baseClasses = "flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all w-full border";
     const dynamicClasses = isActive
-        ? `${activeBorderClass || 'border-blue-500'} bg-gray-700`
-        : 'border-transparent bg-gray-700 hover:bg-gray-600';
+        ? `${activeBorderClass || 'border-blue-500'} bg-gray-800/80 shadow-inner`
+        : 'border-gray-700 bg-gray-800/30 hover:bg-gray-700/50 opacity-60 hover:opacity-100 grayscale-[0.5]';
 
     return (
         <button
             onClick={onClick}
             className={`${baseClasses} ${dynamicClasses}`}
         >
-            {Icon && <Icon className={`w-4 h-4 ${textColorClass}`} />}
-            <span className={textColorClass}>{label}</span>
+            {Icon && <Icon className={`w-4 h-4 ${isActive ? textColorClass : 'text-gray-400'}`} />}
+            <span className={isActive ? textColorClass : 'text-gray-400 font-medium'}>{label}</span>
         </button>
     );
 };
@@ -279,53 +279,131 @@ const GraphErrorView = ({ error, availableSeasons, onSwitchSeason, targetSeasonI
     );
 };
 
-const GraphSettingsModal = ({ settings, onSettingsChange, onClose, hasAnyEvents }) => {
-  // Stabilize options with useMemo to prevent re-renders in useModal.
+const getMiniEventConfig = (event) => {
+    const d = event.details || {};
+    switch (event.event_type) {
+        case 'NAME_CHANGE':
+            return { Icon: UserPen, colorClass: 'text-indigo-400', text: `Name changed from ${d.old_name} to ${d.new_name}` };
+        case 'CLUB_CHANGE': {
+            let text = "Changed club";
+            if (d.new_club && d.old_club) text = `Changed club from [${d.old_club}] to [${d.new_club}]`;
+            else if (d.new_club) text = `Joined [${d.new_club}]`;
+            else if (d.old_club) text = `Left [${d.old_club}]`;
+            return { Icon: Users, colorClass: 'text-teal-400', text };
+        }
+        case 'RS_ADJUSTMENT': {
+            if (d.is_off_leaderboard) {
+                return { Icon: TrendingDown, colorClass: 'text-red-400', text: `Fell off leaderboard (Min. -${d.minimum_loss.toLocaleString()} RS)` };
+            }
+            const isLoss = d.change < 0;
+            return {
+                Icon: isLoss ? TrendingDown : TrendingUp,
+                colorClass: isLoss ? 'text-red-400' : 'text-green-400',
+                text: `RS Adjustment (${d.change > 0 ? '+' : ''}${d.change.toLocaleString()} RS)`
+            };
+        }
+        case 'SUSPECTED_BAN':
+            if (event.end_timestamp) {
+                return { Icon: Gavel, colorClass: 'text-green-400', text: `Reappeared on leaderboard` };
+            }
+            return { Icon: Gavel, colorClass: 'text-red-500', text: `Suspected Ban` };
+        case 'COMBINED_CHANGE': {
+            const oldStr = `${d.old_club ? `[${d.old_club}] ` : ''}${d.old_name}`;
+            const newStr = `${d.new_club ? `[${d.new_club}] ` : ''}${d.new_name}`;
+            return { Icon: Zap, colorClass: 'text-purple-400', text: `Changed from ${oldStr} to ${newStr}` };
+        }
+        default:
+            return { Icon: Info, colorClass: 'text-gray-400', text: 'Unknown Event' };
+    }
+};
+
+const GraphSettingsModal = ({ settings, onSettingsChange, onClose, mainEvents, comparisonData, mainPlayerId }) => {
   const modalOptions = useMemo(() => ({ type: 'nested' }), []);
   const { modalRef } = useModal(true, onClose, modalOptions);
+
   const handleFilterChange = (key, value) => {
       onSettingsChange(prev => ({ ...prev, [key]: value }));
   };
+
+  const visibleEvents = useMemo(() => {
+        let all =[];
+        if (mainEvents) all.push(...mainEvents.map(e => ({ ...e, _player: mainPlayerId })));
+        if (comparisonData) {
+            for (const [id, data] of comparisonData.entries()) {
+                if (data.events) all.push(...data.events.map(e => ({ ...e, _player: id })));
+            }
+        }
+
+        return all.filter(e => {
+            if (e.event_type === 'NAME_CHANGE' && !settings.showNameChange) return false;
+            if (e.event_type === 'CLUB_CHANGE' && !settings.showClubChange) return false;
+            if (e.event_type === 'RS_ADJUSTMENT' && !settings.showRsAdjustment) return false;
+            if (e.event_type === 'SUSPECTED_BAN' && !settings.showSuspectedBan) return false;
+            if (e.event_type === 'COMBINED_CHANGE' && (!settings.showNameChange && !settings.showClubChange)) return false;
+
+            return true;
+        }).sort((a, b) => b.start_timestamp - a.start_timestamp);
+  }, [mainEvents, comparisonData, mainPlayerId, settings]);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
-      <div ref={modalRef} className="bg-gray-800 rounded-lg p-6 max-w-sm w-full border border-gray-600 shadow-xl relative">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-white">Graph Event Settings</h3>
-          <button onClick={onClose} aria-label="Close settings" className="text-gray-400 hover:text-white">
+      <div ref={modalRef} className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border border-gray-700 shadow-2xl relative flex flex-col max-h-[85vh]">
+        <div className="flex justify-between items-center mb-5">
+          <h3 className="text-xl font-bold text-white flex items-center gap-2">
+            <ListFilter className="w-5 h-5 text-gray-400" />
+            Graph Events
+          </h3>
+          <button onClick={onClose} aria-label="Close settings" className="text-gray-400 hover:text-white transition-colors bg-gray-700/50 hover:bg-gray-700 p-1.5 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
-        {!hasAnyEvents ? (
-          <div className="p-4 text-center text-gray-400 text-sm">No events found in the current datasets.</div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <FilterToggleButton label="Name" Icon={UserPen} isActive={settings.showNameChange} onClick={() => handleFilterChange('showNameChange', !settings.showNameChange)} textColorClass="text-indigo-400" activeBorderClass="border-indigo-400" />
-            <FilterToggleButton label="Clubs" Icon={Users} isActive={settings.showClubChange} onClick={() => handleFilterChange('showClubChange', !settings.showClubChange)} textColorClass="text-teal-400" activeBorderClass="border-teal-400" />
-            <FilterToggleButton label="Scores" Icon={ChevronsUpDown} isActive={settings.showRsAdjustment} onClick={() => handleFilterChange('showRsAdjustment', !settings.showRsAdjustment)} textColorClass="text-yellow-400" activeBorderClass="border-yellow-400" />
-            <FilterToggleButton label="Bans" Icon={Gavel} isActive={settings.showSuspectedBan} onClick={() => handleFilterChange('showSuspectedBan', !settings.showSuspectedBan)} textColorClass="text-red-500" activeBorderClass="border-red-500" />
-          </div>
-        )}
-        <div className="mt-5 pt-4 border-t border-gray-700">
-          <p className="text-sm text-gray-400 text-center mb-3">
-            The settings button turns green to indicate that one or more event types are hidden from the graph.
-          </p>
-          <div className="flex items-center justify-center gap-6">
-            <div className="flex flex-col items-center gap-1">
-              <div className="p-2 rounded-lg flex items-center bg-gray-700 text-gray-300">
-                <SlidersHorizontal className="w-5 h-5" />
-              </div>
-              <span className="text-xs text-gray-400">Default</span>
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <div className="p-2 rounded-lg flex items-center bg-green-600 text-white">
-                <SlidersHorizontal className="w-5 h-5" />
-              </div>
-              <span className="text-xs text-gray-400">Filtered</span>
-            </div>
-          </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-5 flex-shrink-0">
+          <FilterToggleButton label="Names" Icon={UserPen} isActive={settings.showNameChange} onClick={() => handleFilterChange('showNameChange', !settings.showNameChange)} textColorClass="text-indigo-400" activeBorderClass="border-indigo-500/50" />
+          <FilterToggleButton label="Clubs" Icon={Users} isActive={settings.showClubChange} onClick={() => handleFilterChange('showClubChange', !settings.showClubChange)} textColorClass="text-teal-400" activeBorderClass="border-teal-500/50" />
+          <FilterToggleButton label="Scores" Icon={ChevronsUpDown} isActive={settings.showRsAdjustment} onClick={() => handleFilterChange('showRsAdjustment', !settings.showRsAdjustment)} textColorClass="text-yellow-400" activeBorderClass="border-yellow-500/50" />
+          <FilterToggleButton label="Bans" Icon={Gavel} isActive={settings.showSuspectedBan} onClick={() => handleFilterChange('showSuspectedBan', !settings.showSuspectedBan)} textColorClass="text-red-400" activeBorderClass="border-red-500/50" />
         </div>
-        <p className="text-xs text-gray-500 text-center italic mt-4">
-          Learn more about events by clicking the information button on the events view page.
+
+        <div className="flex-1 min-h-[220px] flex flex-col bg-gray-900/50 rounded-xl border border-gray-700 overflow-hidden shadow-inner">
+            <div className="px-4 py-2.5 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
+                <span className="text-sm font-semibold text-gray-300">Visible Events Log</span>
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-700 text-gray-400">{visibleEvents.length}</span>
+            </div>
+            <div className="p-3 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent flex-1 space-y-2">
+                {visibleEvents.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-2 py-8">
+                        <Info className="w-8 h-8 opacity-20" />
+                        <span className="text-sm text-gray-400">No events match your filters.</span>
+                    </div>
+                ) : (
+                    visibleEvents.map((event, i) => {
+                        const config = getMiniEventConfig(event);
+                        return (
+                            <div key={i} className="flex gap-3 items-start p-2.5 rounded-lg bg-gray-800/40 hover:bg-gray-800/80 border border-gray-700/30 hover:border-gray-600 transition-all">
+                                <div className={`mt-0.5 p-1.5 rounded-md bg-gray-900 border border-gray-700/50 ${config.colorClass}`}>
+                                    <config.Icon className="w-3.5 h-3.5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex justify-between items-baseline mb-1">
+                                        <span className="text-xs font-bold text-gray-200 truncate pr-2">{event._player}</span>
+                                        <span className="text-[10px] text-gray-500 flex-shrink-0 font-medium">
+                                            {new Date(event.start_timestamp * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    </div>
+                                    <p className="text-[13px] text-gray-400 leading-snug break-words">
+                                        {config.text}
+                                    </p>
+                                </div>
+                            </div>
+                        )
+                    })
+                )}
+            </div>
+        </div>
+        
+        <p className="text-xs text-gray-500 text-center mt-4 flex-shrink-0">
+            Hidden event types will not appear on the graph or in this log.
         </p>
       </div>
     </div>
@@ -403,17 +481,19 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
-      <div ref={modalContentRef} className="bg-gray-800 rounded-lg w-full max-w-xl lg:max-w-3xl border border-gray-600 shadow-xl relative flex flex-col max-h-[70dvh]">
-        <header className="p-6 pb-4 flex-shrink-0 border-b border-gray-700 flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-white">
-            Add Player to Compare
-            <span className="text-base font-normal text-gray-400 ml-2">({currentSeasonLabel})</span>
+      <div ref={modalContentRef} className="bg-gray-800 rounded-2xl w-full max-w-xl lg:max-w-3xl border border-gray-700 shadow-2xl relative flex flex-col max-h-[75dvh]">
+        <div className="p-6 pb-4 flex-shrink-0 border-b border-gray-700 flex justify-between items-center">
+          <h3 className="text-xl font-bold text-white flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-400" />
+            Compare Players
+            <span className="text-sm font-medium text-gray-500 ml-1">({currentSeasonLabel})</span>
           </h3>
-          <button onClick={onClose} aria-label="Close comparisons" className="text-gray-400 hover:text-white">
+          <button onClick={onClose} aria-label="Close comparisons" className="text-gray-400 hover:text-white transition-colors bg-gray-700/50 hover:bg-gray-700 p-1.5 rounded-lg">
             <X className="w-5 h-5" />
           </button>
-        </header>
-        <div className="px-6 pt-2 flex-shrink-0">
+        </div>
+        
+        <div className="px-6 py-4 flex-shrink-0 bg-gray-900/30 border-b border-gray-700/50">
           <SearchBar
             value={searchTerm}
             onChange={setSearchTerm}
@@ -421,9 +501,13 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
             searchInputRef={searchInputRef}
           />
         </div>
-        <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-500 scrollbar-track-gray-800 px-6 pt-2 pb-6">
+        
+        <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent p-4 space-y-1">
           {filteredPlayers.length === 0 ? (
-            <div className="p-4 text-center text-gray-400 text-sm">No matching players found.</div>
+            <div className="flex flex-col items-center justify-center h-40 text-gray-500 space-y-2">
+                <Info className="w-8 h-8 opacity-20" />
+                <span className="text-sm text-gray-400">No matching players found.</span>
+            </div>
           ) : (
             filteredPlayers.map((player) => {
               const mainPlayer = leaderboard.find(p => p.name === mainEmbarkId);
@@ -432,20 +516,27 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
               return (
                 <div
                   key={player.name}
-                  className="flex items-center justify-between p-3 hover:bg-gray-700/50 rounded-xl cursor-pointer transition-colors duration-150 group"
+                  className="flex items-center justify-between p-3 hover:bg-gray-700/60 rounded-xl cursor-pointer transition-all duration-200 group border border-transparent hover:border-gray-600"
                   onClick={() => onSelect(player)}
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-gray-400 w-10 flex-shrink-0">#{player.rank}</span>
-                    <span className="text-white truncate">
-                      {player.clubTag && <span className="text-blue-300 font-medium">[{player.clubTag}] </span>}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-gray-500 font-medium w-10 flex-shrink-0 text-right pr-2">#{player.rank}</span>
+                    <span className="text-gray-200 font-medium truncate">
+                      {player.clubTag && (
+                        <span className={`text-blue-400 ${isMobile ? 'hidden' : 'inline-block'}`}>[{player.clubTag}] </span>
+                      )}
                       {player.name}
                     </span>
-                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md flex-shrink-0 ${scoreDiff > 0 ? 'bg-green-900/40 text-green-400' : scoreDiff < 0 ? 'bg-red-900/40 text-red-400' : 'bg-gray-600/40 text-gray-300'}`}>
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md flex-shrink-0 shadow-sm
+                        ${scoreDiff > 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 
+                          scoreDiff < 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 
+                          'bg-gray-600/30 text-gray-400 border border-gray-600/50'}`}>
                       {scoreDiff > 0 ? '↑' : scoreDiff < 0 ? '↓' : '~'} {Math.abs(scoreDiff).toLocaleString()}
                     </span>
                   </div>
-                  <Plus className="w-5 h-5 text-gray-400 group-hover:text-white flex-shrink-0 transition-colors" />
+                  <div className="p-1.5 rounded-lg bg-gray-700/0 group-hover:bg-blue-500/20 transition-colors">
+                      <Plus className="w-5 h-5 text-gray-500 group-hover:text-blue-400 flex-shrink-0 transition-colors" />
+                  </div>
                 </div>
               );
             })
@@ -635,21 +726,6 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
   }, [currentSeasonId, switchSeason, displayedEmbarkId]);
 
 
-  const hasAnyEvents = useMemo(() => {
-    const eventTypes = ['NAME_CHANGE', 'CLUB_CHANGE', 'RS_ADJUSTMENT', 'SUSPECTED_BAN', 'COMBINED_CHANGE'];
-    if (events?.some(e => eventTypes.includes(e.event_type))) {
-      return true;
-    }
-    if (comparisonData.size > 0) {
-      for (const compare of comparisonData.values()) {
-        if (compare.events?.some(e => eventTypes.includes(e.event_type))) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }, [events, comparisonData]);
-
   // Function to determine the appropriate default time range based on actual game data points
   const determineDefaultTimeRange = useCallback((data) => {
     if (!data?.length) return '24H';
@@ -772,7 +848,9 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                 settings={eventSettings}
                 onSettingsChange={setEventSettings}
                 onClose={handleCloseSettingsModal}
-                hasAnyEvents={hasAnyEvents}
+                mainEvents={events}
+                comparisonData={comparisonData}
+                mainPlayerId={displayedEmbarkId}
             />
         )}
         {showStatsModal && mainPlayerStats && (
@@ -837,7 +915,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                     <>
                       <div className="relative group inline-flex items-center">
                         <span className="text-gray-300 font-medium cursor-help border-b border-dotted border-gray-500 hover:border-gray-400 transition-colors">
-                          {mainPlayerGameCount} Games
+                          {mainPlayerGameCount.toLocaleString()} Games
                         </span>
                         <div className="absolute top-full left-0 mt-2 w-max max-w-[80vw] sm:max-w-[250px] bg-gray-900 text-white text-left text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30 shadow-lg border border-gray-700 whitespace-normal">
                           {GAME_COUNT_TOOLTIP}
@@ -890,7 +968,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                       }`}
                       title="Event Settings"
                   >
-                      <SlidersHorizontal className="w-5 h-5" />
+                    <ListFilter className="w-5 h-5" />
                   </button>
                   {comparisonData.size < MAX_COMPARISONS && !error && (
                     <div className="relative">

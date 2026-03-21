@@ -505,8 +505,9 @@ export const useChartConfig = ({
           playerNameCell.style.fontSize = '14px';
           playerNameCell.style.fontWeight = 'bold';
           playerNameCell.style.paddingTop = '-20px';
-          const playerName = chart.data.datasets[datasetIndex].label.trim();
-          const playerText = document.createTextNode(playerName);
+          const playerNameRaw = chart.data.datasets[datasetIndex].label.trim();
+          const cleanPlayerName = playerNameRaw.replace(/\s*\([\d.]+%\s*WR\)/i, '');
+          const playerText = document.createTextNode(cleanPlayerName);
           playerNameCell.appendChild(playerText);
           playerNameRow.appendChild(playerNameCell);
           tableRoot.appendChild(playerNameRow);
