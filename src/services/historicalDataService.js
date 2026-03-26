@@ -22,7 +22,7 @@ export const SEASONS = {
   S7: { id: 7, data: S7Data, label: 'Season 7', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1749734705, endTimestamp: 1757514600, rubyCutoff: 51701, hasEvents: true },
   S8: { id: 8, data: S8Data, label: 'Season 8', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1757516400, endTimestamp: 1765375200, rubyCutoff: 52044, hasEvents: true },
   S9: { id: 9, data: S9Data, label: 'Season 9', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1765382400, endTimestamp: 1774535400, rubyCutoff: 54132, hasEvents: true },
-  S10: { id: 10, data: null, label: 'Season 10', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1774535400, endTimestamp: null, rubyCutoff: null, hasEvents: true }
+  S10: { id: 10, data: null, label: 'Season 10', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1774535400, endTimestamp: null, rubyCutoff: null, hasEvents: true, isCurrent: true }
 };
 
 export const currentSeasonKey = Object.keys(SEASONS).find(key => SEASONS[key].isCurrent); // Reminder: update CF worker when season changes
