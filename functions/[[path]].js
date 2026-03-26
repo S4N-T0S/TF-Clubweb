@@ -11,7 +11,7 @@ const COMPARE_SEPARATOR = '&';
 const BASE_URL = 'https://ogclub.s4nt0s.eu';
 
 // Default to a fallback season for legacy URLs
-const FALLBACK_SEASON_ID = '9';
+const FALLBACK_SEASON_ID = '10';
 
 const BOT_USER_AGENTS = /bot|crawler|spider|crawling|facebookexternalhit|twitterbot|discordbot|whatsapp|skype|slack|line|vkshare|telegram|applebot|bingbot/i;
 
