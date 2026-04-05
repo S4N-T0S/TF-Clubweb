@@ -174,7 +174,8 @@ const legacy_interpolateDataPoints = (rawData, isFinalSegment = true, seasonEndD
       interpolatedData.push({
         ...currentPoint,
         timestamp: new Date(nextPoint.timestamp - TIME.MINUTES_15),
-        isInterpolated: true
+        isInterpolated: true,
+        events: undefined // prevent events from carrying over to synthetic points
       });
     }
   }
@@ -191,6 +192,7 @@ const legacy_interpolateDataPoints = (rawData, isFinalSegment = true, seasonEndD
         timestamp: now,
         isInterpolated: true,
         isFinalInterpolation: true,
+        events: undefined // prevent events from carrying over
       });
     }
   }
@@ -336,6 +338,7 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
             timestamp: new Date(current.timestamp.getTime() - TIME.MINUTES_15),
             isGapBridge: true,
             scoreChanged: false,
+            events: undefined // prevent events from carrying over
           });
         }
         // B. Handle back-to-back games (staircase)
@@ -363,6 +366,7 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
             timestamp: syntheticTimestamp,
             isStaircasePoint: true,
             scoreChanged: false,
+            events: undefined // prevent events from carrying over
           });
         }
       }

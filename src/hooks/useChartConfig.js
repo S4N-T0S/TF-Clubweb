@@ -88,7 +88,7 @@ unexpectedReappearanceIcon.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns
  */
 const getRsEvent = (ctx) => {
   const pointData = ctx.raw?.raw;
-  if (pointData?.events && !pointData.isInterpolated && !pointData.isExtrapolated && !pointData.isStaircasePoint) {
+  if (pointData?.events && !pointData.isInterpolated && !pointData.isExtrapolated && !pointData.isStaircasePoint && !pointData.isGapBridge) {
     return pointData.events.find(e => e.event_type === 'RS_ADJUSTMENT');
   }
   return null;
