@@ -94,7 +94,7 @@ const EventInfoPopup = ({ onClose }) => {
             </div>
             <div>
               <strong className="text-teal-400 flex items-center gap-2"><Users className="w-4 h-4" /> Club Event:</strong>
-              <p className="text-gray-400 ml-8">Records when a player joins, leaves, or changes their club affiliation. Includes Club Renames, where a club changes its tag globally.</p>
+              <p className="text-gray-400 ml-8">Records when a player joins, leaves, or changes their club affiliation. Includes Club Renames, where a club changes its tag globally, or when a disbanded club&apos;s tag is claimed by newly formed club.</p>
             </div>
             <div>
               <strong className="text-gray-200 flex items-center gap-2"><SlidersHorizontal className="w-4 h-4" /> Filter Status:</strong>

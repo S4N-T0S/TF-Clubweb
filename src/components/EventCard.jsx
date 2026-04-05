@@ -256,6 +256,29 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
       );
     }
     case 'CLUB_RENAME': {
+        // Handle "Tag Steal" / Disbanded scenarios where the tag is wiped out to an empty string
+        if (!d.new_club_tag) {
+            return (
+                <div className="text-gray-400 leading-relaxed">
+                    <span>The club </span>
+                    <ClubTag tag={d.old_club_tag} onClubClick={handleClubClick} />
+                    <span> was disbanded or its tag was claimed by a new club.</span>
+                </div>
+            );
+        }
+
+        // Failsafe: Handle the highly unlikely scenario where a club goes from empty to a tag
+        if (!d.old_club_tag) {
+            return (
+                <div className="text-gray-400 leading-relaxed">
+                    <span>A new club claimed the tag </span>
+                    <ClubTag tag={d.new_club_tag} onClubClick={handleClubClick} />
+                    <span>.</span>
+                </div>
+            );
+        }
+
+        // Standard Rename Event
         return (
             <div className="text-gray-400 leading-relaxed">
                 <span>The club </span>
