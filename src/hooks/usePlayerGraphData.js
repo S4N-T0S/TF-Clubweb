@@ -4,7 +4,7 @@ import { formatMultipleUsernamesForUrl } from '../utils/urlHandler';
 import { SEASONS } from '../services/historicalDataService';
 
 // Constants
-const RANKED_PLACEMENTS = 4;
+const RANKED_PLACEMENTS = 3; // (4, but first datapoint we collect counts as 1 game so we set this to 3)
 const MAX_COMPARISONS = 5;
 const COMPARISON_COLORS = [
   'rgba(255, 159, 64, 0.8)',  // Orange
