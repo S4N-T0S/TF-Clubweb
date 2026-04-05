@@ -858,8 +858,17 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       // Check if we actually need to load anything new
       const needsLoading = uniqueCompareIds.some(id => !comparisonRaws.has(id) && id !== mainPlayerCurrentId);
 
-      // If there's nothing to load from the URL, and we have no comparisons, we're done.
+      // If there's nothing to load from the URL, we're done fetching.
       if (!needsLoading) {
+        // Even though we don't need to fetch, the URL might still contain raw duplicates 
+        // Sync the URL here to immediately clean up those duplicate parameters.
+        const currentKeys = Array.from(comparisonRaws.keys());
+        const urlString = formatMultipleUsernamesForUrl(mainPlayerCurrentId, currentKeys);
+        const newUrl = `/graph/${currentSeasonId}/${urlString}`;
+        
+        if (onUrlChange && window.location.pathname !== newUrl) {
+          onUrlChange(newUrl);
+        }
         return;
       }
 
