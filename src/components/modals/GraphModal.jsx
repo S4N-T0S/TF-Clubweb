@@ -90,7 +90,36 @@ const PlayerStatsModal = ({ stats, gameCount, playerName, onClose }) => {
   const modalOptions = useMemo(() => ({ type: 'nested' }), []);
   const { modalRef } = useModal(true, onClose, modalOptions);
 
-  if (!stats) return null;
+  // If there are no stats, show a helpful empty state instead of returning null
+  if (!stats) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
+        <div ref={modalRef} className="bg-gray-800 rounded-2xl p-6 max-w-sm w-full border border-gray-700 shadow-2xl relative flex flex-col items-center text-center">
+          <button onClick={onClose} aria-label="Close stats" className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors bg-gray-700/50 hover:bg-gray-700 p-1.5 rounded-lg">
+            <X className="w-5 h-5" />
+          </button>
+          
+          <div className="mb-4 mt-2">
+            <div className="p-4 bg-gray-900/80 rounded-full border border-gray-700 shadow-inner">
+              <Info className="w-8 h-8 text-blue-400 opacity-80" />
+            </div>
+          </div>
+          
+          <h3 className="text-xl font-bold text-white mb-2 w-full truncate px-4">
+            {playerName ? `${playerName}'s Stats` : 'Seasonal Statistics'}
+          </h3>
+          
+          <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+            We haven&apos;t tracked enough games for this player in this season to generate meaningful statistics.
+          </p>
+          
+          <button onClick={onClose} className="w-full px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-xl transition-all active:scale-95 border border-gray-600 shadow-sm">
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
