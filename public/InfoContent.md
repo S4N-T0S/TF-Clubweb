@@ -81,7 +81,7 @@ https://API.ogclub.s4nt0s.eu
 
 #### Core Concepts
 
-*   **Seasons:** The API's data is partitioned by "seasons". Each season has a unique `id` and `name`. The frontend will need to allow users to select a season, especially for viewing player graphs. The current season is `8`. (as this is writen)
+*   **Seasons:** The API's data is partitioned by "seasons". Each season has a unique `id` and `name`. The frontend will need to allow users to select a season, especially for viewing player graphs. The current season is `10`. (as this is written)
 *   **Player Identity:** A player is identified by an "Embark ID" (e.g., `Username#1234`). Players can change their Embark ID. The backend tracks these changes using a permanent, internal ID. API responses will always provide the player's *current* Embark ID, along with their name change history where relevant.
 *   **Public Authentication:** The `/graph` endpoint is a POST request and requires a public auth token to be sent in the request body. (This endpoint still has token in case of floods in future)
 
@@ -134,7 +134,7 @@ https://API.ogclub.s4nt0s.eu
     ```json
     {
       "embarkId": "00#0000", // A player's Embark ID (current or historical)
-      "seasonId": 8, // Optional. Defaults to the current season if not provided.
+      "seasonId": 10, // Optional. Defaults to the current season if not provided.
       "token": "not-secret" // The required auth token.
     }
     ```
@@ -175,7 +175,7 @@ https://API.ogclub.s4nt0s.eu
     This occurs if the player has no data for the *requested* season. The `availableSeasons` key is still returned if the player was found in other seasons, which is useful for redirecting the user.
     ```typescript
     interface GraphNotFoundResponse {
-      error: string; // e.g., "Not Found: Player has no data recorded for Season 8."
+      error: string; // e.g., "Not Found: Player has no data recorded for Season 10."
       embarkId: string; // The ID that was searched for.
       seasonId: number; // The season that was searched for.
       availableSeasons: {
@@ -194,7 +194,7 @@ https://API.ogclub.s4nt0s.eu
 *   **Auth:** None.
 *   **Purpose:** Fetches a feed of all significant player events (name changes, suspected bans, etc.) for a given season. This is for a live "event feed" on the site. If `:seasonId` is omitted, it defaults to the current season.
 *   **Path Parameters:**
-*   `seasonId` (optional, number): The ID of the season to fetch events for (e.g., `8`). Only seasons with event tracking support (Season 7 and newer) will return data.
+    *   `seasonId` (optional, number): The ID of the season to fetch events for (e.g., `10`). Only seasons with event tracking support (Season 7 and newer) will return data.
 *   **Response Structure:**
     ```typescript
     interface EventsResponse {
@@ -315,6 +315,32 @@ https://API.ogclub.s4nt0s.eu
           club_uuid: string;
         }
         ```
+
+#### 4. Get Season Cutoffs (Top 500) - Under development
+
+*   **Endpoint:** `GET /graph/cutoffs/:seasonId?`
+*   **Auth:** None.
+*   **Purpose:** Fetches the historical curve of the Top 500 Rank Score cutoff for a given season in 12-hour increments. This is used to plot the "Top 500 Threshold" line on player profile graphs. If `:seasonId` is omitted, it defaults to the current season.
+*   **Path Parameters:**
+    *   `seasonId` (optional, number): The ID of the season to fetch cutoff data for (e.g., `10`).
+*   **Response Structure:**
+    ```typescript
+    interface CutoffResponse {
+      seasonId: number;
+      data: CutoffDataPoint[];
+    }
+
+    interface CutoffDataPoint {
+      timestamp: number; // Unix timestamp marking the end of the 12-hour bucket
+      cutoff: number; // The Rank Score required to enter the Top 500 at this time
+      
+      // True if the data point is a statistical estimate due to legacy API tracking limitations
+      // (primarily occurs in Season 5 through mid-Season 7). The frontend should ideally 
+      // render these specific segments as dashed or dotted lines.
+      estimated: boolean; 
+    }
+    ```
+
 ---
 
 ## [SOURCE] - Open Source
