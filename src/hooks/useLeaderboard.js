@@ -147,7 +147,13 @@ export const useLeaderboard = (autoRefresh) => {
       
       const processedData = processLeaderboardData(rawData.data);
 
-      setData({ ...processedData, lastUpdated: rawData.timestamp });
+      setData({
+        ...processedData,
+        lastUpdated: {
+          timestamp: rawData.timestamp,
+          lastCheck: rawData.lastCheck
+        }
+      });
       setError(null);
       
       // --- REFINED TOAST LOGIC --

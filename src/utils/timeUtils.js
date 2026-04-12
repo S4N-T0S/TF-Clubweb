@@ -1,44 +1,41 @@
 /**
  * Formats a date object or a date string into a "time ago" string.
  * @param {Date|string|number} date - The date to format.
- * @returns {string} A string like "5 minutes ago", "2 hours ago", etc.
+ * @param {boolean} short - Whether to use short units (e.g., "mins" vs "minutes").
+ * @returns {string} 
  */
-export const formatTimeAgo = (date) => {
+export const formatTimeAgo = (date, short = false) => {
   if (!date) return '';
   // Timestamps from the API are in milliseconds, which new Date() handles correctly.
   const d = new Date(date);
-  if (isNaN(d.getTime())) return ''; // Invalid date check
+  if (isNaN(d.getTime())) return '';
 
   const seconds = Math.floor((new Date() - d) / 1000);
-
   if (seconds < 5) return 'just now';
 
+  // Helper to handle pluralization and unit choice
+  const getLabel = (value, longUnit, shortUnit) => {
+    const unit = short ? shortUnit : longUnit;
+    // We add 's' if value > 1 (e.g., 1 min ago vs 2 mins ago)
+    return `${value} ${unit}${value > 1 ? 's' : ''} ago`;
+  };
+
   let interval = seconds / 31536000;
-  if (interval > 1) {
-    const years = Math.floor(interval);
-    return `${years} year${years > 1 ? 's' : ''} ago`;
-  }
+  if (interval > 1) return getLabel(Math.floor(interval), 'year', 'yr');
+  
   interval = seconds / 2592000;
-  if (interval > 1) {
-    const months = Math.floor(interval);
-    return `${months} month${months > 1 ? 's' : ''} ago`;
-  }
+  if (interval > 1) return getLabel(Math.floor(interval), 'month', 'mo');
+  
   interval = seconds / 86400;
-  if (interval > 1) {
-    const days = Math.floor(interval);
-    return `${days} day${days > 1 ? 's' : ''} ago`;
-  }
+  if (interval > 1) return getLabel(Math.floor(interval), 'day', 'day');
+  
   interval = seconds / 3600;
-  if (interval > 1) {
-    const hours = Math.floor(interval);
-    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-  }
+  if (interval > 1) return getLabel(Math.floor(interval), 'hour', 'hr');
+  
   interval = seconds / 60;
-  if (interval > 1) {
-    const minutes = Math.floor(interval);
-    return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-  }
-  return `${Math.floor(seconds)} second${Math.floor(seconds) > 1 ? 's' : ''} ago`;
+  if (interval > 1) return getLabel(Math.floor(interval), 'minute', 'min');
+  
+  return getLabel(Math.floor(seconds), 'second', 'sec');
 };
 
 /**
