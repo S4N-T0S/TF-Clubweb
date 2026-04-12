@@ -222,9 +222,18 @@ export const useLeaderboard = (autoRefresh) => {
     }
 
     const now = Date.now();
-    // Add a small random buffer (2-6 seconds) to prevent all clients from refreshing at the exact same time
-    const buffer = (Math.random() * 4000) + 2000;
-    const delay = cacheExpiresAt > now ? cacheExpiresAt - now + buffer : buffer;
+    let delay;
+
+    if (cacheExpiresAt > now) {
+      // Future expiration: Add a small random buffer (2-6 seconds) to prevent all 
+      // clients from refreshing at the exact same time when the cache naturally expires.
+      const buffer = (Math.random() * 4000) + 2000;
+      delay = (cacheExpiresAt - now) + buffer;
+    } else {
+      // Cache already expired (e.g., user just tabbed back in after a long time).
+      // Fetch immediately without a buffer so the user doesn't see stale data.
+      delay = 0;
+    }
 
     const timer = setTimeout(() => {
       // Re-check autoRefresh state inside timeout in case it was toggled off while waiting

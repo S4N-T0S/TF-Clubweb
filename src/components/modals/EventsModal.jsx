@@ -408,7 +408,15 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     }
 
     const now = Date.now();
-    const delay = cacheExpiresAt > now ? cacheExpiresAt - now : 0;
+    let delay;
+    
+    if (cacheExpiresAt > now) {
+      // Future expiration: add a 2-second buffer to ensure the backend cache has cleared
+      delay = (cacheExpiresAt - now) + 2000;
+    } else {
+      // Already expired (e.g., user tabbed back in): fetch immediately
+      delay = 0;
+    }
     
     const timer = setTimeout(() => {
       // Double check in case state changed
@@ -419,7 +427,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
         const shouldForce = !!error;
         forceLoadWithAnimation(shouldForce);
       }
-    }, delay + 1000);
+    }, delay);
 
     // This cleanup function is crucial. It runs when the component unmounts
     // or when any of its dependencies (like `isOpen` or `isTopModal`) change.
