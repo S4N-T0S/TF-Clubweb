@@ -94,7 +94,10 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
   useEffect(() => {
     if (isOpen && globalLeaderboard.length > 0) {
       const loadData = async () => {
-        setLoading(true);
+        // We intentionally do NOT call setLoading(true) here. 
+        // It is initialized to true on mount. By not setting it to true on 
+        // subsequent updates, we prevent the UI from flashing and resetting 
+        // the scroll position when the globalLeaderboard auto-refreshes.
         try {
           const spreadsheetData = await fetchClubMembers();
           const processedMembers = calculateMemberStatus(globalLeaderboard, spreadsheetData);
@@ -218,10 +221,10 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
              <div className="text-center text-gray-500 mt-8">No members found matching your criteria.</div>
            ) : (
              <div className="flex flex-col gap-2">
-                {filteredMembers.map((member, idx) => (
+                {filteredMembers.map((member) => (
                     <MemberRow 
-                        key={`${member.name}-${idx}`} 
-                        member={member} 
+                        key={member.name}
+                        member={member}
                         onGraphOpen={onGraphOpen}
                         onSearch={onPlayerSearch}
                     />
