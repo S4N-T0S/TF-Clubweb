@@ -22,10 +22,11 @@ import { Line } from 'react-chartjs-2';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import 'chartjs-adapter-date-fns';
-import { GraphModalProps, GraphErrorViewProps, ComparePlayerModalProps, GraphSettingsModalProps, FilterToggleButtonProps, PlayerStatsModalProps } from '../../types/propTypes';
+import { GraphModalProps, GraphErrorViewProps, ComparePlayerModalProps, GraphSettingsModalProps, FilterToggleButtonProps, PlayerStatsModalProps, LiveUpdateBadgeProps } from '../../types/propTypes';
 import { useModal } from '../../context/ModalProvider';
 import { usePlayerGraphData } from '../../hooks/usePlayerGraphData';
 import { useChartConfig } from '../../hooks/useChartConfig';
+import { useVisibility } from '../../hooks/useVisibility';
 import { LoadingDisplay } from '../LoadingDisplay';
 import { SearchBar } from '../SearchBar';
 import { getStoredGraphSettings, setStoredGraphSettings } from '../../services/localStorageManager';
@@ -84,6 +85,66 @@ const FilterToggleButton = ({ label, isActive, onClick, Icon, textColorClass, ac
       {Icon && <Icon className={`w-4 h-4 ${isActive ? textColorClass : 'text-gray-400'}`} />}
       <span className={isActive ? textColorClass : 'text-gray-400 font-medium'}>{label}</span>
     </button>
+  );
+};
+
+const LiveUpdateBadge = ({ lastLeaderboardUpdate, startDateStr }) => {
+  const [, setTick] = useState(0);
+  const isVisible = useVisibility();
+
+  useEffect(() => {
+    if (!isVisible) return;
+
+    // Update every minute to keep the "time ago" string smoothly ticking
+    const interval = setInterval(() => setTick(t => t + 1), 60000);
+
+    return () => clearInterval(interval);
+  }, [isVisible]);
+
+  const ts = lastLeaderboardUpdate.timestamp;
+  const lc = lastLeaderboardUpdate.lastCheck || ts; // fallback if check is missing
+
+  const now = Date.now();
+  const tsAgeMs = now - ts;
+  const lcAgeMs = now - lc;
+
+  // Logic Thresholds
+  const fifteenMins = 15 * 60 * 1000;
+  const fortyFiveMins = 45 * 60 * 1000;
+  const twoHours = 2 * 60 * 60 * 1000;
+
+  let dotColor = 'bg-emerald-500';
+  let dotShadow = 'shadow-[0_0_4px_rgba(16,185,129,0.8)]';
+  let statusMsg = 'This represents when the leaderboard last updated. Everything auto updates, you do not need to refresh.';
+
+  if (lcAgeMs >= fortyFiveMins) {
+    dotColor = 'bg-rose-500';
+    dotShadow = 'shadow-[0_0_4px_rgba(244,63,94,0.8)]';
+    statusMsg = 'Server connection is unstable. Please contact an admin if this persists. Everything auto updates.';
+  } else if (tsAgeMs >= twoHours || lcAgeMs >= fifteenMins) {
+    dotColor = 'bg-orange-500';
+    dotShadow = 'shadow-[0_0_4px_rgba(249,115,22,0.8)]';
+    statusMsg = 'The leaderboard has not changed recently or data is slightly delayed. Everything auto updates.';
+  }
+
+  // Use formatTimeAgo from timeUtils.js
+  const rawAgoStr = formatTimeAgo(ts, true);
+  const agoStr = rawAgoStr.charAt(0).toUpperCase() + rawAgoStr.slice(1);
+
+  return (
+    <>
+      <span className="text-gray-400">{startDateStr}</span>
+      <span className="text-gray-600 text-xs mt-0.5">to</span>
+      <span className="relative group inline-flex items-center">
+        <span className="cursor-help inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-gray-700 bg-gray-800/80 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
+          <span className={`w-1.5 h-1.5 rounded-full ${dotColor} ${dotShadow}`}></span>
+          {agoStr}
+        </span>
+        <span className="absolute top-full left-0 mt-2 w-max max-w-[80vw] sm:max-w-[250px] bg-gray-900 text-white text-left text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30 shadow-lg border border-gray-700 whitespace-normal">
+          {statusMsg}
+        </span>
+      </span>
+    </>
   );
 };
 
@@ -986,56 +1047,11 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                       const opts = { day: 'numeric', month: 'short' };
                       if (needsYear) opts.year = 'numeric';
                       const startDateStr = start.toLocaleDateString(undefined, opts);
-                    
+
                       // If it's a live season and we have update data
                       if (!isHistoricalSeason && lastLeaderboardUpdate) {
-                        const ts = lastLeaderboardUpdate.timestamp;
-                        const lc = lastLeaderboardUpdate.lastCheck || ts; // fallback if check is missing
-                      
-                        const now = Date.now();
-                        const tsAgeMs = now - ts;
-                        const lcAgeMs = now - lc;
-                      
-                        // Logic Thresholds
-                        const fifteenMins = 15 * 60 * 1000;
-                        const fortyFiveMins = 45 * 60 * 1000;
-                        const twoHours = 2 * 60 * 60 * 1000;
-                      
-                        let dotColor = 'bg-emerald-500';
-                        let dotShadow = 'shadow-[0_0_4px_rgba(16,185,129,0.8)]';
-                        let statusMsg = 'This represents when the leaderboard last updated. Everything auto updates, you do not need to refresh.';
-                      
-                        if (lcAgeMs >= fortyFiveMins) {
-                          dotColor = 'bg-rose-500';
-                          dotShadow = 'shadow-[0_0_4px_rgba(244,63,94,0.8)]';
-                          statusMsg = 'Server connection is unstable. Please contact an admin if this persists. Everything auto updates.';
-                        } else if (tsAgeMs >= twoHours || lcAgeMs >= fifteenMins) {
-                          dotColor = 'bg-orange-500';
-                          dotShadow = 'shadow-[0_0_4px_rgba(249,115,22,0.8)]';
-                          statusMsg = 'The leaderboard has not changed recently or data is slightly delayed. Everything auto updates.';
-                        }
-                      
-                        // Use formatTimeAgo from timeUtils.js
-                        const rawAgoStr = formatTimeAgo(ts, true);
-                        const agoStr = rawAgoStr.charAt(0).toUpperCase() + rawAgoStr.slice(1);
-                      
-                        return (
-                          <>
-                            <span className="text-gray-400">{startDateStr}</span>
-                            <span className="text-gray-600 text-xs mt-0.5">to</span>
-                            <span className="relative group inline-flex items-center">
-                              <span className="cursor-help inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-gray-700 bg-gray-800/80 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
-                                <span className={`w-1.5 h-1.5 rounded-full ${dotColor} ${dotShadow}`}></span>
-                                {agoStr}
-                              </span>
-                              <span className="absolute top-full left-0 mt-2 w-max max-w-[80vw] sm:max-w-[250px] bg-gray-900 text-white text-left text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30 shadow-lg border border-gray-700 whitespace-normal">
-                                {statusMsg}
-                              </span>
-                            </span>
-                          </>
-                        );
+                        return <LiveUpdateBadge lastLeaderboardUpdate={lastLeaderboardUpdate} startDateStr={startDateStr} />;
                       }
-                    
                       // Fallback for historical seasons
                       return `${startDateStr} - ${end.toLocaleDateString(undefined, opts)}`;
                     })()}
@@ -1208,5 +1224,6 @@ ComparePlayerModal.propTypes = ComparePlayerModalProps;
 GraphSettingsModal.propTypes = GraphSettingsModalProps;
 FilterToggleButton.propTypes = FilterToggleButtonProps;
 PlayerStatsModal.propTypes = PlayerStatsModalProps;
+LiveUpdateBadge.propTypes = LiveUpdateBadgeProps;
 
 export default memo(GraphModal);

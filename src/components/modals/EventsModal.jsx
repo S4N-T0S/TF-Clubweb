@@ -3,6 +3,7 @@ import { fetchRecentEvents, fetchAllSeasonsEvents } from '../../services/ev-api'
 import { usePagination } from '../../hooks/usePagination';
 import { useSwipe } from '../../hooks/useSwipe';
 import { useModal } from '../../context/ModalProvider';
+import { useVisibility } from '../../hooks/useVisibility';
 import { SearchBar } from '../SearchBar';
 import { Pagination } from '../Pagination';
 import { LoadingDisplay } from '../LoadingDisplay';
@@ -187,6 +188,7 @@ const isQueryInEvent = (event, query) => {
 export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubClick, onGraphOpen, showToast }) => {
   // `useModal` now also returns `isActive`, which handles animation state internally based on the modal stack.
   const { modalRef, isTopModal, isActive } = useModal(isOpen, onClose);
+  const isVisible = useVisibility();
   const searchInputRef = useRef(null);
   const scrollContainerRef = useRef(null); // Ref for the scrollable content area
   const scrollPositionRef = useRef(0); // Ref to store the scroll position
@@ -226,7 +228,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
       .filter(([, season]) => season.hasEvents)
       .map(([key, season]) => ({ key, label: season.label }))
       .sort((a, b) => SEASONS[b.key].id - SEASONS[a.key].id); // Sort descending by season ID
-      
+
     // Prepend "All Seasons" option
     return [
       { key: 'ALL', label: 'All Seasons' },
@@ -274,7 +276,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
 
     try {
       let result;
-      
+
       if (seasonToLoad === 'ALL') {
         // Use the aggregate fetcher for "All Seasons"
         result = await fetchAllSeasonsEvents(forceRefresh);
@@ -282,7 +284,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
         // Use the single season fetcher
         result = await fetchRecentEvents(forceRefresh, seasonToLoad);
       }
-      
+
       const newEvents = result.data;
       setEvents(newEvents);
       setCacheExpiresAt(result.expiresAt || 0);
@@ -293,12 +295,12 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
         const failedLabels = result.failedSeasons
             .map(k => SEASONS[k]?.label || k)
             .join(', ');
-        
-        showToast({ 
-            title: 'Loaded partial events data.',
-            message: `Failed to load: ${failedLabels}`,
-            type: 'warning',
-            duration: 5000
+
+        showToast({
+          title: 'Loaded partial events data.',
+          message: `Failed to load: ${failedLabels}`,
+          type: 'warning',
+          duration: 5000
         });
       }
 
@@ -382,9 +384,9 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     // Auto-focus the search input on desktop when the modal opens.
     if (isOpen && searchInputRef.current && !isMobile) {
       setTimeout(() => {
-          if (searchInputRef.current) {
-              searchInputRef.current.focus();
-          }
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
       }, 100);
     }
   }, [isOpen, isMobile]);
@@ -400,9 +402,9 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
 
   // Auto-refresh timer: sets when modal opens, clears when it closes.
   useEffect(() => {
-    // Refresh if: Open, Top Modal, Auto-Refresh ON, Has Expiry, AND (Current Season OR All Seasons).
-    if (!isOpen || !isTopModal || !autoRefresh || !cacheExpiresAt || !canAutoRefresh) {
-      return; // Do nothing if modal is closed, not on top, auto-refresh is off, no expiry time, or not current season.
+    // Refresh if: Open, Top Modal, Auto-Refresh ON, Has Expiry, AND (Current Season OR All Seasons), AND Visible.
+    if (!isOpen || !isTopModal || !autoRefresh || !cacheExpiresAt || !canAutoRefresh || !isVisible) {
+      return; // Do nothing if modal is closed, not on top, auto-refresh is off, no expiry time, not current season, or hidden.
     }
 
     const now = Date.now();
@@ -422,16 +424,16 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     // This cleanup function is crucial. It runs when the component unmounts
     // or when any of its dependencies (like `isOpen` or `isTopModal`) change.
     return () => {
-        clearTimeout(timer);
+      clearTimeout(timer);
     };
-  }, [isOpen, isTopModal, autoRefresh, cacheExpiresAt, forceLoadWithAnimation, canAutoRefresh, error]);
+  }, [isOpen, isTopModal, autoRefresh, cacheExpiresAt, forceLoadWithAnimation, canAutoRefresh, error, isVisible]);
 
   const toggleAutoRefresh = () => {
     const nextState = !autoRefresh;
     setAutoRefresh(nextState);
     showToast({
-        message: `Events Auto-Update turned ${nextState ? 'on' : 'off'}.`,
-        type: nextState ? 'success' : 'info'
+      message: `Events Auto-Update turned ${nextState ? 'on' : 'off'}.`,
+      type: nextState ? 'success' : 'info'
     });
   };
 
@@ -457,9 +459,9 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   const filteredEvents = useMemo(() => {
     // Sort events by their most recent timestamp (endTimestamp or startTimestamp)
     const sortedEvents = [...events].sort((a, b) => {
-        const timeA = a.endTimestamp || a.startTimestamp;
-        const timeB = b.endTimestamp || b.startTimestamp;
-        return timeB - timeA; // Sort descending
+      const timeA = a.endTimestamp || a.startTimestamp;
+      const timeB = b.endTimestamp || b.startTimestamp;
+      return timeB - timeA; // Sort descending
     });
       
     return sortedEvents.filter(event => {

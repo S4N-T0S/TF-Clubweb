@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchLeaderboardData } from '../services/lb-api';
 import { processLeaderboardData } from '../utils/dataProcessing';
 import { clearCacheStartingWith } from '../services/idbCache';
+import { useVisibility } from './useVisibility';
 
 const MAX_ACCEPTABLE_AGE = 35 * 60; // 35 minutes in seconds
 const MAX_STALE_AGE_FOR_ERROR = 60 * 60; // 60 minutes
@@ -87,6 +88,7 @@ const getToastConfig = (source, timestamp, lastCheck, ttl) => {
 export const useLeaderboard = (autoRefresh) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const isVisible = useVisibility();
   const [data, setData] = useState({
     topClubs: [],
     globalLeaderboard: [],
@@ -215,7 +217,7 @@ export const useLeaderboard = (autoRefresh) => {
 
   // Auto-refresh timer logic (and retry-on-error handler)
   useEffect(() => {
-    if (!autoRefresh || !cacheExpiresAt || !initialLoadDone.current) {
+    if (!autoRefresh || !cacheExpiresAt || !initialLoadDone.current || !isVisible) {
       return;
     }
 
@@ -236,7 +238,7 @@ export const useLeaderboard = (autoRefresh) => {
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [autoRefresh, cacheExpiresAt, refreshData, error]);
+  }, [autoRefresh, cacheExpiresAt, refreshData, error, isVisible]);
 
   return {
     ...data,

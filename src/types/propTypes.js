@@ -374,3 +374,11 @@ export const SEOHeadProps = {
   eventsModalOpen: PropTypes.bool,
   infoModalOpen: PropTypes.bool
 };
+
+export const LiveUpdateBadgeProps = {
+  lastLeaderboardUpdate: PropTypes.shape({
+    timestamp: PropTypes.number.isRequired,
+    lastCheck: PropTypes.number
+  }).isRequired,
+  startDateStr: PropTypes.string.isRequired
+};
