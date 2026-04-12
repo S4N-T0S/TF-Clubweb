@@ -109,7 +109,7 @@ const LiveUpdateBadge = ({ lastLeaderboardUpdate, startDateStr }) => {
   const lcAgeMs = now - lc;
 
   // Logic Thresholds
-  const fifteenMins = 15 * 60 * 1000;
+  const twentyMins = 20 * 60 * 1000;
   const fortyFiveMins = 45 * 60 * 1000;
   const twoHours = 2 * 60 * 60 * 1000;
 
@@ -121,7 +121,7 @@ const LiveUpdateBadge = ({ lastLeaderboardUpdate, startDateStr }) => {
     dotColor = 'bg-rose-500';
     dotShadow = 'shadow-[0_0_4px_rgba(244,63,94,0.8)]';
     statusMsg = 'Server connection is unstable. Please contact an admin if this persists. Everything auto updates.';
-  } else if (tsAgeMs >= twoHours || lcAgeMs >= fifteenMins) {
+  } else if (tsAgeMs >= twoHours || lcAgeMs >= twentyMins) {
     dotColor = 'bg-orange-500';
     dotShadow = 'shadow-[0_0_4px_rgba(249,115,22,0.8)]';
     statusMsg = 'The leaderboard has not changed recently or data is slightly delayed. Everything auto updates.';
