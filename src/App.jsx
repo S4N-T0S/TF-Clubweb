@@ -2,6 +2,7 @@ import { useParams, useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { useLeaderboard } from './hooks/useLeaderboard';
+import { useVersionCheck } from './hooks/useVersionCheck';
 import { ClubsView } from './components/views/ClubsView';
 import { GlobalView } from './components/views/GlobalView';
 import { HubView } from './components/views/HubView';
@@ -13,6 +14,7 @@ import { useMobileDetect } from './hooks/useMobileDetect';
 import SearchModal from './components/modals/SearchModal';
 import EventsModal from './components/modals/EventsModal';
 import MembersModal from './components/modals/MembersModal';
+import { UpdateModal } from './components/modals/UpdateModal';
 import Toast from './components/Toast';
 import { getStoredTab, setStoredTab, cleanupDeprecatedCache } from './services/localStorageManager';
 import { ModalProvider } from './context/ModalProvider';
@@ -33,6 +35,9 @@ const App = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { graph, season: seasonIdFromUrl, history } = useParams();
+  
+  // Check for frontend updates every 5 minutes
+  const updateAvailable = useVersionCheck(5 * 60 * 1000);
 
   // --> Global View State
   const [view, setView] = useState(() => {
@@ -278,6 +283,8 @@ const App = () => {
   return (
     <div className="min-h-screen bg-gray-900 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
       <ModalProvider>
+        <UpdateModal isVisible={updateAvailable} />
+
         <SEOHead
           view={view}
           searchModalState={{ isOpen: isSearchOpen, initialSearch: initialSearchQuery }}

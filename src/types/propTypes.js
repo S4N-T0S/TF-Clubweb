@@ -382,3 +382,7 @@ export const LiveUpdateBadgeProps = {
   }).isRequired,
   startDateStr: PropTypes.string.isRequired
 };
+
+export const UpdateModalProps = {
+  isVisible: PropTypes.bool.isRequired
+};
