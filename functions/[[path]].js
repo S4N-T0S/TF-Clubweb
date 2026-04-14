@@ -13,7 +13,8 @@ const BASE_URL = 'https://ogclub.s4nt0s.eu';
 // Default to a fallback season for legacy URLs
 const FALLBACK_SEASON_ID = '10';
 
-const BOT_USER_AGENTS = /bot|crawler|spider|crawling|facebookexternalhit|twitterbot|discordbot|whatsapp|skype|slack|line|vkshare|telegram|applebot|bingbot/i;
+const BOT_USER_AGENTS = /bot|crawler|spider|crawling|facebookexternalhit|meta-external|chatgpt|perplexity|anthropic|claude-web|cohere|googleother|google-inspectiontool|slurp|qwantify|whatsapp|skype|slack|line|vkshare|telegram/i;
+const STATIC_ASSET_REGEX = /\.(js|css|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|eot|mp4|webm|json|md|xml|webmanifest|txt|map)$/i;
 
 /**
  * Sanitise HTML
@@ -219,8 +220,8 @@ export async function onRequest({ request, next }) {
   const url = new URL(request.url);
   const userAgent = request.headers.get('User-Agent') || '';
 
-  // Ignore asset requests or anything with a file extension
-  if (url.pathname.startsWith('/assets') || url.pathname.includes('.')) {
+  // Ignore asset requests or anything with a pre-known static asset
+  if (url.pathname.startsWith('/assets') || STATIC_ASSET_REGEX.test(url.pathname)) {
     return next();
   }
 
