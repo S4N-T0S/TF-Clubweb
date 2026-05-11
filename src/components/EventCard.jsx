@@ -9,21 +9,45 @@ import {
   TrendingUp,   // Added for RS adjustments
   TrendingDown, // Added for RS adjustments
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { formatTimeAgo, formatDuration } from '../utils/timeUtils';
+import { buildHistoryHref, buildGraphHref } from '../utils/modalHrefs';
 import { EventCardProps, EventCard_PlayerNameProps, EventCard_ClubTagProps } from '../types/propTypes';
 
-// Helper component for clickable player names
-const PlayerName = ({ name, onPlayerSearch }) => (
-  <span
-    className="font-semibold text-gray-300 hover:text-blue-400 cursor-pointer"
-    onClick={(e) => {
-      e.stopPropagation();
-      onPlayerSearch(name);
-    }}
-  >
-    {name}
-  </span>
-);
+// Helper component for clickable player names.
+// Renders a real <Link to="/history/<name>"> when the name can be encoded
+const PlayerName = ({ name, onPlayerSearch }) => {
+  const href = buildHistoryHref(name);
+  const className = "font-semibold text-gray-300 hover:text-blue-400 cursor-pointer";
+
+  if (!href) {
+    return (
+      <span
+        className={className}
+        onClick={(e) => {
+          e.stopPropagation();
+          onPlayerSearch(name);
+        }}
+      >
+        {name}
+      </span>
+    );
+  }
+
+  return (
+    <Link
+      to={href}
+      className={className}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onPlayerSearch(name);
+      }}
+    >
+      {name}
+    </Link>
+  );
+};
 
 // Helper component for clickable club tags
 const ClubTag = ({ tag, onClubClick }) => (
@@ -320,12 +344,24 @@ export const EventCard = ({ event, onPlayerSearch, onClubClick, onGraphOpen, isM
           
           {/* Only show the graph icon if a player ID is associated with the event.
               CLUB_RENAME events have a null current_embark_id. */}
-          {event.current_embark_id && (
-            <LineChart
-              className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer flex-shrink-0"
-              onClick={handleGraphClick}
-            />
-          )}
+          {event.current_embark_id && (() => {
+            const graphHref = buildGraphHref(event.current_embark_id, event.seasonKey);
+            return graphHref ? (
+              <Link
+                to={graphHref}
+                onClick={(e) => { e.preventDefault(); handleGraphClick(); }}
+                aria-label={`View graph for ${event.current_embark_id}`}
+                className="flex-shrink-0"
+              >
+                <LineChart className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer" />
+              </Link>
+            ) : (
+              <LineChart
+                className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer flex-shrink-0"
+                onClick={handleGraphClick}
+              />
+            );
+          })()}
         </div>
         
         {/* Event Details Content */}

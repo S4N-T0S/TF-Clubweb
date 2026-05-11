@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Users, Trophy, Globe, UserSearch, Zap, Info, House } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { DashboardHeaderProps, ViewButtonProps } from '../types/propTypes';
 
-const ViewButton = ({ active, onClick, icon, text }) => (
-  <button
+const ViewButton = ({ active, to, onClick, icon, text }) => (
+  <Link
+    to={to}
     onClick={onClick}
     className={`px-4 py-2 rounded-lg flex items-center justify-center gap-1.5 whitespace-nowrap text-base ${
       active 
@@ -14,7 +15,7 @@ const ViewButton = ({ active, onClick, icon, text }) => (
   >
     {icon}
     <span className="hidden sm:inline">{text}</span>
-  </button>
+  </Link>
 );
 
 export const DashboardHeader = ({ 
@@ -25,7 +26,6 @@ export const DashboardHeader = ({
   onOpenMembers,
   isMobile,
 }) => {
-  const navigate = useNavigate();
   const [isScrolledToBottom, setIsScrolledToBottom] = useState(false);
   const [isAnimatingZap, setIsAnimatingZap] = useState(true);
 
@@ -53,8 +53,8 @@ export const DashboardHeader = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, [isMobile]);
 
-  const handleNav = (path) => {
-    navigate(path);
+  // Scroll to top on mobile after a tab nav. The <Link> handles the URL change itself.
+  const handleTabNavClick = () => {
     if (isMobile) window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -94,9 +94,14 @@ export const DashboardHeader = ({
           <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2">
             <div className="flex items-center gap-2">
               <h1 className="text-2xl lg:text-3xl font-bold text-white whitespace-nowrap">OG Club Dashboard</h1>
-              <button onClick={onOpenInfo} title="Information" className="text-gray-400 hover:text-white transition-colors">
+              <Link
+                to="/info"
+                onClick={(e) => { e.preventDefault(); onOpenInfo(); }}
+                title="Information"
+                className="text-gray-400 hover:text-white transition-colors"
+              >
                 <Info className="w-5 h-5"/>
-              </button>
+              </Link>
             </div>
           </div>
           <div className="flex items-center gap-2 ml-auto">
@@ -104,24 +109,28 @@ export const DashboardHeader = ({
               <div className="flex items-center gap-2 flex-nowrap">
                 <ViewButton
                   active={view === 'hub'}
-                  onClick={() => handleNav('/hub')}
+                  to="/hub"
+                  onClick={handleTabNavClick}
                   icon={<House className="w-4 h-4" />}
                   text="Hub"
                 />
                 <ViewButton
                   active={view === 'clubs'}
-                  onClick={() => handleNav('/clubs')}
+                  to="/clubs"
+                  onClick={handleTabNavClick}
                   icon={<Trophy className="w-4 h-4" />}
                   text="Top Clubs"
                 />
                 <ViewButton
                   active={view === 'global'}
-                  onClick={() => handleNav('/leaderboard')}
+                  to="/leaderboard"
+                  onClick={handleTabNavClick}
                   icon={<Globe className="w-4 h-4" />}
                   text="Leaderboard"
                 />
-                <button
-                  onClick={onOpenEvents}
+                <Link
+                  to="/events"
+                  onClick={(e) => { e.preventDefault(); onOpenEvents(); }}
                   className="relative px-4 py-2 rounded-lg flex items-center justify-center bg-gray-700 text-gray-300 hover:bg-gray-600 w-full sm:w-auto"
                   title="Events Feed"
                 >
@@ -131,28 +140,31 @@ export const DashboardHeader = ({
                   {isAnimatingZap && (
                     <Zap className="absolute w-4 h-4 text-amber-200 animate-zap-charge" />
                   )}
-                </button>
-                <button
-                  onClick={onOpenSearch}
+                </Link>
+                <Link
+                  to="/history"
+                  onClick={(e) => { e.preventDefault(); onOpenSearch(); }}
                   className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 
                     bg-gray-700 text-gray-300 hover:bg-gray-600 w-full sm:w-auto"
                   title="Historical Search"
                 >
                   <UserSearch className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={onOpenMembers}
+                </Link>
+                <Link
+                  to="/members"
+                  onClick={(e) => { e.preventDefault(); onOpenMembers(); }}
                   className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 
                     bg-gray-700 text-gray-300 hover:bg-gray-600 w-full sm:w-auto"
                   title="OG Club Members"
                 >
                   <Users className="w-4 h-4" />
-                </button>
+                </Link>
               </div>
             ) : (
               <div className="flex justify-end gap-2 w-full">
-                <button
-                  onClick={onOpenEvents}
+                <Link
+                  to="/events"
+                  onClick={(e) => { e.preventDefault(); onOpenEvents(); }}
                   className="relative px-4 py-2 rounded-lg flex items-center justify-center bg-gray-700 text-gray-300 hover:bg-gray-600"
                 >
                   {/* Base icon, changes to yellow during anim */}
@@ -161,21 +173,23 @@ export const DashboardHeader = ({
                   {isAnimatingZap && (
                     <Zap className="absolute w-4 h-4 text-amber-200 animate-zap-charge" />
                   )}
-                </button>
-                <button
-                  onClick={onOpenSearch}
+                </Link>
+                <Link
+                  to="/history"
+                  onClick={(e) => { e.preventDefault(); onOpenSearch(); }}
                   className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 
                     bg-gray-700 text-gray-300 hover:bg-gray-600"
                 >
                   <UserSearch className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={onOpenMembers}
+                </Link>
+                <Link
+                  to="/members"
+                  onClick={(e) => { e.preventDefault(); onOpenMembers(); }}
                   className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 
                     bg-gray-700 text-gray-300 hover:bg-gray-600"
                 >
                   <Users className="w-4 h-4" />
-                </button>
+                </Link>
               </div>
             )}
           </div>
@@ -185,30 +199,33 @@ export const DashboardHeader = ({
       {isMobile && !isScrolledToBottom && (
         <div className="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 z-50">
           <div className="flex justify-around py-3">
-             <button 
-              onClick={() => handleNav('/hub')}
+             <Link
+              to="/hub"
+              onClick={handleTabNavClick}
               className={`flex flex-col items-center justify-center w-14 h-6 ${
                 view === 'hub' ? 'text-blue-400' : 'text-gray-400'
               }`}
             >
               <House className="w-6 h-6" />
-            </button>
-            <button 
-              onClick={() => handleNav('/clubs')}
+            </Link>
+            <Link
+              to="/clubs"
+              onClick={handleTabNavClick}
               className={`flex flex-col items-center justify-center w-14 h-6 ${
                 view === 'clubs' ? 'text-blue-400' : 'text-gray-400'
               }`}
             >
               <Trophy className="w-6 h-6" />
-            </button>
-            <button 
-              onClick={() => handleNav('/leaderboard')}
+            </Link>
+            <Link
+              to="/leaderboard"
+              onClick={handleTabNavClick}
               className={`flex flex-col items-center justify-center w-14 h-6 ${
                 view === 'global' ? 'text-blue-400' : 'text-gray-400'
               }`}
             >
               <Globe className="w-6 h-6" />
-            </button>
+            </Link>
           </div>
         </div>
       )}

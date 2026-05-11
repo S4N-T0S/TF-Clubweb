@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ogclub.s4nt0s.eu/sitemap.xml

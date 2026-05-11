@@ -1,4 +1,5 @@
 import { ChevronUp, ChevronDown, UserSearch, LineChart, Star, StarOff, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { usePagination } from '../../hooks/usePagination';
 import { SearchBar } from '../SearchBar';
 import { LeagueDisplay } from '../LeagueDisplay';
@@ -14,6 +15,7 @@ import { useModal } from '../../context/ModalProvider';
 import { useOnHold } from '../../hooks/useOnHold';
 import { SEASONS, getSeasonLeaderboard, getAllSeasonsLeaderboard } from '../../services/historicalDataService';
 import { useFavouritesManager } from '../../hooks/useFavouritesManager';
+import { buildHistoryHref, buildGraphHref } from '../../utils/modalHrefs';
 
 const NoResultsMessage = ({ selectedSeason, onSeasonChange }) => {
   return (
@@ -132,12 +134,23 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
               <RankChangeDisplay change={player.change} />
             )}
           </div>
-          {isGraphableSeason ? (
-            <LineChart
-              className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer"
-              onClick={() => onGraphClick(player.name, seasonToGraph)}
-            />
-          ) : (
+          {isGraphableSeason ? (() => {
+            const graphHref = buildGraphHref(player.name, seasonToGraph);
+            return graphHref ? (
+              <Link
+                to={graphHref}
+                onClick={(e) => { e.preventDefault(); onGraphClick(player.name, seasonToGraph); }}
+                aria-label={`View graph for ${player.name}`}
+              >
+                <LineChart className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer" />
+              </Link>
+            ) : (
+              <LineChart
+                className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer"
+                onClick={() => onGraphClick(player.name, seasonToGraph)}
+              />
+            );
+          })() : (
             <span title="Not available for this season">
               <LineChart className="w-5 h-5 text-gray-500/60 mx-auto cursor-not-allowed" />
             </span>
@@ -159,10 +172,24 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
                   {username}
                   {discriminator && <span className="text-gray-500">#{discriminator}</span>}
                 </span>
-                <UserSearch 
-                  className="flex-shrink-0 w-6 h-6 p-1 text-gray-400 hover:text-blue-400 cursor-pointer rounded-full hover:bg-gray-700 transition-colors" 
-                  onClick={() => onSearchClick(player.name)}
-                />
+                {(() => {
+                  const historyHref = buildHistoryHref(player.name);
+                  return historyHref ? (
+                    <Link
+                      to={historyHref}
+                      onClick={(e) => { e.preventDefault(); onSearchClick(player.name); }}
+                      aria-label={`Search history for ${player.name}`}
+                      className="flex-shrink-0"
+                    >
+                      <UserSearch className="w-6 h-6 p-1 text-gray-400 hover:text-blue-400 cursor-pointer rounded-full hover:bg-gray-700 transition-colors" />
+                    </Link>
+                  ) : (
+                    <UserSearch
+                      className="flex-shrink-0 w-6 h-6 p-1 text-gray-400 hover:text-blue-400 cursor-pointer rounded-full hover:bg-gray-700 transition-colors"
+                      onClick={() => onSearchClick(player.name)}
+                    />
+                  );
+                })()}
               </div>
             </div>
             {(player.steamName || player.psnName || player.xboxName) && (
@@ -265,10 +292,24 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
                 {discriminator && <span className="text-gray-500">#{discriminator}</span>}
               </span>
             )}
-            <UserSearch 
-              className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer" 
-              onClick={() => onSearchClick(player.name)}
-            />
+            {(() => {
+              const historyHref = buildHistoryHref(player.name);
+              return historyHref ? (
+                <Link
+                  to={historyHref}
+                  onClick={(e) => { e.preventDefault(); onSearchClick(player.name); }}
+                  aria-label={`Search history for ${player.name}`}
+                  className="inline-flex"
+                >
+                  <UserSearch className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer" />
+                </Link>
+              ) : (
+                <UserSearch
+                  className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer"
+                  onClick={() => onSearchClick(player.name)}
+                />
+              );
+            })()}
           </div>
           {(player.steamName || player.psnName || player.xboxName) && (
             <div className="text-xs text-gray-400 mt-1 flex items-center gap-3">
@@ -301,12 +342,24 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
         isMobile={isMobile}
       />
       <td className="px-4 py-2 text-center">
-        {isGraphableSeason ? (
-          <LineChart
-            className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer mx-auto"
-            onClick={() => onGraphClick(player.name, seasonToGraph)}
-          />
-        ) : (
+        {isGraphableSeason ? (() => {
+          const graphHref = buildGraphHref(player.name, seasonToGraph);
+          return graphHref ? (
+            <Link
+              to={graphHref}
+              onClick={(e) => { e.preventDefault(); onGraphClick(player.name, seasonToGraph); }}
+              aria-label={`View graph for ${player.name}`}
+              className="inline-flex mx-auto"
+            >
+              <LineChart className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer" />
+            </Link>
+          ) : (
+            <LineChart
+              className="w-4 h-4 text-gray-400 hover:text-blue-400 cursor-pointer mx-auto"
+              onClick={() => onGraphClick(player.name, seasonToGraph)}
+            />
+          );
+        })() : (
           <span title="Not available for this season">
             <LineChart className="w-4 h-4 text-gray-500/60 mx-auto cursor-not-allowed" />
           </span>
@@ -481,14 +534,15 @@ export const GlobalView = ({
     handleSort,
     scrollToIndex,
     resetSort,
-    resetPage
+    resetPage,
+    buildPageHref,
   } = usePagination(
     (isCurrentSeason && showFavourites)
       ? getFavouritesWithFallback(historicalLeaderboard)
       : historicalLeaderboard,
     isMobile ? 25 : 50,
     isMobile,
-    { customSorters }
+    { customSorters, urlSync: true }
   );
 
   useEffect(() => {
@@ -686,6 +740,7 @@ export const GlobalView = ({
         endIndex={endIndex}
         totalItems={filteredItems.length}
         onPageChange={handlePageChange}
+        buildPageHref={buildPageHref}
       />
       <BackToTop isMobile={isMobile} />
     </div>

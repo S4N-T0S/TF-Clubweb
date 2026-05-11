@@ -52,7 +52,8 @@ export const DashboardHeaderProps = {
 
 export const ViewButtonProps = {
   active: PropTypes.bool,
-  onClick: PropTypes.func.isRequired,
+  to: PropTypes.string.isRequired,
+  onClick: PropTypes.func,
   icon: PropTypes.element.isRequired,
   text: PropTypes.string
 };
@@ -200,6 +201,7 @@ export const PaginationProps = {
   endIndex: PropTypes.number.isRequired,
   totalItems: PropTypes.number.isRequired,
   onPageChange: PropTypes.func.isRequired,
+  buildPageHref: PropTypes.func,
   scrollRef: PropTypes.object,
   variant: PropTypes.string
 };

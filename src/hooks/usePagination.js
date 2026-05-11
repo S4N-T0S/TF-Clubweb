@@ -1,26 +1,60 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { filterPlayerByQuery } from '../utils/searchUtils';
 
-export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {} } = {}) => {
-  const [currentPage, setCurrentPage] = useState(1);
+export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {}, urlSync = false } = {}) => {
+  // Always call useSearchParams (hooks must run unconditionally) but only consume it when urlSync is on.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [stateCurrentPage, setStateCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState({ field: null, direction: 'default' });
+
+  // When urlSync, currentPage is derived from the ?page= search param (default 1).
+  const urlPageRaw = parseInt(searchParams.get('page'), 10);
+  const urlPage = Number.isFinite(urlPageRaw) && urlPageRaw > 0 ? urlPageRaw : 1;
+  const currentPage = urlSync ? urlPage : stateCurrentPage;
+
+  // Internal setter. When urlSync, writes ?page=N (or removes it for page 1)
+  // while preserving any other query params already in the URL.
+  const setPage = (newPage, { replace = false } = {}) => {
+    if (urlSync) {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        if (newPage <= 1) next.delete('page');
+        else next.set('page', String(newPage));
+        return next;
+      }, { replace });
+    } else {
+      setStateCurrentPage(newPage);
+    }
+  };
+
   const resetSort = () => {
     setSortConfig({ field: null, direction: 'default' });
   };
+  // Filter/season changes call this; use replace so we don't pollute history.
   const resetPage = () => {
-    setCurrentPage(1);
+    setPage(1, { replace: true });
   };
 
-  // Reset page when search changes
+  // Reset page when search changes. Compares to the previous value (rather
+  // than using a boolean "first run" flag) so this is idempotent under
+  // React's StrictMode dev double-invocation of effects. Without this,
+  // deep-linking to /leaderboard?page=4 would have ?page=4 wiped on mount
+  // because StrictMode runs the mount-effect twice.
+  const prevSearchQuery = useRef(searchQuery);
   useEffect(() => {
-    resetPage();
+    if (prevSearchQuery.current !== searchQuery) {
+      prevSearchQuery.current = searchQuery;
+      resetPage();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
   // Scroll to a specific index new function
   const scrollToIndex = (index) => {
     const targetPage = Math.ceil((index) / itemsPerPage);
-    setCurrentPage(targetPage);
+    setPage(targetPage, { replace: true });
     
     setTimeout(() => {
       // For desktop, we account for the header row.
@@ -136,7 +170,22 @@ export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {
   const currentItems = processedItems.slice(startIndex, endIndex);
 
   const handlePageChange = (newPage) => {
-    setCurrentPage(Math.min(Math.max(1, newPage), totalPages));
+    // Use replace for programmatic changes (swipe, scrollToIndex, sort reset etc.)
+    // so we don't add a history entry for every flick of the wrist.
+    // User clicks on the <Link>-based page buttons go through the browser nav (push).
+    setPage(Math.min(Math.max(1, newPage), totalPages), { replace: true });
+  };
+
+  // When urlSync is on, return a builder for /current-path?page=N URLs that
+  // preserves any other existing search params. Returns null when off so the
+  // <Pagination/> component falls back to plain buttons.
+  const buildPageHref = !urlSync ? null : (n) => {
+    const next = new URLSearchParams(searchParams);
+    const clamped = Math.min(Math.max(1, n), totalPages);
+    if (clamped <= 1) next.delete('page');
+    else next.set('page', String(clamped));
+    const qs = next.toString();
+    return { search: qs ? `?${qs}` : '' };
   };
 
   return {
@@ -148,6 +197,7 @@ export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {
     startIndex,
     endIndex,
     handlePageChange,
+    buildPageHref,
     filteredItems: processedItems,
     sortConfig,
     handleSort,

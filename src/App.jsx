@@ -162,13 +162,14 @@ const App = () => {
   }, [setToastMessage]);
 
   const openModal = useCallback((newPath) => {
-    setModalHistory(prev => [...prev, location.pathname]);
+    // Store pathname AND search so closing the modal restores ?page=N etc.
+    setModalHistory(prev => [...prev, location.pathname + location.search]);
     // Small timeout ensures the State update (History) is processed 
     // before the Router update (Location) hits. This prevents premature unmounting.
     setTimeout(() => {
       navigate(newPath, { replace: true });
     }, 10);
-  }, [location.pathname, navigate]);
+  }, [location.pathname, location.search, navigate]);
 
   const closeModal = useCallback(() => {
     // Pop the last path from our manual history stack

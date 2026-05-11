@@ -127,8 +127,9 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
     handlePageChange,
     filteredItems,
     sortConfig,
-    handleSort
-  } = usePagination(rankedClubs, isMobile ? 15 : 15); // Same items on mobile or desktop, but just added for future ref.
+    handleSort,
+    buildPageHref,
+  } = usePagination(rankedClubs, isMobile ? 15 : 15, false, { urlSync: true }); // Same items on mobile or desktop, but just added for future ref.
 
   return (
     <div ref={viewContainerRef}>
@@ -247,6 +248,7 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
         endIndex={endIndex}
         totalItems={filteredItems.length}
         onPageChange={handlePageChange}
+        buildPageHref={buildPageHref}
       />
       <BackToTop isMobile={isMobile} />
     </div>

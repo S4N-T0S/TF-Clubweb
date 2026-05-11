@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useMemo, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { X, Search, ShieldAlert, CheckCircle, UserX, Users, LineChart, UserPlus } from 'lucide-react';
 import { fetchClubMembers } from '../../services/mb-api';
 import { calculateMemberStatus } from '../../utils/dataProcessing';
@@ -7,6 +8,8 @@ import { LoadingDisplay } from '../LoadingDisplay';
 import { SearchBar } from '../SearchBar';
 import { getLeagueInfo } from '../../utils/leagueUtils';
 import { Hexagon } from '../icons/Hexagon';
+import { buildGraphHref, buildHistoryHref } from '../../utils/modalHrefs';
+import { currentSeasonKey } from '../../services/historicalDataService';
 import { MembersModalProps, MemberRowProps, StatusBadgeProps } from '../../types/propTypes';
 
 const StatusBadge = ({ status }) => {
@@ -60,20 +63,52 @@ const MemberRow = ({ member, onGraphOpen, onSearch }) => {
       </div>
 
       <div className="flex items-center gap-2 ml-auto">
-        <button 
-            onClick={() => onGraphOpen(member.name)}
-            className="p-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-gray-300 hover:text-white transition-colors"
-            title="View Graph"
-        >
-            <LineChart className="w-4 h-4" />
-        </button>
-        <button 
-            onClick={() => onSearch(member.name)}
-            className="p-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-gray-300 hover:text-white transition-colors"
-            title="Search History"
-        >
-            <Search className="w-4 h-4" />
-        </button>
+        {(() => {
+          const graphHref = buildGraphHref(member.name, currentSeasonKey);
+          const iconClass = "p-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-gray-300 hover:text-white transition-colors";
+          return graphHref ? (
+            <Link
+              to={graphHref}
+              onClick={(e) => { e.preventDefault(); onGraphOpen(member.name); }}
+              className={iconClass}
+              title="View Graph"
+              aria-label={`View graph for ${member.name}`}
+            >
+              <LineChart className="w-4 h-4" />
+            </Link>
+          ) : (
+            <button
+              onClick={() => onGraphOpen(member.name)}
+              className={iconClass}
+              title="View Graph"
+            >
+              <LineChart className="w-4 h-4" />
+            </button>
+          );
+        })()}
+        {(() => {
+          const historyHref = buildHistoryHref(member.name);
+          const iconClass = "p-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-gray-300 hover:text-white transition-colors";
+          return historyHref ? (
+            <Link
+              to={historyHref}
+              onClick={(e) => { e.preventDefault(); onSearch(member.name); }}
+              className={iconClass}
+              title="Search History"
+              aria-label={`Search history for ${member.name}`}
+            >
+              <Search className="w-4 h-4" />
+            </Link>
+          ) : (
+            <button
+              onClick={() => onSearch(member.name)}
+              className={iconClass}
+              title="Search History"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+          );
+        })()}
       </div>
     </div>
   );
