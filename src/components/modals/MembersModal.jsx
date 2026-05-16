@@ -48,12 +48,26 @@ const MemberRow = ({ member, onGraphOpen, onSearch }) => {
          </div>
          <div className="flex flex-col min-w-0 w-full">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span 
-                    className="font-semibold text-white truncate hover:text-blue-400 cursor-pointer"
-                    onClick={() => onSearch(member.name)}
-                >
-                    {member.name}
-                </span>
+                {(() => {
+                  const historyHref = buildHistoryHref(member.name);
+                  const cls = "font-semibold text-white truncate hover:text-blue-400 cursor-pointer";
+                  return historyHref ? (
+                    <Link
+                      to={historyHref}
+                      onClick={(e) => { e.preventDefault(); onSearch(member.name); }}
+                      className={cls}
+                    >
+                      {member.name}
+                    </Link>
+                  ) : (
+                    <span
+                      className={cls}
+                      onClick={() => onSearch(member.name)}
+                    >
+                      {member.name}
+                    </span>
+                  );
+                })()}
                 <StatusBadge status={member.status} />
             </div>
             <span className="text-xs text-gray-400">

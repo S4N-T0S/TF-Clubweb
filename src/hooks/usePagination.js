@@ -1,18 +1,37 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import { filterPlayerByQuery } from '../utils/searchUtils';
 
-export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {}, urlSync = false } = {}) => {
-  // Always call useSearchParams (hooks must run unconditionally) but only consume it when urlSync is on.
+export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {}, urlSync = false, basePath = '/' } = {}) => {
+  // Always call hooks unconditionally (Rules of Hooks).
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const [stateCurrentPage, setStateCurrentPage] = useState(1);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [stateSearchQuery, setStateSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState({ field: null, direction: 'default' });
 
-  // When urlSync, currentPage is derived from the ?page= search param (default 1).
+  // Freeze URL-derived state when navigated away from basePath (e.g. modal
+  // overlay at /events while the leaderboard is still mounted in the
+  // background). This avoids two unnecessary full re-renders (reset on open,
+  // restore on close).
+  const isOnBasePath = !urlSync || location.pathname.startsWith(basePath);
+  const frozenPageRef = useRef(1);
+  const frozenSearchRef = useRef('');
+
+  // When urlSync, derive page from ?page= only while on basePath.
   const urlPageRaw = parseInt(searchParams.get('page'), 10);
-  const urlPage = Number.isFinite(urlPageRaw) && urlPageRaw > 0 ? urlPageRaw : 1;
-  const currentPage = urlSync ? urlPage : stateCurrentPage;
+  const urlPageLive = Number.isFinite(urlPageRaw) && urlPageRaw > 0 ? urlPageRaw : 1;
+  if (urlSync && isOnBasePath) frozenPageRef.current = urlPageLive;
+  const currentPage = urlSync
+    ? (isOnBasePath ? urlPageLive : frozenPageRef.current)
+    : stateCurrentPage;
+
+  // When urlSync, derive search from ?search= only while on basePath.
+  const urlSearchLive = searchParams.get('search') || '';
+  if (urlSync && isOnBasePath) frozenSearchRef.current = urlSearchLive;
+  const searchQuery = urlSync
+    ? (isOnBasePath ? urlSearchLive : frozenSearchRef.current)
+    : stateSearchQuery;
 
   // Internal setter. When urlSync, writes ?page=N (or removes it for page 1)
   // while preserving any other query params already in the URL.
@@ -29,6 +48,24 @@ export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {
     }
   };
 
+  // Setter for the search query. When urlSync, writes ?search=... AND clears
+  // ?page= in the SAME atomic URL update so we don't get a double render
+  // (one for setting search, another for resetting page). Always uses replace
+  // — typing into the box shouldn't push a history entry per keystroke.
+  const setSearchQuery = (newQuery) => {
+    if (urlSync) {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        if (!newQuery) next.delete('search');
+        else next.set('search', newQuery);
+        next.delete('page'); // search change always resets to page 1
+        return next;
+      }, { replace: true });
+    } else {
+      setStateSearchQuery(newQuery);
+    }
+  };
+
   const resetSort = () => {
     setSortConfig({ field: null, direction: 'default' });
   };
@@ -37,19 +74,18 @@ export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {
     setPage(1, { replace: true });
   };
 
-  // Reset page when search changes. Compares to the previous value (rather
-  // than using a boolean "first run" flag) so this is idempotent under
-  // React's StrictMode dev double-invocation of effects. Without this,
-  // deep-linking to /leaderboard?page=4 would have ?page=4 wiped on mount
-  // because StrictMode runs the mount-effect twice.
+  // Reset page when search changes (non-urlSync mode only). In urlSync mode,
+  // setSearchQuery already clears ?page atomically, AND we must NOT clobber
+  // ?page when a URL like /leaderboard?search=foo&page=3 is loaded externally.
   const prevSearchQuery = useRef(searchQuery);
   useEffect(() => {
+    if (urlSync) return;
     if (prevSearchQuery.current !== searchQuery) {
       prevSearchQuery.current = searchQuery;
       resetPage();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery]);
+  }, [searchQuery, urlSync]);
 
   // Scroll to a specific index new function
   const scrollToIndex = (index) => {
@@ -171,7 +207,6 @@ export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {
 
   const handlePageChange = (newPage) => {
     // Use replace for programmatic changes (swipe, scrollToIndex, sort reset etc.)
-    // so we don't add a history entry for every flick of the wrist.
     // User clicks on the <Link>-based page buttons go through the browser nav (push).
     setPage(Math.min(Math.max(1, newPage), totalPages), { replace: true });
   };

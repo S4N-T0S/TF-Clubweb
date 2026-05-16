@@ -96,8 +96,6 @@ export const GlobalViewProps = {
   setSelectedSeason: PropTypes.func.isRequired,
   globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)).isRequired,
   onPlayerSearch: PropTypes.func.isRequired,
-  searchQuery: PropTypes.string,
-  setSearchQuery: PropTypes.func.isRequired,
   onGraphOpen: PropTypes.func.isRequired,
   isMobile: PropTypes.bool.isRequired,
   showFavourites: PropTypes.bool.isRequired,
@@ -306,6 +304,7 @@ export const EventCard_PlayerNameProps = {
 
 export const EventCard_ClubTagProps = {
   tag: PropTypes.string.isRequired,
+  seasonKey: PropTypes.string,
   onClubClick: PropTypes.func.isRequired
 };
 

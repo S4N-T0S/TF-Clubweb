@@ -15,7 +15,7 @@ import { useModal } from '../../context/ModalProvider';
 import { useOnHold } from '../../hooks/useOnHold';
 import { SEASONS, getSeasonLeaderboard, getAllSeasonsLeaderboard } from '../../services/historicalDataService';
 import { useFavouritesManager } from '../../hooks/useFavouritesManager';
-import { buildHistoryHref, buildGraphHref } from '../../utils/modalHrefs';
+import { buildHistoryHref, buildGraphHref, buildClubSearchHref } from '../../utils/modalHrefs';
 
 const NoResultsMessage = ({ selectedSeason, onSeasonChange }) => {
   return (
@@ -160,12 +160,13 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
           <div className="flex flex-col min-w-0 flex-1 mr-3">
             <div className="flex flex-col">
               {player.clubTag && (
-                <span 
+                <Link
+                  to={buildClubSearchHref(player.clubTag, selectedSeason)}
+                  onClick={(e) => { e.preventDefault(); onClubClick(player.clubTag); }}
                   className="self-start bg-gray-700 px-1.5 py-0.5 rounded text-blue-400 hover:text-blue-300 cursor-pointer mb-1"
-                  onClick={() => onClubClick(player.clubTag)}
                 >
                   [{player.clubTag}]
-                </span>
+                </Link>
               )}
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-gray-300 truncate">
@@ -277,12 +278,13 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
           <div className="flex items-center gap-2">
             {player.clubTag ? (
               <span className="text-gray-300">
-                <span 
+                <Link
+                  to={buildClubSearchHref(player.clubTag, selectedSeason)}
+                  onClick={(e) => { e.preventDefault(); onClubClick(player.clubTag); }}
                   className="bg-gray-700 px-1 py-0.5 rounded text-blue-400 hover:text-blue-300 cursor-pointer"
-                  onClick={() => onClubClick(player.clubTag)}
                 >
                   [{player.clubTag}]
-                </span>
+                </Link>
                 {` ${username}`}
                 {discriminator && <span className="text-gray-500">#{discriminator}</span>}
               </span>
@@ -430,8 +432,6 @@ export const GlobalView = ({
   globalLeaderboard,
   currentRubyCutoff,
   onPlayerSearch,
-  searchQuery: initialSearchQuery,
-  setSearchQuery: setGlobalSearchQuery,
   onGraphOpen,
   isMobile,
   showFavourites,
@@ -471,16 +471,16 @@ export const GlobalView = ({
     setIsCurrentSeason(currentSeason === selectedSeason);
   }, [currentSeason, selectedSeason]);
 
-  // Update the season selection handler
+  // Update the season selection handler. Uses setSelectedSeason's atomic
+  // resetPage option so season + page are written in one setSearchParams call.
+  // Calling resetPage() separately would race (two hooks, same stale prev).
   const handleSeasonChange = (e) => {
     const newSeason = typeof e === 'string' ? e : e.target.value;
-    setSelectedSeason(newSeason);
+    setSelectedSeason(newSeason, { resetPage: true });
     resetSort();
-    resetPage();
     
     // Clear search when changing seasons - Don't for now.
     // setSearchQuery('');
-    // setGlobalSearchQuery('');
   
     // New toast for All Seasons
     if (newSeason === 'ALL') {
@@ -493,13 +493,17 @@ export const GlobalView = ({
     }
   };
 
-  // Get data based on selected season
-  const { leaderboard: historicalLeaderboard } = 
-  selectedSeason === 'ALL'
-    ? getAllSeasonsLeaderboard(globalLeaderboard)
-    : isCurrentSeason
-      ? { leaderboard: globalLeaderboard, currentRubyCutoff }
-      : getSeasonLeaderboard(selectedSeason);
+  // Get data based on selected season and memoize it to prevent expensive recalculations
+  // when the component re-renders (e.g., when a modal opens).
+  const historicalLeaderboard = useMemo(() => {
+    if (selectedSeason === 'ALL') {
+      return getAllSeasonsLeaderboard(globalLeaderboard).leaderboard;
+    }
+    if (isCurrentSeason) {
+      return globalLeaderboard;
+    }
+    return getSeasonLeaderboard(selectedSeason).leaderboard;
+  }, [selectedSeason, isCurrentSeason, globalLeaderboard]);
 
   // Disable Favourites when not in current season
   useEffect(() => {
@@ -542,19 +546,24 @@ export const GlobalView = ({
       : historicalLeaderboard,
     isMobile ? 25 : 50,
     isMobile,
-    { customSorters, urlSync: true }
+    { customSorters, urlSync: true, basePath: '/leaderboard' }
   );
 
+  // Reset to page 1 whenever showFavourites toggles. Without this, switching
+  // from page 3 of the full leaderboard into favourites view would leave you
+  // on an empty page 3 of your tiny favourites list. Uses a ref-based prev
+  // check so the effect is a no-op on first mount (preserves ?page= deep links).
+  const prevShowFavouritesRef = useRef(showFavourites);
   useEffect(() => {
-    if (initialSearchQuery) {
-      setSearchQuery(initialSearchQuery);
-      setGlobalSearchQuery('');
+    if (prevShowFavouritesRef.current !== showFavourites) {
+      prevShowFavouritesRef.current = showFavourites;
+      resetPage();
     }
-  }, [initialSearchQuery, setSearchQuery, setGlobalSearchQuery]);
+  }, [showFavourites, resetPage]);
 
   const handleLocalClubClick = (clubTag) => {
-    // setSearchQuery(''); - Not really any need right now to clear the search for this operation. (causes rendering twice if clicked same clubtag over and over)
-    setGlobalSearchQuery(`[${clubTag}]`);
+    // Writes ?search=[TAG] to the URL via usePagination's url-synced setter.
+    setSearchQuery(`[${clubTag}]`);
 
     const message = /\d/.test(selectedSeason) 
       ? `Searching in Season ${selectedSeason.slice(1)}.` 
@@ -577,10 +586,13 @@ export const GlobalView = ({
   };
 
   useEffect(() => {
-    if (!initialSearchQuery && searchInputRef.current && !isMobile) {
+    if (!searchQuery && searchInputRef.current && !isMobile) {
       searchInputRef.current.focus();
     }
-  }, [initialSearchQuery, isMobile]);
+    // Only run on mount-ish: focus when the view opens without a pre-filled search.
+    // Re-running on every keystroke would steal focus back from other inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile]);
 
   return (
     <div ref={viewContainerRef}>

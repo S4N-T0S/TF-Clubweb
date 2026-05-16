@@ -1,5 +1,5 @@
-import { useParams, useNavigate, Outlet, useLocation } from 'react-router-dom';
-import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
+import { useParams, useNavigate, Outlet, useLocation, useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { useLeaderboard } from './hooks/useLeaderboard';
 import { useVersionCheck } from './hooks/useVersionCheck';
@@ -95,9 +95,32 @@ const App = () => {
   // --> Data Loading
   const autoRefresh = true;
   const currentSeason = currentSeasonKey;
-  const [selectedSeason, setSelectedSeason] = useState(currentSeason);
-  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [showFavourites, setShowFavourites] = useState(false);
+
+  // URL-synced season (?season=S8, ?season=ALL). Absent / invalid -> current.
+  // Writing `currentSeason` deletes the param so clean URLs stay clean.
+  // Frozen when off /leaderboard (e.g. modal overlay at /events) so the
+  // background leaderboard doesn't reset to current season while obscured.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const isOnLeaderboard = location.pathname.startsWith('/leaderboard');
+  const frozenSeasonRef = useRef(currentSeason);
+  const selectedSeasonLive = useMemo(() => {
+    const s = searchParams.get('season');
+    if (!s) return currentSeason;
+    if (s === 'ALL') return 'ALL';
+    return SEASONS[s] ? s : currentSeason;
+  }, [searchParams, currentSeason]);
+  if (isOnLeaderboard) frozenSeasonRef.current = selectedSeasonLive;
+  const selectedSeason = isOnLeaderboard ? selectedSeasonLive : frozenSeasonRef.current;
+  const setSelectedSeason = useCallback((next, { resetPage = false } = {}) => {
+    setSearchParams(prev => {
+      const n = new URLSearchParams(prev);
+      if (!next || next === currentSeason) n.delete('season');
+      else n.set('season', next);
+      if (resetPage) n.delete('page');
+      return n;
+    }, { replace: true });
+  }, [setSearchParams, currentSeason]);
 
   const {
     topClubs,
@@ -144,13 +167,13 @@ const App = () => {
     }
   }, [view]);
 
-  // Reset states when view changes
+  // Reset favourites view when leaving the leaderboard. Season is URL-driven
+  // so no manual reset needed — navigating to /clubs via <Link> drops the query.
   useEffect(() => {
     if (view !== 'global') {
-      setSelectedSeason(currentSeason);
       setShowFavourites(false);
     }
-  }, [view, currentSeason]);
+  }, [view]);
 
   // --> Handlers
 
@@ -195,11 +218,14 @@ const App = () => {
 
   const handleClubClick = useCallback((clubTag, seasonKey = null) => {
     seasonKey = seasonKey || currentSeason;
-    // Close all modals and reset history before changing view
+    // Close all modals and reset history before changing view.
+    // Build the full /leaderboard URL (search + optional season) in one go so
+    // the destination is shareable and only one history entry is written.
     closeAllModals();
-    navigate('/leaderboard', { replace: true });
-    setGlobalSearchQuery(`[${clubTag}]`);
-    setSelectedSeason(seasonKey);
+    const params = new URLSearchParams();
+    params.set('search', `[${clubTag}]`);
+    if (seasonKey && seasonKey !== currentSeason) params.set('season', seasonKey);
+    navigate(`/leaderboard?${params.toString()}`, { replace: true });
 
     const message = /\d/.test(seasonKey)
       ? `Searching in Season ${seasonKey.slice(1)}.`
@@ -336,8 +362,6 @@ const App = () => {
                   globalLeaderboard={globalLeaderboard}
                   currentRubyCutoff={currentRubyCutoff}
                   onPlayerSearch={(name) => handleSearchModalOpen(name)}
-                  searchQuery={globalSearchQuery}
-                  setSearchQuery={setGlobalSearchQuery}
                   onGraphOpen={(embarkId, seasonKey) => handleGraphModalOpen(embarkId, [], seasonKey)}
                   isMobile={isMobile}
                   showFavourites={showFavourites}

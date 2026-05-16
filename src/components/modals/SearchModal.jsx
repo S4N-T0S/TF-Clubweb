@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { Search, AlertTriangle, X, ChevronUp, ChevronDown, Users } from 'lucide-react';
 import { searchPlayerHistory } from '../../services/historicalDataService';
 import { Hexagon } from '../icons/Hexagon';
@@ -8,6 +9,7 @@ import { SearchModalProps } from '../../types/propTypes';
 import { isValidEmbarkId, formatUsernameForUrl } from '../../utils/urlHandler';
 import { useModal } from '../../context/ModalProvider';
 import { LoadingDisplay } from '../LoadingDisplay';
+import { buildClubSearchHref } from '../../utils/modalHrefs';
 
 const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClubClick, isLeaderboardLoading }) => {
   // `useModal` now also returns `isActive`, which handles animation state internally.
@@ -315,15 +317,17 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
                       {result.clubTag && (
                         <p title="Club membership" className="flex items-center">
                           <Users className="w-4 h-4 inline-block mr-1" />
-                          <span
+                          <Link
+                            to={buildClubSearchHref(result.clubTag, result.seasonKey)}
                             className="text-blue-400 hover:text-blue-300 cursor-pointer"
                             onClick={(e) => {
+                              e.preventDefault();
                               e.stopPropagation();
                               onClubClick(result.clubTag, result.seasonKey);
                             }}
                           >
                             {result.clubTag}
-                          </span>
+                          </Link>
                         </p>
                       )}
                       {result.steamName && (

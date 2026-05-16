@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatTimeAgo, formatDuration } from '../utils/timeUtils';
-import { buildHistoryHref, buildGraphHref } from '../utils/modalHrefs';
+import { buildHistoryHref, buildGraphHref, buildClubSearchHref } from '../utils/modalHrefs';
 import { EventCardProps, EventCard_PlayerNameProps, EventCard_ClubTagProps } from '../types/propTypes';
 
 // Helper component for clickable player names.
@@ -50,17 +50,38 @@ const PlayerName = ({ name, onPlayerSearch }) => {
 };
 
 // Helper component for clickable club tags
-const ClubTag = ({ tag, onClubClick }) => (
-  <span
-    className="font-semibold text-blue-400 hover:text-blue-300 cursor-pointer"
-    onClick={(e) => {
-      e.stopPropagation();
-      onClubClick(tag);
-    }}
-  >
-    [{tag}]
-  </span>
-);
+const ClubTag = ({ tag, seasonKey, onClubClick }) => {
+  const href = buildClubSearchHref(tag, seasonKey);
+  const className = "font-semibold text-blue-400 hover:text-blue-300 cursor-pointer";
+
+  if (!href) {
+    return (
+      <span
+        className={className}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClubClick(tag);
+        }}
+      >
+        [{tag}]
+      </span>
+    );
+  }
+
+  return (
+    <Link
+      to={href}
+      className={className}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClubClick(tag);
+      }}
+    >
+      [{tag}]
+    </Link>
+  );
+};
 
 const getEventConfig = (event) => {
   const { event_type, details, endTimestamp } = event;
@@ -103,12 +124,12 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
           <div className="text-gray-400 leading-relaxed space-y-1">
             <div>
               <span className="text-gray-500 text-sm">From:</span>{' '}
-              {d.old_club_tag && <ClubTag tag={d.old_club_tag} onClubClick={handleClubClick} />}{' '}
+              {d.old_club_tag && <ClubTag tag={d.old_club_tag} seasonKey={event.seasonKey} onClubClick={handleClubClick} />}{' '}
               <PlayerName name={d.old_name} onPlayerSearch={onPlayerSearch} />
             </div>
             <div>
               <span className="text-gray-500 text-sm">To:</span>{' '}
-              {d.new_club_tag && <ClubTag tag={d.new_club_tag} onClubClick={handleClubClick} />}{' '}
+              {d.new_club_tag && <ClubTag tag={d.new_club_tag} seasonKey={event.seasonKey} onClubClick={handleClubClick} />}{' '}
               <PlayerName name={d.new_name} onPlayerSearch={onPlayerSearch} />
             </div>
             <p className="text-sm text-gray-500 pt-1">
@@ -119,10 +140,10 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
       }
       return (
         <div className="text-gray-400 leading-relaxed">
-          {d.old_club_tag && <ClubTag tag={d.old_club_tag} onClubClick={handleClubClick} />}{' '}
+          {d.old_club_tag && <ClubTag tag={d.old_club_tag} seasonKey={event.seasonKey} onClubClick={handleClubClick} />}{' '}
           <PlayerName name={d.old_name} onPlayerSearch={onPlayerSearch} />
           <ArrowRight className={`w-4 h-4 inline-block mx-2 ${colorClass}`} />
-          {d.new_club_tag && <ClubTag tag={d.new_club_tag} onClubClick={handleClubClick} />}{' '}
+          {d.new_club_tag && <ClubTag tag={d.new_club_tag} seasonKey={event.seasonKey} onClubClick={handleClubClick} />}{' '}
           <PlayerName name={d.new_name} onPlayerSearch={onPlayerSearch} />
           <p className="text-sm text-gray-500 mt-1">
             Rank #{d.rank?.toLocaleString()} ({d.rank_score?.toLocaleString() ?? 'N/A'} RS)
@@ -162,7 +183,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
               <div className="text-gray-400 leading-relaxed space-y-1">
                 <div>
                   <span className="text-gray-500 text-sm">Was:</span>{' '}
-                  {d.last_known_club_tag && <ClubTag tag={d.last_known_club_tag} onClubClick={handleClubClick} />}{' '}
+                  {d.last_known_club_tag && <ClubTag tag={d.last_known_club_tag} seasonKey={event.seasonKey} onClubClick={handleClubClick} />}{' '}
                   <PlayerName name={d.last_known_name} onPlayerSearch={onPlayerSearch} />
                 </div>
                 <div>
@@ -175,7 +196,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
           }
           return (
             <div className="text-gray-400 leading-relaxed">
-              {d.last_known_club_tag && <ClubTag tag={d.last_known_club_tag} onClubClick={handleClubClick} />}{' '}
+              {d.last_known_club_tag && <ClubTag tag={d.last_known_club_tag} seasonKey={event.seasonKey} onClubClick={handleClubClick} />}{' '}
               <PlayerName name={d.last_known_name} onPlayerSearch={onPlayerSearch} />
               <span> has reappeared on the leaderboard as </span>
               <PlayerName name={d.reappeared_as_name} onPlayerSearch={onPlayerSearch} />.
@@ -188,7 +209,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
         return (
           <div className="text-gray-400 leading-relaxed space-y-1">
             <div>
-              {d.last_known_club_tag && <ClubTag tag={d.last_known_club_tag} onClubClick={handleClubClick} />}{' '}
+              {d.last_known_club_tag && <ClubTag tag={d.last_known_club_tag} seasonKey={event.seasonKey} onClubClick={handleClubClick} />}{' '}
               <PlayerName name={event.current_embark_id} onPlayerSearch={onPlayerSearch} />
               <span> has reappeared on the leaderboard.</span>
             </div>
@@ -199,7 +220,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
       // Default case for an active suspected ban
       return (
         <div className="text-gray-400 leading-relaxed">
-          {d.last_known_club_tag && <><ClubTag tag={d.last_known_club_tag} onClubClick={handleClubClick} /> </>}
+          {d.last_known_club_tag && <><ClubTag tag={d.last_known_club_tag} seasonKey={event.seasonKey} onClubClick={handleClubClick} /> </>}
           <PlayerName name={d.last_known_name} onPlayerSearch={onPlayerSearch} />
           <span> has disappeared from the leaderboard.</span>
           <p className="text-sm text-gray-500 mt-1">
@@ -212,7 +233,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
       if (d.is_off_leaderboard) {
         return (
           <div className="text-gray-400 leading-relaxed">
-            {d.club_tag && <ClubTag tag={d.club_tag} onClubClick={handleClubClick} />}{' '}
+            {d.club_tag && <ClubTag tag={d.club_tag} seasonKey={event.seasonKey} onClubClick={handleClubClick} />}{' '}
             <PlayerName name={d.name} onPlayerSearch={onPlayerSearch} />
             <span> fell off the leaderboard from Rank #{d.old_rank?.toLocaleString()} ({d.old_score.toLocaleString()} RS). </span>
             <span className="font-semibold text-red-400">Lost at least {d.minimum_loss.toLocaleString()} RS.</span>
@@ -222,7 +243,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
       const changeClass = d.change > 0 ? 'text-green-400' : 'text-red-400';
       return (
         <div className="text-gray-400 leading-relaxed">
-          {d.club_tag && <ClubTag tag={d.club_tag} onClubClick={handleClubClick} />}{' '}
+          {d.club_tag && <ClubTag tag={d.club_tag} seasonKey={event.seasonKey} onClubClick={handleClubClick} />}{' '}
           <PlayerName name={d.name} onPlayerSearch={onPlayerSearch} />
           <span> had a rank score adjustment of </span>
           <span className={`font-semibold ${changeClass}`}>
@@ -246,11 +267,11 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
                 <div className="space-y-1 mt-2">
                     <div>
                         <span className="text-gray-500 text-sm">From:</span>{' '}
-                        <ClubTag tag={d.old_club} onClubClick={handleClubClick} />
+                        <ClubTag tag={d.old_club} seasonKey={event.seasonKey} onClubClick={handleClubClick} />
                     </div>
                     <div>
                         <span className="text-gray-500 text-sm">To:</span>{' '}
-                        <ClubTag tag={d.new_club} onClubClick={handleClubClick} />
+                        <ClubTag tag={d.new_club} seasonKey={event.seasonKey} onClubClick={handleClubClick} />
                     </div>
                 </div>
             </div>
@@ -264,16 +285,16 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
             <PlayerName name={d.name} onPlayerSearch={onPlayerSearch} />
             {(() => {
               if (d.new_club && !d.old_club) {
-                return <><span> joined </span><ClubTag tag={d.new_club} onClubClick={handleClubClick} />.</>;
+                return <><span> joined </span><ClubTag tag={d.new_club} seasonKey={event.seasonKey} onClubClick={handleClubClick} />.</>;
               }
               if (!d.new_club && d.old_club) {
-                  return <><span> left </span><ClubTag tag={d.old_club} onClubClick={handleClubClick} />.</>;
+                  return <><span> left </span><ClubTag tag={d.old_club} seasonKey={event.seasonKey} onClubClick={handleClubClick} />.</>;
               }
               return <>
                   <span> changed club from </span>
-                  {d.old_club ? <ClubTag tag={d.old_club} onClubClick={handleClubClick} /> : <span className="italic">no club</span>}
+                  {d.old_club ? <ClubTag tag={d.old_club} seasonKey={event.seasonKey} onClubClick={handleClubClick} /> : <span className="italic">no club</span>}
                   <span> to </span>
-                  {d.new_club ? <ClubTag tag={d.new_club} onClubClick={handleClubClick} /> : <span className="italic">no club</span>}.
+                  {d.new_club ? <ClubTag tag={d.new_club} seasonKey={event.seasonKey} onClubClick={handleClubClick} /> : <span className="italic">no club</span>}.
               </>;
             })()}
         </div>
@@ -285,7 +306,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
             return (
                 <div className="text-gray-400 leading-relaxed">
                     <span>The club </span>
-                    <ClubTag tag={d.old_club_tag} onClubClick={handleClubClick} />
+                    <ClubTag tag={d.old_club_tag} seasonKey={event.seasonKey} onClubClick={handleClubClick} />
                     <span> was disbanded or its tag was claimed by a new club.</span>
                 </div>
             );
@@ -296,7 +317,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
             return (
                 <div className="text-gray-400 leading-relaxed">
                     <span>A new club claimed the tag </span>
-                    <ClubTag tag={d.new_club_tag} onClubClick={handleClubClick} />
+                    <ClubTag tag={d.new_club_tag} seasonKey={event.seasonKey} onClubClick={handleClubClick} />
                     <span>.</span>
                 </div>
             );
@@ -306,9 +327,9 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
         return (
             <div className="text-gray-400 leading-relaxed">
                 <span>The club </span>
-                <ClubTag tag={d.old_club_tag} onClubClick={handleClubClick} />
+                <ClubTag tag={d.old_club_tag} seasonKey={event.seasonKey} onClubClick={handleClubClick} />
                 <span> was renamed to </span>
-                <ClubTag tag={d.new_club_tag} onClubClick={handleClubClick} />
+                <ClubTag tag={d.new_club_tag} seasonKey={event.seasonKey} onClubClick={handleClubClick} />
                 <span>.</span>
             </div>
         );

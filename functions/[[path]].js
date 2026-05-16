@@ -93,6 +93,7 @@ function parseMultipleUsernames(urlString) {
 function generateMetadata(url) {
   const path = url.pathname;
   let canonicalPath = path;
+  let canonicalSearch = '';
   
   let meta = {
     title: 'THE FINALS Tracker Dashboard',
@@ -158,9 +159,53 @@ function generateMetadata(url) {
     meta.description = 'Leaderboard of the top performing clubs in The Finals based on aggregate score.';
     meta.keywords = 'top clubs, clan leaderboard, best clubs, the finals teams';
   } else if (baseRoute === 'leaderboard') {
-    meta.title = 'Ranked Leaderboard | THE FINALS Tracker';
-    meta.description = 'Live leaderboard for The Finals. Track top 10000 players, score cutoffs, and rank distribution. Graphing and historical data available.';
+    const rawSeason = url.searchParams.get('season');
+    const rawPage = url.searchParams.get('page');
+
+    let seasonText = '';
+    let isHistorical = false;
+    let validSeason = null;
+
+    // Strictly validate season format (e.g. ALL, OB, S1, S10)
+    if (rawSeason && /^(ALL|OB|S[1-9]\d*)$/.test(rawSeason)) {
+      validSeason = rawSeason;
+      if (validSeason === 'ALL') {
+        seasonText = ' (All Seasons)';
+        isHistorical = true;
+      } else if (validSeason === 'OB') {
+        seasonText = ' (Open Beta)';
+        isHistorical = true;
+      } else {
+        seasonText = ` (Season ${validSeason.substring(1)})`;
+        isHistorical = true;
+      }
+    }
+
+    const pageNum = parseInt(rawPage, 10);
+    let validPage = null;
+    let pageText = '';
+
+    // Ensure page is a valid number > 1
+    if (!isNaN(pageNum) && pageNum > 1) {
+      validPage = pageNum;
+      pageText = ` - Page ${validPage}`;
+    }
+
+    meta.title = `Ranked Leaderboard${seasonText}${pageText} | THE FINALS Tracker`;
+    
+    const descPrefix = isHistorical ? `Historical leaderboard for The Finals${seasonText}` : 'Live leaderboard for The Finals';
+    meta.description = `${descPrefix}${pageText}. Track top 10000 players, score cutoffs, and rank distribution. Graphing and historical data available.`;
+    
     meta.keywords = 'the finals tracker, the finals leaderboard, ranked leaderboard, top players, player stats, historical ranks, seasonal data';
+    if (validSeason && validSeason !== 'ALL') {
+      meta.keywords += `, ${validSeason.toLowerCase()} leaderboard`;
+    }
+
+    const canonicalParams = new URLSearchParams();
+    if (validSeason) canonicalParams.set('season', validSeason);
+    if (validPage) canonicalParams.set('page', validPage.toString());
+    const q = canonicalParams.toString();
+    if (q) canonicalSearch = `?${q}`;
   } else {
     // Resolves root to /hub mirroring SEOHead.jsx
     if (canonicalPath === '/') canonicalPath = '/hub';
@@ -171,7 +216,7 @@ function generateMetadata(url) {
     ? canonicalPath.slice(0, -1) 
     : canonicalPath;
     
-  meta.url = `${BASE_URL}${cleanPath}`;
+  meta.url = `${BASE_URL}${cleanPath}${canonicalSearch}`;
 
   return meta;
 }

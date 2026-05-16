@@ -9,7 +9,7 @@
 // to a plain non-Link element in that case.
 
 import { formatUsernameForUrl } from './urlHandler';
-import { SEASONS } from '../services/historicalDataService';
+import { SEASONS, currentSeasonKey } from '../services/historicalDataService';
 
 // /history/<name>
 export const buildHistoryHref = (name) => {
@@ -29,4 +29,18 @@ export const buildGraphHref = (name, seasonKey) => {
   } catch {
     return null;
   }
+};
+
+// /leaderboard?search=[TAG]&season=<key> — for clickable club tags across the app.
+// seasonKey is optional; omitted / null / the current season renders as just
+// ?search= (kept clean). 'ALL' and past seasons (S1..S9) add &season= so that
+// right-click-open-in-new-tab and copy-link preserve the intended season.
+export const buildClubSearchHref = (tag, seasonKey = null) => {
+  if (!tag) return null;
+  const params = new URLSearchParams();
+  params.set('search', `[${tag}]`);
+  if (seasonKey && seasonKey !== currentSeasonKey && (seasonKey === 'ALL' || SEASONS[seasonKey])) {
+    params.set('season', seasonKey);
+  }
+  return `/leaderboard?${params.toString()}`;
 };

@@ -6,7 +6,9 @@ import { useSwipe } from '../../hooks/useSwipe';
 import { ClubsViewProps, ClubRowProps, NoResultsMessageProps } from '../../types/propTypes';
 import { SortButton } from '../SortButton';
 import { useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useModal } from '../../context/ModalProvider';
+import { buildClubSearchHref } from '../../utils/modalHrefs';
 
 const NoResultsMessage = () => {
   return (
@@ -29,12 +31,13 @@ const ClubRow = ({ club, onClubClick, isMobile }) => {
           <span className="text-gray-300 font-bold">
             #{club.originalRank.toLocaleString()}
           </span>
-          <span
-          className={`hover:text-blue-400 cursor-pointer ${club.tag === 'OG' ? 'text-blue-500' : 'text-gray-300'}`}
-          onClick={() => onClubClick(club.tag)}
-        >
+          <Link
+            to={buildClubSearchHref(club.tag)}
+            onClick={(e) => { e.preventDefault(); onClubClick(club.tag); }}
+            className={`hover:text-blue-400 cursor-pointer ${club.tag === 'OG' ? 'text-blue-500' : 'text-gray-300'}`}
+          >
             [{club.tag}]
-          </span>
+          </Link>
         </div>
         <div className="flex justify-between items-center">
           <div className="text-gray-400">Members in Top 10k</div>
@@ -70,12 +73,13 @@ const ClubRow = ({ club, onClubClick, isMobile }) => {
         #{club.originalRank.toLocaleString()}
       </td>
       <td className="px-4 py-2">
-        <span
+        <Link
+          to={buildClubSearchHref(club.tag)}
+          onClick={(e) => { e.preventDefault(); onClubClick(club.tag); }}
           className={`hover:text-blue-400 cursor-pointer ${club.tag === 'OG' ? 'text-blue-500' : 'text-gray-300'}`}
-          onClick={() => onClubClick(club.tag)}
         >
           [{club.tag}]
-        </span>
+        </Link>
       </td>
       <td className="px-4 py-2 text-gray-300">
         {club.memberCount.toLocaleString()}
@@ -129,7 +133,7 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
     sortConfig,
     handleSort,
     buildPageHref,
-  } = usePagination(rankedClubs, isMobile ? 15 : 15, false, { urlSync: true }); // Same items on mobile or desktop, but just added for future ref.
+  } = usePagination(rankedClubs, isMobile ? 15 : 15, false, { urlSync: true, basePath: '/clubs' }); // Same items on mobile or desktop, but just added for future ref.
 
   return (
     <div ref={viewContainerRef}>

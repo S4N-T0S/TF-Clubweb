@@ -1,5 +1,5 @@
 import { Helmet } from 'react-helmet-async';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { SEOHeadProps } from '../types/propTypes';
 
 const BASE_URL = 'https://ogclub.s4nt0s.eu';
@@ -13,12 +13,14 @@ export const SEOHead = ({
   infoModalOpen
 }) => {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
 
   // Default / Hub Metadata
   let title = 'THE FINALS Tracker Dashboard';
   let description = 'The Finals OG Club Dashboard. Track The Finals players in real time. View graphs, clubs, historical seasons, name changes and ban events.';
   let keywords = 'THE FINALS OG CLUB, PLAYER STATS, TOP CLUBS, TOP PLAYERS, LEADERBOARDS, GRAPHS, CHARTS, TRACKING, THE FINALS';
   let canonicalPath = location.pathname;
+  let canonicalSearch = '';
 
   // 1. Priority: Graph Modal
   if (graphModalState && graphModalState.isOpen) {
@@ -76,11 +78,56 @@ export const SEOHead = ({
         description = 'Leaderboard of the top performing clubs in The Finals based on aggregate score.';
         keywords = 'top clubs, clan leaderboard, best clubs, the finals teams';
         break;
-      case 'global': // Leaderboard
-        title = 'Ranked Leaderboard | THE FINALS Tracker';
-        description = 'Live leaderboard for The Finals. Track top 10000 players, score cutoffs, and rank distribution. Graphing and historical data available.';
-        keywords = 'the finals tracker, the finals leaderboard, ranked leaderboard, top players, player stats, historical ranks, seasonal data';
-        break;
+      case 'global': { // Leaderboard
+          const rawSeason = searchParams.get('season');
+          const rawPage = searchParams.get('page');
+
+          let seasonText = '';
+          let isHistorical = false;
+          let validSeason = null;
+
+          // Strictly validate season format
+          if (rawSeason && /^(ALL|OB|S[1-9]\d*)$/.test(rawSeason)) {
+            validSeason = rawSeason;
+            if (validSeason === 'ALL') {
+              seasonText = ' (All Seasons)';
+              isHistorical = true;
+            } else if (validSeason === 'OB') {
+              seasonText = ' (Open Beta)';
+              isHistorical = true;
+            } else {
+              seasonText = ` (Season ${validSeason.substring(1)})`;
+              isHistorical = true;
+            }
+          }
+
+          const pageNum = parseInt(rawPage, 10);
+          let validPage = null;
+          let pageText = '';
+
+          // Ensure page is a valid number > 1
+          if (!isNaN(pageNum) && pageNum > 1) {
+            validPage = pageNum;
+            pageText = ` - Page ${validPage}`;
+          }
+
+          title = `Ranked Leaderboard${seasonText}${pageText} | THE FINALS Tracker`;
+          const descPrefix = isHistorical ? `Historical leaderboard for The Finals${seasonText}` : 'Live leaderboard for The Finals';
+          description = `${descPrefix}${pageText}. Track top 10000 players, score cutoffs, and rank distribution. Graphing and historical data available.`;
+          keywords = 'the finals tracker, the finals leaderboard, ranked leaderboard, top players, player stats, historical ranks, seasonal data';
+
+          if (validSeason && validSeason !== 'ALL') {
+            keywords += `, ${validSeason.toLowerCase()} leaderboard`;
+          }
+
+          const canonicalParams = new URLSearchParams();
+          if (validSeason) canonicalParams.set('season', validSeason);
+          if (validPage) canonicalParams.set('page', validPage.toString());
+          const q = canonicalParams.toString();
+          if (q) canonicalSearch = `?${q}`;
+
+          break;
+        }
       case 'hub':
       default:
         // Resolves the root `/` to point to `/hub`
@@ -95,7 +142,7 @@ export const SEOHead = ({
     ? canonicalPath.slice(0, -1) 
     : canonicalPath;
     
-  const canonicalUrl = `${BASE_URL}${cleanPath}`;
+  const canonicalUrl = `${BASE_URL}${cleanPath}${canonicalSearch}`;
 
   return (
     <Helmet>
