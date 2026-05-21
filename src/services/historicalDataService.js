@@ -72,7 +72,13 @@ export const getAllSeasonsLeaderboard = (currentSeasonData) => {
   };
 };
 
-const filterPlayers = (players, searchQuery, searchType) => {
+const filterPlayers = (players, searchQuery, searchType, ambiguousXbox) => {
+  // Xbox accounts can be shared between players (commonly for cross-account
+  // rewards), so if the queried Xbox name has 2+ bearers in this season's
+  // leaderboard, refuse to match on it at all — anyone "linked" through
+  // it would just be a random co-holder.
+  if (searchType === 'xbox' && ambiguousXbox?.has(searchQuery)) return [];
+
   const query = searchQuery.toLowerCase();
   return players.filter(player => {
     switch(searchType) {
@@ -125,7 +131,26 @@ export const searchPlayerHistory = async (initialEmbarkId, currentSeasonData = n
   // Queue for Breadth-First Search (BFS).
   // 'isWeakChain' tracks if we are currently traversing a path dependent on a Steam link.
   const searchQueue = [{ type: 'embarkId', value: initialEmbarkId, isWeakChain: false }];
-  
+
+  // Per-season set of Xbox names with 2+ bearers in the full leaderboard.
+  // Precomputed once so the BFS can cheaply skip ambiguous Xbox links and
+  // the post-processing can reuse the same map for anchor logic.
+  const ambiguousXboxBySeason = new Map();
+  for (const [seasonKey, seasonConfig] of Object.entries(SEASONS)) {
+    const players = getSeasonData(seasonConfig, currentSeasonData);
+    if (!players || players.length === 0) continue;
+    const counts = new Map();
+    for (const p of players) {
+      if (!p.xboxName) continue;
+      counts.set(p.xboxName, (counts.get(p.xboxName) || 0) + 1);
+    }
+    const amb = new Set();
+    for (const [name, count] of counts) {
+      if (count > 1) amb.add(name);
+    }
+    if (amb.size > 0) ambiguousXboxBySeason.set(seasonKey, amb);
+  }
+
   while (searchQueue.length > 0) {
     const { type, value, isWeakChain } = searchQueue.shift();
     
@@ -139,7 +164,7 @@ export const searchPlayerHistory = async (initialEmbarkId, currentSeasonData = n
       
       if (!currentSeasonPlayers) continue;
 
-      const matches = filterPlayers(currentSeasonPlayers, value, type);
+      const matches = filterPlayers(currentSeasonPlayers, value, type, ambiguousXboxBySeason.get(seasonKey));
       
       for (const player of matches) {
         const resultKey = `${seasonConfig.label}-${player.name}-${player.steamName}-${player.psnName}-${player.xboxName}`;
@@ -194,21 +219,29 @@ export const searchPlayerHistory = async (initialEmbarkId, currentSeasonData = n
     seasonOrder.indexOf(a.season) - seasonOrder.indexOf(b.season)
   );
 
-  // Mark "superseded" weak matches. Build anchor rows in three layers of
-  // decreasing reliability — each layer can pull in extra known identifiers
-  // for the next:
-  //   1. Embark name == searched ID (Embark IDs are unique)
-  //   2. PSN name matches one collected from layer 1 (PSN names are unique)
-  //   3. Xbox name matches one collected from layers 1-2 (Xbox accounts get
-  //      shared occasionally, but rarely enough to treat as confirmation)
-  // Any Steam-chain result whose season falls inside the [min..max] anchor
-  // range — and isn't itself an anchor — is almost certainly a different
-  // player and gets flagged.
+  // Mark "superseded" matches in three phases:
+  //   A. Anchors. Build anchor rows in three layers of decreasing
+  //      reliability — each layer can pull in extra known identifiers for
+  //      the next:
+  //        1. Embark name == searched ID (Embark IDs are unique)
+  //        2. PSN name matches one collected from layer 1 (PSN unique)
+  //        3. Xbox name matches one collected from layers 1-2 (ambiguous
+  //           Xbox names were already filtered out of the BFS).
+  //   B. Initial supersession. Inside the [min..max] anchor range, any
+  //      non-anchor row is noise — the user IS identified in surrounding
+  //      seasons, so a row here that can't be tied back is a different
+  //      player. Also flag rows sharing an ambiguous Xbox with the user
+  //      as a safety net.
+  //   C. Propagation. A flagged row's unique identifiers (Embark name,
+  //      PSN, non-ambiguous Xbox) belong to a known-different player, so
+  //      any other row carrying those is that same player — even outside
+  //      the anchor range. Walk the graph until stable.
   const initialIdLower = initialEmbarkId.toLowerCase();
   const anchors = new Set();
   const knownPsn = new Set();
   const knownXbox = new Set();
 
+  // Layer 1: Embark name
   for (let i = 0; i < results.length; i++) {
     const r = results[i];
     if (r.name && r.name.toLowerCase() === initialIdLower) {
@@ -217,6 +250,7 @@ export const searchPlayerHistory = async (initialEmbarkId, currentSeasonData = n
       if (r.xboxName) knownXbox.add(r.xboxName);
     }
   }
+  // Layer 2: PSN
   for (let i = 0; i < results.length; i++) {
     if (anchors.has(i)) continue;
     const r = results[i];
@@ -225,14 +259,18 @@ export const searchPlayerHistory = async (initialEmbarkId, currentSeasonData = n
       if (r.xboxName) knownXbox.add(r.xboxName);
     }
   }
+
+  // Layer 3: Xbox, skipping seasons where the Xbox name is ambiguous
   for (let i = 0; i < results.length; i++) {
     if (anchors.has(i)) continue;
     const r = results[i];
     if (r.xboxName && knownXbox.has(r.xboxName)) {
+      if (ambiguousXboxBySeason.get(r.seasonKey)?.has(r.xboxName)) continue;
       anchors.add(i);
     }
   }
 
+  // Confirmed range across all anchors
   let minConfirmedId = Infinity;
   let maxConfirmedId = -Infinity;
   for (const i of anchors) {
@@ -241,15 +279,93 @@ export const searchPlayerHistory = async (initialEmbarkId, currentSeasonData = n
     if (id < minConfirmedId) minConfirmedId = id;
     if (id > maxConfirmedId) maxConfirmedId = id;
   }
-  if (minConfirmedId !== Infinity) {
-    for (let i = 0; i < results.length; i++) {
-      if (anchors.has(i)) continue;
-      const r = results[i];
-      if (!r.foundViaSteamName) continue;
-      const id = SEASONS[r.seasonKey]?.id;
-      if (id === undefined) continue;
-      if (id >= minConfirmedId && id <= maxConfirmedId) {
-        r.supersededByDirectMatch = true;
+
+  // Flag superseded
+  for (let i = 0; i < results.length; i++) {
+    if (anchors.has(i)) continue;
+    const r = results[i];
+    const id = SEASONS[r.seasonKey]?.id;
+    if (id === undefined) continue;
+
+    // (a) Any non-anchor row inside the confirmed range. We already know
+    // who the user is in these seasons (via Embark/PSN/Xbox anchors), so
+    // anything else here is a different player — even if the BFS reached
+    // it through a chain that didn't end up flagged as Steam-weak.
+    if (
+      minConfirmedId !== Infinity &&
+      id >= minConfirmedId &&
+      id <= maxConfirmedId
+    ) {
+      r.supersededByDirectMatch = true;
+      continue;
+    }
+
+    // (b) Outside the confirmed range, but shares the user's Xbox in a
+    // season where that Xbox is held by multiple players — can't use it
+    // as a confirmation signal, so flag the row.
+    if (
+      r.xboxName &&
+      knownXbox.has(r.xboxName) &&
+      ambiguousXboxBySeason.get(r.seasonKey)?.has(r.xboxName)
+    ) {
+      r.supersededByDirectMatch = true;
+    }
+  }
+
+  // Phase C: propagate supersession through unique identifiers. Build
+  // identifier→rows lookup maps (Xbox entries only when non-ambiguous in
+  // their season — that's the only case where the name uniquely identifies
+  // its owner). Then BFS from every initially-flagged row, marking any
+  // neighbour that isn't an anchor.
+  const byEmbark = new Map();
+  const byPsn = new Map();
+  const byXbox = new Map();
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    if (r.name) {
+      const k = r.name.toLowerCase();
+      let arr = byEmbark.get(k);
+      if (!arr) { arr = []; byEmbark.set(k, arr); }
+      arr.push(i);
+    }
+    if (r.psnName) {
+      let arr = byPsn.get(r.psnName);
+      if (!arr) { arr = []; byPsn.set(r.psnName, arr); }
+      arr.push(i);
+    }
+    if (r.xboxName && !ambiguousXboxBySeason.get(r.seasonKey)?.has(r.xboxName)) {
+      let arr = byXbox.get(r.xboxName);
+      if (!arr) { arr = []; byXbox.set(r.xboxName, arr); }
+      arr.push(i);
+    }
+  }
+
+  const propQueue = [];
+  for (let i = 0; i < results.length; i++) {
+    if (results[i].supersededByDirectMatch) propQueue.push(i);
+  }
+  while (propQueue.length > 0) {
+    const i = propQueue.shift();
+    const r = results[i];
+    const buckets = [];
+    if (r.name) {
+      const arr = byEmbark.get(r.name.toLowerCase());
+      if (arr) buckets.push(arr);
+    }
+    if (r.psnName) {
+      const arr = byPsn.get(r.psnName);
+      if (arr) buckets.push(arr);
+    }
+    if (r.xboxName && !ambiguousXboxBySeason.get(r.seasonKey)?.has(r.xboxName)) {
+      const arr = byXbox.get(r.xboxName);
+      if (arr) buckets.push(arr);
+    }
+    for (const arr of buckets) {
+      for (const j of arr) {
+        if (anchors.has(j)) continue;
+        if (results[j].supersededByDirectMatch) continue;
+        results[j].supersededByDirectMatch = true;
+        propQueue.push(j);
       }
     }
   }
