@@ -81,6 +81,7 @@ export const SEOHead = ({
       case 'global': { // Leaderboard
           const rawSeason = searchParams.get('season');
           const rawPage = searchParams.get('page');
+          const rawSearch = searchParams.get('search');
 
           let seasonText = '';
           let isHistorical = false;
@@ -111,16 +112,51 @@ export const SEOHead = ({
             pageText = ` - Page ${validPage}`;
           }
 
-          title = `Ranked Leaderboard${seasonText}${pageText} | THE FINALS Tracker`;
-          const descPrefix = isHistorical ? `Historical leaderboard for The Finals${seasonText}` : 'Live leaderboard for The Finals';
-          description = `${descPrefix}${pageText}. Track top 10000 players, score cutoffs, and rank distribution. Graphing and historical data available.`;
+          let validSearch = null;
+          let searchTitlePrefix = '';
+          let searchDesc = '';
+
+          if (rawSearch && rawSearch.trim() !== '') {
+            validSearch = rawSearch.trim().substring(0, 50);
+            
+            if (validSearch.startsWith('[')) {
+              // Extract the tag name without brackets
+              const cleanTag = validSearch.replace(/[[\]]/g, '');
+              searchTitlePrefix = `Club [${cleanTag}] - `;
+              searchDesc = `Viewing players in club [${cleanTag}] on the `;
+            } else {
+              searchTitlePrefix = `Search: ${validSearch} - `;
+              searchDesc = `Viewing search results for "${validSearch}" on the `;
+            }
+          }
+
+          title = `${searchTitlePrefix}Ranked Leaderboard${seasonText}${pageText} | THE FINALS Tracker`;
+          
+          let descBase = isHistorical ? `historical leaderboard for The Finals${seasonText}` : 'live leaderboard for The Finals';
+          
+          // Capitalise the first letter if it is the start of the sentence
+          if (!validSearch) {
+              descBase = descBase.charAt(0).toUpperCase() + descBase.slice(1);
+          }
+          
+          description = `${searchDesc}${descBase}${pageText}. Track top 10000 players, score cutoffs, and rank distribution. Graphing and historical data available.`;
           keywords = 'the finals tracker, the finals leaderboard, ranked leaderboard, top players, player stats, historical ranks, seasonal data';
 
           if (validSeason && validSeason !== 'ALL') {
             keywords += `, ${validSeason.toLowerCase()} leaderboard`;
           }
+          
+          if (validSearch) {
+            const cleanSearch = validSearch.replace(/[[\]]/g, '');
+            if (validSearch.startsWith('[')) {
+              keywords += `, ${cleanSearch} club, ${cleanSearch} clan, top ${cleanSearch} players`;
+            } else {
+              keywords += `, search ${cleanSearch}, ${cleanSearch} players`;
+            }
+          }
 
           const canonicalParams = new URLSearchParams();
+          if (validSearch) canonicalParams.set('search', validSearch);
           if (validSeason) canonicalParams.set('season', validSeason);
           if (validPage) canonicalParams.set('page', validPage.toString());
           const q = canonicalParams.toString();

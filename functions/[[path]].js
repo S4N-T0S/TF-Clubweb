@@ -161,6 +161,7 @@ function generateMetadata(url) {
   } else if (baseRoute === 'leaderboard') {
     const rawSeason = url.searchParams.get('season');
     const rawPage = url.searchParams.get('page');
+    const rawSearch = url.searchParams.get('search');
 
     let seasonText = '';
     let isHistorical = false;
@@ -191,17 +192,51 @@ function generateMetadata(url) {
       pageText = ` - Page ${validPage}`;
     }
 
-    meta.title = `Ranked Leaderboard${seasonText}${pageText} | THE FINALS Tracker`;
+    let validSearch = null;
+    let searchTitlePrefix = '';
+    let searchDesc = '';
+
+    if (rawSearch && rawSearch.trim() !== '') {
+      validSearch = rawSearch.trim().substring(0, 50);
+      
+      if (validSearch.startsWith('[')) {
+        // Extract the tag name without brackets
+        const cleanTag = validSearch.replace(/[[\]]/g, '');
+        searchTitlePrefix = `Club [${cleanTag}] - `;
+        searchDesc = `Viewing players in club [${cleanTag}] on the `;
+      } else {
+        searchTitlePrefix = `Search: ${validSearch} - `;
+        searchDesc = `Viewing search results for "${validSearch}" on the `;
+      }
+    }
+
+    meta.title = `${searchTitlePrefix}Ranked Leaderboard${seasonText}${pageText} | THE FINALS Tracker`;
     
-    const descPrefix = isHistorical ? `Historical leaderboard for The Finals${seasonText}` : 'Live leaderboard for The Finals';
-    meta.description = `${descPrefix}${pageText}. Track top 10000 players, score cutoffs, and rank distribution. Graphing and historical data available.`;
+    let descBase = isHistorical ? `historical leaderboard for The Finals${seasonText}` : 'live leaderboard for The Finals';
+    
+    // Capitalise the first letter if it is the start of the sentence
+    if (!validSearch) {
+        descBase = descBase.charAt(0).toUpperCase() + descBase.slice(1);
+    }
+    
+    meta.description = `${searchDesc}${descBase}${pageText}. Track top 10000 players, score cutoffs, and rank distribution. Graphing and historical data available.`;
     
     meta.keywords = 'the finals tracker, the finals leaderboard, ranked leaderboard, top players, player stats, historical ranks, seasonal data';
     if (validSeason && validSeason !== 'ALL') {
       meta.keywords += `, ${validSeason.toLowerCase()} leaderboard`;
     }
 
+    if (validSearch) {
+      const cleanSearch = validSearch.replace(/[[\]]/g, '');
+      if (validSearch.startsWith('[')) {
+        meta.keywords += `, ${cleanSearch} club, ${cleanSearch} clan, top ${cleanSearch} players`;
+      } else {
+        meta.keywords += `, search ${cleanSearch}, ${cleanSearch} players`;
+      }
+    }
+
     const canonicalParams = new URLSearchParams();
+    if (validSearch) canonicalParams.set('search', validSearch);
     if (validSeason) canonicalParams.set('season', validSeason);
     if (validPage) canonicalParams.set('page', validPage.toString());
     const q = canonicalParams.toString();
