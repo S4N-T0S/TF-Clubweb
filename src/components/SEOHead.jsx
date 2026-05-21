@@ -49,8 +49,8 @@ export const SEOHead = ({
   else if (searchModalState && searchModalState.isOpen && searchModalState.initialSearch) {
     const name = searchModalState.initialSearch;
     title = `${name} History | THE FINALS Tracker`;
-    description = `Deep dive into ${name}'s leaderboard history, rank changes, and club affiliation.`;
-    keywords = `${name}, ${name} history, player stats, embark id, search tool, the finals, history`;
+    description = `View ${name}'s complete leaderboard history across all seasons of The Finals. Track rank progression, league placement, linked platform accounts, and club affiliations.`;
+    keywords = `${name}, ${name} history, ${name} stats, embark id, player search, the finals tracker, rank history, leaderboard history`;
   }
   // 3. Priority: Members Modal
   else if (membersModalOpen) {

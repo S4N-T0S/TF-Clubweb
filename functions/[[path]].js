@@ -140,8 +140,8 @@ function generateMetadata(url) {
   } else if (baseRoute === 'history' && parts.length > 1) {
     const name = parseUsername(parts.slice(1).join('/'));
     meta.title = `${name} History | THE FINALS Tracker`;
-    meta.description = `Deep dive into ${name}'s leaderboard history, rank changes, and club affiliation.`;
-    meta.keywords = `${name}, ${name} history, player stats, embark id, search tool, the finals, history`;
+    meta.description = `View ${name}'s complete leaderboard history across all seasons of The Finals. Track rank progression, league placement, linked platform accounts, and club affiliations.`;
+    meta.keywords = `${name}, ${name} history, ${name} stats, embark id, player search, the finals tracker, rank history, leaderboard history`;
   } else if (baseRoute === 'members') {
     meta.title = 'Club Members | THE FINALS Tracker';
     meta.description = 'View the list of verified OG Club members, their current ranks, and status.';

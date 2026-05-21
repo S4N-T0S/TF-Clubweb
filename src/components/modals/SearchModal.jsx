@@ -1,7 +1,7 @@
-import { memo, useState, useEffect, useRef, useCallback } from 'react';
+import { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, AlertTriangle, X, ChevronUp, ChevronDown, Users } from 'lucide-react';
-import { searchPlayerHistory } from '../../services/historicalDataService';
+import { searchPlayerHistory, SEASONS } from '../../services/historicalDataService';
 import { Hexagon } from '../icons/Hexagon';
 import { PlatformIcons } from '../icons/Platforms';
 import { getLeagueInfo } from '../../utils/leagueUtils';
@@ -186,6 +186,43 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
     }
   }, [isOpen, initialSearch, handleSearch, isLeaderboardLoading, hasProcessedInitial]);
 
+  const playerSummary = useMemo(() => {
+    const trustedResults = searchState.results.filter(r => !r.supersededByDirectMatch);
+    if (trustedResults.length === 0) return null;
+
+    const uniqueSeasons = [...new Set(trustedResults.map(r => r.seasonKey))];
+    const seasonCount = uniqueSeasons.length;
+
+    let bestRank = Infinity;
+    let bestSeasonLabel = '';
+    for (const r of trustedResults) {
+      if (r.rank && r.rank < bestRank) {
+        bestRank = r.rank;
+        bestSeasonLabel = r.season;
+      }
+    }
+
+    const currentResult = trustedResults.find(r => SEASONS[r.seasonKey]?.isCurrent);
+    const embarkName = trustedResults.findLast(r => r.name && r.name !== 'Unknown#0000')?.name || searchState.query;
+    const latestClub = [...trustedResults].reverse().find(r => r.clubTag)?.clubTag;
+
+    const steamNames = [...new Set(trustedResults.map(r => r.steamName).filter(Boolean))];
+    const psnNames = [...new Set(trustedResults.map(r => r.psnName).filter(Boolean))];
+    const xboxNames = [...new Set(trustedResults.map(r => r.xboxName).filter(Boolean))];
+
+    const aliasParts = [];
+    if (steamNames.length > 0) aliasParts.push(`Steam as ${steamNames.join(', ')}`);
+    if (psnNames.length > 0) aliasParts.push(`PlayStation Network as ${psnNames.join(', ')}`);
+    if (xboxNames.length > 0) aliasParts.push(`Xbox as ${xboxNames.join(', ')}`);
+
+    let platformSummary = '';
+    if (aliasParts.length === 1) platformSummary = aliasParts[0];
+    else if (aliasParts.length === 2) platformSummary = `${aliasParts[0]} and ${aliasParts[1]}`;
+    else if (aliasParts.length >= 3) platformSummary = `${aliasParts.slice(0, -1).join(', ')}, and ${aliasParts[aliasParts.length - 1]}`;
+
+    return { seasonCount, bestRank, bestSeasonLabel, currentResult, embarkName, latestClub, platformSummary };
+  }, [searchState.results, searchState.query]);
+
   if (!isOpen) return null;
 
   const supersededCount = searchState.results.filter(r => r.supersededByDirectMatch).length;
@@ -215,23 +252,50 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
             <h2 className="text-xl font-bold text-white w-full text-center">Player History Search</h2>
           </div>
           <div className="mb-4">
-            <button 
+            <button
               onClick={toggleExplanation}
-              className="p-4 bg-gray-700 rounded-lg text-gray-300 flex justify-between items-center w-full text-left sm:hidden hover:bg-gray-600"
+              className={`p-4 rounded-lg text-gray-300 flex justify-between items-center w-full text-left sm:hidden
+                ${playerSummary ? 'bg-blue-900/30 border border-blue-500/25 hover:bg-blue-900/40' : 'bg-gray-700 hover:bg-gray-600'}`}
             >
-              <span className="text-sm">Tap to view search tool details</span>
+              <span className="text-sm">{playerSummary ? 'Tap to view player overview' : 'Tap to view search tool details'}</span>
               {isExplanationExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
             </button>
 
-            {/* Full explanation visible on desktop, conditional on mobile */}
             <div className={`
-              bg-gray-700 rounded-lg text-gray-300 
-              ${isMobile 
-                ? `${isExplanationExpanded ? 'block' : 'hidden'}` 
+              rounded-lg text-gray-300
+              ${playerSummary ? 'bg-blue-900/20 border border-blue-500/20' : 'bg-gray-700'}
+              ${isMobile
+                ? `${isExplanationExpanded ? 'block' : 'hidden'}`
                 : 'block'
               } p-4 text-sm
             `}>
-              <p>This tool searches the leaderboards using an Embark ID. It identifies any linked Steam, Xbox, or PSN usernames from these records and performs additional searches on those accounts to uncover more associated records. All linked accounts and results are displayed. Note: The autofill feature only works for players in the top 10k, but you can manually enter an Embark ID for inactive players.</p>
+              {playerSummary ? (
+                <p>
+                  <strong className="text-white">{playerSummary.embarkName}</strong>
+                  {` has been tracked across ${playerSummary.seasonCount} season${playerSummary.seasonCount !== 1 ? 's' : ''} of The Finals ranked leaderboards`}
+                  {playerSummary.bestRank !== Infinity && (
+                    <>, reaching a peak rank of <strong className="text-white">#{playerSummary.bestRank.toLocaleString()}</strong> in {playerSummary.bestSeasonLabel}</>
+                  )}
+                  {'. '}
+                  {playerSummary.currentResult && (
+                    <>
+                      In the current season, they hold rank{' '}
+                      <strong className="text-white">#{playerSummary.currentResult.rank.toLocaleString()}</strong>
+                      {' in '}{playerSummary.currentResult.league}
+                      {playerSummary.currentResult.score ? ` with ${playerSummary.currentResult.score.toLocaleString()} rank score` : ''}
+                      {'. '}
+                    </>
+                  )}
+                  {playerSummary.platformSummary && (
+                    <>Also known on {playerSummary.platformSummary}. </>
+                  )}
+                  {playerSummary.latestClub && (
+                    <>Most recently affiliated with the [{playerSummary.latestClub}] club.</>
+                  )}
+                </p>
+              ) : (
+                <p>This tool searches the leaderboards using an Embark ID. It identifies any linked Steam, Xbox, or PSN usernames from these records and performs additional searches on those accounts to uncover more associated records. All linked accounts and results are displayed. Note: The autofill feature only works for players in the top 10k, but you can manually enter an Embark ID for inactive players.</p>
+              )}
             </div>
           </div>
           <div className="relative mb-4">
