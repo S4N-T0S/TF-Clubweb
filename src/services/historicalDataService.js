@@ -189,8 +189,70 @@ export const searchPlayerHistory = async (initialEmbarkId, currentSeasonData = n
     .filter(s => s.label && s.id !== undefined && !s.isAggregate)
     .sort((a, b) => a.id - b.id)
     .map(s => s.label);
-  
-  return Array.from(allResults.values()).sort((a, b) => 
+
+  const results = Array.from(allResults.values()).sort((a, b) =>
     seasonOrder.indexOf(a.season) - seasonOrder.indexOf(b.season)
   );
+
+  // Mark "superseded" weak matches. Build anchor rows in three layers of
+  // decreasing reliability — each layer can pull in extra known identifiers
+  // for the next:
+  //   1. Embark name == searched ID (Embark IDs are unique)
+  //   2. PSN name matches one collected from layer 1 (PSN names are unique)
+  //   3. Xbox name matches one collected from layers 1-2 (Xbox accounts get
+  //      shared occasionally, but rarely enough to treat as confirmation)
+  // Any Steam-chain result whose season falls inside the [min..max] anchor
+  // range — and isn't itself an anchor — is almost certainly a different
+  // player and gets flagged.
+  const initialIdLower = initialEmbarkId.toLowerCase();
+  const anchors = new Set();
+  const knownPsn = new Set();
+  const knownXbox = new Set();
+
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    if (r.name && r.name.toLowerCase() === initialIdLower) {
+      anchors.add(i);
+      if (r.psnName) knownPsn.add(r.psnName);
+      if (r.xboxName) knownXbox.add(r.xboxName);
+    }
+  }
+  for (let i = 0; i < results.length; i++) {
+    if (anchors.has(i)) continue;
+    const r = results[i];
+    if (r.psnName && knownPsn.has(r.psnName)) {
+      anchors.add(i);
+      if (r.xboxName) knownXbox.add(r.xboxName);
+    }
+  }
+  for (let i = 0; i < results.length; i++) {
+    if (anchors.has(i)) continue;
+    const r = results[i];
+    if (r.xboxName && knownXbox.has(r.xboxName)) {
+      anchors.add(i);
+    }
+  }
+
+  let minConfirmedId = Infinity;
+  let maxConfirmedId = -Infinity;
+  for (const i of anchors) {
+    const id = SEASONS[results[i].seasonKey]?.id;
+    if (id === undefined) continue;
+    if (id < minConfirmedId) minConfirmedId = id;
+    if (id > maxConfirmedId) maxConfirmedId = id;
+  }
+  if (minConfirmedId !== Infinity) {
+    for (let i = 0; i < results.length; i++) {
+      if (anchors.has(i)) continue;
+      const r = results[i];
+      if (!r.foundViaSteamName) continue;
+      const id = SEASONS[r.seasonKey]?.id;
+      if (id === undefined) continue;
+      if (id >= minConfirmedId && id <= maxConfirmedId) {
+        r.supersededByDirectMatch = true;
+      }
+    }
+  }
+
+  return results;
 };

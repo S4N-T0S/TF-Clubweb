@@ -110,6 +110,18 @@ const defaultEventSettings = {
 export const getStoredEventsSettings = () => getStoredJsonItem(EVENTS_MODAL_SETTINGS_KEY, defaultEventSettings, areValidEventSettings);
 export const setStoredEventsSettings = (value) => setStoredJsonItem(EVENTS_MODAL_SETTINGS_KEY, value);
 
+// Search Modal Settings
+const SEARCH_MODAL_SETTINGS_KEY = 'searchModalSettings';
+const areValidSearchSettings = (value) => {
+    if (typeof value !== 'object' || value === null) return false;
+    return typeof value.hideSupersededMatches === 'boolean';
+};
+const defaultSearchSettings = {
+    hideSupersededMatches: true,
+};
+export const getStoredSearchSettings = () => getStoredJsonItem(SEARCH_MODAL_SETTINGS_KEY, defaultSearchSettings, areValidSearchSettings);
+export const setStoredSearchSettings = (value) => setStoredJsonItem(SEARCH_MODAL_SETTINGS_KEY, value);
+
 // Deprecated Cache Cleanup
 const DEPRECATED_CACHE_CLEANUP_FLAG = 'v3_storage_cleanup_complete';
 /**

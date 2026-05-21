@@ -10,6 +10,7 @@ import { isValidEmbarkId, formatUsernameForUrl } from '../../utils/urlHandler';
 import { useModal } from '../../context/ModalProvider';
 import { LoadingDisplay } from '../LoadingDisplay';
 import { buildClubSearchHref } from '../../utils/modalHrefs';
+import { getStoredSearchSettings, setStoredSearchSettings } from '../../services/localStorageManager';
 
 const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClubClick, isLeaderboardLoading }) => {
   // `useModal` now also returns `isActive`, which handles animation state internally.
@@ -24,6 +25,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
   });
   
   const [isExplanationExpanded, setIsExplanationExpanded] = useState(false);
+  const [hideSuperseded, setHideSuperseded] = useState(() => getStoredSearchSettings().hideSupersededMatches);
   const inputRef = useRef(null);
 
   // Used to prevent re-running search on same prop, but key change handles full reset now.
@@ -31,6 +33,14 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
 
   const toggleExplanation = () => {
     setIsExplanationExpanded(!isExplanationExpanded);
+  };
+
+  const toggleSuperseded = () => {
+    setHideSuperseded(prev => {
+      const next = !prev;
+      setStoredSearchSettings({ hideSupersededMatches: next });
+      return next;
+    });
   };
 
   const isPartialEmbarkId = (id) => id.length >= 1;
@@ -178,6 +188,11 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
 
   if (!isOpen) return null;
 
+  const supersededCount = searchState.results.filter(r => r.supersededByDirectMatch).length;
+  const visibleResults = hideSuperseded
+    ? searchState.results.filter(r => !r.supersededByDirectMatch)
+    : searchState.results;
+
   return (
     <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4`}>
       <div 
@@ -276,17 +291,37 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
                 <LoadingDisplay variant="component" />
              </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <>
+              {supersededCount > 0 && (
+                <div className="mb-3 p-3 bg-gray-700 rounded-lg flex items-center justify-between gap-3 flex-wrap">
+                  <div className="text-sm text-gray-300">
+                    {hideSuperseded
+                      ? `Hiding ${supersededCount} likely-unrelated match${supersededCount === 1 ? '' : 'es'} from seasons where this Embark ID was directly confirmed.`
+                      : `Showing ${supersededCount} likely-unrelated match${supersededCount === 1 ? '' : 'es'} (red border).`}
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={hideSuperseded}
+                      onChange={toggleSuperseded}
+                      className="w-4 h-4 cursor-pointer"
+                    />
+                    <span className="text-sm text-gray-300">Smart filter</span>
+                  </label>
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {searchState.results.length === 0 && !searchState.error && !searchState.isSearching && searchState.query && (
                 <div className="col-span-1 sm:col-span-2 p-4 bg-gray-700 rounded-lg text-gray-300 text-center">
                   No results found
                 </div>
               )}
-              {searchState.results.map((result, index) => (
-                <div 
+              {visibleResults.map((result, index) => (
+                <div
                   key={`${result.season}-${index}`}
                   className={`p-4 bg-gray-700 rounded-lg hover:bg-gray-650 transition-colors
-                    ${result.foundViaSteamName ? 'border-2 border-yellow-500' : ''}`}
+                    ${result.supersededByDirectMatch ? 'border-2 border-red-500' :
+                      result.foundViaSteamName ? 'border-2 border-yellow-500' : ''}`}
                 >
                   <div className="flex justify-between items-start mb-3">
                     <span className="text-lg font-medium text-blue-400">{result.season}</span>
@@ -338,9 +373,11 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
                           </p>
                           {result.foundViaSteamName && (
                             <div className="relative group">
-                              <AlertTriangle className="w-4 h-4 text-yellow-400 hover:cursor-help" />
+                              <AlertTriangle className={`w-4 h-4 hover:cursor-help ${result.supersededByDirectMatch ? 'text-red-400' : 'text-yellow-400'}`} />
                               <span className="absolute hidden group-hover:block bg-gray-900 text-white px-2 py-1 rounded text-sm -top-10 left-1/2 -translate-x-1/2 z-50 w-48 hover:cursor-help">
-                                Steam names are not unique, this could be a different player.
+                                {result.supersededByDirectMatch
+                                  ? 'Likely a different player — this Embark ID was directly confirmed in surrounding seasons.'
+                                  : 'Steam names are not unique, this could be a different player.'}
                               </span>
                             </div>
                           )}
@@ -374,7 +411,8 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
                   </div>
                 </div>
               ))}
-            </div>
+              </div>
+            </>
           )}
         </div>
       </div>
