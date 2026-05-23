@@ -12,7 +12,7 @@ const WeaponVideo = ({ weapon, videoRef, sync, onReady }) => {
   const [started, setStarted] = useState(false);
 
   useEffect(() => {
-    if (videoRef.current) videoRef.current.volume = 0.1;
+    if (videoRef.current) videoRef.current.volume = 0.05;
   }, [videoRef]);
 
   // If the browser loaded the video entirely from cache before mounting, bypass standard events

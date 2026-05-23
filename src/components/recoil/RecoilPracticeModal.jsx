@@ -60,9 +60,12 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
     return { guidePts: pts, guidePath: path };
   }, [weapon]);
 
-  // Real-time: the in-game seconds it takes to empty the magazine at this rpm.
+  // Real-time playback length taken straight from the captured footage
+  // (trajectory frames / fps). The bullet timings (tNorm) are normalised against
+  // this same timeline, so the marker fires in sync — and burst weapons keep
+  // their real inter-burst pauses instead of collapsing to the intra-burst rpm.
   const durationMs = useMemo(
-    () => Math.max(400, (weapon.shots / Math.max(1, weapon.rpm)) * 60 * 1000),
+    () => Math.max(400, (weapon.trajectory.length / Math.max(1, weapon.fps)) * 1000),
     [weapon],
   );
 
@@ -90,7 +93,10 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
     const [px, py] = toSvgPoint(e.clientX, e.clientY);
     if (Math.hypot(px - START.x, py - START.y) > 60) return;
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* synthetic events */ }
-    runRef.current = { start: performance.now(), pressX: px, pressY: py, samples: [] };
+    // ux/uy track the user's latest cursor; sampling happens on a fixed cadence
+    // (every frame) so being in the wrong place at the wrong time is penalised
+    // — you can't race to the end, park there, and wait for the marker.
+    runRef.current = { start: performance.now(), pressX: px, pressY: py, samples: [], ux: START.x, uy: START.y };
     setPhase('running');
     setUserPath(`M${START.x} ${START.y}`);
 
@@ -99,6 +105,8 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
       if (!run) return;
       const f = Math.min(1, (now - run.start) / durationMs);
       setMarkerF(f);
+      const [gx, gy] = compAt(guidePts, f);
+      run.samples.push(Math.hypot(run.ux - gx, run.uy - gy));
       if (f >= 1) { finish(run.samples); return; }
       rafRef.current = requestAnimationFrame(tick);
     };
@@ -109,12 +117,9 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
     const run = runRef.current;
     if (phase !== 'running' || !run || !svgRef.current) return;
     const [px, py] = toSvgPoint(e.clientX, e.clientY);
-    const ux = START.x + (px - run.pressX);
-    const uy = START.y + (py - run.pressY);
-    setUserPath((p) => `${p} L${ux.toFixed(1)} ${uy.toFixed(1)}`);
-    const f = Math.min(1, (performance.now() - run.start) / durationMs);
-    const [gx, gy] = compAt(guidePts, f);
-    run.samples.push(Math.hypot(ux - gx, uy - gy));
+    run.ux = START.x + (px - run.pressX);
+    run.uy = START.y + (py - run.pressY);
+    setUserPath((p) => `${p} L${run.ux.toFixed(1)} ${run.uy.toFixed(1)}`);
   };
 
   const handlePointerUp = () => {
@@ -152,7 +157,7 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
             ref={svgRef}
             viewBox={`0 0 ${BOX} ${BOX}`}
             className="w-full h-auto rounded-xl bg-gray-900 border border-gray-700 touch-none select-none"
-            style={{ cursor: phase === 'ready' ? 'crosshair' : 'none' }}
+            style={{ cursor: phase === 'running' ? 'none' : phase === 'ready' ? 'crosshair' : 'default' }}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
@@ -172,22 +177,24 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
                 <text x={START.x} y={START.y + 26} textAnchor="middle" fill="#34d399" fontSize="11" fontWeight="700">PRESS</text>
               </g>
             )}
-
-            {phase === 'done' && (
-              <g>
-                <rect x="0" y="0" width={BOX} height={BOX} fill="#0b0f17" fillOpacity="0.78" />
-                <circle cx={BOX / 2} cy={BOX / 2 - 20} r="46" fill="none" stroke="#1f2937" strokeWidth="9" />
-                <circle
-                  cx={BOX / 2} cy={BOX / 2 - 20} r="46" fill="none"
-                  stroke={scoreColor(score)} strokeWidth="9" strokeLinecap="round"
-                  strokeDasharray={`${(2 * Math.PI * 46 * score) / 100} ${2 * Math.PI * 46}`}
-                  transform={`rotate(-90 ${BOX / 2} ${BOX / 2 - 20})`}
-                />
-                <text x={BOX / 2} y={BOX / 2 - 10} textAnchor="middle" fill="#fff" fontSize="34" fontWeight="800">{score}</text>
-                <text x={BOX / 2} y={BOX / 2 + 40} textAnchor="middle" fill={scoreColor(score)} fontSize="16" fontWeight="700">{scoreMessage(score)}</text>
-              </g>
-            )}
           </svg>
+
+          {phase === 'done' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/85 rounded-xl select-text">
+              <div className="relative w-28 h-28">
+                <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                  <circle cx="50" cy="50" r="44" fill="none" stroke="#1f2937" strokeWidth="9" />
+                  <circle
+                    cx="50" cy="50" r="44" fill="none"
+                    stroke={scoreColor(score)} strokeWidth="9" strokeLinecap="round"
+                    strokeDasharray={`${(2 * Math.PI * 44 * score) / 100} ${2 * Math.PI * 44}`}
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-4xl font-extrabold text-white select-text tabular-nums">{score}</span>
+              </div>
+              <span className="mt-2 text-lg font-bold select-text" style={{ color: scoreColor(score) }}>{scoreMessage(score)}</span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-center gap-4 mt-3 text-xs">
@@ -209,8 +216,8 @@ RecoilPracticeModal.propTypes = {
   weapon: PropTypes.shape({
     name: PropTypes.string.isRequired,
     pattern: PropTypes.array.isRequired,
-    rpm: PropTypes.number.isRequired,
-    shots: PropTypes.number.isRequired,
+    trajectory: PropTypes.array.isRequired,
+    fps: PropTypes.number.isRequired,
   }).isRequired,
   onClose: PropTypes.func.isRequired,
 };

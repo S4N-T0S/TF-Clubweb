@@ -277,7 +277,7 @@ export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, videoRea
             {shownDots.map((d) => (
               <circle key={d.n} cx={d.cx} cy={d.cy} r={dotR} fill={d.color}><title>{`Bullet ${d.n}`}</title></circle>
             ))}
-            {activeDot && <circle cx={activeDot.cx} cy={activeDot.cy} r={dotR + 2.5} fill="none" stroke="#fff" strokeWidth="1.2" />}
+            {activeDot && <circle cx={activeDot.cx} cy={activeDot.cy} r={dotR + 2.5} fill="none" stroke={activeDot.color} strokeWidth="1.5" />}
           </svg>
         </figure>
 

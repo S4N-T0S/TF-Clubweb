@@ -50,8 +50,6 @@ const App = () => {
     return getStoredTab();
   });
 
-  const [modalHistory, setModalHistory] = useState([]);
-
   // --> Derived Modal Data
 
   // Graph Data
@@ -70,16 +68,18 @@ const App = () => {
   // --> Stacked Modal Logic
 
   const isOverlayModalPath = location.pathname.startsWith('/graph') || location.pathname.startsWith('/history');
-  const lastPath = modalHistory.length > 0 ? modalHistory[modalHistory.length - 1] : '/';
+  // The view/modal a stacked overlay (graph/history) was opened on top of.
+  // Carried in history state so browser Back/Forward restore it correctly.
+  const background = location.state?.background || '';
 
   // Memoize these states to prevent unnecessary re-calculations
   const modalStates = useMemo(() => ({
-    isMembersOpen: location.pathname.startsWith('/members') || (isOverlayModalPath && lastPath.startsWith('/members')),
-    isEventsOpen: location.pathname.startsWith('/events') || (isOverlayModalPath && lastPath.startsWith('/events')),
+    isMembersOpen: location.pathname.startsWith('/members') || (isOverlayModalPath && background.startsWith('/members')),
+    isEventsOpen: location.pathname.startsWith('/events') || (isOverlayModalPath && background.startsWith('/events')),
     isGraphOpen: !!graph && !!graphEmbarkId,
     isSearchOpen: location.pathname.startsWith('/history'),
     isInfoOpen: location.pathname.startsWith('/info')
-  }), [location.pathname, isOverlayModalPath, lastPath, graph, graphEmbarkId]);
+  }), [location.pathname, isOverlayModalPath, background, graph, graphEmbarkId]);
 
   const { isMembersOpen, isEventsOpen, isGraphOpen, isSearchOpen, isInfoOpen } = modalStates;
 
@@ -188,34 +188,23 @@ const App = () => {
   }, [setToastMessage]);
 
   const openModal = useCallback((newPath) => {
-    // Store pathname AND search so closing the modal restores ?page=N etc.
-    setModalHistory(prev => [...prev, location.pathname + location.search]);
-    // Small timeout ensures the State update (History) is processed 
-    // before the Router update (Location) hits. This prevents premature unmounting.
-    setTimeout(() => {
-      navigate(newPath, { replace: true });
-    }, 10);
+    // Push a browser history entry so Back/Forward work. Remember the
+    // current location (path + search) as the background, so stacked overlays
+    // (e.g. a graph opened from the events modal) keep what's underneath, and
+    // closing restores ?page=N etc.
+    navigate(newPath, { state: { background: location.pathname + location.search } });
   }, [location.pathname, location.search, navigate]);
 
   const closeModal = useCallback(() => {
-    // Pop the last path from our manual history stack
-    const newHistory = [...modalHistory];
-    const previousPath = newHistory.pop() || '/'; // Default to root if history is empty
-
-    // 1. Navigate back to the "Background" modal. 
-    // Since it's already open, this is seamless.
-    navigate(previousPath, { replace: true });
-
-    // 2. Delay the history update slightly.
-    // This allows React Router to update `location.pathname` to the new path (e.g., /members)
-    // BEFORE we remove /members from the history stack. This prevents flash unmounts.
-    setTimeout(() => {
-      setModalHistory(newHistory);
-    }, 20);
-  }, [modalHistory, navigate]);
+    // Prefer real history back so the URL, scroll and state restore naturally
+    // (and the browser Back button does exactly the same thing).
+    // location.key === 'default' means we loaded straight onto this modal via a
+    // deep link, with nothing to go back to — fall back to the home view.
+    if (location.key !== 'default') navigate(-1);
+    else navigate('/', { replace: true });
+  }, [navigate, location.key]);
 
   const closeAllModals = useCallback(() => {
-    setModalHistory([]);
     navigate('/', { replace: true });
   }, [navigate]);
 
