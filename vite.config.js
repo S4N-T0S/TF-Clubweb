@@ -23,6 +23,10 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // Recoil data is route-specific; make separate chunk.
+          if (id.includes('src/data/recoil/')) {
+            return;
+          }
           // Manually compress all frontend historical json data into 1 large file for better caching + compression.
           if (id.includes('src/data/')) {
             return 'historical-data';

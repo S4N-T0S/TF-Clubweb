@@ -4,9 +4,19 @@ import { SEOHeadProps } from '../types/propTypes';
 
 const BASE_URL = 'https://ogclub.s4nt0s.eu';
 
-export const SEOHead = ({ 
-  view, 
-  searchModalState, 
+// Slug -> display name for spray-pattern weapon pages. Kept in sync with
+// functions/[[path]].js (edge SEO) and src/data/recoil/weapons.json.
+const WEAPON_NAMES = {
+  '93r': '93R', 'arn-220': 'ARN-220', 'h-plus-infuser': 'H+ INFUSER', 'lh1': 'LH1',
+  'm11': 'M11', 'v9s': 'V9S', 'xp-54': 'XP-54', 'akm': 'AKM', 'cb-01-repeater': 'CB-01 REPEATER',
+  'chimera-xb': 'CHIMERA-XB', 'famas': 'FAMAS', 'fcar': 'FCAR', 'p90': 'P90', 'pike-556': 'PIKE-556',
+  'r-357': 'R .357', 'bfr-titan': 'BFR TITAN', 'lewis-gun': 'LEWIS GUN', 'm60': 'M60', 'shak-50': 'SHAK-50',
+};
+
+export const SEOHead = ({
+  view,
+  weaponSlug,
+  searchModalState,
   graphModalState,
   membersModalOpen,
   eventsModalOpen,
@@ -78,6 +88,19 @@ export const SEOHead = ({
         description = 'Leaderboard of the top performing clubs in The Finals based on aggregate score.';
         keywords = 'top clubs, clan leaderboard, best clubs, the finals teams';
         break;
+      case 'spray': {
+        const weaponName = weaponSlug ? WEAPON_NAMES[weaponSlug.toLowerCase()] : null;
+        if (weaponName) {
+          title = `${weaponName} Spray Pattern & Recoil | THE FINALS Tracker`;
+          description = `Interactive ${weaponName} spray pattern and recoil control guide for The Finals. See the true-to-scale recoil pattern and practice countering it shot by shot.`;
+          keywords = `${weaponName} recoil, ${weaponName} spray pattern, ${weaponName} the finals, recoil control, the finals weapons`;
+        } else {
+          title = 'Spray Patterns & Recoil Guide | THE FINALS Tracker';
+          description = 'Interactive THE FINALS spray patterns and recoil control guides for every weapon. Compare true-to-scale recoil and practice the patterns shot by shot.';
+          keywords = 'the finals spray patterns, the finals recoil, recoil control, spray pattern, weapon guide, the finals weapons';
+        }
+        break;
+      }
       case 'global': { // Leaderboard
           const rawSeason = searchParams.get('season');
           const rawPage = searchParams.get('page');

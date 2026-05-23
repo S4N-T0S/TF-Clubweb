@@ -25,6 +25,7 @@ import { SEOHead } from './components/SEOHead';
 // Lazy load
 const GraphModal = lazy(() => import('./components/modals/GraphModal')); //big
 const InfoModal = lazy(() => import('./components/modals/InfoModal')); //unused and bigish
+const SprayPatternsView = lazy(() => import('./components/views/SprayPatternsView').then(m => ({ default: m.SprayPatternsView })));
 
 const ModalPortal = ({ children }) => {
   return createPortal(children, document.body);
@@ -34,7 +35,7 @@ const App = () => {
   const isMobile = useMobileDetect() || false;
   const navigate = useNavigate();
   const location = useLocation();
-  const { graph, season: seasonIdFromUrl, history } = useParams();
+  const { graph, season: seasonIdFromUrl, history, weapon: weaponSlug } = useParams();
   
   // Check for frontend updates every 5 minutes
   const updateAvailable = useVersionCheck(5 * 60 * 1000);
@@ -45,6 +46,7 @@ const App = () => {
     if (path.startsWith('/leaderboard')) return 'global';
     if (path.startsWith('/clubs')) return 'clubs';
     if (path.startsWith('/hub')) return 'hub';
+    if (path.startsWith('/spray-patterns')) return 'spray';
     return getStoredTab();
   });
 
@@ -149,14 +151,15 @@ const App = () => {
     if (path === '/') {
       const stored = getStoredTab();
       const routeMap = { 'hub': '/hub', 'global': '/leaderboard', 'clubs': '/clubs' };
-      // Default to /leaderboard if something goes wrong
-      navigate(routeMap[stored] || '/leaderboard', { replace: true });
+      // Default to /hub if something goes wrong
+      navigate(routeMap[stored] || '/hub', { replace: true });
       return;
     }
     // Sync 'view' state with current URL
     if (path.startsWith('/hub')) setView('hub');
     else if (path.startsWith('/leaderboard')) setView('global');
     else if (path.startsWith('/clubs')) setView('clubs');
+    else if (path.startsWith('/spray-patterns')) setView('spray');
     // Note: Modals (like /graph) do not change the background view
   }, [location.pathname, navigate]);
 
@@ -314,6 +317,7 @@ const App = () => {
 
         <SEOHead
           view={view}
+          weaponSlug={weaponSlug}
           searchModalState={{ isOpen: isSearchOpen, initialSearch: initialSearchQuery }}
           graphModalState={{ isOpen: isGraphOpen, embarkId: graphEmbarkId, compareIds: graphCompareIds, seasonId: graphSeasonId }}
           membersModalOpen={isMembersOpen}
@@ -346,6 +350,11 @@ const App = () => {
 
               {view === 'hub' && (
                 <HubView />
+              )}
+              {view === 'spray' && (
+                <Suspense fallback={<LoadingDisplay variant="component" />}>
+                  <SprayPatternsView />
+                </Suspense>
               )}
               {view === 'clubs' && (
                 <ClubsView

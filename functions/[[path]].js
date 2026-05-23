@@ -13,6 +13,15 @@ const BASE_URL = 'https://ogclub.s4nt0s.eu';
 // Default to a fallback season for legacy URLs
 const FALLBACK_SEASON_ID = '10';
 
+// Slug -> display name for spray-pattern weapon pages.
+// Kept in sync with SEOHead.jsx and src/data/recoil/weapons.json.
+const WEAPON_NAMES = {
+  '93r': '93R', 'arn-220': 'ARN-220', 'h-plus-infuser': 'H+ INFUSER', 'lh1': 'LH1',
+  'm11': 'M11', 'v9s': 'V9S', 'xp-54': 'XP-54', 'akm': 'AKM', 'cb-01-repeater': 'CB-01 REPEATER',
+  'chimera-xb': 'CHIMERA-XB', 'famas': 'FAMAS', 'fcar': 'FCAR', 'p90': 'P90', 'pike-556': 'PIKE-556',
+  'r-357': 'R .357', 'bfr-titan': 'BFR TITAN', 'lewis-gun': 'LEWIS GUN', 'm60': 'M60', 'shak-50': 'SHAK-50',
+};
+
 const BOT_USER_AGENTS = /bot|crawler|spider|crawling|facebookexternalhit|meta-external|chatgpt|perplexity|anthropic|claude-web|cohere|googleother|google-inspectiontool|slurp|qwantify|whatsapp|skype|slack|line|vkshare|telegram/i;
 const STATIC_ASSET_REGEX = /\.(js|css|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|eot|mp4|webm|json|md|xml|webmanifest|txt|map)$/i;
 
@@ -158,6 +167,20 @@ function generateMetadata(url) {
     meta.title = 'Top Clubs | THE FINALS Tracker';
     meta.description = 'Leaderboard of the top performing clubs in The Finals based on aggregate score.';
     meta.keywords = 'top clubs, clan leaderboard, best clubs, the finals teams';
+  } else if (baseRoute === 'spray-patterns') {
+    const slug = parts.length > 1 ? parts[1].toLowerCase() : null;
+    const weaponName = slug ? WEAPON_NAMES[slug] : null;
+    if (weaponName) {
+      meta.title = `${weaponName} Spray Pattern & Recoil | THE FINALS Tracker`;
+      meta.description = `Interactive ${weaponName} spray pattern and recoil control guide for The Finals. See the true-to-scale recoil pattern and practice countering it shot by shot.`;
+      meta.keywords = `${weaponName} recoil, ${weaponName} spray pattern, ${weaponName} the finals, recoil control, the finals weapons`;
+    } else {
+      meta.title = 'Spray Patterns & Recoil Guide | THE FINALS Tracker';
+      meta.description = 'Interactive THE FINALS spray patterns and recoil control guides for every weapon. Compare true-to-scale recoil and practice the patterns shot by shot.';
+      meta.keywords = 'the finals spray patterns, the finals recoil, recoil control, spray pattern, weapon guide, the finals weapons';
+      // Mirror the client redirect: unknown weapon slugs canonicalise to the base page.
+      if (slug) canonicalPath = '/spray-patterns';
+    }
   } else if (baseRoute === 'leaderboard') {
     const rawSeason = url.searchParams.get('season');
     const rawPage = url.searchParams.get('page');

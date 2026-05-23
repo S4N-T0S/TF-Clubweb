@@ -41,11 +41,11 @@ const VALID_TABS = ['clubs', 'global', 'hub'];
 export const getStoredTab = () => {
     try {
         const storedTab = localStorage.getItem(LAST_TAB_KEY);
-        // If the stored tab is not one of the valid options, default to 'global'.
-        return storedTab && VALID_TABS.includes(storedTab) ? storedTab : 'global';
+        // If the stored tab is not one of the valid options, default to 'hub'.
+        return storedTab && VALID_TABS.includes(storedTab) ? storedTab : 'hub';
     } catch (error) {
         console.error(`Error reading "${LAST_TAB_KEY}" from localStorage:`, error);
-        return 'global';
+        return 'hub';
     }
 };
 export const setStoredTab = (tab) => {

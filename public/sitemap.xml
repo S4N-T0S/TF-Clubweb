@@ -36,6 +36,51 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://ogclub.s4nt0s.eu/spray-patterns</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://ogclub.s4nt0s.eu/spray-patterns/akm</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://ogclub.s4nt0s.eu/spray-patterns/fcar</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://ogclub.s4nt0s.eu/spray-patterns/arn-220</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://ogclub.s4nt0s.eu/spray-patterns/m60</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://ogclub.s4nt0s.eu/spray-patterns/xp-54</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://ogclub.s4nt0s.eu/spray-patterns/lewis-gun</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://ogclub.s4nt0s.eu/spray-patterns/m11</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://ogclub.s4nt0s.eu/spray-patterns/shak-50</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://ogclub.s4nt0s.eu/events</loc>
     <changefreq>hourly</changefreq>
     <priority>0.8</priority>

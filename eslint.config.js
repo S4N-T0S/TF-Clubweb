@@ -59,4 +59,14 @@ export default [
       'react/jsx-no-target-blank': 'off',
     },
   },
+
+  // 5. Node-environment build/data scripts (not part of the browser bundle)
+  {
+    files: ['**/*.mjs'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
 ];

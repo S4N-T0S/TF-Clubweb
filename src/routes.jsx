@@ -10,6 +10,9 @@ const router = createBrowserRouter([
       { path: 'hub', element: null },
       { path: 'leaderboard', element: null },
       { path: 'clubs', element: null },
+
+      { path: 'spray-patterns', element: null },
+      { path: 'spray-patterns/:weapon', element: null },
       
       { path: 'graph/:season/:graph', element: null },
       { path: 'graph/:graph', element: null }, // Backward compat

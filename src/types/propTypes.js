@@ -42,7 +42,7 @@ export const SortButtonProps = {
 };
 
 export const DashboardHeaderProps = {
-  view: PropTypes.oneOf(['hub', 'clubs', 'global']).isRequired,
+  view: PropTypes.oneOf(['hub', 'clubs', 'global', 'spray']).isRequired,
   onOpenSearch: PropTypes.func.isRequired,
   onOpenEvents: PropTypes.func.isRequired,
   onOpenInfo: PropTypes.func.isRequired,
@@ -358,7 +358,8 @@ export const CollapsibleMarkdownSectionProps = {
 };
 
 export const SEOHeadProps = {
-  view: PropTypes.oneOf(['hub', 'clubs', 'global']).isRequired,
+  view: PropTypes.oneOf(['hub', 'clubs', 'global', 'spray']).isRequired,
+  weaponSlug: PropTypes.string,
   searchModalState: PropTypes.shape({
     isOpen: PropTypes.bool,
     initialSearch: PropTypes.string,
