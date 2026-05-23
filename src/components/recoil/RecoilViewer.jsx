@@ -26,7 +26,7 @@ const GridBackdrop = () => (
   </>
 );
 
-export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, videoReady, onToggleSync }) => {
+export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, videoReady, onToggleSync, active = true }) => {
   const isVisible = useVisibility();
   const [playhead, setPlayhead] = useState(1);
   const [playing, setPlaying] = useState(false);
@@ -38,11 +38,15 @@ export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, videoRea
 
   const playheadRef = useRef(playhead);
   const rafRef = useRef();
+  const wasVideoPlayingRef = useRef(false);
   const accent = CLASS_ACCENT[weapon.class] || CLASS_ACCENT.Medium;
   const recoil = hasRecoil(weapon);
-  
+
   // Wrapper boolean to prevent syncing while the video is still downloading/buffering
   const activeSync = sync && videoReady;
+
+  // "Live" = this view is both the focused tab AND not covered by a modal.
+  const live = isVisible && active;
 
   useEffect(() => { playheadRef.current = playhead; }, [playhead]);
 
@@ -155,25 +159,25 @@ export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, videoRea
     };
   }, [activeSync, videoRef, weapon.key]);
 
-  // Global Visibility/Autoplay handler: Only run animations if the webpage tab is active
+  // Pause the background — spray animation AND the gameplay clip (synced or
+  // played manually) — whenever the tab is hidden or a modal is open over this
+  // view. Resume what was running on return, unless the user paused it.
   useEffect(() => {
-    if (!isVisible) {
-      if (activeSync && videoRef?.current) {
-        videoRef.current.pause();
-      } else {
-        setPlaying(false);
-      }
-    } else {
-      // Resume playback on re-focus seamlessly if the user hasn't paused themselves
-      if (!userPaused) {
-        if (activeSync && videoRef?.current) {
-          videoRef.current.play().catch(() => {});
-        } else {
-          setPlaying(true);
-        }
-      }
+    const vid = videoRef?.current;
+    if (!live) {
+      if (vid && !vid.paused) { wasVideoPlayingRef.current = true; vid.pause(); }
+      setPlaying(false);
+      return;
     }
-  }, [isVisible, userPaused, activeSync, videoRef]);
+    if (userPaused) return;
+    if (activeSync && vid) {
+      vid.play().catch(() => {});
+    } else {
+      if (vid && wasVideoPlayingRef.current) vid.play().catch(() => {});
+      setPlaying(true);
+    }
+    wasVideoPlayingRef.current = false;
+  }, [live, userPaused, activeSync, videoRef]);
 
   // Reflect loop / speed onto the video while synced.
   useEffect(() => {
@@ -375,4 +379,5 @@ RecoilViewer.propTypes = {
   sync: PropTypes.bool,
   videoReady: PropTypes.bool,
   onToggleSync: PropTypes.func,
+  active: PropTypes.bool,
 };

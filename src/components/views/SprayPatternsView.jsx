@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Crosshair, Scaling, PlayCircle } from 'lucide-react';
 import { loadWeapons, getGlobalBounds, WEAPON_CLASSES, CLASS_ACCENT, FIRE_MODE_META, weaponVideoSrc, hasRecoil } from '../../data/recoil';
 import { LoadingDisplay } from '../LoadingDisplay';
@@ -86,6 +86,10 @@ const StatBox = ({ label, value }) => (
 export const SprayPatternsView = () => {
   const { weapon: weaponSlug } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  // A modal (events/info/members/graph/search) is open on top of this view when
+  // the URL no longer points at the spray page. Used to pause the background.
+  const overlayOpen = !location.pathname.startsWith('/spray-patterns');
   const [weapons, setWeapons] = useState(null);
   const [uniform, setUniform] = useState(false);
   const [sync, setSync] = useState(false);
@@ -100,12 +104,20 @@ export const SprayPatternsView = () => {
 
   const bounds = useMemo(() => (weapons ? getGlobalBounds(weapons) : null), [weapons]);
 
+  // Remember the last weapon we resolved. Falling back to the remembered key keeps the selection stable.
+  const lastWeaponKeyRef = useRef(weaponSlug || DEFAULT_WEAPON);
+
   const selected = useMemo(() => {
     if (!weapons) return null;
-    return weapons.find((w) => w.key === weaponSlug)
+    const key = weaponSlug || lastWeaponKeyRef.current;
+    return weapons.find((w) => w.key === key)
       || weapons.find((w) => w.key === DEFAULT_WEAPON)
       || weapons[0];
   }, [weapons, weaponSlug]);
+
+  useEffect(() => {
+    if (selected) lastWeaponKeyRef.current = selected.key;
+  }, [selected]);
 
   // Keep the URL canonical: drop unknown weapon slugs.
   useEffect(() => {
@@ -203,7 +215,8 @@ export const SprayPatternsView = () => {
           </div>
 
           <RecoilViewer weapon={selected} bounds={bounds} uniform={uniform}
-            videoRef={videoRef} sync={sync} videoReady={videoReady} onToggleSync={() => setSync((s) => !s)} />
+            videoRef={videoRef} sync={sync} videoReady={videoReady} onToggleSync={() => setSync((s) => !s)}
+            active={!overlayOpen} />
         </div>
 
         <div className="flex flex-col gap-4">
