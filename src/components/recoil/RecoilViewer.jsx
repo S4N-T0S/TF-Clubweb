@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { Play, Pause, RotateCcw, Repeat, Crosshair, Eye, EyeOff, Film } from 'lucide-react';
 import { CLASS_ACCENT, getWeaponBounds, shotColor, MIN_RECOIL_UNITS, hasRecoil } from '../../data/recoil';
 import { RecoilPracticeModal } from './RecoilPracticeModal';
+import { useVisibility } from '../../hooks/useVisibility';
 
 const VBW = 300;
 const VBH = 420;
@@ -25,18 +26,23 @@ const GridBackdrop = () => (
   </>
 );
 
-export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, onToggleSync }) => {
+export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, videoReady, onToggleSync }) => {
+  const isVisible = useVisibility();
   const [playhead, setPlayhead] = useState(1);
   const [playing, setPlaying] = useState(false);
+  const [userPaused, setUserPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [loop, setLoop] = useState(true);
-  const [showVisual, setShowVisual] = useState(false);
+  const [showVisual, setShowVisual] = useState(true);
   const [practiceOpen, setPracticeOpen] = useState(false);
 
   const playheadRef = useRef(playhead);
   const rafRef = useRef();
   const accent = CLASS_ACCENT[weapon.class] || CLASS_ACCENT.Medium;
   const recoil = hasRecoil(weapon);
+  
+  // Wrapper boolean to prevent syncing while the video is still downloading/buffering
+  const activeSync = sync && videoReady;
 
   useEffect(() => { playheadRef.current = playhead; }, [playhead]);
 
@@ -50,7 +56,7 @@ export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, onToggle
   const dots = useMemo(
     () => weapon.pattern.map(([x, y, t], i, arr) => ({
       n: i + 1,
-      t,
+      t: typeof t === 'number' ? t : (arr.length > 1 ? i / (arr.length - 1) : 0),
       color: shotColor(arr.length > 1 ? i / (arr.length - 1) : 0),
       cx: ORIGIN_X + x * scale,
       cy: ORIGIN_Y + y * scale,
@@ -58,11 +64,14 @@ export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, onToggle
     [weapon, scale],
   );
 
+  // Time of the very first bullet, avoiding dead-time scrubbing
+  const minT = dots.length > 0 ? dots[0].t : 0;
+
   // Recoil control guide: the inverse of the bullet pattern (the path to pull
   // your mouse), drawn descending from the top.
   const guide = useMemo(
-    () => weapon.pattern.map(([x, y, t]) => ({
-      t,
+    () => weapon.pattern.map(([x, y, t], i, arr) => ({
+      t: typeof t === 'number' ? t : (arr.length > 1 ? i / (arr.length - 1) : 0),
       cx: ORIGIN_X - x * scale,
       cy: GUIDE_TOP - y * scale,
     })),
@@ -80,16 +89,17 @@ export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, onToggle
     [weapon],
   );
 
+  // When weapon changes, reset to the first frame and remove any manual pause restrictions.
   useEffect(() => {
-    setPlaying(false);
-    playheadRef.current = 1;
-    setPlayhead(1);
-  }, [weapon.key]);
+    setUserPaused(false);
+    playheadRef.current = minT;
+    setPlayhead(minT);
+  }, [weapon.key, minT]);
 
   // Playback increments from the current playhead each frame -> pause/resume
   // continues where it left off; loop wraps instead of stopping.
   useEffect(() => {
-    if (!playing || sync) return undefined;
+    if (!playing || activeSync) return undefined;
     let prev = performance.now();
     const dur = realDuration / speed;
     const step = (ts) => {
@@ -97,8 +107,8 @@ export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, onToggle
       prev = ts;
       let p = playheadRef.current + dt / dur;
       if (p >= 1) {
-        if (loop) { p -= 1; }
-        else { playheadRef.current = 1; setPlayhead(1); setPlaying(false); return; }
+        if (loop) { p = minT; }
+        else { playheadRef.current = minT; setPlayhead(minT); setPlaying(false); return; }
       }
       playheadRef.current = p;
       setPlayhead(p);
@@ -106,14 +116,14 @@ export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, onToggle
     };
     rafRef.current = requestAnimationFrame(step);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [playing, speed, loop, realDuration, sync]);
+  }, [playing, speed, loop, realDuration, activeSync, minT]);
 
   // Sync mode: the gameplay clip is the master clock. The spray playhead follows
   // the video's progress, and the transport controls below proxy to the video,
   // so play/pause, scrubbing and loop stay in lockstep across both.
   useEffect(() => {
     const vid = videoRef?.current;
-    if (!sync || !vid) return undefined;
+    if (!activeSync || !vid) return undefined;
     let raf;
     const tick = () => {
       if (vid.duration) {
@@ -129,7 +139,10 @@ export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, onToggle
     vid.addEventListener('play', onPlay);
     vid.addEventListener('pause', onPause);
     vid.addEventListener('ended', onPause);
+    
+    // We bind local playing state directly to what the native video is doing
     setPlaying(!vid.paused);
+    
     return () => {
       cancelAnimationFrame(raf);
       vid.removeEventListener('play', onPlay);
@@ -140,49 +153,88 @@ export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, onToggle
       vid.loop = false;
       vid.playbackRate = 1;
     };
-  }, [sync, videoRef, weapon.key]);
+  }, [activeSync, videoRef, weapon.key]);
+
+  // Global Visibility/Autoplay handler: Only run animations if the webpage tab is active
+  useEffect(() => {
+    if (!isVisible) {
+      if (activeSync && videoRef?.current) {
+        videoRef.current.pause();
+      } else {
+        setPlaying(false);
+      }
+    } else {
+      // Resume playback on re-focus seamlessly if the user hasn't paused themselves
+      if (!userPaused) {
+        if (activeSync && videoRef?.current) {
+          videoRef.current.play().catch(() => {});
+        } else {
+          setPlaying(true);
+        }
+      }
+    }
+  }, [isVisible, userPaused, activeSync, videoRef]);
 
   // Reflect loop / speed onto the video while synced.
   useEffect(() => {
     const vid = videoRef?.current;
-    if (!sync || !vid) return;
+    if (!activeSync || !vid) return;
     vid.loop = loop;
     vid.playbackRate = speed;
-  }, [sync, loop, speed, videoRef, weapon.key]);
+  }, [activeSync, loop, speed, videoRef, weapon.key]);
 
   const handlePlayPause = () => {
-    if (sync && videoRef?.current) {
+    if (activeSync && videoRef?.current) {
       const vid = videoRef.current;
       if (vid.paused) {
         if (vid.ended || vid.currentTime >= (vid.duration || Infinity)) vid.currentTime = 0;
-        vid.play();
+        vid.play().catch(() => {});
+        setUserPaused(false);
       } else {
         vid.pause();
+        setUserPaused(true);
       }
       return;
     }
-    if (playing) { setPlaying(false); return; }
-    if (playheadRef.current >= 1) { playheadRef.current = 0; setPlayhead(0); }
+    
+    if (playing) { 
+      setPlaying(false); 
+      setUserPaused(true);
+      return; 
+    }
+    
+    if (playheadRef.current >= 1 || playheadRef.current < minT) { 
+      playheadRef.current = minT; 
+      setPlayhead(minT); 
+    }
     setPlaying(true);
+    setUserPaused(false);
   };
+
   const handleRestart = () => {
-    if (sync && videoRef?.current) {
+    if (activeSync && videoRef?.current) {
       videoRef.current.currentTime = 0;
-      videoRef.current.play();
+      videoRef.current.play().catch(() => {});
+      setUserPaused(false);
       return;
     }
-    playheadRef.current = 0;
-    setPlayhead(0);
-    if (!playing) setPlaying(true);
+    playheadRef.current = minT;
+    setPlayhead(minT);
+    if (!playing) {
+      setPlaying(true);
+      setUserPaused(false);
+    }
   };
+
   const handleScrub = (v) => {
-    if (sync && videoRef?.current && videoRef.current.duration) {
+    if (activeSync && videoRef?.current && videoRef.current.duration) {
       videoRef.current.currentTime = v * videoRef.current.duration;
       playheadRef.current = v;
       setPlayhead(v);
       return;
     }
     setPlaying(false);
+    setUserPaused(true);
     playheadRef.current = v;
     setPlayhead(v);
   };
@@ -286,10 +338,10 @@ export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, onToggle
             </button>
           ))}
         </div>
-        <button onClick={onToggleSync} title="Play the gameplay clip and spray animation together, kept in sync"
+        <button onClick={onToggleSync} disabled={!videoReady && !sync} title={videoReady ? 'Play the gameplay clip and spray animation together, kept in sync' : 'Loading gameplay clip...'}
           className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border ${
             sync ? 'bg-blue-600/20 text-blue-300 border-blue-500/40' : 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600'
-          }`}>
+          } ${!videoReady && !sync ? 'opacity-50 cursor-not-allowed' : ''}`}>
           <Film className="w-4 h-4" /> Sync video
         </button>
       </div>
@@ -321,5 +373,6 @@ RecoilViewer.propTypes = {
   uniform: PropTypes.bool.isRequired,
   videoRef: PropTypes.shape({ current: PropTypes.any }),
   sync: PropTypes.bool,
+  videoReady: PropTypes.bool,
   onToggleSync: PropTypes.func,
 };

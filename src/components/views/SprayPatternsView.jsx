@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Crosshair, Scaling, PlayCircle } from 'lucide-react';
@@ -7,13 +7,20 @@ import { LoadingDisplay } from '../LoadingDisplay';
 import { RecoilViewer } from '../recoil/RecoilViewer';
 
 // Gameplay clip.
-const WeaponVideo = ({ weapon, videoRef, sync }) => {
+const WeaponVideo = ({ weapon, videoRef, sync, onReady }) => {
   const [error, setError] = useState(false);
   const [started, setStarted] = useState(false);
 
   useEffect(() => {
-    if (videoRef.current) videoRef.current.volume = 0.2;
+    if (videoRef.current) videoRef.current.volume = 0.1;
   }, [videoRef]);
+
+  // If the browser loaded the video entirely from cache before mounting, bypass standard events
+  useEffect(() => {
+    if (videoRef.current && videoRef.current.readyState >= 3) {
+      onReady();
+    }
+  }, [videoRef, onReady]);
 
   const handlePlay = () => {
     setStarted(true);
@@ -37,6 +44,9 @@ const WeaponVideo = ({ weapon, videoRef, sync }) => {
             src={weaponVideoSrc(weapon)}
             controls={show}
             preload="auto"
+            onLoadedData={onReady}
+            onCanPlay={onReady}
+            onCanPlayThrough={onReady}
             onError={() => setError(true)}
             className="w-full h-full rounded-xl bg-black"
           />
@@ -65,6 +75,7 @@ const FireModeBadge = ({ mode, className = '' }) => {
 };
 
 const DEFAULT_WEAPON = 'akm';
+const FIRE_MODE_ORDER = { auto: 1, burst: 2, semi: 3 };
 
 const StatBox = ({ label, value }) => (
   <div className="bg-gray-900/60 rounded-lg px-3 py-2 border border-gray-700">
@@ -79,6 +90,7 @@ export const SprayPatternsView = () => {
   const [weapons, setWeapons] = useState(null);
   const [uniform, setUniform] = useState(false);
   const [sync, setSync] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -103,6 +115,15 @@ export const SprayPatternsView = () => {
     }
   }, [weapons, weaponSlug, navigate]);
 
+  // Reset Video ready status on weapon switch
+  useEffect(() => {
+    setVideoReady(false);
+  }, [selected?.key]);
+
+  const handleVideoReady = useCallback(() => {
+    setVideoReady(true);
+  }, []);
+
   if (!weapons || !selected) {
     return <LoadingDisplay variant="component" message="Loading recoil data..." />;
   }
@@ -110,7 +131,12 @@ export const SprayPatternsView = () => {
   const accent = CLASS_ACCENT[selected.class];
   const grouped = WEAPON_CLASSES.map((cls) => ({
     cls,
-    list: weapons.filter((w) => w.class === cls),
+    list: weapons.filter((w) => w.class === cls).sort((a, b) => {
+      const aRank = FIRE_MODE_ORDER[a.fireMode] || 4;
+      const bRank = FIRE_MODE_ORDER[b.fireMode] || 4;
+      if (aRank !== bRank) return aRank - bRank;
+      return a.name.localeCompare(b.name);
+    }),
   }));
 
   const ownMaxY = Math.max(...selected.pattern.map((p) => Math.abs(p[1])), 0);
@@ -183,7 +209,7 @@ export const SprayPatternsView = () => {
           </div>
 
           <RecoilViewer weapon={selected} bounds={bounds} uniform={uniform}
-            videoRef={videoRef} sync={sync} onToggleSync={() => setSync((s) => !s)} />
+            videoRef={videoRef} sync={sync} videoReady={videoReady} onToggleSync={() => setSync((s) => !s)} />
         </div>
 
         <div className="flex flex-col gap-4">
@@ -222,7 +248,7 @@ export const SprayPatternsView = () => {
             </p>
           </div>
 
-          <WeaponVideo key={selected.key} weapon={selected} videoRef={videoRef} sync={sync} />
+          <WeaponVideo key={selected.key} weapon={selected} videoRef={videoRef} sync={sync} onReady={handleVideoReady} />
         </div>
       </div>
     </div>
@@ -246,4 +272,5 @@ WeaponVideo.propTypes = {
   }).isRequired,
   videoRef: PropTypes.shape({ current: PropTypes.any }).isRequired,
   sync: PropTypes.bool,
+  onReady: PropTypes.func.isRequired,
 };
