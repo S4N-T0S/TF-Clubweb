@@ -75,7 +75,6 @@ const FireModeBadge = ({ mode, className = '' }) => {
 };
 
 const DEFAULT_WEAPON = 'akm';
-const FIRE_MODE_ORDER = { auto: 1, burst: 2, semi: 3 };
 
 const StatBox = ({ label, value }) => (
   <div className="bg-gray-900/60 rounded-lg px-3 py-2 border border-gray-700">
@@ -131,12 +130,7 @@ export const SprayPatternsView = () => {
   const accent = CLASS_ACCENT[selected.class];
   const grouped = WEAPON_CLASSES.map((cls) => ({
     cls,
-    list: weapons.filter((w) => w.class === cls).sort((a, b) => {
-      const aRank = FIRE_MODE_ORDER[a.fireMode] || 4;
-      const bRank = FIRE_MODE_ORDER[b.fireMode] || 4;
-      if (aRank !== bRank) return aRank - bRank;
-      return a.name.localeCompare(b.name);
-    }),
+    list: weapons.filter((w) => w.class === cls),
   }));
 
   const ownMaxY = Math.max(...selected.pattern.map((p) => Math.abs(p[1])), 0);
