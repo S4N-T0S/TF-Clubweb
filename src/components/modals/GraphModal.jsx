@@ -647,14 +647,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
   // UI State
   const [currentSeasonId, setCurrentSeasonId] = useState(seasonId);
   const [selectedTimeRange, setSelectedTimeRange] = useState('24H');
+  const [eventSettings, setEventSettings] = useState(getStoredGraphSettings);
   const [showCompareModal, setShowCompareModal] = useState(false);
-  const [showCompareHint, setShowCompareHint] = useState(true);
+  const [showCompareHint, setShowCompareHint] = useState(!eventSettings.hasOpenedCompareModal);
   const [showZoomHint, setShowZoomHint] = useState(true);
   const [showSeasonDropdown, setShowSeasonDropdown] = useState(false);
   const seasonDropdownRef = useRef(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [statsPlayerId, setStatsPlayerId] = useState(null);
-  const [eventSettings, setEventSettings] = useState(getStoredGraphSettings);
 
   const [comparisonLeaderboard, setComparisonLeaderboard] = useState([]);
   const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(true);
@@ -796,6 +796,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
   const handleCloseCompareModal = useCallback(() => {
     setShowCompareModal(false);
   }, []);
+
+  const handleOpenCompareModal = useCallback(() => {
+    setShowCompareModal(true);
+    if (!eventSettings.hasOpenedCompareModal) {
+      setEventSettings(prev => ({ ...prev, hasOpenedCompareModal: true }));
+      setShowCompareHint(false);
+    }
+  }, [eventSettings.hasOpenedCompareModal]);
 
   const handleCloseSettingsModal = useCallback(() => {
     setShowSettingsModal(false);
@@ -1078,7 +1086,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                   {comparisonData.size < MAX_COMPARISONS && !error && (
                     <div className="relative">
                       <button
-                        onClick={() => setShowCompareModal(true)}
+                        onClick={handleOpenCompareModal}
                         className={`p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white relative transition-all duration-200 group`}
                         title="Compare with another player"
                         aria-label="Compare with another player"

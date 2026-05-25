@@ -39,41 +39,45 @@ const setStoredJsonItem = (key, value) => {
 const LAST_TAB_KEY = 'dashboard_tab';
 const VALID_TABS = ['clubs', 'global', 'hub'];
 export const getStoredTab = () => {
-    try {
-        const storedTab = localStorage.getItem(LAST_TAB_KEY);
-        // If the stored tab is not one of the valid options, default to 'hub'.
-        return storedTab && VALID_TABS.includes(storedTab) ? storedTab : 'hub';
-    } catch (error) {
-        console.error(`Error reading "${LAST_TAB_KEY}" from localStorage:`, error);
-        return 'hub';
-    }
+  try {
+    const storedTab = localStorage.getItem(LAST_TAB_KEY);
+    // If the stored tab is not one of the valid options, default to 'hub'.
+    return storedTab && VALID_TABS.includes(storedTab) ? storedTab : 'hub';
+  } catch (error) {
+    console.error(`Error reading "${LAST_TAB_KEY}" from localStorage:`, error);
+    return 'hub';
+  }
 };
 export const setStoredTab = (tab) => {
-    try {
-        localStorage.setItem(LAST_TAB_KEY, tab);
-    } catch (error) {
-        console.error(`Error writing "${LAST_TAB_KEY}" to localStorage:`, error);
-    }
+  try {
+    localStorage.setItem(LAST_TAB_KEY, tab);
+  } catch (error) {
+    console.error(`Error writing "${LAST_TAB_KEY}" to localStorage:`, error);
+  }
 };
 
 // Graph Modal Settings
 const GRAPH_MODAL_SETTINGS_KEY = 'graphModalSettings';
 // Validator for graph settings to ensure data integrity.
 const areValidGraphSettings = (value) => {
-    if (typeof value !== 'object' || value === null) return false;
-    const hasNameChange = typeof value.showNameChange === 'boolean';
-    const hasClubChange = typeof value.showClubChange === 'boolean';
-    const hasRsAdjustment = typeof value.showRsAdjustment === 'boolean';
-    const hasSuspectedBan = typeof value.showSuspectedBan === 'boolean';
-    return hasNameChange && hasClubChange && hasRsAdjustment && hasSuspectedBan;
+  if (typeof value !== 'object' || value === null) return false;
+  const hasNameChange = typeof value.showNameChange === 'boolean';
+  const hasClubChange = typeof value.showClubChange === 'boolean';
+  const hasRsAdjustment = typeof value.showRsAdjustment === 'boolean';
+  const hasSuspectedBan = typeof value.showSuspectedBan === 'boolean';
+  return hasNameChange && hasClubChange && hasRsAdjustment && hasSuspectedBan;
 };
 const defaultGraphSettings = {
-    showNameChange: true,
-    showClubChange: true,
-    showRsAdjustment: true,
-    showSuspectedBan: true,
+  showNameChange: true,
+  showClubChange: true,
+  showRsAdjustment: true,
+  showSuspectedBan: true,
+  hasOpenedCompareModal: false,
 };
-export const getStoredGraphSettings = () => getStoredJsonItem(GRAPH_MODAL_SETTINGS_KEY, defaultGraphSettings, areValidGraphSettings);
+export const getStoredGraphSettings = () => ({
+  ...defaultGraphSettings,
+  ...getStoredJsonItem(GRAPH_MODAL_SETTINGS_KEY, defaultGraphSettings, areValidGraphSettings)
+});
 export const setStoredGraphSettings = (value) => setStoredJsonItem(GRAPH_MODAL_SETTINGS_KEY, value);
 
 // Favourites (stores an array of objects)
@@ -89,23 +93,23 @@ export const setStoredFavourites = (value) => setStoredJsonItem(FAVOURITES_KEY, 
 const EVENTS_MODAL_SETTINGS_KEY = 'eventsModalSettings';
 // Validator for event settings to ensure data integrity.
 const areValidEventSettings = (value) => {
-    if (typeof value !== 'object' || value === null) return false;
-    const hasAutoRefresh = typeof value.autoRefresh === 'boolean';
-    const hasExpanded = typeof value.isFilterSectionExpanded === 'boolean';
-    const hasFilters = typeof value.filters === 'object' && value.filters !== null;
-    // Check for a specific key within filters to be more robust
-    return hasAutoRefresh && hasExpanded && hasFilters && 'minLeague' in value.filters;
+  if (typeof value !== 'object' || value === null) return false;
+  const hasAutoRefresh = typeof value.autoRefresh === 'boolean';
+  const hasExpanded = typeof value.isFilterSectionExpanded === 'boolean';
+  const hasFilters = typeof value.filters === 'object' && value.filters !== null;
+  // Check for a specific key within filters to be more robust
+  return hasAutoRefresh && hasExpanded && hasFilters && 'minLeague' in value.filters;
 };
 const defaultEventSettings = {
-    autoRefresh: true,
-    isFilterSectionExpanded: true,
-    filters: {
-        minLeague: 0,
-        showNameChange: true,
-        showSuspectedBan: true,
-        showRsAdjustment: true,
-        showClubChange: true,
-    }
+  autoRefresh: true,
+  isFilterSectionExpanded: true,
+  filters: {
+    minLeague: 0,
+    showNameChange: true,
+    showSuspectedBan: true,
+    showRsAdjustment: true,
+    showClubChange: true,
+  }
 };
 export const getStoredEventsSettings = () => getStoredJsonItem(EVENTS_MODAL_SETTINGS_KEY, defaultEventSettings, areValidEventSettings);
 export const setStoredEventsSettings = (value) => setStoredJsonItem(EVENTS_MODAL_SETTINGS_KEY, value);
@@ -113,11 +117,11 @@ export const setStoredEventsSettings = (value) => setStoredJsonItem(EVENTS_MODAL
 // Search Modal Settings
 const SEARCH_MODAL_SETTINGS_KEY = 'searchModalSettings';
 const areValidSearchSettings = (value) => {
-    if (typeof value !== 'object' || value === null) return false;
-    return typeof value.hideSupersededMatches === 'boolean';
+  if (typeof value !== 'object' || value === null) return false;
+  return typeof value.hideSupersededMatches === 'boolean';
 };
 const defaultSearchSettings = {
-    hideSupersededMatches: true,
+  hideSupersededMatches: true,
 };
 export const getStoredSearchSettings = () => getStoredJsonItem(SEARCH_MODAL_SETTINGS_KEY, defaultSearchSettings, areValidSearchSettings);
 export const setStoredSearchSettings = (value) => setStoredJsonItem(SEARCH_MODAL_SETTINGS_KEY, value);
@@ -125,17 +129,17 @@ export const setStoredSearchSettings = (value) => setStoredJsonItem(SEARCH_MODAL
 // Spray Patterns Settings
 const SPRAY_SETTINGS_KEY = 'spraySettings';
 const areValidSpraySettings = (value) => {
-    if (typeof value !== 'object' || value === null) return false;
-    return typeof value.uniform === 'boolean' &&
-           typeof value.showVisual === 'boolean' &&
-           typeof value.loop === 'boolean' &&
-           typeof value.hasToggledUniform === 'boolean';
+  if (typeof value !== 'object' || value === null) return false;
+  return typeof value.uniform === 'boolean' &&
+         typeof value.showVisual === 'boolean' &&
+         typeof value.loop === 'boolean' &&
+         typeof value.hasToggledUniform === 'boolean';
 };
 const defaultSpraySettings = {
-    uniform: false,
-    showVisual: true,
-    loop: true,
-    hasToggledUniform: false, // Tracks if user has clicked fit/proportional before (dismisses attention grabber)
+  uniform: false,
+  showVisual: true,
+  loop: true,
+  hasToggledUniform: false, // Tracks if user has clicked fit/proportional before (dismisses attention grabber)
 };
 export const getStoredSpraySettings = () => getStoredJsonItem(SPRAY_SETTINGS_KEY, defaultSpraySettings, areValidSpraySettings);
 export const setStoredSpraySettings = (value) => setStoredJsonItem(SPRAY_SETTINGS_KEY, value);
