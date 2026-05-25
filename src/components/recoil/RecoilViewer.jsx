@@ -112,7 +112,7 @@ export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, videoRea
       let p = playheadRef.current + dt / dur;
       if (p >= 1) {
         if (loop) { p = minT; }
-        else { playheadRef.current = minT; setPlayhead(minT); setPlaying(false); return; }
+        else { playheadRef.current = 1; setPlayhead(1); setPlaying(false); return; }
       }
       playheadRef.current = p;
       setPlayhead(p);
