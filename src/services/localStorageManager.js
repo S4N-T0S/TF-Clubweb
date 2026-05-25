@@ -122,6 +122,25 @@ const defaultSearchSettings = {
 export const getStoredSearchSettings = () => getStoredJsonItem(SEARCH_MODAL_SETTINGS_KEY, defaultSearchSettings, areValidSearchSettings);
 export const setStoredSearchSettings = (value) => setStoredJsonItem(SEARCH_MODAL_SETTINGS_KEY, value);
 
+// Spray Patterns Settings
+const SPRAY_SETTINGS_KEY = 'spraySettings';
+const areValidSpraySettings = (value) => {
+    if (typeof value !== 'object' || value === null) return false;
+    return typeof value.uniform === 'boolean' &&
+           typeof value.showVisual === 'boolean' &&
+           typeof value.loop === 'boolean' &&
+           typeof value.hasToggledUniform === 'boolean';
+};
+const defaultSpraySettings = {
+    uniform: false,
+    showVisual: true,
+    loop: true,
+    hasToggledUniform: false, // Tracks if user has clicked fit/proportional before (dismisses attention grabber)
+};
+export const getStoredSpraySettings = () => getStoredJsonItem(SPRAY_SETTINGS_KEY, defaultSpraySettings, areValidSpraySettings);
+export const setStoredSpraySettings = (value) => setStoredJsonItem(SPRAY_SETTINGS_KEY, value);
+
+
 // Deprecated Cache Cleanup
 const DEPRECATED_CACHE_CLEANUP_FLAG = 'v3_storage_cleanup_complete';
 /**

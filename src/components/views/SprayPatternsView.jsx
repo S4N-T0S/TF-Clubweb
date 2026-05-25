@@ -5,6 +5,7 @@ import { Crosshair, Scaling, PlayCircle } from 'lucide-react';
 import { loadWeapons, getGlobalBounds, WEAPON_CLASSES, CLASS_ACCENT, FIRE_MODE_META, weaponVideoSrc, hasRecoil } from '../../data/recoil';
 import { LoadingDisplay } from '../LoadingDisplay';
 import { RecoilViewer } from '../recoil/RecoilViewer';
+import { getStoredSpraySettings, setStoredSpraySettings } from '../../services/localStorageManager';
 
 // Gameplay clip.
 const WeaponVideo = ({ weapon, videoRef, sync, onReady }) => {
@@ -91,7 +92,19 @@ export const SprayPatternsView = () => {
   // the URL no longer points at the spray page. Used to pause the background.
   const overlayOpen = !location.pathname.startsWith('/spray-patterns');
   const [weapons, setWeapons] = useState(null);
-  const [uniform, setUniform] = useState(false);
+  
+  // Stored Spray Preferences
+  const [spraySettings, setSpraySettings] = useState(getStoredSpraySettings);
+  const updateSpraySetting = useCallback((updates) => {
+    setSpraySettings((prev) => {
+      const next = { ...prev, ...updates };
+      setStoredSpraySettings(next);
+      return next;
+    });
+  }, []);
+
+  const { uniform, hasToggledUniform } = spraySettings;
+  
   const [sync, setSync] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
   const videoRef = useRef(null);
@@ -199,24 +212,42 @@ export const SprayPatternsView = () => {
               <FireModeBadge mode={selected.fireMode} />
             </h3>
             <button
-              onClick={() => setUniform((u) => !u)}
+              onClick={() => updateSpraySetting({ uniform: !uniform, hasToggledUniform: true })}
               title={uniform
                 ? 'Proportional scale: weapons share one scale so recoil is comparable'
                 : 'Fit scale: this weapon is scaled to fill the view'}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all duration-300 ${
                 uniform
                   ? 'bg-blue-600/20 text-blue-300 border-blue-500/40'
-                  : 'bg-gray-700 text-gray-300 border-gray-600'
+                  : !hasToggledUniform
+                    ? 'bg-blue-900/40 text-blue-200 border-blue-500/50 shadow-[0_0_12px_rgba(59,130,246,0.3)] hover:bg-blue-800/50'
+                    : 'bg-gray-700 text-gray-300 border-gray-600'
               }`}
             >
+              {!hasToggledUniform && (
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+                </span>
+              )}
               <Scaling className="w-3.5 h-3.5" />
               {uniform ? 'Proportional' : 'Fit'}
             </button>
           </div>
 
-          <RecoilViewer weapon={selected} bounds={bounds} uniform={uniform}
-            videoRef={videoRef} sync={sync} videoReady={videoReady} onToggleSync={() => setSync((s) => !s)}
-            active={!overlayOpen} />
+          <RecoilViewer 
+            weapon={selected} 
+            bounds={bounds} 
+            uniform={uniform}
+            videoRef={videoRef} 
+            sync={sync} 
+            videoReady={videoReady} 
+            onToggleSync={() => setSync((s) => !s)}
+            active={!overlayOpen} 
+            showVisual={spraySettings.showVisual}
+            loop={spraySettings.loop}
+            onUpdateSettings={updateSpraySetting}
+          />
         </div>
 
         <div className="flex flex-col gap-4">

@@ -26,14 +26,12 @@ const GridBackdrop = () => (
   </>
 );
 
-export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, videoReady, onToggleSync, active = true }) => {
+export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, videoReady, onToggleSync, active = true, showVisual, loop, onUpdateSettings }) => {
   const isVisible = useVisibility();
   const [playhead, setPlayhead] = useState(1);
   const [playing, setPlaying] = useState(false);
   const [userPaused, setUserPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [loop, setLoop] = useState(true);
-  const [showVisual, setShowVisual] = useState(true);
   const [practiceOpen, setPracticeOpen] = useState(false);
 
   const playheadRef = useRef(playhead);
@@ -265,7 +263,7 @@ export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, videoRea
         <figure className="m-0">
           <div className="flex items-center justify-center gap-2 mb-1">
             <figcaption className="text-xs text-gray-400">Spray Pattern</figcaption>
-            <button onClick={() => setShowVisual((v) => !v)} title="Toggle visual (camera) recoil overlay"
+            <button onClick={() => onUpdateSettings({ showVisual: !showVisual })} title="Toggle visual (camera) recoil overlay"
               className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${
                 showVisual ? 'bg-gray-600 text-white border-gray-400' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'
               }`}>
@@ -328,7 +326,7 @@ export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, videoRea
           className="flex items-center justify-center w-9 h-9 rounded-lg bg-gray-700 text-gray-200 hover:bg-gray-600">
           <RotateCcw className="w-4 h-4" />
         </button>
-        <button onClick={() => setLoop((l) => !l)} title="Loop"
+        <button onClick={() => onUpdateSettings({ loop: !loop })} title="Loop"
           className={`flex items-center justify-center w-9 h-9 rounded-lg border ${
             loop ? 'bg-blue-600/20 text-blue-300 border-blue-500/40' : 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600'
           }`}>
@@ -380,4 +378,7 @@ RecoilViewer.propTypes = {
   videoReady: PropTypes.bool,
   onToggleSync: PropTypes.func,
   active: PropTypes.bool,
+  showVisual: PropTypes.bool.isRequired,
+  loop: PropTypes.bool.isRequired,
+  onUpdateSettings: PropTypes.func.isRequired,
 };
