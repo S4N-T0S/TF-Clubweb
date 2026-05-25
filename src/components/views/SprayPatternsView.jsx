@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { Crosshair, Scaling, PlayCircle } from 'lucide-react';
 import { loadWeapons, getGlobalBounds, WEAPON_CLASSES, CLASS_ACCENT, FIRE_MODE_META, weaponVideoSrc, hasRecoil } from '../../data/recoil';
 import { LoadingDisplay } from '../LoadingDisplay';
@@ -172,9 +172,9 @@ export const SprayPatternsView = () => {
             </span>
             <div className="flex flex-wrap gap-2">
               {list.map((w) => (
-                <button
+                <Link
                   key={w.key}
-                  onClick={() => navigate(`/spray-patterns/${w.key}`)}
+                  to={`/spray-patterns/${w.key}`}
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border flex items-center gap-1.5 ${
                     w.key === selected.key
                       ? 'bg-gray-600 text-white border-gray-400'
@@ -183,7 +183,7 @@ export const SprayPatternsView = () => {
                 >
                   {w.name}
                   <FireModeBadge mode={w.fireMode} />
-                </button>
+                </Link>
               ))}
             </div>
           </div>
