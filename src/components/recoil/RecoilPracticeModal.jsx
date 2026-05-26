@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import { X, Settings2, MousePointer2, AlertTriangle } from 'lucide-react';
+import { X, Settings2, MousePointer2, AlertTriangle, Crosshair } from 'lucide-react';
 import { pxToDeg, degPerCount, cmPer360, countsForDeg, countsPer360 } from '../../data/recoil/sensitivity';
 import { getStoredAimSettings, setStoredAimSettings } from '../../services/localStorageManager';
 
@@ -108,7 +108,7 @@ AimSettingsPanel.propTypes = {
 
 // Practice modal
 
-export const RecoilPracticeModal = ({ weapon, onClose }) => {
+export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
   const [phase, setPhase] = useState('ready'); // ready | running | done
   const [score, setScore] = useState(0);
   const [avgErrDeg, setAvgErrDeg] = useState(0);
@@ -133,6 +133,11 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
   // a drag that began inside a settings input from closing the modal on release.
   const backdropDownRef = useRef(false);
 
+  // Mirror phase into a ref so the pointer-lock change handler (a stable listener)
+  // can read the current phase without going stale.
+  const phaseRef = useRef(phase);
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
+
   // The drill relies on Pointer Lock + raw mouse movement, which needs a real
   // mouse. Touch-only devices can view the pattern but can't practise.
   const canPractice = useMemo(
@@ -143,32 +148,46 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
   // Compensation guide in *degrees of view rotation* (the inverse of the recoil
   // kick). Built from the captured pattern via the corrected capture geometry,
   // so it is FOV/DPI/sens-independent — a pure weapon property.
-  const { compPts, scale, maxDeg } = useMemo(() => {
-    const pts = weapon.pattern.map(([x, y, t], i, arr) => ({
+  const { compPts, scale, maxDeg, firingFrac } = useMemo(() => {
+    const raw = weapon.pattern.map(([x, y, t], i, arr) => ({
       t: typeof t === 'number' ? t : (arr.length > 1 ? i / (arr.length - 1) : 0),
       dx: -pxToDeg(x), // counter horizontal drift
       dy: -pxToDeg(y), // counter the climb (recoil y is negative/up -> dy positive/down)
     })).sort((a, b) => a.t - b.t);
+    // Re-base the timeline onto the firing window (first shot -> last shot) so the
+    // gun fires the instant the run starts — the captured clip's blank lead-in and
+    // tail frames are dropped, removing the "random delay" before recoil begins.
+    const t0 = raw.length ? raw[0].t : 0;
+    const tLast = raw.length ? raw[raw.length - 1].t : 1;
+    const span = (tLast - t0) || 1;
+    const pts = raw.map((p) => ({ ...p, t: (p.t - t0) / span }));
     let maxX = 1e-3;
     let maxY = 1e-3;
     for (const p of pts) {
       if (Math.abs(p.dx) > maxX) maxX = Math.abs(p.dx);
       if (Math.abs(p.dy) > maxY) maxY = Math.abs(p.dy);
     }
-    const s = Math.min(AVAIL / maxY, (BOX / 2 - PAD) / maxX);
-    return { compPts: pts, scale: s, maxDeg: maxY };
-  }, [weapon]);
+    // Proportional scale: size every weapon against the global recoil extent (in
+    // degrees) so pixels-per-degree is constant across weapons — a small-recoil gun
+    // draws a small path and a big one a big path, matching the real hand motion.
+    // Fall back to fitting this weapon if the global extent isn't available.
+    const refX = globalBounds ? Math.max(maxX, pxToDeg(globalBounds.maxX)) : maxX;
+    const refY = globalBounds ? Math.max(maxY, pxToDeg(globalBounds.maxY)) : maxY;
+    const s = Math.min(AVAIL / refY, (BOX / 2 - PAD) / refX);
+    return { compPts: pts, scale: s, maxDeg: maxY, firingFrac: span };
+  }, [weapon, globalBounds]);
 
   const guidePath = useMemo(
     () => 'M' + compPts.map((p) => `${(START.x + p.dx * scale).toFixed(1)} ${(START.y + p.dy * scale).toFixed(1)}`).join(' L'),
     [compPts, scale],
   );
 
-  // Real-time playback length straight from the captured footage, so per-shot
-  // timings (and burst pauses) play out exactly as in game.
+  // Real-time length of the firing window only (first shot -> last shot). Scaling
+  // the full clip duration by firingFrac keeps the per-shot cadence true to the
+  // footage while dropping the dead lead-in/tail frames.
   const durationMs = useMemo(
-    () => Math.max(400, (weapon.trajectory.length / Math.max(1, weapon.fps)) * 1000),
-    [weapon],
+    () => Math.max(300, firingFrac * (weapon.trajectory.length / Math.max(1, weapon.fps)) * 1000),
+    [firingFrac, weapon],
   );
 
   // Physical mouse travel this spray demands, for the player's settings.
@@ -184,14 +203,16 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
     let s = 0;
     let avgErr = 0;
     if (samples && samples.length) {
-      avgErr = samples.reduce((a, b) => a + b, 0) / samples.length; // pad-px error
-      const tolerance = Math.max(60, AVAIL * 0.45);
+      avgErr = samples.reduce((a, b) => a + b, 0) / samples.length; // degrees of aim error
+      // Difficulty-relative tolerance (degrees), independent of the visual scale, so
+      // proportional rendering never makes a small-recoil gun trivially score 100.
+      const tolerance = Math.max(0.3, 0.45 * maxDeg);
       s = Math.round(100 * Math.max(0, 1 - avgErr / tolerance));
     }
     setScore(s);
-    setAvgErrDeg(scale ? avgErr / scale : 0); // pad-px error -> degrees of aim error
+    setAvgErrDeg(avgErr);
     setPhase('done');
-  }, [scale]);
+  }, [maxDeg]);
 
   // Pointer-lock mouse capture: accumulate raw counts -> degrees of view rotation.
   const onMouseMove = useCallback((e) => {
@@ -217,13 +238,21 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
       const f = Math.min(1, (now - run.start) / durationMs);
       setMarkerF(f);
       const c = compAt(compPts, f);
-      // sample tracking error in pad-px (keeps the score curve stable across weapons)
-      run.samples.push(Math.hypot((run.viewX - c.dx) * scale, (run.viewY - c.dy) * scale));
+      // sample tracking error in degrees of view rotation (visual-scale independent)
+      run.samples.push(Math.hypot(run.viewX - c.dx, run.viewY - c.dy));
       if (f >= 1) { finish(run.samples); return; }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
-  }, [aim, onMouseMove, durationMs, compPts, scale, finish]);
+  }, [aim, onMouseMove, durationMs, compPts, finish]);
+
+  // Once locked we wait, armed, for the player's mouse press: that press is the
+  // trigger pull, so the gun starts firing the instant they click — no countdown.
+  const armFire = useCallback((e) => {
+    if (e.button !== 0) return; // left button only
+    document.removeEventListener('mousedown', armFire);
+    beginRun();
+  }, [beginRun]);
 
   // Lock the pointer on user gesture, preferring raw (unaccelerated) movement.
   const handleStart = useCallback(() => {
@@ -243,36 +272,46 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
     }
   }, []);
 
-  // Start the run once the lock is actually engaged; bail out if it drops.
+  // When the lock engages, arm the trigger (wait for the mouse press). When it
+  // drops: finish a run in progress, or return to ready if still armed (Esc).
   useEffect(() => {
     const onChange = () => {
       const locked = document.pointerLockElement === padRef.current;
       if (locked) {
-        if (!runRef.current) beginRun();
-      } else if (runRef.current) {
-        finish(runRef.current.samples);
+        if (!runRef.current) {
+          setPhase('armed');
+          document.addEventListener('mousedown', armFire);
+        }
+      } else {
+        document.removeEventListener('mousedown', armFire);
+        if (runRef.current) finish(runRef.current.samples);
+        // Only reset to ready when the lock dropped while still armed (e.g. Esc
+        // before firing) — never clobber the score screen after a finished run.
+        else if (phaseRef.current === 'armed') setPhase('ready');
       }
     };
     document.addEventListener('pointerlockchange', onChange);
     return () => document.removeEventListener('pointerlockchange', onChange);
-  }, [beginRun, finish]);
+  }, [armFire, finish]);
 
   useEffect(() => () => {
     cancelAnimationFrame(rafRef.current);
     document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mousedown', armFire);
     if (document.pointerLockElement) document.exitPointerLock();
-  }, [onMouseMove]);
+  }, [onMouseMove, armFire]);
 
   const reset = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
     document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mousedown', armFire);
     runRef.current = null;
     setPhase('ready');
     setScore(0);
     setAvgErrDeg(0);
     setUserPath('');
     setMarkerF(0);
-  }, [onMouseMove]);
+  }, [onMouseMove, armFire]);
 
   const marker = compAt(compPts, markerF);
   const mx = START.x + marker.dx * scale;
@@ -311,8 +350,9 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
 
         {canPractice ? (
           <p className="text-xs text-gray-400 mb-3">
-            Click <span className="text-gray-200 font-medium">Start</span> to lock your mouse, then move it to
-            follow the guide as the gun fires — exactly the motion you&apos;d make in game.
+            Click <span className="text-gray-200 font-medium">Start</span> to lock your mouse, then
+            <span className="text-gray-200 font-medium"> click to fire</span> — the gun kicks instantly, so pull
+            down to follow the guide, exactly the motion you&apos;d make in game.
           </p>
         ) : (
           <div className="flex items-start gap-2 text-xs text-gray-300 bg-gray-900/60 border border-gray-700 rounded-lg px-3 py-2.5 mb-3">
@@ -358,6 +398,14 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
             </button>
           )}
 
+          {phase === 'armed' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/60 rounded-xl text-gray-200 pointer-events-none">
+              <Crosshair className="w-8 h-8 mb-1 text-emerald-400 animate-pulse" />
+              <span className="text-sm font-semibold">Click to fire</span>
+              <span className="text-[11px] text-gray-400">recoil starts instantly — pull down · Esc to cancel</span>
+            </div>
+          )}
+
           {phase === 'done' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/85 rounded-xl select-text">
               <div className="relative w-28 h-28">
@@ -393,12 +441,16 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
           </p>
         )}
 
-        {phase === 'done' && (
-          <div className="flex justify-center gap-2 mt-4">
-            <button onClick={reset} className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Try Again</button>
-            <button onClick={onClose} className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-semibold">Close</button>
-          </div>
-        )}
+        {/* Reserve the action-row height in every phase so the modal doesn't grow
+            (and visibly re-centre) when the score screen's buttons appear. */}
+        <div className="flex justify-center gap-2 mt-4 min-h-[38px]">
+          {phase === 'done' && (
+            <>
+              <button onClick={reset} className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Try Again</button>
+              <button onClick={onClose} className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-semibold">Close</button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -411,5 +463,10 @@ RecoilPracticeModal.propTypes = {
     trajectory: PropTypes.array.isRequired,
     fps: PropTypes.number.isRequired,
   }).isRequired,
+  // Global pattern extent (px) across all weapons, for the shared proportional scale.
+  globalBounds: PropTypes.shape({
+    maxX: PropTypes.number,
+    maxY: PropTypes.number,
+  }),
   onClose: PropTypes.func.isRequired,
 };

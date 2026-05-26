@@ -72,6 +72,21 @@ export function getGlobalBounds(weapons) {
   return { maxX, maxY };
 }
 
+// Largest absolute X/Y across every weapon's bullet pattern only (no trajectory).
+// Used by the spray trainer to scale every weapon against one shared recoil extent,
+// so a small-recoil gun draws a small path and a big one draws a big path.
+export function getGlobalPatternBounds(weapons) {
+  let maxX = 1;
+  let maxY = 1;
+  for (const w of weapons) {
+    for (const [x, y] of w.pattern) {
+      if (Math.abs(x) > maxX) maxX = Math.abs(x);
+      if (Math.abs(y) > maxY) maxY = Math.abs(y);
+    }
+  }
+  return { maxX, maxY };
+}
+
 export function getWeaponBounds(weapon) {
   let maxX = 1;
   let maxY = 1;

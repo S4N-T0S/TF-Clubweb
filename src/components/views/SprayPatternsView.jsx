@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { Crosshair, Scaling, PlayCircle } from 'lucide-react';
-import { loadWeapons, getGlobalBounds, WEAPON_CLASSES, CLASS_ACCENT, FIRE_MODE_META, weaponVideoSrc, hasRecoil } from '../../data/recoil';
+import { loadWeapons, getGlobalBounds, getGlobalPatternBounds, WEAPON_CLASSES, CLASS_ACCENT, FIRE_MODE_META, weaponVideoSrc, hasRecoil } from '../../data/recoil';
 import { LoadingDisplay } from '../LoadingDisplay';
 import { RecoilViewer } from '../recoil/RecoilViewer';
 import { getStoredSpraySettings, setStoredSpraySettings } from '../../services/localStorageManager';
@@ -116,6 +116,8 @@ export const SprayPatternsView = () => {
   }, []);
 
   const bounds = useMemo(() => (weapons ? getGlobalBounds(weapons) : null), [weapons]);
+  // Pattern-only global extent, used by the practice trainer for a shared (proportional) scale.
+  const patternBounds = useMemo(() => (weapons ? getGlobalPatternBounds(weapons) : null), [weapons]);
 
   // Remember the last weapon we resolved. Falling back to the remembered key keeps the selection stable.
   const lastWeaponKeyRef = useRef(weaponSlug || DEFAULT_WEAPON);
@@ -235,9 +237,10 @@ export const SprayPatternsView = () => {
             </button>
           </div>
 
-          <RecoilViewer 
-            weapon={selected} 
-            bounds={bounds} 
+          <RecoilViewer
+            weapon={selected}
+            bounds={bounds}
+            patternBounds={patternBounds}
             uniform={uniform}
             videoRef={videoRef} 
             sync={sync} 

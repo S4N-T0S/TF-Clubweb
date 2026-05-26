@@ -26,7 +26,7 @@ const GridBackdrop = () => (
   </>
 );
 
-export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, videoReady, onToggleSync, active = true, showVisual, loop, onUpdateSettings }) => {
+export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef, sync, videoReady, onToggleSync, active = true, showVisual, loop, onUpdateSettings }) => {
   const isVisible = useVisibility();
   const [playhead, setPlayhead] = useState(1);
   const [playing, setPlaying] = useState(false);
@@ -352,7 +352,7 @@ export const RecoilViewer = ({ weapon, bounds, uniform, videoRef, sync, videoRea
         onChange={(e) => handleScrub(parseFloat(e.target.value))}
         className="w-full max-w-[620px] mt-3 cursor-pointer" aria-label="Spray progress" />
 
-      {practiceOpen && recoil && <RecoilPracticeModal weapon={weapon} onClose={() => setPracticeOpen(false)} />}
+      {practiceOpen && recoil && <RecoilPracticeModal weapon={weapon} globalBounds={patternBounds} onClose={() => setPracticeOpen(false)} />}
     </div>
   );
 };
@@ -372,6 +372,10 @@ RecoilViewer.propTypes = {
     maxX: PropTypes.number.isRequired,
     maxY: PropTypes.number.isRequired,
   }).isRequired,
+  patternBounds: PropTypes.shape({
+    maxX: PropTypes.number,
+    maxY: PropTypes.number,
+  }),
   uniform: PropTypes.bool.isRequired,
   videoRef: PropTypes.shape({ current: PropTypes.any }),
   sync: PropTypes.bool,
