@@ -144,6 +144,32 @@ const defaultSpraySettings = {
 export const getStoredSpraySettings = () => getStoredJsonItem(SPRAY_SETTINGS_KEY, defaultSpraySettings, areValidSpraySettings);
 export const setStoredSpraySettings = (value) => setStoredJsonItem(SPRAY_SETTINGS_KEY, value);
 
+// Aim Settings (mouse/sensitivity config for the 1:1 spray-practice trainer)
+const AIM_SETTINGS_KEY = 'aimSettings';
+const areValidAimSettings = (value) => {
+  if (typeof value !== 'object' || value === null) return false;
+  return typeof value.sens === 'number' &&
+         typeof value.zoomMult === 'number' &&
+         typeof value.focalSens === 'boolean' &&
+         typeof value.fov === 'number' &&
+         typeof value.dpi === 'number' &&
+         typeof value.hasConfigured === 'boolean';
+};
+const defaultAimSettings = {
+  sens: 50,        // Mouse Look Sensitivity (in-game default)
+  zoomMult: 100,   // Mouse Zoom Sensitivity Multiplier (%)
+  focalSens: true, // Mouse Focal Length Sensitivity Scaling (in-game default)
+  fov: 81,         // base vertical FOV (only affects the drill when focalSens is on)
+  dpi: 800,        // mouse DPI (counts/inch)
+  inputScale: 1,   // calibration: scales raw mouse deltas if the browser can't supply true counts
+  hasConfigured: false, // user has opened and saved their settings at least once
+};
+export const getStoredAimSettings = () => ({
+  ...defaultAimSettings,
+  ...getStoredJsonItem(AIM_SETTINGS_KEY, defaultAimSettings, areValidAimSettings),
+});
+export const setStoredAimSettings = (value) => setStoredJsonItem(AIM_SETTINGS_KEY, value);
+
 
 // Deprecated Cache Cleanup
 const DEPRECATED_CACHE_CLEANUP_FLAG = 'v3_storage_cleanup_complete';

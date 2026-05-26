@@ -1,169 +1,339 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import { X } from 'lucide-react';
-import { MIN_RECOIL_UNITS } from '../../data/recoil';
+import { X, Settings2, MousePointer2, AlertTriangle } from 'lucide-react';
+import { pxToDeg, degPerCount, cmPer360, countsForDeg, countsPer360 } from '../../data/recoil/sensitivity';
+import { getStoredAimSettings, setStoredAimSettings } from '../../services/localStorageManager';
 
 const BOX = 360;
 const PAD = 36;
-const START = { x: BOX / 2, y: PAD };  // press point, top-centre
+const AVAIL = BOX - PAD * 2;
+const START = { x: BOX / 2, y: PAD }; // top-centre: the path descends as you counter the climb
 
-// Interpolate a point along the compensation guide by time fraction f (0..1).
+// Interpolate the compensation point (degrees) at time fraction f (0..1).
 // pts are sorted by t; clamps at the ends so it never indexes out of range.
 function compAt(pts, f) {
-  if (!pts.length) return [START.x, START.y];
-  if (f <= pts[0].t) return [pts[0].x, pts[0].y];
+  if (!pts.length) return { dx: 0, dy: 0 };
+  if (f <= pts[0].t) return pts[0];
   for (let i = 1; i < pts.length; i++) {
     if (f <= pts[i].t) {
       const a = pts[i - 1];
       const b = pts[i];
       const seg = (f - a.t) / ((b.t - a.t) || 1);
-      return [a.x + (b.x - a.x) * seg, a.y + (b.y - a.y) * seg];
+      return { dx: a.dx + (b.dx - a.dx) * seg, dy: a.dy + (b.dy - a.dy) * seg };
     }
   }
-  const last = pts[pts.length - 1];
-  return [last.x, last.y];
+  return pts[pts.length - 1];
 }
 
 const scoreMessage = (s) =>
   s >= 90 ? 'Perfect!' : s >= 70 ? 'Great!' : s >= 45 ? 'Nice try!' : 'Keep Practicing!';
 const scoreColor = (s) => (s >= 70 ? '#34d399' : s >= 45 ? '#fbbf24' : '#fb7185');
 
+const clamp = (v, min, max) => Math.min(max, Math.max(min, Number.isFinite(v) ? v : min));
+
+// Aim settings panel
+
+const NumberField = ({ label, value, onChange, step = 1, min, max, suffix, hint }) => (
+  <label className="flex flex-col gap-1 text-xs text-gray-300">
+    <span className="font-medium">{label}{hint && <span className="text-gray-500"> · {hint}</span>}</span>
+    <div className="flex items-center gap-1">
+      <input
+        type="number" value={value} step={step} min={min} max={max}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="w-full bg-gray-900 border border-gray-600 rounded-md px-2 py-1.5 text-white tabular-nums focus:outline-none focus:border-blue-500"
+      />
+      {suffix && <span className="text-gray-500 text-[11px] shrink-0">{suffix}</span>}
+    </div>
+  </label>
+);
+
+NumberField.propTypes = {
+  label: PropTypes.string.isRequired,
+  value: PropTypes.number.isRequired,
+  onChange: PropTypes.func.isRequired,
+  step: PropTypes.number,
+  min: PropTypes.number,
+  max: PropTypes.number,
+  suffix: PropTypes.string,
+  hint: PropTypes.string,
+};
+
+const AimSettingsPanel = ({ aim, setAim }) => {
+  const set = (patch) => setAim((prev) => ({ ...prev, ...patch, hasConfigured: true }));
+  const cm360 = cmPer360(aim, aim.dpi);
+  return (
+    <div className="bg-gray-900/60 rounded-xl border border-gray-700 p-3 mb-3">
+      <div className="grid grid-cols-2 gap-3">
+        <NumberField label="Mouse Look Sens" value={aim.sens} min={0} max={100} step={0.5}
+          onChange={(v) => set({ sens: clamp(v, 0, 100) })} />
+        <NumberField label="DPI" value={aim.dpi} min={1} step={50}
+          onChange={(v) => set({ dpi: clamp(v, 1, 100000) })} />
+        <NumberField label="Zoom Sens Mult" value={aim.zoomMult} min={0} max={100} step={1} suffix="%"
+          onChange={(v) => set({ zoomMult: clamp(v, 0, 100) })} />
+        <NumberField label="FOV (vertical)" value={aim.fov} min={45} max={100} step={1}
+          hint={aim.focalSens ? 'in use' : 'off'}
+          onChange={(v) => set({ fov: clamp(v, 45, 100) })} />
+      </div>
+      <label className="flex items-center gap-2 mt-3 text-xs text-gray-300 cursor-pointer select-none">
+        <input type="checkbox" checked={aim.focalSens}
+          onChange={(e) => set({ focalSens: e.target.checked })}
+          className="accent-blue-500 w-4 h-4" />
+        Mouse Focal Length Sensitivity Scaling
+        <span className="text-gray-500">(changes ADS sens with FOV)</span>
+      </label>
+      <p className="text-[11px] text-gray-500 mt-2 tabular-nums">
+        ADS sensitivity ≈ <span className="text-gray-300">{cm360.toFixed(2)} cm/360°</span>
+        {' · '}{countsPer360(aim).toFixed(0)} counts/360°
+      </p>
+      <details className="mt-2 text-xs text-gray-400">
+        <summary className="cursor-pointer select-none hover:text-gray-200">Calibration (advanced)</summary>
+        <div className="mt-2">
+          <NumberField label="Input scale" value={aim.inputScale} min={0.1} max={10} step={0.05}
+            hint="1.0 = raw"
+            onChange={(v) => set({ inputScale: clamp(v, 0.1, 10) })} />
+          <p className="text-[10px] text-gray-500 mt-1 leading-snug">
+            Leave at 1.0 if your browser supplies raw mouse input. Only adjust if the spray feels more or
+            less sensitive than in-game — raise it to make the trainer more sensitive.
+          </p>
+        </div>
+      </details>
+    </div>
+  );
+};
+
+AimSettingsPanel.propTypes = {
+  aim: PropTypes.object.isRequired,
+  setAim: PropTypes.func.isRequired,
+};
+
+// Practice modal
+
 export const RecoilPracticeModal = ({ weapon, onClose }) => {
   const [phase, setPhase] = useState('ready'); // ready | running | done
   const [score, setScore] = useState(0);
+  const [avgErrDeg, setAvgErrDeg] = useState(0);
   const [userPath, setUserPath] = useState('');
   const [markerF, setMarkerF] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
+  const [rawUnsupported, setRawUnsupported] = useState(false);
 
-  const svgRef = useRef(null);
+  const [aim, setAimState] = useState(getStoredAimSettings);
+  const setAim = useCallback((updater) => {
+    setAimState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      setStoredAimSettings(next);
+      return next;
+    });
+  }, []);
+
+  const padRef = useRef(null);
   const rafRef = useRef();
   const runRef = useRef(null);
+  // Only dismiss when a click both starts and ends on the backdrop itself — stops
+  // a drag that began inside a settings input from closing the modal on release.
+  const backdropDownRef = useRef(false);
 
-  // Compensation guide: the inverse of the bullet-impact pattern (pull your
-  // mouse opposite to where the bullets climb). Built from `pattern`, not the
-  // visual aim trajectory.
-  const { guidePts, guidePath } = useMemo(() => {
-    let maxX = 1;
-    let maxY = 1;
-    for (const [x, y] of weapon.pattern) {
-      if (Math.abs(x) > maxX) maxX = Math.abs(x);
-      if (Math.abs(y) > maxY) maxY = Math.abs(y);
-    }
-    const avail = BOX - PAD * 2;
-    const raw = Math.min(avail / maxY, (BOX / 2 - PAD) / maxX);
-    const scale = Math.min(raw, avail / MIN_RECOIL_UNITS);
+  // The drill relies on Pointer Lock + raw mouse movement, which needs a real
+  // mouse. Touch-only devices can view the pattern but can't practise.
+  const canPractice = useMemo(
+    () => typeof window !== 'undefined' && !!window.matchMedia?.('(any-pointer: fine)').matches,
+    [],
+  );
+
+  // Compensation guide in *degrees of view rotation* (the inverse of the recoil
+  // kick). Built from the captured pattern via the corrected capture geometry,
+  // so it is FOV/DPI/sens-independent — a pure weapon property.
+  const { compPts, scale, maxDeg } = useMemo(() => {
     const pts = weapon.pattern.map(([x, y, t], i, arr) => ({
       t: typeof t === 'number' ? t : (arr.length > 1 ? i / (arr.length - 1) : 0),
-      x: START.x - x * scale, // invert -> compensation direction
-      y: START.y - y * scale,
+      dx: -pxToDeg(x), // counter horizontal drift
+      dy: -pxToDeg(y), // counter the climb (recoil y is negative/up -> dy positive/down)
     })).sort((a, b) => a.t - b.t);
-    const path = 'M' + pts.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' L');
-    return { guidePts: pts, guidePath: path };
+    let maxX = 1e-3;
+    let maxY = 1e-3;
+    for (const p of pts) {
+      if (Math.abs(p.dx) > maxX) maxX = Math.abs(p.dx);
+      if (Math.abs(p.dy) > maxY) maxY = Math.abs(p.dy);
+    }
+    const s = Math.min(AVAIL / maxY, (BOX / 2 - PAD) / maxX);
+    return { compPts: pts, scale: s, maxDeg: maxY };
   }, [weapon]);
 
-  // Real-time playback length taken straight from the captured footage
-  // (trajectory frames / fps). The bullet timings (tNorm) are normalised against
-  // this same timeline, so the marker fires in sync — and burst weapons keep
-  // their real inter-burst pauses instead of collapsing to the intra-burst rpm.
+  const guidePath = useMemo(
+    () => 'M' + compPts.map((p) => `${(START.x + p.dx * scale).toFixed(1)} ${(START.y + p.dy * scale).toFixed(1)}`).join(' L'),
+    [compPts, scale],
+  );
+
+  // Real-time playback length straight from the captured footage, so per-shot
+  // timings (and burst pauses) play out exactly as in game.
   const durationMs = useMemo(
     () => Math.max(400, (weapon.trajectory.length / Math.max(1, weapon.fps)) * 1000),
     [weapon],
   );
 
-  const toSvgPoint = useCallback((clientX, clientY) => {
-    const rect = svgRef.current.getBoundingClientRect();
-    const sx = BOX / rect.width;
-    return [(clientX - rect.left) * sx, (clientY - rect.top) * sx];
-  }, []);
+  // Physical mouse travel this spray demands, for the player's settings.
+  const cmPull = useMemo(() => {
+    const counts = countsForDeg(maxDeg, aim); // counts to cover the vertical climb
+    return (counts / aim.dpi) * 2.54;
+  }, [maxDeg, aim]);
 
   const finish = useCallback((samples) => {
     cancelAnimationFrame(rafRef.current);
     runRef.current = null;
+    if (document.pointerLockElement) document.exitPointerLock();
     let s = 0;
+    let avgErr = 0;
     if (samples && samples.length) {
-      const avgErr = samples.reduce((a, b) => a + b, 0) / samples.length;
-      const tolerance = Math.max(60, (BOX - PAD * 2) * 0.45);
+      avgErr = samples.reduce((a, b) => a + b, 0) / samples.length; // pad-px error
+      const tolerance = Math.max(60, AVAIL * 0.45);
       s = Math.round(100 * Math.max(0, 1 - avgErr / tolerance));
     }
     setScore(s);
+    setAvgErrDeg(scale ? avgErr / scale : 0); // pad-px error -> degrees of aim error
     setPhase('done');
-  }, []);
+  }, [scale]);
 
-  const handlePointerDown = (e) => {
-    if (phase !== 'ready' || !svgRef.current) return;
-    const [px, py] = toSvgPoint(e.clientX, e.clientY);
-    if (Math.hypot(px - START.x, py - START.y) > 60) return;
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* synthetic events */ }
-    // ux/uy track the user's latest cursor; sampling happens on a fixed cadence
-    // (every frame) so being in the wrong place at the wrong time is penalised
-    // — you can't race to the end, park there, and wait for the marker.
-    runRef.current = { start: performance.now(), pressX: px, pressY: py, samples: [], ux: START.x, uy: START.y };
+  // Pointer-lock mouse capture: accumulate raw counts -> degrees of view rotation.
+  const onMouseMove = useCallback((e) => {
+    const run = runRef.current;
+    if (!run) return;
+    const dpc = degPerCount(run.aim) * (run.aim.inputScale || 1);
+    run.viewX += e.movementX * dpc;
+    run.viewY += e.movementY * dpc;
+    const px = START.x + run.viewX * scale;
+    const py = START.y + run.viewY * scale;
+    setUserPath((p) => `${p} L${px.toFixed(1)} ${py.toFixed(1)}`);
+  }, [scale]);
+
+  const beginRun = useCallback(() => {
+    runRef.current = { start: performance.now(), viewX: 0, viewY: 0, samples: [], aim };
     setPhase('running');
     setUserPath(`M${START.x} ${START.y}`);
+    document.addEventListener('mousemove', onMouseMove);
 
     const tick = (now) => {
       const run = runRef.current;
       if (!run) return;
       const f = Math.min(1, (now - run.start) / durationMs);
       setMarkerF(f);
-      const [gx, gy] = compAt(guidePts, f);
-      run.samples.push(Math.hypot(run.ux - gx, run.uy - gy));
+      const c = compAt(compPts, f);
+      // sample tracking error in pad-px (keeps the score curve stable across weapons)
+      run.samples.push(Math.hypot((run.viewX - c.dx) * scale, (run.viewY - c.dy) * scale));
       if (f >= 1) { finish(run.samples); return; }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
-  };
+  }, [aim, onMouseMove, durationMs, compPts, scale, finish]);
 
-  const handlePointerMove = (e) => {
-    const run = runRef.current;
-    if (phase !== 'running' || !run || !svgRef.current) return;
-    const [px, py] = toSvgPoint(e.clientX, e.clientY);
-    run.ux = START.x + (px - run.pressX);
-    run.uy = START.y + (py - run.pressY);
-    setUserPath((p) => `${p} L${run.ux.toFixed(1)} ${run.uy.toFixed(1)}`);
-  };
+  // Lock the pointer on user gesture, preferring raw (unaccelerated) movement.
+  const handleStart = useCallback(() => {
+    const el = padRef.current;
+    if (!el) return;
+    try {
+      const req = el.requestPointerLock({ unadjustedMovement: true });
+      if (req && typeof req.then === 'function') {
+        req.catch(() => {
+          setRawUnsupported(true);
+          try { el.requestPointerLock(); } catch { /* noop */ }
+        });
+      }
+    } catch {
+      setRawUnsupported(true);
+      try { el.requestPointerLock(); } catch { /* noop */ }
+    }
+  }, []);
 
-  const handlePointerUp = () => {
-    if (phase === 'running' && runRef.current) finish(runRef.current.samples);
-  };
+  // Start the run once the lock is actually engaged; bail out if it drops.
+  useEffect(() => {
+    const onChange = () => {
+      const locked = document.pointerLockElement === padRef.current;
+      if (locked) {
+        if (!runRef.current) beginRun();
+      } else if (runRef.current) {
+        finish(runRef.current.samples);
+      }
+    };
+    document.addEventListener('pointerlockchange', onChange);
+    return () => document.removeEventListener('pointerlockchange', onChange);
+  }, [beginRun, finish]);
 
-  const reset = () => {
+  useEffect(() => () => {
     cancelAnimationFrame(rafRef.current);
+    document.removeEventListener('mousemove', onMouseMove);
+    if (document.pointerLockElement) document.exitPointerLock();
+  }, [onMouseMove]);
+
+  const reset = useCallback(() => {
+    cancelAnimationFrame(rafRef.current);
+    document.removeEventListener('mousemove', onMouseMove);
     runRef.current = null;
     setPhase('ready');
     setScore(0);
+    setAvgErrDeg(0);
     setUserPath('');
     setMarkerF(0);
-  };
+  }, [onMouseMove]);
 
-  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
-
-  const [mx, my] = compAt(guidePts, markerF);
+  const marker = compAt(compPts, markerF);
+  const mx = START.x + marker.dx * scale;
+  const my = START.y + marker.dy * scale;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
-      <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
+      onMouseDown={(e) => { backdropDownRef.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (e.target === e.currentTarget && backdropDownRef.current) onClose(); }}>
+      <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl w-full max-w-lg lg:max-w-xl p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-lg font-bold text-white">Spray Practice — {weapon.name}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white" aria-label="Close">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {canPractice && (
+              <button onClick={() => setShowSettings((v) => !v)}
+                title="Aim settings"
+                className={`p-1.5 rounded-lg ${showSettings ? 'bg-gray-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}>
+                <Settings2 className="w-4 h-4" />
+              </button>
+            )}
+            <button onClick={onClose} className="text-gray-400 hover:text-white p-1" aria-label="Close">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
-        <p className="text-xs text-gray-400 mb-3">
-          Press &amp; hold the start point, then drag to follow the guide as the gun fires.
-        </p>
+
+        {canPractice && !aim.hasConfigured && !showSettings && (
+          <button onClick={() => setShowSettings(true)}
+            className="w-full flex items-center gap-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 mb-3 hover:bg-amber-500/20">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            Set your in-game sensitivity &amp; DPI for a true 1:1 drill.
+          </button>
+        )}
+
+        {canPractice && showSettings && <AimSettingsPanel aim={aim} setAim={setAim} />}
+
+        {canPractice ? (
+          <p className="text-xs text-gray-400 mb-3">
+            Click <span className="text-gray-200 font-medium">Start</span> to lock your mouse, then move it to
+            follow the guide as the gun fires — exactly the motion you&apos;d make in game.
+          </p>
+        ) : (
+          <div className="flex items-start gap-2 text-xs text-gray-300 bg-gray-900/60 border border-gray-700 rounded-lg px-3 py-2.5 mb-3">
+            <MousePointer2 className="w-4 h-4 mt-0.5 shrink-0 text-blue-300" />
+            <span>
+              The interactive drill needs a <span className="text-gray-100 font-medium">mouse</span>, so it&apos;s
+              desktop-only. Here&apos;s the recoil-compensation path you&apos;d trace — open this on a computer to
+              practise it and get scored.
+            </span>
+          </div>
+        )}
 
         <div className="relative mx-auto" style={{ maxWidth: BOX }}>
           <svg
-            ref={svgRef}
+            ref={padRef}
             viewBox={`0 0 ${BOX} ${BOX}`}
             className="w-full h-auto rounded-xl bg-gray-900 border border-gray-700 touch-none select-none"
-            style={{ cursor: phase === 'running' ? 'none' : phase === 'ready' ? 'crosshair' : 'default' }}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
+            style={{ cursor: phase === 'running' ? 'none' : 'default' }}
           >
             {[0.25, 0.5, 0.75].map((f) => (
-              <line key={`h${f}`} x1={PAD} y1={PAD + f * (BOX - 2 * PAD)} x2={BOX - PAD} y2={PAD + f * (BOX - 2 * PAD)} stroke="#374151" strokeWidth="0.5" strokeDasharray="2 4" />
+              <line key={`h${f}`} x1={PAD} y1={PAD + f * AVAIL} x2={BOX - PAD} y2={PAD + f * AVAIL} stroke="#374151" strokeWidth="0.5" strokeDasharray="2 4" />
             ))}
             <line x1={BOX / 2} y1={PAD} x2={BOX / 2} y2={BOX - PAD} stroke="#374151" strokeWidth="0.5" strokeDasharray="2 4" />
 
@@ -173,11 +343,20 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
 
             {phase === 'ready' && (
               <g>
-                <circle cx={START.x} cy={START.y} r="10" fill="#34d399" />
-                <text x={START.x} y={START.y + 26} textAnchor="middle" fill="#34d399" fontSize="11" fontWeight="700">PRESS</text>
+                <circle cx={START.x} cy={START.y} r="6" fill="#34d399" />
+                <text x={START.x} y={START.y + 22} textAnchor="middle" fill="#9ca3af" fontSize="11">start of spray</text>
               </g>
             )}
           </svg>
+
+          {phase === 'ready' && canPractice && (
+            <button onClick={handleStart}
+              className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/60 rounded-xl text-gray-200 hover:bg-gray-900/40 transition-colors">
+              <MousePointer2 className="w-8 h-8 mb-1" />
+              <span className="text-sm font-semibold">Start</span>
+              <span className="text-[11px] text-gray-400">locks your mouse · Esc to cancel</span>
+            </button>
+          )}
 
           {phase === 'done' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/85 rounded-xl select-text">
@@ -193,14 +372,27 @@ export const RecoilPracticeModal = ({ weapon, onClose }) => {
                 <span className="absolute inset-0 flex items-center justify-center text-4xl font-extrabold text-white select-text tabular-nums">{score}</span>
               </div>
               <span className="mt-2 text-lg font-bold select-text" style={{ color: scoreColor(score) }}>{scoreMessage(score)}</span>
+              <span className="text-[11px] text-gray-400 mt-0.5 tabular-nums select-text">avg {avgErrDeg.toFixed(2)}° off target</span>
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-center gap-4 mt-3 text-xs">
-          <span className="flex items-center gap-1.5 text-gray-300"><span className="w-3 h-0.5 bg-emerald-400 inline-block" /> Guide</span>
-          <span className="flex items-center gap-1.5 text-gray-300"><span className="w-3 h-0.5 bg-amber-400 inline-block" /> You</span>
+        <div className="flex items-center justify-between mt-3 text-xs">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 text-gray-300"><span className="w-3 h-0.5 bg-emerald-400 inline-block" /> Guide</span>
+            {canPractice && <span className="flex items-center gap-1.5 text-gray-300"><span className="w-3 h-0.5 bg-amber-400 inline-block" /> You</span>}
+          </div>
+          {canPractice && <span className="text-gray-500 tabular-nums">≈ {cmPull.toFixed(1)} cm pull</span>}
         </div>
+
+        {rawUnsupported && (
+          <p className="text-[11px] text-amber-300/80 mt-2 leading-snug">
+            Your browser can&apos;t supply raw mouse input, so movement may be affected by OS acceleration. For an
+            accurate drill, set Windows pointer speed to 6/11 and turn off &quot;Enhance pointer precision&quot;
+            (or use a Chromium browser), then fine-tune with <span className="font-medium">Calibration</span> in settings.
+          </p>
+        )}
+
         {phase === 'done' && (
           <div className="flex justify-center gap-2 mt-4">
             <button onClick={reset} className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Try Again</button>
