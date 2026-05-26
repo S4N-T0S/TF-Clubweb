@@ -322,7 +322,7 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
       onMouseDown={(e) => { backdropDownRef.current = e.target === e.currentTarget; }}
       onClick={(e) => { if (e.target === e.currentTarget && backdropDownRef.current) onClose(); }}>
       <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl w-full max-w-lg lg:max-w-xl p-5" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between mb-2">
           <h3 className="text-lg font-bold text-white">Spray Practice — {weapon.name}</h3>
           <div className="flex items-center gap-1">
             {canPractice && (
@@ -421,6 +421,10 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
               </div>
               <span className="mt-2 text-lg font-bold select-text" style={{ color: scoreColor(score) }}>{scoreMessage(score)}</span>
               <span className="text-[11px] text-gray-400 mt-0.5 tabular-nums select-text">avg {avgErrDeg.toFixed(2)}° off target</span>
+              <div className="flex gap-2 mt-5">
+                <button onClick={reset} className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Try Again</button>
+                <button onClick={onClose} className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-semibold">Close</button>
+              </div>
             </div>
           )}
         </div>
@@ -441,16 +445,6 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
           </p>
         )}
 
-        {/* Reserve the action-row height in every phase so the modal doesn't grow
-            (and visibly re-centre) when the score screen's buttons appear. */}
-        <div className="flex justify-center gap-2 mt-4 min-h-[38px]">
-          {phase === 'done' && (
-            <>
-              <button onClick={reset} className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Try Again</button>
-              <button onClick={onClose} className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-semibold">Close</button>
-            </>
-          )}
-        </div>
       </div>
     </div>
   );
