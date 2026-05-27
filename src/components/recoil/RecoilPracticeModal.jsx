@@ -215,11 +215,13 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
     let s = 0;
     let avgErr = 0;
     if (samples && samples.length) {
-      avgErr = samples.reduce((a, b) => a + b, 0) / samples.length; // degrees of aim error
-      // Difficulty-relative tolerance (degrees), independent of the visual scale, so
-      // proportional rendering never makes a small-recoil gun trivially score 100.
-      const tolerance = Math.max(0.3, 0.45 * maxDeg);
-      s = Math.round(100 * Math.max(0, 1 - avgErr / tolerance));
+      avgErr = samples.reduce((a, b) => a + b, 0) / samples.length; // mean per-shot aim error
+      // Zero-score tolerance (degrees): the average miss that drives the score to 0.
+      // Relative to the climb so it's visual-scale independent, but tightened and made
+      // convex (^1.5) so a high "Perfect" demands a genuine 1:1 trace — a half-hearted
+      // sketch now averages well outside this and lands in the lower tiers, not 90+.
+      const tolerance = Math.max(0.25, 0.35 * maxDeg);
+      s = Math.round(100 * Math.max(0, 1 - avgErr / tolerance) ** 1.5);
     }
     setScore(s);
     setAvgErrDeg(avgErr);
@@ -239,7 +241,7 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
   }, [scale]);
 
   const beginRun = useCallback(() => {
-    runRef.current = { start: performance.now(), viewX: 0, viewY: 0, samples: [], aim };
+    runRef.current = { start: performance.now(), viewX: 0, viewY: 0, samples: [], shotIdx: 0, aim };
     setPhase('running');
     setUserPath(`M${START.x} ${START.y}`);
     document.addEventListener('mousemove', onMouseMove);
@@ -249,9 +251,16 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
       if (!run) return;
       const f = Math.min(1, (now - run.start) / durationMs);
       setMarkerF(f);
-      const c = compAt(compPts, f);
-      // sample tracking error in degrees of view rotation (visual-scale independent)
-      run.samples.push(Math.hypot(run.viewX - c.dx, run.viewY - c.dy));
+      // Score per *bullet*: each shot fires at its own time fraction (compPts[i].t).
+      // The instant a shot's firing time is reached, sample the tracking error against
+      // that shot's exact compensation point (degrees of view rotation, visual-scale
+      // independent) — one sample per bullet, so the trace is judged shot-by-shot
+      // instead of being smoothed across ~60 animation frames.
+      while (run.shotIdx < compPts.length && compPts[run.shotIdx].t <= f) {
+        const b = compPts[run.shotIdx];
+        run.samples.push(Math.hypot(run.viewX - b.dx, run.viewY - b.dy));
+        run.shotIdx++;
+      }
       if (f >= 1) { finish(run.samples); return; }
       rafRef.current = requestAnimationFrame(tick);
     };
