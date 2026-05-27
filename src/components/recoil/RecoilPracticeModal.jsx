@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import { X, Settings2, MousePointer2, AlertTriangle, Crosshair } from 'lucide-react';
+import { X, Settings2, MousePointer2, Crosshair } from 'lucide-react';
 import { pxToDeg, degPerCount, cmPer360, countsForDeg, countsPer360 } from '../../data/recoil/sensitivity';
-import { getStoredAimSettings, setStoredAimSettings } from '../../services/localStorageManager';
+import { getStoredAimSettings, setStoredAimSettings, isAimCustomized } from '../../services/localStorageManager';
 
 const BOX = 360;
 const PAD = 36;
@@ -59,7 +59,7 @@ NumberField.propTypes = {
 };
 
 const AimSettingsPanel = ({ aim, setAim }) => {
-  const set = (patch) => setAim((prev) => ({ ...prev, ...patch, hasConfigured: true }));
+  const set = (patch) => setAim((prev) => ({ ...prev, ...patch }));
   const cm360 = cmPer360(aim, aim.dpi);
   return (
     <div className="bg-gray-900/60 rounded-xl border border-gray-700 p-3 mb-3">
@@ -114,7 +114,6 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
   const [avgErrDeg, setAvgErrDeg] = useState(0);
   const [userPath, setUserPath] = useState('');
   const [markerF, setMarkerF] = useState(0);
-  const [showSettings, setShowSettings] = useState(false);
   const [rawUnsupported, setRawUnsupported] = useState(false);
 
   const [aim, setAimState] = useState(getStoredAimSettings);
@@ -125,6 +124,19 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
       return next;
     });
   }, []);
+
+  // First open shows the settings as a dedicated setup screen (replacing the drill)
+  const [showSettings, setShowSettings] = useState(() => !aim.seenAimSettings);
+  // True only while the auto-shown first-time setup is still up. Once the drill has been
+  // revealed (by any path), the gear becomes an ordinary settings toggle ("Done", not "Start").
+  const [setupPending, setSetupPending] = useState(() => !aim.seenAimSettings);
+  useEffect(() => { if (!showSettings) setSetupPending(false); }, [showSettings]);
+  useEffect(() => {
+    if (!aim.seenAimSettings) setAim((prev) => ({ ...prev, seenAimSettings: true }));
+  }, [aim.seenAimSettings, setAim]);
+
+  // Highlight the gear green whenever the config differs from the in-game defaults
+  const aimCustomized = useMemo(() => isAimCustomized(aim), [aim]);
 
   const padRef = useRef(null);
   const rafRef = useRef();
@@ -327,8 +339,14 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
           <div className="flex items-center gap-1">
             {canPractice && (
               <button onClick={() => setShowSettings((v) => !v)}
-                title="Aim settings"
-                className={`p-1.5 rounded-lg ${showSettings ? 'bg-gray-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}>
+                title={aimCustomized ? 'Aim settings (customised)' : 'Aim settings'}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  aimCustomized
+                    ? 'bg-green-600 text-white hover:bg-green-500'
+                    : showSettings
+                      ? 'bg-gray-600 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                }`}>
                 <Settings2 className="w-4 h-4" />
               </button>
             )}
@@ -338,16 +356,20 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
           </div>
         </div>
 
-        {canPractice && !aim.hasConfigured && !showSettings && (
-          <button onClick={() => setShowSettings(true)}
-            className="w-full flex items-center gap-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 mb-3 hover:bg-amber-500/20">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-            Set your in-game sensitivity &amp; DPI for a true 1:1 drill.
-          </button>
-        )}
-
-        {canPractice && showSettings && <AimSettingsPanel aim={aim} setAim={setAim} />}
-
+        {canPractice && showSettings ? (
+          <div>
+            <p className="text-xs text-gray-400 mb-3">
+              Enter your in-game sensitivity so the drill matches the exact mouse motion you&apos;d make — a true
+              1:1 spray. You can reopen this anytime with the <Settings2 className="inline w-3.5 h-3.5 -mt-0.5" /> button.
+            </p>
+            <AimSettingsPanel aim={aim} setAim={setAim} />
+            <button onClick={() => setShowSettings(false)}
+              className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors">
+              {setupPending ? 'Start practising' : 'Done'}
+            </button>
+          </div>
+        ) : (
+        <>
         {canPractice ? (
           <p className="text-xs text-gray-400 mb-3">
             Click <span className="text-gray-200 font-medium">Start</span> to lock your mouse, then
@@ -443,6 +465,8 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
             accurate drill, set Windows pointer speed to 6/11 and turn off &quot;Enhance pointer precision&quot;
             (or use a Chromium browser), then fine-tune with <span className="font-medium">Calibration</span> in settings.
           </p>
+        )}
+        </>
         )}
 
       </div>

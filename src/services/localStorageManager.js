@@ -152,8 +152,7 @@ const areValidAimSettings = (value) => {
          typeof value.zoomMult === 'number' &&
          typeof value.focalSens === 'boolean' &&
          typeof value.fov === 'number' &&
-         typeof value.dpi === 'number' &&
-         typeof value.hasConfigured === 'boolean';
+         typeof value.dpi === 'number';
 };
 const defaultAimSettings = {
   sens: 50,        // Mouse Look Sensitivity (in-game default)
@@ -162,13 +161,19 @@ const defaultAimSettings = {
   fov: 81,         // base vertical FOV (only affects the drill when focalSens is on)
   dpi: 800,        // mouse DPI (counts/inch)
   inputScale: 1,   // calibration: scales raw mouse deltas if the browser can't supply true counts
-  hasConfigured: false, // user has opened and saved their settings at least once
+  seenAimSettings: false, // settings panel has been auto-shown once (first open). Kept out of the
+                          // validator so existing stored settings still pass and aren't reset.
 };
 export const getStoredAimSettings = () => ({
   ...defaultAimSettings,
   ...getStoredJsonItem(AIM_SETTINGS_KEY, defaultAimSettings, areValidAimSettings),
 });
 export const setStoredAimSettings = (value) => setStoredJsonItem(AIM_SETTINGS_KEY, value);
+// True when any user-facing aim field differs from the in-game default — drives the
+// "customised" highlight on the settings button (seenAimSettings is bookkeeping, not a setting).
+const AIM_USER_FIELDS = ['sens', 'zoomMult', 'focalSens', 'fov', 'dpi', 'inputScale'];
+export const isAimCustomized = (aim) =>
+  AIM_USER_FIELDS.some((k) => aim[k] !== defaultAimSettings[k]);
 
 
 // Deprecated Cache Cleanup
