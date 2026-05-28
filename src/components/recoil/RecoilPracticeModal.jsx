@@ -82,7 +82,7 @@ const AimSettingsPanel = ({ aim, setAim }) => {
         <span className="text-gray-500">(changes ADS sens with FOV)</span>
       </label>
       <p className="text-[11px] text-gray-500 mt-2 tabular-nums">
-        ADS sensitivity ≈ <span className="text-gray-300">{cm360.toFixed(2)} cm/360°</span>
+        ADS (Compact Reflector) sensitivity ≈ <span className="text-gray-300">{cm360.toFixed(2)} cm/360°</span>
         {' · '}{countsPer360(aim).toFixed(0)} counts/360°
       </p>
       <details className="mt-2 text-xs text-gray-400">

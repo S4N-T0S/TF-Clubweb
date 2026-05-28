@@ -41,7 +41,7 @@ export const RECORDING_FOCAL_PX =
 export const pxToDeg = (px) => rad2deg(Math.atan2(px, RECORDING_FOCAL_PX));
 
 /**
- * Player's ADS sensitivity in **degrees of view rotation per mouse count**.
+ * Player's (Compact Reflector) ADS sensitivity in **degrees of view rotation per mouse count**.
  * @param {object} s
  * @param {number} s.sens      Mouse Look Sensitivity (e.g. 20)
  * @param {number} [s.zoomMult] Mouse Zoom Sensitivity Multiplier, percent (default 100)
