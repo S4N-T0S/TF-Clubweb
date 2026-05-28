@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Play, Pause, RotateCcw, Repeat, Crosshair, Eye, EyeOff, Film } from 'lucide-react';
+import { Play, Pause, Repeat, Crosshair, Eye, EyeOff, Film } from 'lucide-react';
 import { CLASS_ACCENT, getWeaponBounds, shotColor, MIN_RECOIL_UNITS, hasRecoil } from '../../data/recoil';
 import { RecoilPracticeModal } from './RecoilPracticeModal';
 import { useVisibility } from '../../hooks/useVisibility';
@@ -14,7 +14,7 @@ const AVAIL_H = ORIGIN_Y - PAD.top;
 const AVAIL_HALF_W = VBW / 2 - PAD.x;
 const GUIDE_TOP = PAD.top;                   // control guide: descends from here
 
-const SPEEDS = [0.5, 1, 2];
+const SPEEDS = [0.25, 0.5, 1];
 
 const GridBackdrop = () => (
   <>
@@ -213,21 +213,6 @@ export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef,
     setUserPaused(false);
   };
 
-  const handleRestart = () => {
-    if (activeSync && videoRef?.current) {
-      videoRef.current.currentTime = 0;
-      videoRef.current.play().catch(() => {});
-      setUserPaused(false);
-      return;
-    }
-    playheadRef.current = minT;
-    setPlayhead(minT);
-    if (!playing) {
-      setPlaying(true);
-      setUserPaused(false);
-    }
-  };
-
   const handleScrub = (v) => {
     if (activeSync && videoRef?.current && videoRef.current.duration) {
       videoRef.current.currentTime = v * videoRef.current.duration;
@@ -321,10 +306,6 @@ export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef,
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-700 text-gray-200 hover:bg-gray-600 text-sm font-medium">
           {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           {playing ? 'Pause' : 'Play'}
-        </button>
-        <button onClick={handleRestart} title="Restart"
-          className="flex items-center justify-center w-9 h-9 rounded-lg bg-gray-700 text-gray-200 hover:bg-gray-600">
-          <RotateCcw className="w-4 h-4" />
         </button>
         <button onClick={() => onUpdateSettings({ loop: !loop })} title="Loop"
           className={`flex items-center justify-center w-9 h-9 rounded-lg border ${

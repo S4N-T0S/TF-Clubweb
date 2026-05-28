@@ -136,7 +136,7 @@ const areValidSpraySettings = (value) => {
          typeof value.hasToggledUniform === 'boolean';
 };
 const defaultSpraySettings = {
-  uniform: false,
+  uniform: true,
   showVisual: true,
   loop: true,
   hasToggledUniform: false, // Tracks if user has clicked fit/proportional before (dismisses attention grabber)

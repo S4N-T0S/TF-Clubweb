@@ -4,32 +4,34 @@ The 'Original Goats' [OG] is a community of dedicated, high-skill players in The
 
 +++How to Join+++
 
-### Minimum Requirements
+### The Club Is Currently Closed
 
-To be considered for membership, applicants should meet the following criteria:
+The OG Club is **not open to general applications**. There is no application form or recruiter to message. You can only join through one of the two routes below.
 
-*   **Community Presence:** Be an active and known member within The Finals community.
-*   **Competitive Rank:** Have finished at least a Diamond rank within the last two competitive seasons.
-*   **Good Reputation:** Be known as a respectable and non-toxic player. The use of exploits or cheating is strictly forbidden.
+### Route 1 — Vouch + Activity
 
-*An exception to the rank requirement may be made for established content creators, community leaders, or retired professional players.*
+You must be **directly vouched by an existing OG member**, and you must also meet the activity requirement:
+
+*   **Competitive Rank:** Have finished at least **Diamond in one of the last two competitive seasons**.
+
+A vouch alone is not enough without the rank, and the rank alone is not enough without a vouch.
+
+### Route 2 — Established Community Member
+
+The requirements above may be waived for established figures in The Finals community, such as:
+
+*   A **streamer** / content creator
+*   A **community moderator**
+*   A **developer**
+*   A **professional player**
 
 ### Community Expectations
 
-Please note the following rules of conduct, which apply to all members:
+These rules of conduct apply to all members:
 
 1.  **Fair Play:** Members are not expected to help eachother in public matches. Do whatever you like, do not get upset if you're griefed by a fellow member.
-2.  **Perpetual Requirements:** The standards listed above are continuous. Failure to uphold them during your time in the club may result in removal.
-3.  **Vouching System:** While meeting the requirements makes you eligible, final acceptance often requires vouches from existing OG members.
-
----
-
-### How to Apply
-
-If you meet these requirements and are interested in joining, please send a direct message on Discord to one of our recruiters.
-Discord username: **tsa.gov**
-
-In your message, please briefly introduce yourself and link to your profile on this dashboard.
+2.  **Good Reputation:** Be a respectable and non-toxic player. The use of exploits or cheating is strictly forbidden.
+3.  **Perpetual Requirements:** These standards are continuous. Failing to uphold them during your time in the club may result in removal.
 
 +++Club Governance+++
 
@@ -349,6 +351,9 @@ I believe in transparency and community collaboration. For this reason, the fron
 
 You can view the code, report issues, or contribute on our GitHub repository:
 
--   **Frontend Repository:** [GitHub](https://github.com/s4n-t0s/TF-Clubweb)
+-   **Frontend Repository:** [GitHub](https://github.com/S4N-T0S/TF-Clubweb)
+-   **Recoil Analyser:** [GitHub](https://github.com/S4N-T0S/recoil-analyser)
+
+The Recoil Analyser is the tool I built to capture and process in-game footage into the data that powers the **Spray Patterns** page.
 
 I welcome and appreciate contributions from the community!
