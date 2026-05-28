@@ -1,9 +1,13 @@
 {
   "version": 1,
   "include": ["/*"],
-  "exclude":[
+  "exclude": [
     "/assets/*",
-    "/_worker.js",
+    "/videos/*",
+    "/version.json",
+    "/robots.txt",
+    "/sitemap.xml",
+    "/InfoContent.md",
     "/_headers",
     "/_redirects"
   ]
