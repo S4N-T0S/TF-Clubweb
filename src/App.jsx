@@ -196,13 +196,15 @@ const App = () => {
   }, [location.pathname, location.search, navigate]);
 
   const closeModal = useCallback(() => {
-    // Prefer real history back so the URL, scroll and state restore naturally
-    // (and the browser Back button does exactly the same thing).
-    // location.key === 'default' means we loaded straight onto this modal via a
-    // deep link, with nothing to go back to — fall back to the home view.
-    if (location.key !== 'default') navigate(-1);
+    // If this overlay was opened on top of a background view within this session,
+    // that background is the previous history entry — go back to it so the URL,
+    // scroll and state restore naturally (and browser Back does the same thing).
+    // Without a background (deep link, or a manual URL edit that reloaded the page)
+    // there may be unrelated/stale modal entries behind us, so jump straight home
+    // instead of walking back through them one by one.
+    if (location.state?.background) navigate(-1);
     else navigate('/', { replace: true });
-  }, [navigate, location.key]);
+  }, [navigate, location.state]);
 
   const closeAllModals = useCallback(() => {
     navigate('/', { replace: true });

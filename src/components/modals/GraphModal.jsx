@@ -6,7 +6,7 @@ to keep up with it's logic. I'm sorry for the mess.
 
 import { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { X, Plus, ListFilter, UserPen, Gavel, ChevronsUpDown, Users, AlertTriangle, RefreshCcw, Info, Trophy, Flame, TrendingUp, TrendingDown, Calendar, Activity, Zap } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -640,9 +640,13 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
 
 const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, globalLeaderboard = [], currentRubyCutoff, isMobile, lastLeaderboardUpdate }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { modalRef, isActive } = useModal(isOpen, onClose);
   const chartRef = useRef(null);
   const hasSetInitialTimeRangeRef = useRef(false);
+  // Keep the latest history state available without rebinding handleUrlChange.
+  const locationStateRef = useRef(location.state);
+  locationStateRef.current = location.state;
 
   // UI State
   const [currentSeasonId, setCurrentSeasonId] = useState(seasonId);
@@ -682,9 +686,12 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
     return !eventSettings.showNameChange || !eventSettings.showClubChange || !eventSettings.showRsAdjustment || !eventSettings.showSuspectedBan;
   }, [eventSettings]);
 
-  // Callback to update the URL using React Router
+  // Callback to update the URL using React Router.
+  // Preserve the existing history state (notably `background`) so closing the
+  // modal still returns to whatever view it was opened on top of, even after a
+  // name-normalisation redirect replaces the URL.
   const handleUrlChange = useCallback((url) => {
-    navigate(url, { replace: true });
+    navigate(url, { replace: true, state: locationStateRef.current });
   }, [navigate]);
 
   // Custom hook for data fetching and management

@@ -7,7 +7,8 @@ const CACHE_TTL_SECONDS = 1200;
 
 export const fetchGraphData = async (embarkId, seasonId = null) => {
   // A unique key for caching, including the season
-  const cacheKey = `graph_cache_${seasonId ? `${embarkId}@${seasonId}` : embarkId}`;
+  const normalizedId = embarkId?.toLowerCase();
+  const cacheKey = `graph_cache_${seasonId ? `${normalizedId}@${seasonId}` : normalizedId}`;
 
   // Check for a valid, non-expired cache entry.
   const cachedEntry = await getCacheItem(cacheKey);

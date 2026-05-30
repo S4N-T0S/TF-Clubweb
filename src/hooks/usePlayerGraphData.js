@@ -808,10 +808,12 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     if (isOpen && embarkId && seasonId) {
       // Check if the requested props match what we have already actively fetched.
       // If so, this is a redundant re-render from the parent; enable URL following and exit.
-      if (
-        activeParamsRef.current.embarkId === embarkId &&
-        activeParamsRef.current.seasonId === seasonId
-      ) {
+      // Embark IDs are case-insensitive, so a name-normalisation redirect
+      // (USERNAME#1234 -> Username#1234) must NOT count as a new player, or it would
+      // re-fetch data we already have and flash the loading state.
+      const sameEmbarkId =
+        activeParamsRef.current.embarkId?.toLowerCase() === embarkId?.toLowerCase();
+      if (sameEmbarkId && activeParamsRef.current.seasonId === seasonId) {
         shouldFollowUrlRef.current = true;
         return;
       }
