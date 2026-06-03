@@ -272,7 +272,8 @@ export const GraphModalProps = {
   compareIds: PropTypes.arrayOf(PropTypes.string),
   globalLeaderboard: PropTypes.arrayOf(PropTypes.shape(PlayerType)),
   currentRubyCutoff: PropTypes.oneOfType([PropTypes.number, PropTypes.bool]),
-  isMobile: PropTypes.bool.isRequired
+  isMobile: PropTypes.bool.isRequired,
+  showToast: PropTypes.func.isRequired
 };
 
 export const ModalProviderProps = {
@@ -323,7 +324,9 @@ export const FilterToggleButtonProps = {
   Icon: PropTypes.elementType,
   colorClass: PropTypes.string,
   textColorClass: PropTypes.string,
-  activeBorderClass: PropTypes.string
+  activeBorderClass: PropTypes.string,
+  disabled: PropTypes.bool,
+  title: PropTypes.string
 };
 
 export const GraphSettingsModalProps = {
@@ -332,12 +335,17 @@ export const GraphSettingsModalProps = {
     showClubChange: PropTypes.bool.isRequired,
     showRsAdjustment: PropTypes.bool.isRequired,
     showSuspectedBan: PropTypes.bool.isRequired,
+    // Display settings — optional so older persisted objects (pre-feature) still validate.
+    showRubyLine: PropTypes.bool,
+    showLeagueLines: PropTypes.bool,
+    displayMode: PropTypes.oneOf(['rank', 'rankScore']),
   }).isRequired,
   onSettingsChange: PropTypes.func.isRequired,
   onClose: PropTypes.func.isRequired,
   comparisonData: PropTypes.instanceOf(Map).isRequired,
   mainEvents: PropTypes.array,
   mainPlayerId : PropTypes.string.isRequired,
+  seasonSupportsRank: PropTypes.bool,
 };
 
 export const GraphErrorViewProps = {

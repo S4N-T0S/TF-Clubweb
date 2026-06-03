@@ -444,6 +444,7 @@ const App = () => {
                 currentRubyCutoff={currentRubyCutoff}
                 isMobile={isMobile}
                 lastLeaderboardUpdate={lastUpdated}
+                showToast={showToast}
               />
             </Suspense>
           )}

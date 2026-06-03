@@ -73,6 +73,11 @@ const defaultGraphSettings = {
   showRsAdjustment: true,
   showSuspectedBan: true,
   hasOpenedCompareModal: false,
+  hasOpenedGraphSettings: false,
+  // Display settings (kept OUT of areValidGraphSettings on purpose) because of existing user values.
+  showRubyLine: true,
+  showLeagueLines: true,
+  displayMode: 'rankScore',
 };
 export const getStoredGraphSettings = () => ({
   ...defaultGraphSettings,

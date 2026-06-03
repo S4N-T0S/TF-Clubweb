@@ -187,7 +187,7 @@ const getOrCreateTooltip = (chart) => {
   return tooltipEl;
 };
 
-const getBorderColor = (ctx, defaultColor = '#FAF9F6', eventSettings = {}) => {
+const getBorderColor = (ctx, defaultColor = '#FAF9F6', eventSettings = {}, isRank = false) => {
   if (!ctx.p0?.raw?.raw || !ctx.p1?.raw?.raw) return defaultColor;
 
   const p0 = ctx.p0.raw.raw;
@@ -214,6 +214,17 @@ const getBorderColor = (ctx, defaultColor = '#FAF9F6', eventSettings = {}) => {
   if (p1.isGapBridge) return defaultColor;
 
   if (p0.isExtrapolated || p1.isExtrapolated || p1.isStaircasePoint) return defaultColor;
+
+  // Rank mode: colour each segment by whether rank improved or worsened between its two
+  // endpoints, mirroring the score-mode convention (green = good).
+  if (isRank) {
+    const a = p0.rank;
+    const b = p1.rank;
+    if (typeof a !== 'number' || typeof b !== 'number') return defaultColor;
+    if (b < a) return '#10B981';
+    if (b > a) return '#EF4444';
+    return defaultColor;
+  }
 
   // New data logic: color based on destination point's status
   if (p1.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS) {
@@ -307,7 +318,12 @@ export const useChartConfig = ({
   seasonId,
   rubyCutoff,
   mainPlayerWinrate,
+  displayMode = 'rankScore',
 }) => {
+
+  // 'rank' plots true leaderboard rank on an inverted axis (#1 at the top); 'rankScore'
+  // is the original rank-score view. The caller only passes 'rank' for supported seasons.
+  const isRankMode = displayMode === 'rank';
 
   const seasonConfig = useMemo(() => Object.values(SEASONS).find(s => s.id === seasonId), [seasonId]);
   const seasonEndDate = useMemo(() => seasonConfig?.endTimestamp ? new Date(seasonConfig.endTimestamp * 1000) : null, [seasonConfig]);
@@ -372,8 +388,14 @@ export const useChartConfig = ({
       return 0;
     }
 
-    // Hide points for tracking data in the new system (unless interpolated)
-    if (pointData.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS && !pointData.scoreChanged) {
+    // Decide which non-event points are noteworthy enough to draw a hoverable dot.
+    // Rank view keys off rank changes (tagged in buildPoints); score view keys off score
+    // changes, hiding new-logic "tracking" points where only other players moved.
+    if (isRankMode) {
+      if (ctx.raw.rankChanged === false && !pointData.isInterpolated && !pointData.isExtrapolated) {
+        return 0;
+      }
+    } else if (pointData.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS && !pointData.scoreChanged) {
       if (!pointData.isInterpolated && !pointData.isExtrapolated) {
         return 0;
       }
@@ -384,7 +406,8 @@ export const useChartConfig = ({
       return 0;
     }
 
-    const direction = getNewLogicPointDirection(ctx);
+    // Rank mode draws a single clean line, so no up/down triangle sizing.
+    const direction = isRankMode ? null : getNewLogicPointDirection(ctx);
     const isTriangle = direction === 'up' || direction === 'down';
 
     const initialSize = (pointData.isInterpolated || pointData.isExtrapolated) ? 2.6 : (isTriangle ? 4.5 : 3);
@@ -396,7 +419,7 @@ export const useChartConfig = ({
       const zoomRatio = (timeRange - TIME.DAY) / (TIME.WEEK - TIME.DAY);
       return initialSize - ((initialSize * 2 / 3) * zoomRatio);
     }
-  }, [eventSettings]);
+  }, [eventSettings, isRankMode]);
 
   const externalTooltipHandler = useCallback((context) => {
     const { chart, tooltip } = context;
@@ -427,10 +450,16 @@ export const useChartConfig = ({
         const isHiddenInterpolatedPoint = (pointData.isInterpolated || pointData.isExtrapolated) &&
           timeRange > TIME.SEVENTY_TWO_HOURS;
 
-        const isHiddenTrackingPoint = pointData.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS &&
-          !pointData.scoreChanged &&
-          !pointData.isInterpolated &&
-          !pointData.isExtrapolated;
+        // Mirror the dot-visibility rule (getPointRadius/buildPoints): in rank view a point
+        // with no rank change carries no tooltip; in score view a no-score-change tracking
+        // point carries none.
+        const wrapper = tooltip.dataPoints?.[0]?.raw;
+        const isHiddenTrackingPoint = isRankMode
+          ? (wrapper?.rankChanged === false && !pointData.isInterpolated && !pointData.isExtrapolated)
+          : (pointData.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS &&
+            !pointData.scoreChanged &&
+            !pointData.isInterpolated &&
+            !pointData.isExtrapolated);
 
         const isStaircase = pointData.isStaircasePoint;
         const isGapBridge = pointData.isGapBridge;
@@ -461,7 +490,6 @@ export const useChartConfig = ({
 
     if (hasScoreContent || hasEventToShow) {
       const titleLines = tooltip.title || [];
-      const bodyLines = tooltip.body.map(b => b.lines);
       const datasetIndex = tooltip.dataPoints[0].datasetIndex;
       const dataPoint = tooltip.dataPoints[0].raw.raw;
 
@@ -474,9 +502,15 @@ export const useChartConfig = ({
       tooltipEl.appendChild(tableRoot);
 
       if (hasScoreContent) {
-        const score = parseInt(bodyLines[0][0].split(': ')[1].replace(/[^\d]/g, ''));
+        // Always derive the displayed score from the raw point, not the tooltip body — in
+        // rank mode the plotted y value is the rank, so parsing the body would be wrong.
+        const score = Math.round(dataPoint.rankScore);
         const rank = getRankFromScore(score);
+        // Score mode shows the numeric rank as a corner badge (the body has no rank position).
+        // Rank mode omits it — the "Rank #prev → #curr" row above already carries that, badge
+        // would just duplicate the current rank.
         if (
+          !isRankMode &&
           dataPoint?.rank !== null &&
           Number.isInteger(dataPoint?.rank) &&
           !dataPoint.isExtrapolated &&
@@ -525,6 +559,82 @@ export const useChartConfig = ({
         headerCell.appendChild(headerText);
         headerRow.appendChild(headerCell);
         tableRoot.appendChild(headerRow);
+
+        // Rank-mode headline: the leaderboard position as a before → after transition. This
+        // surfaces rank shifts even when the player's own score didn't change (e.g. another
+        // player overtook them) — the score-centric rows below can't convey that on their own.
+        if (isRankMode && Number.isInteger(dataPoint?.rank) && dataPoint.rank > 0 &&
+          !dataPoint.isExtrapolated && !dataPoint.isInterpolated) {
+          const currentRank = dataPoint.rank;
+          const dataIndex = tooltip.dataPoints[0].dataIndex;
+          const dataset = chart.data.datasets[datasetIndex].data;
+
+          // Walk back to the most recent point at a *different* rank — the position we moved from.
+          let prevRank = null;
+          for (let i = dataIndex - 1; i >= 0; i--) {
+            const r = dataset[i]?.raw?.rank;
+            if (typeof r === 'number' && r > 0 && r !== currentRank) { prevRank = r; break; }
+          }
+
+          const posRow = document.createElement('tr');
+          posRow.style.borderWidth = 0;
+          const posCell = document.createElement('td');
+          posCell.style.borderWidth = 0;
+          posCell.style.fontSize = '14px';
+          posCell.style.fontWeight = 'bold';
+          posCell.style.paddingTop = '4px';
+
+          const posContainer = document.createElement('div');
+          posContainer.style.display = 'flex';
+          posContainer.style.alignItems = 'center';
+          posContainer.style.gap = '5px';
+
+          const label = document.createElement('span');
+          label.style.color = '#9ca3af';
+          label.style.fontWeight = '600';
+          label.textContent = 'Rank';
+          posContainer.appendChild(label);
+
+          if (prevRank !== null) {
+            const improved = currentRank < prevRank; // smaller rank number is better
+            const color = improved ? '#10B981' : '#EF4444';
+
+            const prevSpan = document.createElement('span');
+            prevSpan.style.color = '#9ca3af';
+            prevSpan.textContent = `#${prevRank.toLocaleString()}`;
+            posContainer.appendChild(prevSpan);
+
+            const arrowSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            arrowSvg.setAttribute('width', '13');
+            arrowSvg.setAttribute('height', '13');
+            arrowSvg.setAttribute('viewBox', '0 0 24 24');
+            arrowSvg.setAttribute('fill', 'none');
+            arrowSvg.setAttribute('stroke', color);
+            arrowSvg.setAttribute('stroke-width', '2.5');
+            arrowSvg.setAttribute('stroke-linecap', 'round');
+            arrowSvg.setAttribute('stroke-linejoin', 'round');
+            arrowSvg.style.flexShrink = '0';
+            arrowSvg.style.display = 'block';
+            // On the inverted rank axis an improvement (smaller number) moves UP toward #1.
+            arrowSvg.innerHTML = improved
+              ? '<path d="M12 19V5M5 12l7-7 7 7"/>'
+              : '<path d="M12 5v14M5 12l7 7 7-7"/>';
+            posContainer.appendChild(arrowSvg);
+
+            const currSpan = document.createElement('span');
+            currSpan.style.color = color;
+            currSpan.textContent = `#${currentRank.toLocaleString()}`;
+            posContainer.appendChild(currSpan);
+          } else {
+            const currSpan = document.createElement('span');
+            currSpan.textContent = `#${currentRank.toLocaleString()}`;
+            posContainer.appendChild(currSpan);
+          }
+
+          posCell.appendChild(posContainer);
+          posRow.appendChild(posCell);
+          tableRoot.appendChild(posRow);
+        }
 
         const scoreRow = document.createElement('tr');
         scoreRow.style.borderWidth = 0;
@@ -780,7 +890,7 @@ export const useChartConfig = ({
     tooltipEl.style.top = top + 'px';
     tooltipEl.style.transform = 'none'; // Position is now calculated manually.
     tooltipEl.style.font = tooltip.options.bodyFont.string;
-  }, [eventSettings]);
+  }, [eventSettings, isRankMode]);
 
   const overallTimeDomain = useMemo(() => {
     if (!data?.length) return { min: null, max: null };
@@ -850,7 +960,22 @@ export const useChartConfig = ({
   const viewWindow = useMemo(() => calculateViewWindow(data, selectedTimeRange, overallTimeDomain), [data, selectedTimeRange, calculateViewWindow, overallTimeDomain]);
 
   const calculateYAxisBounds = useCallback((data, timeRange) => {
-    if (!data?.length || !timeRange?.min) return { min: 0, max: 50000, stepSize: 10000 };
+    // Metric-aware: rank mode bounds the axis on true rank (floor 1, smaller = better),
+    // score mode on rank score (floor 0). getMetricVal returns null for points that carry
+    // no meaningful value for the active metric (null-rank, or score-only synthetics).
+    const fallbackBounds = isRankMode
+      ? { min: 1, max: 1000, stepSize: 100, floorTick: 1 }
+      : { min: 0, max: 50000, stepSize: 10000, floorTick: null };
+    const getMetricVal = (d) => {
+      if (!d) return null;
+      if (isRankMode) {
+        if (d.isStaircasePoint || d.isGapBridge) return null;
+        return (typeof d.rank === 'number' && !Number.isNaN(d.rank) && d.rank > 0) ? d.rank : null;
+      }
+      return (typeof d.rankScore === 'number' && !Number.isNaN(d.rankScore)) ? d.rankScore : null;
+    };
+
+    if (!data?.length || !timeRange?.min) return fallbackBounds;
 
     const getVisibleAndNearestData = (dataset) => {
       const startIdx = findStartIndex(dataset, timeRange.min);
@@ -885,11 +1010,12 @@ export const useChartConfig = ({
       .flat();
 
     const allVisibleData = [...visibleData, ...comparisonVisibleData];
+    const visibleMetricVals = allVisibleData.map(getMetricVal).filter(v => v !== null);
 
-    let minScore, maxScore;
+    let minVal, maxVal;
 
-    if (!allVisibleData.length) {
-      let lastKnownScore;
+    if (!visibleMetricVals.length) {
+      let lastKnownVal;
       const rangeStart = timeRange.min;
 
       const allDatasets = [
@@ -899,84 +1025,107 @@ export const useChartConfig = ({
           .map(([_, { data: compareData }]) => compareData)
       ];
 
+      // Per dataset, the most recent valid value at or before the window start. Rank prefers
+      // the smallest (best) value, score the largest — each metric's "leading edge".
       for (const dataset of allDatasets) {
         for (let i = dataset.length - 1; i >= 0; i--) {
           if (dataset[i].timestamp <= rangeStart) {
-            if (lastKnownScore === undefined || dataset[i].rankScore > lastKnownScore) {
-              lastKnownScore = dataset[i].rankScore;
+            const v = getMetricVal(dataset[i]);
+            if (v !== null) {
+              if (lastKnownVal === undefined || (isRankMode ? v < lastKnownVal : v > lastKnownVal)) {
+                lastKnownVal = v;
+              }
+              break;
             }
-            break;
           }
         }
       }
 
-      if (lastKnownScore === undefined) {
-        const visibleScores = [
-          chart?.getDatasetMeta(0).visible !== false ? data[0]?.rankScore : undefined,
-          ...Array.from(comparisonData.entries())
-            .filter((_, index) => chart?.getDatasetMeta(index + 1).visible !== false)
-            .map(([_, { data: compareData }]) => compareData[0]?.rankScore)
-        ].filter(score => score !== undefined);
-
-        lastKnownScore = visibleScores.length > 0 ? Math.max(...visibleScores) : undefined;
+      if (lastKnownVal === undefined) {
+        // Deep fallback: first valid value from the start of each visible dataset.
+        const firstVals = allDatasets
+          .map(ds => {
+            for (let i = 0; i < ds.length; i++) {
+              const v = getMetricVal(ds[i]);
+              if (v !== null) return v;
+            }
+            return undefined;
+          })
+          .filter(v => v !== undefined);
+        lastKnownVal = firstVals.length > 0 ? (isRankMode ? Math.min(...firstVals) : Math.max(...firstVals)) : undefined;
       }
 
-      if (lastKnownScore === undefined) {
-        return { min: 0, max: 50000, stepSize: 10000 };
+      if (lastKnownVal === undefined) {
+        return fallbackBounds;
       }
 
-      minScore = lastKnownScore;
-      maxScore = lastKnownScore;
+      minVal = lastKnownVal;
+      maxVal = lastKnownVal;
     } else {
-      minScore = Math.min(...allVisibleData.map(d => d.rankScore));
-      maxScore = Math.max(...allVisibleData.map(d => d.rankScore));
+      minVal = Math.min(...visibleMetricVals);
+      maxVal = Math.max(...visibleMetricVals);
     }
 
-    if (minScore === maxScore) {
-      const buffer = Math.max(20, Math.round(minScore * 0.02) || 500);
-      minScore -= buffer;
-      maxScore += buffer;
+    // Snug, well-spaced bounds
+    // Pick a "nice" tick step (1/2/5 × 10ⁿ) aiming for ~9 gridlines across the data range.
+    const niceStep = (axisSpan) => {
+      const rough = axisSpan / 9;
+      const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+      const r = rough / mag;
+      let s;
+      if (r > 5) s = 10 * mag;
+      else if (r > 2.5) s = 5 * mag;
+      else if (r > 1) s = 2 * mag;
+      else s = mag;
+      return isRankMode ? Math.max(1, Math.round(s)) : s;
+    };
+
+    if (isRankMode) {
+      // Reversed axis: best (smallest) rank sits at the top, worst (largest) at the bottom.
+      const best = minVal;
+      const worst = maxVal;
+
+      // Flat line (e.g. held #1 all week): centre the value with breathing room either side.
+      if (worst - best < 1) {
+        const flatSpan = Math.max(10, Math.round(best * 0.25));
+        return {
+          min: best - flatSpan,
+          max: best + flatSpan,
+          stepSize: niceStep(flatSpan * 2),
+          floorTick: Math.max(1, Math.round(best)),
+        };
+      }
+
+      const span = worst - best;
+      const stepSize = niceStep(span);
+      // A touch of give above the best rank so #1 never sits flush against the top edge.
+      const topGive = Math.max(span * 0.03, 1.5);
+      // A little room past the worst rank, then round the bottom out to a clean step.
+      const botGrace = Math.max(span * 0.02, 1);
+      const min = best - topGive; // may dip below 1 — pure headroom, no tick is drawn there
+      let max = Math.ceil((worst + botGrace) / stepSize) * stepSize;
+      if (max <= worst) max += stepSize;
+      // The best rank is forced as a tick (clamped to the #1 floor); afterBuildTicks drops the
+      // impossible sub-#1 ticks the headroom would otherwise create.
+      return { min, max, stepSize, floorTick: Math.max(1, Math.round(best)) };
     }
 
-    const range = maxScore - minScore;
-    const padding = Math.max(range * 0.1, 20);
-    const paddedMin = Math.max(0, minScore - padding);
-    const paddedMax = maxScore + padding;
-    const paddedRange = paddedMax - paddedMin;
-
-    if (paddedRange <= 0) {
-      const stepSize = Math.round(paddedMax * 0.1) || 100;
-      const newMin = Math.max(0, Math.floor((paddedMin - stepSize) / stepSize) * stepSize);
-      const newMax = Math.ceil((paddedMax + stepSize) / stepSize) * stepSize;
-      return { min: newMin, max: newMax || stepSize, stepSize };
+    // Score mode: higher is better and the axis is not reversed. Give room above the top score
+    // and below the bottom score, floored at 0, rounding both edges out to clean steps.
+    let low = minVal;
+    let high = maxVal;
+    if (high - low < 1) {
+      const flatSpan = Math.max(500, Math.round(high * 0.05));
+      low -= flatSpan;
+      high += flatSpan;
     }
-
-    const targetTicks = 8;
-    const roughStep = paddedRange / targetTicks;
-
-    const magnitude = Math.pow(10, Math.floor(Math.log10(roughStep)));
-    const residual = roughStep / magnitude;
-
-    let stepSize;
-    if (residual > 5) {
-      stepSize = 10 * magnitude;
-    } else if (residual > 2.5) {
-      stepSize = 5 * magnitude;
-    } else if (residual > 1) {
-      stepSize = 2 * magnitude;
-    } else {
-      stepSize = magnitude;
-    }
-
-    const newMin = Math.floor(paddedMin / stepSize) * stepSize;
-    const newMax = Math.ceil(paddedMax / stepSize) * stepSize;
-
-    if (newMin === newMax) {
-      return { min: newMin - stepSize, max: newMax + stepSize, stepSize };
-    }
-
-    return { min: newMin, max: newMax, stepSize };
-  }, [comparisonData, chartRef]);
+    const sSpan = high - low;
+    const sStep = niceStep(sSpan);
+    const sGrace = Math.max(sSpan * 0.05, sStep * 0.5);
+    const sMax = Math.ceil((high + sGrace) / sStep) * sStep;
+    const sMin = Math.max(0, Math.floor((low - sGrace) / sStep) * sStep);
+    return { min: sMin, max: sMax > sMin ? sMax : sMin + sStep, stepSize: sStep, floorTick: null };
+  }, [comparisonData, chartRef, isRankMode]);
 
   const getEventAnnotations = useCallback(() => {
     const annotations = [];
@@ -987,6 +1136,10 @@ export const useChartConfig = ({
       // Handle point-based events (name/club changes)
       playerData.forEach(point => {
         if (point.isInterpolated || point.isExtrapolated || point.isStaircasePoint || point.isGapBridge || !point.events) {
+          return;
+        }
+        // In rank mode a point with no real rank has no position on the inverted axis.
+        if (isRankMode && (typeof point.rank !== 'number' || point.rank <= 0)) {
           return;
         }
 
@@ -1044,7 +1197,7 @@ export const useChartConfig = ({
                 return xValue >= chart.scales.x.min && xValue <= chart.scales.x.max;
               },
               xValue: point.timestamp,
-              yValue: point.rankScore,
+              yValue: isRankMode ? point.rank : point.rankScore,
               content: labelContent,
               font: {
                 // Scriptable font size adapts to the current zoom level.
@@ -1106,15 +1259,17 @@ export const useChartConfig = ({
     });
 
     return annotations;
-  }, [data, events, comparisonData, embarkId, eventSettings]);
+  }, [data, events, comparisonData, embarkId, eventSettings, isRankMode]);
 
   const getRankAnnotations = useCallback(() => {
     if (!data) return [];
 
     // Create annotations for ALL ranks and ruby line, but control their visibility dynamically.
     // This makes the returned array stable, preventing the plugin from resetting.
-    const annotations = RANKS
-      .map(rank => ({
+    // League threshold lines are rank-score values with no rank-axis equivalent, so they only
+    // appear in score mode — and only while the user keeps them enabled.
+    const annotations = (!isRankMode && eventSettings.showLeagueLines)
+      ? RANKS.map(rank => ({
         type: 'line',
         drawTime: 'beforeDatasetsDraw',
         id: `rank-line-${rank.label.replace(' ', '-')}`,
@@ -1142,43 +1297,50 @@ export const useChartConfig = ({
             right: 8
           }
         }
-      }));
+      }))
+      : [];
 
     const seasonConfig = Object.values(SEASONS).find(s => s.id === seasonId);
+    const hasRuby = seasonConfig && seasonConfig.hasRuby;
 
-    if (seasonConfig && seasonConfig.hasRuby && typeof rubyCutoff === 'number') {
-      annotations.push({
-        type: 'line',
-        drawTime: 'beforeDatasetsDraw',
-        id: 'rank-line-ruby',
-        yMin: rubyCutoff,
-        yMax: rubyCutoff,
-        borderColor: '#dc2626',
-        borderWidth: 1.5,
-        borderDash: [2, 2],
-        // Also control the Ruby line's visibility dynamically.
-        display: (ctx) => {
-          const yAxis = ctx.chart.scales.y;
-          return rubyCutoff >= yAxis.min && rubyCutoff <= yAxis.max;
-        },
-        label: {
-          content: 'Ruby',
-          display: true,
-          position: 'center',
-          color: '#dc2626',
-          font: {
-            size: 11
+    // Ruby cutoff: in rank mode it's a fixed line at rank #500 (the top-500 boundary); in
+    // score mode it's the dynamic/historical rank-score threshold. Either way, user-toggleable.
+    if (hasRuby && eventSettings.showRubyLine) {
+      const rubyY = isRankMode ? 500 : (typeof rubyCutoff === 'number' ? rubyCutoff : null);
+      if (rubyY !== null) {
+        annotations.push({
+          type: 'line',
+          drawTime: 'beforeDatasetsDraw',
+          id: 'rank-line-ruby',
+          yMin: rubyY,
+          yMax: rubyY,
+          borderColor: '#dc2626',
+          borderWidth: 1.5,
+          borderDash: [2, 2],
+          // Also control the Ruby line's visibility dynamically.
+          display: (ctx) => {
+            const yAxis = ctx.chart.scales.y;
+            return rubyY >= yAxis.min && rubyY <= yAxis.max;
           },
-          padding: {
-            left: 8,
-            right: 8
+          label: {
+            content: 'Ruby',
+            display: true,
+            position: 'center',
+            color: '#dc2626',
+            font: {
+              size: 11
+            },
+            padding: {
+              left: 8,
+              right: 8
+            }
           }
-        }
-      });
+        });
+      }
     }
 
     return annotations;
-  }, [data, seasonId, rubyCutoff]);
+  }, [data, seasonId, rubyCutoff, isRankMode, eventSettings]);
 
   const chartOptions = useMemo(() => {
     if (!data) return null;
@@ -1190,7 +1352,7 @@ export const useChartConfig = ({
     // We decide which one is currently active.
     const activeViewWindow = isManuallyZoomed && manualViewWindow ? manualViewWindow : viewWindow;
 
-    const { min: initialMinY, max: initialMaxY, stepSize: initialStepSize } = calculateYAxisBounds(data, activeViewWindow);
+    const { min: initialMinY, max: initialMaxY, stepSize: initialStepSize, floorTick: initialFloorTick } = calculateYAxisBounds(data, activeViewWindow);
     const rankAnnotations = getRankAnnotations();
     const eventAnnotations = getEventAnnotations();
 
@@ -1242,13 +1404,26 @@ export const useChartConfig = ({
         y: {
           min: initialMinY,
           max: initialMaxY,
+          reverse: isRankMode, // rank mode plots an inverted axis so #1 sits at the top
           grid: { color: '#2a3042' },
           ticks: {
             color: '#cecfd3',
-            callback: value => Math.round(value).toLocaleString(),
+            callback: value => isRankMode ? `#${Math.round(value).toLocaleString()}` : Math.round(value).toLocaleString(),
             stepSize: initialStepSize,
             maxTicksLimit: 15,
           },
+          // Rank axis can sit slightly above #1 for headroom; strip the impossible (<#1) ticks
+          // that headroom creates and guarantee the best-rank floor tick stays visible.
+          afterBuildTicks: isRankMode ? (axis) => {
+            let ticks = axis.ticks.filter(t => t.value >= 1);
+            if (initialFloorTick != null && !ticks.some(t => Math.round(t.value) === initialFloorTick)) {
+              ticks.push({ value: initialFloorTick, major: false });
+            }
+            const seen = new Set();
+            axis.ticks = ticks
+              .filter(t => { const k = Math.round(t.value); if (seen.has(k)) return false; seen.add(k); return true; })
+              .sort((a, b) => a.value - b.value);
+          } : undefined,
         }
       },
       plugins: {
@@ -1334,7 +1509,8 @@ export const useChartConfig = ({
     onZoomOrPan,
     setSelectedTimeRange,
     handleChartUpdate,
-    isHistoricalSeason
+    isHistoricalSeason,
+    isRankMode
   ]);
 
   const getPointStyle = useCallback((ctx) => {
@@ -1360,9 +1536,9 @@ export const useChartConfig = ({
         return rsDownIcon;
       }
     }
-    const direction = getNewLogicPointDirection(ctx);
+    const direction = isRankMode ? null : getNewLogicPointDirection(ctx);
     return (direction === 'up' || direction === 'down') ? 'triangle' : 'circle';
-  }, [eventSettings]);
+  }, [eventSettings, isRankMode]);
 
   const getPointRotation = useCallback((ctx) => {
 
@@ -1377,24 +1553,64 @@ export const useChartConfig = ({
     }
 
     // For regular score change points (which use a triangle), rotate it if the score went down.
-    const direction = getNewLogicPointDirection(ctx);
+    const direction = isRankMode ? null : getNewLogicPointDirection(ctx);
     return direction === 'down' ? 180 : 0;
-  }, [eventSettings]);
+  }, [eventSettings, isRankMode]);
 
   const getPointBackgroundColor = useCallback((ctx, color) => {
     if (ctx.raw?.raw?.isExtrapolated || ctx.raw?.raw?.isInterpolated) return '#7d7c7b';
-    const direction = getNewLogicPointDirection(ctx);
+    const direction = isRankMode ? null : getNewLogicPointDirection(ctx);
     if (direction === 'up') return '#10B981';
     if (direction === 'down') return '#EF4444';
     return color;
-  }, []);
+  }, [isRankMode]);
 
   const getPointBorderColor = useCallback((ctx, color) => {
     if (ctx.raw?.raw?.isExtrapolated || ctx.raw?.raw?.isInterpolated) return '#8a8988';
-    const direction = getNewLogicPointDirection(ctx);
+    const direction = isRankMode ? null : getNewLogicPointDirection(ctx);
     if (direction === 'up' || direction === 'down') return '#FAF9F6';
     return color;
-  }, []);
+  }, [isRankMode]);
+
+  // Map a processed-data array to chart points for the active metric. Score mode plots
+  // rankScore for every point; rank mode plots true rank and drops points that have no
+  // rank position (null/≤0) or exist purely for score aesthetics (staircase/gap bridge) —
+  // with one exception: off-leaderboard RS adjustments are kept (anchored to the last known
+  // rank) so their marker still appears.
+  const buildPoints = useCallback((points) => {
+    if (!points) return [];
+    if (!isRankMode) {
+      return points.map(d => ({ x: d.timestamp, y: d.rankScore, raw: d }));
+    }
+    // Rank view plots true rank and tags each plotted point with whether its rank differs
+    // from the previously plotted one. Dot/tooltip visibility keys off `rankChanged` so the
+    // chart marks RANK changes — including shifts on "tracking" points caused purely by other
+    // players moving — rather than rank-score changes.
+    let previousRank = null;
+    const result = [];
+    for (const d of points) {
+      if (d.isStaircasePoint || d.isGapBridge) continue;
+
+      if (typeof d.rank === 'number' && d.rank > 0) {
+        const rankChanged = previousRank === null || d.rank !== previousRank;
+        result.push({ x: d.timestamp, y: d.rank, raw: d, rankChanged });
+        previousRank = d.rank;
+        continue;
+      }
+
+      // Off-leaderboard RS adjustment: the player has no tracked rank at this moment (the
+      // penalty dropped them below the leaderboard), so this point would normally be filtered
+      // out and the orange adjustment marker would vanish in rank view. Anchor it to the last
+      // known rank so the icon still renders on the line; the point's own isFollowedByGap
+      // styling then conveys that the player fell off afterwards. previousRank is deliberately
+      // NOT advanced — their true rank after the penalty is unknown, so later points keep
+      // comparing against the last position the player actually held.
+      if (d.isRsAdjustmentAnchor && previousRank !== null) {
+        result.push({ x: d.timestamp, y: previousRank, raw: d, rankChanged: false });
+      }
+    }
+    return result;
+  }, [isRankMode]);
 
   const chartData = useMemo(() => data ? {
     labels: data.map(d => d.timestamp),
@@ -1403,13 +1619,9 @@ export const useChartConfig = ({
         ? ` ${embarkId} (${mainPlayerWinrate}% WR)`
         : ` ${embarkId}`,
       normalized: true,
-      data: data.map(d => ({
-        x: d.timestamp,
-        y: d.rankScore,
-        raw: d
-      })),
+      data: buildPoints(data),
       segment: {
-        borderColor: (ctx) => getBorderColor(ctx, '#FAF9F6', eventSettings),
+        borderColor: (ctx) => getBorderColor(ctx, '#FAF9F6', eventSettings, isRankMode),
         borderWidth: 2,
         borderDash: (ctx) => getBorderDash(ctx, eventSettings),
       },
@@ -1425,13 +1637,9 @@ export const useChartConfig = ({
     ...Array.from(comparisonData.entries()).map(([compareId, { data: compareData, color, winrate }]) => ({
       label: winrate !== null ? ` ${compareId} (${winrate}% WR)` : ` ${compareId}`,
       normalized: true,
-      data: compareData.map(d => ({
-        x: d.timestamp,
-        y: d.rankScore,
-        raw: d
-      })),
+      data: buildPoints(compareData),
       segment: {
-        borderColor: (ctx) => getBorderColor(ctx, color, eventSettings),
+        borderColor: (ctx) => getBorderColor(ctx, color, eventSettings, isRankMode),
         borderWidth: 2,
         borderDash: (ctx) => getBorderDash(ctx, eventSettings),
       },
@@ -1444,7 +1652,7 @@ export const useChartConfig = ({
       pointHoverRadius: ctx => getPointRadius(ctx) * 1.5,
       tension: 0.01
     }))]
-  } : null, [data, embarkId, comparisonData, eventSettings, getPointRadius, getPointStyle, getPointRotation, getPointBackgroundColor, getPointBorderColor, mainPlayerWinrate]);
+  } : null, [data, embarkId, comparisonData, eventSettings, getPointRadius, getPointStyle, getPointRotation, getPointBackgroundColor, getPointBorderColor, mainPlayerWinrate, buildPoints, isRankMode]);
 
   return { chartOptions, chartData };
 };

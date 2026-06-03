@@ -40,7 +40,12 @@ const calculatePlayerStats = (dataset, seasonId) => {
   const activeDays = new Set();
 
   for (const point of dataset) {
-    if (point.scoreChanged && !point.isInterpolated && !point.isExtrapolated && !point.isStaircasePoint && !point.isGapBridge && !point.isRsAdjustmentAnchor) {
+    // Count only real games the player actually played. Every synthetic point is excluded:
+    // interpolated/extrapolated fillers, staircase + gap-bridge connectors, RS-adjustment
+    // anchors, and event anchors (unanchoredPointEvents — name/club changes that needed a
+    // synthetic dot to host their icon). Event anchors already carry scoreChanged:false, so
+    // the guard is defensive, but it keeps the intent explicit if that ever changes.
+    if (point.scoreChanged && !point.isInterpolated && !point.isExtrapolated && !point.isStaircasePoint && !point.isGapBridge && !point.isRsAdjustmentAnchor && !point.isEventAnchor) {
       const currentScore = point.rankScore;
       const pointDate = point.timestamp;
 
@@ -273,7 +278,9 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
     timestamp: new Date(item.timestamp * 1000)
   })).sort((a, b) => a.timestamp - b.timestamp);
 
-  // Attach point-specific events using the new `finalEvents` array
+  // Attach point-specific events using the new `finalEvents` array.
+  // Track which events found a host point so the orphans can be anchored afterwards.
+  const attachedEvents = new Set();
   finalEvents.forEach(event => {
     if (!['RS_ADJUSTMENT', 'NAME_CHANGE', 'CLUB_CHANGE', 'COMBINED_CHANGE'].includes(event.event_type)) {
       return;
@@ -297,6 +304,7 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
           closestPoint.events = [];
         }
         closestPoint.events.push(event);
+        attachedEvents.add(event);
       }
     }
   });
@@ -554,6 +562,58 @@ const processGraphData = (rawData, events = [], seasonEndDate = null, eventSetti
       }
     }
   }
+
+  // Anchor name/club change events that found no nearby host point.
+  // The attach pass above only binds an event to a real point within 5 minutes. During a
+  // flat stretch (e.g. a player holds the same rank for weeks and renames mid-way) there may
+  // be no such point, which would silently drop the event. Splicing a synthetic anchor at the
+  // event's exact timestamp — inheriting the surrounding rank/score so it sits on the line —
+  // guarantees the icon + annotation label render at the correct date even when no organic dot
+  // exists to host them. Deliberately NOT flagged `isInterpolated`: hasVisibleEvent() and
+  // getEventAnnotations() ignore synthetic points, and this one must surface its icon + label.
+  const POINT_EVENT_TYPES = ['NAME_CHANGE', 'CLUB_CHANGE', 'COMBINED_CHANGE'];
+  const unanchoredPointEvents = finalEvents
+    .filter(e => POINT_EVENT_TYPES.includes(e.event_type) && !attachedEvents.has(e))
+    .sort((a, b) => a.start_timestamp - b.start_timestamp);
+
+  unanchoredPointEvents.forEach(event => {
+    const eventTs = event.start_timestamp * 1000;
+
+    let insertionIndex = combined.findIndex(p => p.timestamp.getTime() >= eventTs);
+    if (insertionIndex === -1) insertionIndex = combined.length;
+
+    // Inherit position from the nearest real (non-synthetic) point — preferring the one
+    // before the event, falling back to the first one after if the event predates all data.
+    const isRealPoint = (p) => !p.isStaircasePoint && !p.isGapBridge;
+    let lastKnownPoint = null;
+    for (let i = insertionIndex - 1; i >= 0; i--) {
+      if (isRealPoint(combined[i])) { lastKnownPoint = combined[i]; break; }
+    }
+    if (!lastKnownPoint) {
+      for (let i = insertionIndex; i < combined.length; i++) {
+        if (isRealPoint(combined[i])) { lastKnownPoint = combined[i]; break; }
+      }
+    }
+    if (!lastKnownPoint) return; // No data at all to anchor against.
+
+    const anchorPoint = {
+      rankScore: lastKnownPoint.rankScore,
+      league: lastKnownPoint.league,
+      rank: lastKnownPoint.rank,
+      timestamp: new Date(eventTs),
+      scoreChanged: false,
+      isEventAnchor: true,
+      events: [event],
+    };
+
+    // If the event lands inside a gap, keep the dashed styling continuous across the anchor.
+    const prevPoint = combined[insertionIndex - 1];
+    if (prevPoint && prevPoint.isFollowedByGap) {
+      anchorPoint.isFollowedByGap = true;
+    }
+
+    combined.splice(insertionIndex, 0, anchorPoint);
+  });
 
   // Handle final interpolation to 'now'
   const now = seasonEndDate ? new Date(seasonEndDate) : new Date();

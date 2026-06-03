@@ -5,7 +5,7 @@ to keep up with it's logic. I'm sorry for the mess.
 */
 
 import { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { X, Plus, ListFilter, UserPen, Gavel, ChevronsUpDown, Users, AlertTriangle, RefreshCcw, Info, Trophy, Flame, TrendingUp, TrendingDown, Calendar, Activity, Zap } from 'lucide-react';
+import { X, Plus, Settings, UserPen, Gavel, ChevronsUpDown, Users, AlertTriangle, RefreshCcw, Info, Trophy, Flame, TrendingUp, TrendingDown, Calendar, Activity, Zap, Star, Hash, Gem } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Chart as ChartJS,
@@ -71,19 +71,23 @@ TIME.RANGES = {
   'MAX': Infinity
 };
 
-const FilterToggleButton = ({ label, isActive, onClick, Icon, textColorClass, activeBorderClass }) => {
+const FilterToggleButton = ({ label, isActive, onClick, Icon, textColorClass, activeBorderClass, disabled = false, title }) => {
   const baseClasses = "flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all w-full border";
-  const dynamicClasses = isActive
-    ? `${activeBorderClass || 'border-blue-500'} bg-gray-800/80 shadow-inner`
-    : 'border-gray-700 bg-gray-800/30 hover:bg-gray-700/50 opacity-60 hover:opacity-100 grayscale-[0.5]';
+  const dynamicClasses = disabled
+    ? 'border-gray-800 bg-gray-800/20 opacity-40 cursor-not-allowed'
+    : isActive
+      ? `${activeBorderClass || 'border-blue-500'} bg-gray-800/80 shadow-inner`
+      : 'border-gray-700 bg-gray-800/30 hover:bg-gray-700/50 opacity-60 hover:opacity-100 grayscale-[0.5]';
 
   return (
     <button
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      title={title}
       className={`${baseClasses} ${dynamicClasses}`}
     >
-      {Icon && <Icon className={`w-4 h-4 ${isActive ? textColorClass : 'text-gray-400'}`} />}
-      <span className={isActive ? textColorClass : 'text-gray-400 font-medium'}>{label}</span>
+      {Icon && <Icon className={`w-4 h-4 ${disabled ? 'text-gray-500' : isActive ? textColorClass : 'text-gray-400'}`} />}
+      <span className={disabled ? 'text-gray-500 font-medium' : isActive ? textColorClass : 'text-gray-400 font-medium'}>{label}</span>
     </button>
   );
 };
@@ -408,7 +412,7 @@ const getMiniEventConfig = (event) => {
   }
 };
 
-const GraphSettingsModal = ({ settings, onSettingsChange, onClose, mainEvents, comparisonData, mainPlayerId }) => {
+const GraphSettingsModal = ({ settings, onSettingsChange, onClose, mainEvents, comparisonData, mainPlayerId, seasonSupportsRank = false }) => {
   const modalOptions = useMemo(() => ({ type: 'nested' }), []);
   const { modalRef } = useModal(true, onClose, modalOptions);
 
@@ -441,14 +445,65 @@ const GraphSettingsModal = ({ settings, onSettingsChange, onClose, mainEvents, c
       <div ref={modalRef} className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border border-gray-700 shadow-2xl relative flex flex-col max-h-[85vh]">
         <div className="flex justify-between items-center mb-5">
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
-            <ListFilter className="w-5 h-5 text-gray-400" />
-            Graph Events
+            <Settings className="w-5 h-5 text-gray-400" />
+            Graph Settings
           </h3>
           <button onClick={onClose} aria-label="Close settings" className="text-gray-400 hover:text-white transition-colors bg-gray-700/50 hover:bg-gray-700 p-1.5 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
 
+        {/* --- Display: chart metric & indicator lines --- */}
+        <div className="mb-5 flex-shrink-0">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2.5">Display</h4>
+
+          {/* Metric toggle (Rank Score vs Rank) — only seasons that track per-snapshot rank (S7+) */}
+          {seasonSupportsRank && (
+            <div className="grid grid-cols-2 gap-2 mb-3 p-1 bg-gray-900/50 rounded-xl border border-gray-700">
+              <button
+                onClick={() => handleFilterChange('displayMode', 'rankScore')}
+                aria-pressed={settings.displayMode !== 'rank'}
+                className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  settings.displayMode !== 'rank'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                }`}
+              >
+                <Star className="w-4 h-4" />
+                Rank Score
+              </button>
+              <button
+                onClick={() => handleFilterChange('displayMode', 'rank')}
+                aria-pressed={settings.displayMode === 'rank'}
+                className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  settings.displayMode === 'rank'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                }`}
+              >
+                <Hash className="w-4 h-4" />
+                Rank
+              </button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <FilterToggleButton label="Ruby Line" Icon={Trophy} isActive={settings.showRubyLine} onClick={() => handleFilterChange('showRubyLine', !settings.showRubyLine)} textColorClass="text-red-400" activeBorderClass="border-red-500/50" />
+            <FilterToggleButton
+              label="Leagues"
+              Icon={Gem}
+              isActive={settings.showLeagueLines}
+              onClick={() => handleFilterChange('showLeagueLines', !settings.showLeagueLines)}
+              textColorClass="text-blue-400"
+              activeBorderClass="border-blue-500/50"
+              disabled={seasonSupportsRank && settings.displayMode === 'rank'}
+              title={seasonSupportsRank && settings.displayMode === 'rank' ? 'League thresholds are rank-score based and are hidden in Rank view.' : undefined}
+            />
+          </div>
+        </div>
+
+        {/* --- Events: which timeline events appear on the chart --- */}
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2.5 flex-shrink-0">Events</h4>
         <div className="grid grid-cols-2 gap-3 mb-5 flex-shrink-0">
           <FilterToggleButton label="Names" Icon={UserPen} isActive={settings.showNameChange} onClick={() => handleFilterChange('showNameChange', !settings.showNameChange)} textColorClass="text-indigo-400" activeBorderClass="border-indigo-500/50" />
           <FilterToggleButton label="Clubs" Icon={Users} isActive={settings.showClubChange} onClick={() => handleFilterChange('showClubChange', !settings.showClubChange)} textColorClass="text-teal-400" activeBorderClass="border-teal-500/50" />
@@ -638,7 +693,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
   );
 };
 
-const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, globalLeaderboard = [], currentRubyCutoff, isMobile, lastLeaderboardUpdate }) => {
+const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, globalLeaderboard = [], currentRubyCutoff, isMobile, lastLeaderboardUpdate, showToast }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { modalRef, isActive } = useModal(isOpen, onClose);
@@ -654,6 +709,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
   const [eventSettings, setEventSettings] = useState(getStoredGraphSettings);
   const [showCompareModal, setShowCompareModal] = useState(false);
   const [showCompareHint, setShowCompareHint] = useState(!eventSettings.hasOpenedCompareModal);
+  const [showSettingsHint, setShowSettingsHint] = useState(!eventSettings.hasOpenedGraphSettings);
   const [showZoomHint, setShowZoomHint] = useState(true);
   const [showSeasonDropdown, setShowSeasonDropdown] = useState(false);
   const seasonDropdownRef = useRef(null);
@@ -676,14 +732,19 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
   }, [currentSeasonId]);
   const isHistoricalSeason = useMemo(() => seasonConfig && !seasonConfig.isCurrent, [seasonConfig]);
 
+  const RANK_MODE_MIN_SEASON_ID = 7;
+  const seasonSupportsRank = currentSeasonId >= RANK_MODE_MIN_SEASON_ID;
+  const effectiveDisplayMode = (eventSettings.displayMode === 'rank' && seasonSupportsRank) ? 'rank' : 'rankScore';
+
   // Persist settings when they change
   useEffect(() => {
     setStoredGraphSettings(eventSettings);
   }, [eventSettings]);
 
   const areFiltersActive = useMemo(() => {
-    // Filters are active if any event type is turned off (not the default state).
-    return !eventSettings.showNameChange || !eventSettings.showClubChange || !eventSettings.showRsAdjustment || !eventSettings.showSuspectedBan;
+    // Filters-settings are active if any event type is turned off (not the default state). Aside from view mode.
+    return !eventSettings.showNameChange || !eventSettings.showClubChange || !eventSettings.showRsAdjustment || !eventSettings.showSuspectedBan
+      || !eventSettings.showRubyLine || !eventSettings.showLeagueLines;
   }, [eventSettings]);
 
   // Callback to update the URL using React Router.
@@ -772,6 +833,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
     seasonId: currentSeasonId,
     rubyCutoff: rubyCutoffForChart,
     mainPlayerWinrate,
+    displayMode: effectiveDisplayMode,
   });
 
   useEffect(() => {
@@ -812,6 +874,14 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
     }
   }, [eventSettings.hasOpenedCompareModal]);
 
+  const handleOpenSettingsModal = useCallback(() => {
+    setShowSettingsModal(true);
+    if (!eventSettings.hasOpenedGraphSettings) {
+      setEventSettings(prev => ({ ...prev, hasOpenedGraphSettings: true }));
+      setShowSettingsHint(false);
+    }
+  }, [eventSettings.hasOpenedGraphSettings]);
+
   const handleCloseSettingsModal = useCallback(() => {
     setShowSettingsModal(false);
   }, []);
@@ -841,47 +911,58 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
   const determineDefaultTimeRange = useCallback((data) => {
     if (!data?.length) return '24H';
 
-    // If the data spans a short period (e.g., less than 12 hours), default to 'MAX'.
+    // Barely-tracked players (under half a day of history) read best fully zoomed out.
     const firstPoint = data[0];
     const lastPoint = data[data.length - 1];
     const dataDuration = lastPoint.timestamp.getTime() - firstPoint.timestamp.getTime();
-
     if (dataDuration < (TIME.DAY / 2)) return 'MAX';
 
-    // Set now to the end of the season if available (historical), otherwise use current time
+    // Reference "now": the season end for historical seasons, otherwise the wall clock.
     const now = seasonConfig?.endTimestamp ? new Date(seasonConfig.endTimestamp * 1000) : new Date();
 
-    const last24Hours = new Date(now - TIME.DAY);
-    const last7Days = new Date(now - TIME.WEEK);
+    // A real observation carries none of the pipeline's synthetic flags. Ban anchors and the
+    // final interpolation already set isInterpolated, so they're covered by these checks too.
+    const isRealPoint = (p) =>
+      !p.isInterpolated && !p.isExtrapolated && !p.isStaircasePoint &&
+      !p.isGapBridge && !p.isEventAnchor && !p.isRsAdjustmentAnchor;
 
-    const pointsIn24H = data.filter(point =>
-      point.scoreChanged && // Only count actual game points (score changed), not tracking or synthetic points.
-      !point.isInterpolated && !point.isExtrapolated &&
-      point.timestamp >= last24Hours
-    ).length;
+    const isRankMode = effectiveDisplayMode === 'rank';
+    let lastChangeTime = null;
 
-    if (pointsIn24H >= 2) return '24H';
+    if (isRankMode) {
+      // Last time the player's actual rank differed from the previous real observation.
+      let prevRank = null;
+      for (const p of data) {
+        if (!isRealPoint(p) || typeof p.rank !== 'number' || p.rank <= 0) continue;
+        if (prevRank !== null && p.rank !== prevRank) lastChangeTime = p.timestamp.getTime();
+        prevRank = p.rank;
+      }
+    } else {
+      // Last real rank-score change (an actual game the player played).
+      for (const p of data) {
+        if (p.scoreChanged && isRealPoint(p)) lastChangeTime = p.timestamp.getTime();
+      }
+    }
 
-    const pointsIn7D = data.filter(point =>
-      point.scoreChanged && // Only count actual game points (score changed), not tracking or synthetic points.
-      !point.isInterpolated && !point.isExtrapolated &&
-      point.timestamp >= last7Days
-    ).length;
+    // No real movement of the active metric in the whole dataset → show everything.
+    if (lastChangeTime === null) return 'MAX';
 
-    if (pointsIn7D >= 2) return '7D';
-
+    const age = now.getTime() - lastChangeTime;
+    if (age <= TIME.DAY) return '24H';
+    if (age <= TIME.WEEK) return '7D';
     return 'MAX';
-  }, [seasonConfig]);
+  }, [seasonConfig, effectiveDisplayMode]);
 
-  // Set default time range when data loads
+  // Set default time range when data loads.
+  // Guard on data?.length, not just data: during loading `data` is briefly an empty array, which
+  // is truthy and would otherwise lock the ref to the empty-data default ('24H') before the real
+  // points arrive — freezing the view at 24H even for players whose last game was days ago.
   useEffect(() => {
-    // Only set the initial time range if data is present and we haven't set it yet for this dataset
-    if (data && !hasSetInitialTimeRangeRef.current) {
+    if (data?.length && !hasSetInitialTimeRangeRef.current) {
       if (isHistoricalSeason) {
         setSelectedTimeRange('MAX');
       } else {
-        const defaultRange = determineDefaultTimeRange(data);
-        setSelectedTimeRange(defaultRange);
+        setSelectedTimeRange(determineDefaultTimeRange(data));
       }
       // Mark that we've set the initial range
       hasSetInitialTimeRangeRef.current = true;
@@ -895,6 +976,13 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
       return () => clearTimeout(timer);
     }
   }, [showCompareHint]);
+
+  useEffect(() => {
+    if (showSettingsHint) {
+      const timer = setTimeout(() => setShowSettingsHint(false), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSettingsHint]);
 
   useEffect(() => {
     if (showZoomHint) {
@@ -928,6 +1016,26 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
       currentSeasonLabel: SEASONS[key].label,
     };
   }, [currentSeasonId]);
+
+  // If the user has 'rank' display persisted but lands on a season that can't support it
+  // (older than S7), we transparently fall back to rank score (via effectiveDisplayMode)
+  // and tell them once per unsupported season why. The preference itself is kept intact.
+  const rankToastShownForSeasonRef = useRef(null);
+  useEffect(() => {
+    if (seasonSupportsRank) {
+      // Back on a supported season — re-arm the notice for any future unsupported one.
+      rankToastShownForSeasonRef.current = null;
+      return;
+    }
+    if (eventSettings.displayMode === 'rank' && rankToastShownForSeasonRef.current !== currentSeasonId) {
+      rankToastShownForSeasonRef.current = currentSeasonId;
+      showToast({
+        message: `Rank view isn't available for ${currentSeasonLabel} — showing rank score instead.`,
+        type: 'info',
+        duration: 5000,
+      });
+    }
+  }, [seasonSupportsRank, eventSettings.displayMode, currentSeasonId, currentSeasonLabel, showToast]);
 
   if (!isOpen || !embarkId) return null;
 
@@ -963,6 +1071,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
             mainEvents={events}
             comparisonData={comparisonData}
             mainPlayerId={displayedEmbarkId}
+            seasonSupportsRank={seasonSupportsRank}
           />
         )}
         {statsPlayerId && (
@@ -1077,19 +1186,30 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
             <div className={`relative flex flex-col ${isMobile ? 'w-full' : 'flex-shrink min-w-0'}`}>
               <div className={`flex items-center flex-wrap ${isMobile ? 'w-full justify-between gap-2' : 'justify-end gap-2'}`}>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowSettingsModal(true)}
-                    disabled={!!error}
-                    className={`p-2 rounded-lg transition-colors ${
-                      error ? 'text-gray-600 cursor-not-allowed' :
-                      areFiltersActive
-                        ? 'bg-green-600 text-white hover:bg-green-500'
-                        : 'hover:bg-gray-700 text-gray-400 hover:text-white'
-                    }`}
-                    title="Event Settings"
-                  >
-                    <ListFilter className="w-5 h-5" />
-                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={handleOpenSettingsModal}
+                      disabled={!!error}
+                      className={`p-2 rounded-lg transition-colors ${
+                        error ? 'text-gray-600 cursor-not-allowed' :
+                        areFiltersActive
+                          ? 'bg-green-700 text-white hover:bg-green-600'
+                          : 'hover:bg-gray-700 text-gray-400 hover:text-white'
+                      }`}
+                      title="Graph Settings"
+                    >
+                      <Settings className={`w-5 h-5 ${!error && effectiveDisplayMode === 'rank' ? 'text-amber-400' : ''}`} />
+                    </button>
+                    {showSettingsHint && !error && (
+                      <>
+                        <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-blue-500 rounded-full animate-pulse z-30 pointer-events-none ring-2 ring-gray-900" />
+                        <div className={`absolute bottom-full mb-2 whitespace-nowrap bg-gray-800 text-white text-xs py-1 px-2 rounded fade-out pointer-events-none z-30
+                          ${isMobile ? 'left-0' : 'left-1/2 -translate-x-1/2'}`}>
+                          New settings!
+                        </div>
+                      </>
+                    )}
+                  </div>
                   {comparisonData.size < MAX_COMPARISONS && !error && (
                     <div className="relative">
                       <button
