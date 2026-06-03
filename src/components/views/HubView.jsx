@@ -1,6 +1,6 @@
-import PropTypes from 'prop-types';
 import { Link } from 'react-router-dom';
 import { Crown, Globe, Trophy, Crosshair, Sparkles, Zap } from 'lucide-react';
+import { HubView_FeatureTileProps } from '../../types/propTypes';
 
 // Feature tiles.
 const FEATURES = [
@@ -83,12 +83,4 @@ export const HubView = () => {
   );
 };
 
-FeatureTile.propTypes = {
-  to: PropTypes.string.isRequired,
-  icon: PropTypes.elementType.isRequired,
-  title: PropTypes.string.isRequired,
-  desc: PropTypes.string.isRequired,
-  color: PropTypes.string.isRequired,
-  ring: PropTypes.string.isRequired,
-  badge: PropTypes.string,
-};
+FeatureTile.propTypes = HubView_FeatureTileProps;

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import PropTypes from 'prop-types';
 import { Play, Pause, Repeat, Crosshair, Eye, EyeOff, Film } from 'lucide-react';
 import { CLASS_ACCENT, getWeaponBounds, shotColor, MIN_RECOIL_UNITS, hasRecoil } from '../../data/recoil';
 import { RecoilPracticeModal } from './RecoilPracticeModal';
 import { useVisibility } from '../../hooks/useVisibility';
+import { RecoilViewerProps } from '../../types/propTypes';
 
 const VBW = 300;
 const VBH = 420;
@@ -338,32 +338,4 @@ export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef,
   );
 };
 
-RecoilViewer.propTypes = {
-  weapon: PropTypes.shape({
-    key: PropTypes.string.isRequired,
-    name: PropTypes.string.isRequired,
-    class: PropTypes.string.isRequired,
-    fireMode: PropTypes.string,
-    rpm: PropTypes.number.isRequired,
-    fps: PropTypes.number.isRequired,
-    pattern: PropTypes.array.isRequired,
-    trajectory: PropTypes.array.isRequired,
-  }).isRequired,
-  bounds: PropTypes.shape({
-    maxX: PropTypes.number.isRequired,
-    maxY: PropTypes.number.isRequired,
-  }).isRequired,
-  patternBounds: PropTypes.shape({
-    maxX: PropTypes.number,
-    maxY: PropTypes.number,
-  }),
-  uniform: PropTypes.bool.isRequired,
-  videoRef: PropTypes.shape({ current: PropTypes.any }),
-  sync: PropTypes.bool,
-  videoReady: PropTypes.bool,
-  onToggleSync: PropTypes.func,
-  active: PropTypes.bool,
-  showVisual: PropTypes.bool.isRequired,
-  loop: PropTypes.bool.isRequired,
-  onUpdateSettings: PropTypes.func.isRequired,
-};
+RecoilViewer.propTypes = RecoilViewerProps;

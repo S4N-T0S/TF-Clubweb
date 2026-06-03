@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { PaginationProps } from '../types/propTypes';
+import { PaginationProps, Pagination_PageControlProps } from '../types/propTypes';
 
 // One pagination control. Renders:
 //   - a <span> when disabled (crawlers won't follow, no nav happens)
@@ -108,3 +108,4 @@ export const Pagination = ({
 };
 
 Pagination.propTypes =  PaginationProps;
+PageControl.propTypes = Pagination_PageControlProps;

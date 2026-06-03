@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import PropTypes from 'prop-types';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { Crosshair, Scaling, PlayCircle } from 'lucide-react';
 import { loadWeapons, getGlobalBounds, getGlobalPatternBounds, WEAPON_CLASSES, CLASS_ACCENT, FIRE_MODE_META, weaponVideoSrc, hasRecoil } from '../../data/recoil';
 import { LoadingDisplay } from '../LoadingDisplay';
 import { RecoilViewer } from '../recoil/RecoilViewer';
 import { getStoredSpraySettings, setStoredSpraySettings } from '../../services/localStorageManager';
+import { SprayPatternsView_WeaponVideoProps, SprayPatternsView_FireModeBadgeProps, SprayPatternsView_StatBoxProps } from '../../types/propTypes';
 
 // Gameplay clip.
 const WeaponVideo = ({ weapon, videoRef, sync, onReady }) => {
@@ -296,22 +296,6 @@ export const SprayPatternsView = () => {
   );
 };
 
-StatBox.propTypes = {
-  label: PropTypes.string.isRequired,
-  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-};
-
-FireModeBadge.propTypes = {
-  mode: PropTypes.string,
-  className: PropTypes.string,
-};
-
-WeaponVideo.propTypes = {
-  weapon: PropTypes.shape({
-    key: PropTypes.string.isRequired,
-    name: PropTypes.string.isRequired,
-  }).isRequired,
-  videoRef: PropTypes.shape({ current: PropTypes.any }).isRequired,
-  sync: PropTypes.bool,
-  onReady: PropTypes.func.isRequired,
-};
+StatBox.propTypes = SprayPatternsView_StatBoxProps;
+FireModeBadge.propTypes = SprayPatternsView_FireModeBadgeProps;
+WeaponVideo.propTypes = SprayPatternsView_WeaponVideoProps;

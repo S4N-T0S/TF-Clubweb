@@ -204,6 +204,14 @@ export const PaginationProps = {
   variant: PropTypes.string
 };
 
+export const Pagination_PageControlProps = {
+  disabled: PropTypes.bool,
+  // buildPageHref returns a location object ({ search }); null falls back to a button.
+  href: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+  onClick: PropTypes.func,
+  children: PropTypes.node.isRequired
+};
+
 export const LoadingDisplayProps = {
   variant: PropTypes.string,
   message: PropTypes.string
@@ -387,4 +395,95 @@ export const LiveUpdateBadgeProps = {
 
 export const UpdateModalProps = {
   isVisible: PropTypes.bool.isRequired
+};
+
+export const RecoilViewerProps = {
+  weapon: PropTypes.shape({
+    key: PropTypes.string.isRequired,
+    name: PropTypes.string.isRequired,
+    class: PropTypes.string.isRequired,
+    fireMode: PropTypes.string,
+    rpm: PropTypes.number.isRequired,
+    fps: PropTypes.number.isRequired,
+    pattern: PropTypes.array.isRequired,
+    trajectory: PropTypes.array.isRequired,
+  }).isRequired,
+  bounds: PropTypes.shape({
+    maxX: PropTypes.number.isRequired,
+    maxY: PropTypes.number.isRequired,
+  }).isRequired,
+  patternBounds: PropTypes.shape({
+    maxX: PropTypes.number,
+    maxY: PropTypes.number,
+  }),
+  uniform: PropTypes.bool.isRequired,
+  videoRef: PropTypes.shape({ current: PropTypes.any }),
+  sync: PropTypes.bool,
+  videoReady: PropTypes.bool,
+  onToggleSync: PropTypes.func,
+  active: PropTypes.bool,
+  showVisual: PropTypes.bool.isRequired,
+  loop: PropTypes.bool.isRequired,
+  onUpdateSettings: PropTypes.func.isRequired,
+};
+
+export const RecoilPracticeModalProps = {
+  weapon: PropTypes.shape({
+    name: PropTypes.string.isRequired,
+    pattern: PropTypes.array.isRequired,
+    trajectory: PropTypes.array.isRequired,
+    fps: PropTypes.number.isRequired,
+  }).isRequired,
+  // Global pattern extent (px) across all weapons, for the shared proportional scale.
+  globalBounds: PropTypes.shape({
+    maxX: PropTypes.number,
+    maxY: PropTypes.number,
+  }),
+  onClose: PropTypes.func.isRequired,
+};
+
+export const RecoilPracticeModal_NumberFieldProps = {
+  label: PropTypes.string.isRequired,
+  value: PropTypes.number.isRequired,
+  onChange: PropTypes.func.isRequired,
+  step: PropTypes.number,
+  min: PropTypes.number,
+  max: PropTypes.number,
+  suffix: PropTypes.string,
+  hint: PropTypes.string,
+};
+
+export const RecoilPracticeModal_AimSettingsPanelProps = {
+  aim: PropTypes.object.isRequired,
+  setAim: PropTypes.func.isRequired,
+};
+
+export const HubView_FeatureTileProps = {
+  to: PropTypes.string.isRequired,
+  icon: PropTypes.elementType.isRequired,
+  title: PropTypes.string.isRequired,
+  desc: PropTypes.string.isRequired,
+  color: PropTypes.string.isRequired,
+  ring: PropTypes.string.isRequired,
+  badge: PropTypes.string,
+};
+
+export const SprayPatternsView_WeaponVideoProps = {
+  weapon: PropTypes.shape({
+    key: PropTypes.string.isRequired,
+    name: PropTypes.string.isRequired,
+  }).isRequired,
+  videoRef: PropTypes.shape({ current: PropTypes.any }).isRequired,
+  sync: PropTypes.bool,
+  onReady: PropTypes.func.isRequired,
+};
+
+export const SprayPatternsView_FireModeBadgeProps = {
+  mode: PropTypes.string,
+  className: PropTypes.string,
+};
+
+export const SprayPatternsView_StatBoxProps = {
+  label: PropTypes.string.isRequired,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
 };

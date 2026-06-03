@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import PropTypes from 'prop-types';
 import { X, Settings2, MousePointer2, Crosshair } from 'lucide-react';
 import { pxToDeg, degPerCount, cmPer360, countsForDeg, countsPer360 } from '../../data/recoil/sensitivity';
 import { getStoredAimSettings, setStoredAimSettings, isAimCustomized } from '../../services/localStorageManager';
+import { RecoilPracticeModalProps, RecoilPracticeModal_NumberFieldProps, RecoilPracticeModal_AimSettingsPanelProps } from '../../types/propTypes';
 
 const BOX = 360;
 const PAD = 36;
@@ -47,17 +47,6 @@ const NumberField = ({ label, value, onChange, step = 1, min, max, suffix, hint 
   </label>
 );
 
-NumberField.propTypes = {
-  label: PropTypes.string.isRequired,
-  value: PropTypes.number.isRequired,
-  onChange: PropTypes.func.isRequired,
-  step: PropTypes.number,
-  min: PropTypes.number,
-  max: PropTypes.number,
-  suffix: PropTypes.string,
-  hint: PropTypes.string,
-};
-
 const AimSettingsPanel = ({ aim, setAim }) => {
   const set = (patch) => setAim((prev) => ({ ...prev, ...patch }));
   const cm360 = cmPer360(aim, aim.dpi);
@@ -99,11 +88,6 @@ const AimSettingsPanel = ({ aim, setAim }) => {
       </details>
     </div>
   );
-};
-
-AimSettingsPanel.propTypes = {
-  aim: PropTypes.object.isRequired,
-  setAim: PropTypes.func.isRequired,
 };
 
 // Practice modal
@@ -483,17 +467,7 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
   );
 };
 
-RecoilPracticeModal.propTypes = {
-  weapon: PropTypes.shape({
-    name: PropTypes.string.isRequired,
-    pattern: PropTypes.array.isRequired,
-    trajectory: PropTypes.array.isRequired,
-    fps: PropTypes.number.isRequired,
-  }).isRequired,
-  // Global pattern extent (px) across all weapons, for the shared proportional scale.
-  globalBounds: PropTypes.shape({
-    maxX: PropTypes.number,
-    maxY: PropTypes.number,
-  }),
-  onClose: PropTypes.func.isRequired,
-};
+RecoilPracticeModal.propTypes = RecoilPracticeModalProps;
+NumberField.propTypes = RecoilPracticeModal_NumberFieldProps;
+AimSettingsPanel.propTypes = RecoilPracticeModal_AimSettingsPanelProps;
+
