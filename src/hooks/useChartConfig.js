@@ -120,20 +120,23 @@ const downtimePointChanged = (wrapper, isRankMode) =>
   isRankMode ? wrapper?.rankChanged === true : !!wrapper?.raw?.scoreChanged;
 
 /**
- * Zoom-aware and change-aware variant of getServerDowntime: returns the entry only when the point is in
- * a downtime window, this player's metric moved there (downtimePointChanged), and the view is tight
- * enough for the gap to read. Otherwise null, so callers fall back to a normal point + style.
+ * Decides how a server-downtime point should be marked, given the current zoom. Both states still
+ * get the hover tooltip; this only governs the on-chart marker.
+ *   'icon' — view is tight enough (≤ DOWNTIME_ICON_MAX_SPAN) for the full alert icon, where the
+ *            outage gap is wide enough on screen to read.
+ *   'dot'  — zoomed out past that (e.g. a historical season's locked MAX view): a small coloured
+ *            dot, just enough of a cue to invite a hover without the big icon dominating.
+ *   null   — not a downtime point, or neutral (the player didn't play across the outage).
  * @param {import('chart.js').ScriptableContext<'line'>} ctx The chart context.
  * @param {boolean} isRankMode Whether the chart is in rank view.
- * @returns {{timestamp: number, durationHours?: number} | null}
+ * @returns {'icon' | 'dot' | null}
  */
-const getVisibleServerDowntime = (ctx, isRankMode) => {
-  const downtime = getServerDowntime(ctx?.raw?.raw);
-  if (!downtime) return null;
+const getDowntimeMarker = (ctx, isRankMode) => {
+  if (!getServerDowntime(ctx?.raw?.raw)) return null;
   if (!downtimePointChanged(ctx?.raw, isRankMode)) return null;
   const xScale = ctx?.chart?.scales?.x;
-  if (!xScale) return downtime; // scales not ready yet — fall back to always-show
-  return (xScale.max - xScale.min) <= DOWNTIME_ICON_MAX_SPAN ? downtime : null;
+  if (!xScale) return 'icon'; // scales not ready yet — default to the full marker
+  return (xScale.max - xScale.min) <= DOWNTIME_ICON_MAX_SPAN ? 'icon' : 'dot';
 };
 
 /**
@@ -372,7 +375,9 @@ export const useChartConfig = ({
     const pointData = ctx.raw?.raw;
     if (!ctx.chart || !pointData) return 3;
 
-    if (getVisibleServerDowntime(ctx, isRankMode)) return 8;
+    const downtimeMarker = getDowntimeMarker(ctx, isRankMode);
+    if (downtimeMarker === 'icon') return 8;
+    if (downtimeMarker === 'dot') return 4;
 
     if (eventSettings.showSuspectedBan && pointData.isUnexpectedReappearance) return 8;
 
@@ -1570,7 +1575,9 @@ export const useChartConfig = ({
         return rsDownIcon;
       }
     }
-    if (getVisibleServerDowntime(ctx, isRankMode)) return unexpectedReappearanceIcon;
+    const downtimeMarker = getDowntimeMarker(ctx, isRankMode);
+    if (downtimeMarker === 'icon') return unexpectedReappearanceIcon;
+    if (downtimeMarker === 'dot') return 'circle';
     const direction = isRankMode ? null : (ctx.raw?.direction ?? null);
     return (direction === 'up' || direction === 'down') ? 'triangle' : 'circle';
   }, [eventSettings, isRankMode]);
@@ -1584,7 +1591,7 @@ export const useChartConfig = ({
       (hasVisibleEvent(ctx, 'COMBINED_CHANGE')) ||
       (eventSettings.showSuspectedBan && (pointData?.isUnexpectedReappearance || pointData?.isBanStartAnchor || pointData?.isBanEndAnchor)) ||
       (eventSettings.showRsAdjustment && getRsEvent(ctx)) || (eventSettings.showRsAdjustment && pointData?.isRsAdjustmentAnchor) ||
-      getVisibleServerDowntime(ctx, isRankMode)) {
+      getDowntimeMarker(ctx, isRankMode)) {
       return 0;
     }
 
@@ -1594,6 +1601,7 @@ export const useChartConfig = ({
   }, [eventSettings, isRankMode]);
 
   const getPointBackgroundColor = useCallback((ctx, color) => {
+    if (getDowntimeMarker(ctx, isRankMode) === 'dot') return '#facc15';
     if (ctx.raw?.raw?.isExtrapolated || ctx.raw?.raw?.isInterpolated) return '#7d7c7b';
     const direction = isRankMode ? null : (ctx.raw?.direction ?? null);
     if (direction === 'up') return '#10B981';
@@ -1602,6 +1610,7 @@ export const useChartConfig = ({
   }, [isRankMode]);
 
   const getPointBorderColor = useCallback((ctx, color) => {
+    if (getDowntimeMarker(ctx, isRankMode) === 'dot') return '#facc15';
     if (ctx.raw?.raw?.isExtrapolated || ctx.raw?.raw?.isInterpolated) return '#8a8988';
     const direction = isRankMode ? null : (ctx.raw?.direction ?? null);
     if (direction === 'up' || direction === 'down') return '#FAF9F6';
