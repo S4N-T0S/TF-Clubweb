@@ -150,45 +150,6 @@ const hasVisibleEvent = (ctx, eventType) => {
   return pointData.events?.some(e => e.event_type === eventType);
 };
 
-/**
- * Determines the direction of score change for a new-logic data point.
- * @param {import('chart.js').ScriptableContext<'line'>} ctx The chart context.
- * @returns {'up' | 'down' | 'same' | 'first' | null}
- */
-const getNewLogicPointDirection = (ctx) => {
-  // The chart context might not be fully available on the first pass, or datasetIndex could be stale.
-  if (!ctx.chart?.data?.datasets || !ctx.raw?.raw || !ctx.chart.data.datasets[ctx.datasetIndex]) {
-    return null;
-  }
-
-  const pointData = ctx.raw.raw;
-  const datasetIndex = ctx.datasetIndex;
-  const dataIndex = ctx.dataIndex;
-
-  if (pointData.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS && pointData.scoreChanged) {
-    const dataset = ctx.chart.data.datasets[datasetIndex].data;
-    const currentScore = pointData.rankScore;
-
-    let previousScore = null;
-    for (let i = dataIndex - 1; i >= 0; i--) {
-      if (dataset[i].raw?.scoreChanged) {
-        previousScore = dataset[i].raw.rankScore;
-        break;
-      }
-    }
-
-    if (previousScore !== null) {
-      const scoreChange = currentScore - previousScore;
-      if (scoreChange > 0) return 'up';
-      if (scoreChange < 0) return 'down';
-      return 'same';
-    }
-    return 'first'; // First game point, no previous to compare to
-  }
-
-  return null; // Not a new-logic, score-changed point
-};
-
 const getRankFromScore = (score) => {
   for (let i = RANKS.length - 1; i >= 0; i--) {
     if (score >= RANKS[i].y) {
@@ -451,7 +412,7 @@ export const useChartConfig = ({
     }
 
     // Rank mode draws a single clean line, so no up/down triangle sizing.
-    const direction = isRankMode ? null : getNewLogicPointDirection(ctx);
+    const direction = isRankMode ? null : (ctx.raw?.direction ?? null);
     const isTriangle = direction === 'up' || direction === 'down';
 
     const initialSize = (pointData.isInterpolated || pointData.isExtrapolated) ? 2.6 : (isTriangle ? 4.5 : 3);
@@ -695,16 +656,7 @@ export const useChartConfig = ({
         scoreContainer.appendChild(document.createTextNode(`Score: ${score.toLocaleString()}`));
 
         if (dataPoint.scoreChanged && !rsEvent) { // Don't show regular change if it's an adjustment event
-          const dataIndex = tooltip.dataPoints[0].dataIndex;
-          const dataset = chart.data.datasets[datasetIndex].data;
-
-          let previousScore = null;
-          for (let i = dataIndex - 1; i >= 0; i--) {
-            if (dataset[i].raw.scoreChanged) {
-              previousScore = dataset[i].raw.rankScore;
-              break;
-            }
-          }
+          const previousScore = tooltip.dataPoints[0].raw.prevScore ?? null;
 
           if (previousScore !== null) {
             const scoreChange = score - previousScore;
@@ -736,16 +688,7 @@ export const useChartConfig = ({
         rankContainer.style.gap = '6px';
 
         if (dataPoint.scoreChanged) {
-          const dataIndex = tooltip.dataPoints[0].dataIndex;
-          const dataset = chart.data.datasets[datasetIndex].data;
-
-          let previousScore = null;
-          for (let i = dataIndex - 1; i >= 0; i--) {
-            if (dataset[i].raw.scoreChanged) {
-              previousScore = dataset[i].raw.rankScore;
-              break;
-            }
-          }
+          const previousScore = tooltip.dataPoints[0].raw.prevScore ?? null;
 
           if (previousScore !== null) {
             const previousRank = getRankFromScore(previousScore);
@@ -1143,8 +1086,16 @@ export const useChartConfig = ({
       minVal = lastKnownVal;
       maxVal = lastKnownVal;
     } else {
-      minVal = Math.min(...visibleMetricVals);
-      maxVal = Math.max(...visibleMetricVals);
+      // Single pass instead of Math.min/max(...spread): in MAX view visibleMetricVals can hold
+      // every point across all datasets, and spreading a large array as call args risks a
+      // "Maximum call stack size exceeded" RangeError.
+      minVal = visibleMetricVals[0];
+      maxVal = visibleMetricVals[0];
+      for (let i = 1; i < visibleMetricVals.length; i++) {
+        const v = visibleMetricVals[i];
+        if (v < minVal) minVal = v;
+        else if (v > maxVal) maxVal = v;
+      }
     }
 
     // Snug, well-spaced bounds
@@ -1208,7 +1159,11 @@ export const useChartConfig = ({
     return { min: sMin, max: sMax > sMin ? sMax : sMin + sStep, stepSize: sStep, floorTick: null };
   }, [comparisonData, chartRef, isRankMode]);
 
-  const getEventAnnotations = useCallback(() => {
+  // Memoized array (not a callback): chartOptions rebuilds every animation frame during pan/zoom
+  // because handleChartUpdate updates manualViewWindow per frame. Returning a stable, memoized
+  // array means this O(all-points) event scan runs only when its inputs change, not per frame —
+  // and the annotation plugin keys off each annotation's `id`, so stable identity is desirable.
+  const eventAnnotations = useMemo(() => {
     const annotations = [];
 
     const processPlayerDataset = (playerData, playerEvents, _playerName, datasetIndex) => {
@@ -1342,7 +1297,7 @@ export const useChartConfig = ({
     return annotations;
   }, [data, events, comparisonData, embarkId, eventSettings, isRankMode]);
 
-  const getRankAnnotations = useCallback(() => {
+  const rankAnnotations = useMemo(() => {
     if (!data) return [];
 
     // Create annotations for ALL ranks and ruby line, but control their visibility dynamically.
@@ -1434,8 +1389,6 @@ export const useChartConfig = ({
     const activeViewWindow = isManuallyZoomed && manualViewWindow ? manualViewWindow : viewWindow;
 
     const { min: initialMinY, max: initialMaxY, stepSize: initialStepSize, floorTick: initialFloorTick } = calculateYAxisBounds(data, activeViewWindow);
-    const rankAnnotations = getRankAnnotations();
-    const eventAnnotations = getEventAnnotations();
 
     return {
       responsive: true,
@@ -1583,8 +1536,8 @@ export const useChartConfig = ({
     isManuallyZoomed,
     manualViewWindow,
     calculateYAxisBounds,
-    getRankAnnotations,
-    getEventAnnotations,
+    rankAnnotations,
+    eventAnnotations,
     externalTooltipHandler,
     overallTimeDomain,
     onZoomOrPan,
@@ -1618,7 +1571,7 @@ export const useChartConfig = ({
       }
     }
     if (getVisibleServerDowntime(ctx, isRankMode)) return unexpectedReappearanceIcon;
-    const direction = isRankMode ? null : getNewLogicPointDirection(ctx);
+    const direction = isRankMode ? null : (ctx.raw?.direction ?? null);
     return (direction === 'up' || direction === 'down') ? 'triangle' : 'circle';
   }, [eventSettings, isRankMode]);
 
@@ -1636,13 +1589,13 @@ export const useChartConfig = ({
     }
 
     // For regular score change points (which use a triangle), rotate it if the score went down.
-    const direction = isRankMode ? null : getNewLogicPointDirection(ctx);
+    const direction = isRankMode ? null : (ctx.raw?.direction ?? null);
     return direction === 'down' ? 180 : 0;
   }, [eventSettings, isRankMode]);
 
   const getPointBackgroundColor = useCallback((ctx, color) => {
     if (ctx.raw?.raw?.isExtrapolated || ctx.raw?.raw?.isInterpolated) return '#7d7c7b';
-    const direction = isRankMode ? null : getNewLogicPointDirection(ctx);
+    const direction = isRankMode ? null : (ctx.raw?.direction ?? null);
     if (direction === 'up') return '#10B981';
     if (direction === 'down') return '#EF4444';
     return color;
@@ -1650,7 +1603,7 @@ export const useChartConfig = ({
 
   const getPointBorderColor = useCallback((ctx, color) => {
     if (ctx.raw?.raw?.isExtrapolated || ctx.raw?.raw?.isInterpolated) return '#8a8988';
-    const direction = isRankMode ? null : getNewLogicPointDirection(ctx);
+    const direction = isRankMode ? null : (ctx.raw?.direction ?? null);
     if (direction === 'up' || direction === 'down') return '#FAF9F6';
     return color;
   }, [isRankMode]);
@@ -1663,13 +1616,32 @@ export const useChartConfig = ({
   const buildPoints = useCallback((points) => {
     if (!points) return [];
     if (!isRankMode) {
-      return points.map(d => ({ x: d.timestamp, y: d.rankScore, raw: d }));
+      // Precompute each point's score `direction` and `prevScore` in a single pass. The per-point
+      // scriptable options (radius/style/rotation/colours) and the tooltip read these in O(1).
+      // They used to recompute direction by scanning backwards for the prior score-changed point —
+      // O(n) per point, re-run on every draw/hover/zoom/pan, i.e. O(n²) per frame.
+      let previousScore = null;
+      const result = new Array(points.length);
+      for (let i = 0; i < points.length; i++) {
+        const d = points[i];
+        let direction = null;
+        if (d.scoreChanged && d.timestamp.getTime() >= NEW_LOGIC_TIMESTAMP_MS) {
+          direction = previousScore === null
+            ? 'first'
+            : (d.rankScore > previousScore ? 'up' : d.rankScore < previousScore ? 'down' : 'same');
+        }
+        result[i] = { x: d.timestamp, y: d.rankScore, raw: d, direction, prevScore: d.scoreChanged ? previousScore : null };
+        if (d.scoreChanged) previousScore = d.rankScore;
+      }
+      return result;
     }
     // Rank view plots true rank and tags each plotted point with whether its rank differs
     // from the previously plotted one. Dot/tooltip visibility keys off `rankChanged` so the
     // chart marks RANK changes — including shifts on "tracking" points caused purely by other
-    // players moving — rather than rank-score changes.
+    // players moving — rather than rank-score changes. `prevScore` is the last plotted
+    // score-changed point's rank score, precomputed for the tooltip's score-delta row.
     let previousRank = null;
+    let previousScore = null;
     let inFalloff = false;
     const result = [];
     for (const d of points) {
@@ -1677,8 +1649,9 @@ export const useChartConfig = ({
 
       if (typeof d.rank === 'number' && d.rank > 0) {
         const rankChanged = previousRank === null || d.rank !== previousRank;
-        result.push({ x: d.timestamp, y: d.rank, raw: d, rankChanged });
+        result.push({ x: d.timestamp, y: d.rank, raw: d, rankChanged, prevScore: previousScore });
         previousRank = d.rank;
+        if (d.scoreChanged) previousScore = d.rankScore;
         inFalloff = false;
         continue;
       }
@@ -1691,7 +1664,8 @@ export const useChartConfig = ({
       // NOT advanced — their true rank after the penalty is unknown, so later points keep
       // comparing against the last position the player actually held.
       if (d.isRsAdjustmentAnchor && previousRank !== null) {
-        result.push({ x: d.timestamp, y: previousRank, raw: d, rankChanged: false });
+        result.push({ x: d.timestamp, y: previousRank, raw: d, rankChanged: false, prevScore: previousScore });
+        if (d.scoreChanged) previousScore = d.rankScore;
         inFalloff = true;
         continue;
       }
@@ -1703,7 +1677,7 @@ export const useChartConfig = ({
       // renders. It draws no dot of its own (getPointRadius hides isFinalInterpolation), so this
       // only restores the trailing dash — matching score mode.
       if (inFalloff && d.isFinalInterpolation && previousRank !== null) {
-        result.push({ x: d.timestamp, y: previousRank, raw: d, rankChanged: false });
+        result.push({ x: d.timestamp, y: previousRank, raw: d, rankChanged: false, prevScore: previousScore });
         inFalloff = false;
         continue;
       }

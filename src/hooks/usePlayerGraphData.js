@@ -689,7 +689,13 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     return seasonConfig?.endTimestamp ? seasonConfig.endTimestamp * 1000 : null;
   }, []);
 
-  // This effect re-processes data whenever raw data or settings change.
+  // Only these three settings affect data *processing*; the rest (display-only toggles like
+  // showRsAdjustment / showRubyLine / displayMode, plus the hasOpened* flags) are consumed by
+  // the render layer. Depending on the whole eventSettings object reprocesses every dataset on
+  // any toggle, so narrow to these primitives — reprocessing now runs only when they change.
+  const { showNameChange, showClubChange, showSuspectedBan } = eventSettings || {};
+
+  // This effect re-processes data whenever raw data or processing-relevant settings change.
   // This is the core of the fix, as it separates processing from fetching.
   useEffect(() => {
     if (!mainPlayerRaw.data) {
@@ -697,8 +703,9 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     }
 
     // Don't show loader for simple filter changes, only for new data
-    // setLoading(true); 
+    // setLoading(true);
 
+    const processingSettings = { showNameChange, showClubChange, showSuspectedBan };
     const seasonEndDate = getSeasonEndDate(currentSeasonId);
 
     // Process main player data
@@ -706,7 +713,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       mainPlayerRaw.data,
       mainPlayerRaw.events,
       seasonEndDate,
-      eventSettings
+      processingSettings
     );
     if (mainPlayerRaw.data.length > 0) {
       setError(null);
@@ -722,7 +729,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
         rawValue.data,
         rawValue.events,
         seasonEndDate,
-        eventSettings
+        processingSettings
       );
 
       if (processedCompare.length >= 2) {
@@ -741,7 +748,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
 
     setComparisonData(newComparisonMap);
     // setLoading(false);
-  }, [mainPlayerRaw, comparisonRaws, eventSettings, currentSeasonId, getSeasonEndDate]);
+  }, [mainPlayerRaw, comparisonRaws, showNameChange, showClubChange, showSuspectedBan, currentSeasonId, getSeasonEndDate]);
 
 
   const loadComparisonData = useCallback(async (compareId, targetSeasonId) => {
