@@ -954,7 +954,19 @@ export const useChartConfig = ({
     }
 
     const viewMin = new Date(now.getTime() - timeRangeMs);
-    return { min: viewMin, max: endTime };
+
+    // Clamp to the same bounds the zoom plugin enforces (data domain ± 2h; see `limits.x`).
+    // When a player's history is younger than the selected range, the naive window
+    // (now − range … now + padding) reaches past the data on the left — and a little past it on
+    // the right. On first paint that renders as dead space with the line shoved toward the
+    // centre/right; the instant the user pans or zooms, the plugin snaps the view to these
+    // limits and it visibly jumps left. Matching the limits here makes the initial view
+    // identical to the post-interaction one, so there's no snap.
+    let min = viewMin.getTime();
+    let max = endTime.getTime();
+    if (timeDomain?.min) min = Math.max(min, timeDomain.min.getTime() - TIME.TWO_HOURS);
+    if (timeDomain?.max) max = Math.min(max, timeDomain.max.getTime() + TIME.TWO_HOURS);
+    return { min: new Date(min), max: new Date(max) };
   }, [seasonEndDate]);
 
   const viewWindow = useMemo(() => calculateViewWindow(data, selectedTimeRange, overallTimeDomain), [data, selectedTimeRange, calculateViewWindow, overallTimeDomain]);
@@ -1587,6 +1599,7 @@ export const useChartConfig = ({
     // chart marks RANK changes — including shifts on "tracking" points caused purely by other
     // players moving — rather than rank-score changes.
     let previousRank = null;
+    let inFalloff = false;
     const result = [];
     for (const d of points) {
       if (d.isStaircasePoint || d.isGapBridge) continue;
@@ -1595,6 +1608,7 @@ export const useChartConfig = ({
         const rankChanged = previousRank === null || d.rank !== previousRank;
         result.push({ x: d.timestamp, y: d.rank, raw: d, rankChanged });
         previousRank = d.rank;
+        inFalloff = false;
         continue;
       }
 
@@ -1607,6 +1621,20 @@ export const useChartConfig = ({
       // comparing against the last position the player actually held.
       if (d.isRsAdjustmentAnchor && previousRank !== null) {
         result.push({ x: d.timestamp, y: previousRank, raw: d, rankChanged: false });
+        inFalloff = true;
+        continue;
+      }
+
+      // Final interpolation to 'now' trailing an off-leaderboard fall-off. It inherits the
+      // adjustment's null rank, so it'd be dropped here — and with it the dashed isFollowedByGap
+      // segment (drawn from the RS anchor to this point) that conveys the player fell off the
+      // leaderboard. Anchor it to the same last known rank so that segment has an endpoint and
+      // renders. It draws no dot of its own (getPointRadius hides isFinalInterpolation), so this
+      // only restores the trailing dash — matching score mode.
+      if (inFalloff && d.isFinalInterpolation && previousRank !== null) {
+        result.push({ x: d.timestamp, y: previousRank, raw: d, rankChanged: false });
+        inFalloff = false;
+        continue;
       }
     }
     return result;
