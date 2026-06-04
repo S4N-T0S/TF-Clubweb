@@ -108,16 +108,29 @@ const getServerDowntime = (point) => SERVER_DOWNTIME_BY_MS.get(point?.timestamp?
 const DOWNTIME_ICON_MAX_SPAN = TIME.WEEK * 2;
 
 /**
- * Zoom-aware variant of getServerDowntime: returns the entry only while the view is tight enough
- * (visible span ≤ DOWNTIME_ICON_MAX_SPAN) for the outage gap to read; otherwise null, so callers
- * fall back to a normal point + style. The hover tooltip is intentionally left ungated (see
- * externalTooltipHandler), so the explanation stays reachable at any zoom.
+ * True when the outage's catch-up actually moved this player's displayed metric — score in score
+ * view, rank in rank view. A neutral point means the player didn't play across the outage, so
+ * there's nothing to explain and we suppress the marker. Mirrors the no-change "tracking point"
+ * rule used for normal dot/tooltip visibility.
+ * @param {{rankChanged?: boolean, raw?: {scoreChanged?: boolean}} | undefined} wrapper Plotted-point wrapper (ctx.raw / dataPoints[].raw).
+ * @param {boolean} isRankMode Whether the chart is in rank view.
+ * @returns {boolean}
+ */
+const downtimePointChanged = (wrapper, isRankMode) =>
+  isRankMode ? wrapper?.rankChanged === true : !!wrapper?.raw?.scoreChanged;
+
+/**
+ * Zoom-aware and change-aware variant of getServerDowntime: returns the entry only when the point is in
+ * a downtime window, this player's metric moved there (downtimePointChanged), and the view is tight
+ * enough for the gap to read. Otherwise null, so callers fall back to a normal point + style.
  * @param {import('chart.js').ScriptableContext<'line'>} ctx The chart context.
+ * @param {boolean} isRankMode Whether the chart is in rank view.
  * @returns {{timestamp: number, durationHours?: number} | null}
  */
-const getVisibleServerDowntime = (ctx) => {
+const getVisibleServerDowntime = (ctx, isRankMode) => {
   const downtime = getServerDowntime(ctx?.raw?.raw);
   if (!downtime) return null;
+  if (!downtimePointChanged(ctx?.raw, isRankMode)) return null;
   const xScale = ctx?.chart?.scales?.x;
   if (!xScale) return downtime; // scales not ready yet — fall back to always-show
   return (xScale.max - xScale.min) <= DOWNTIME_ICON_MAX_SPAN ? downtime : null;
@@ -398,7 +411,7 @@ export const useChartConfig = ({
     const pointData = ctx.raw?.raw;
     if (!ctx.chart || !pointData) return 3;
 
-    if (getVisibleServerDowntime(ctx)) return 8;
+    if (getVisibleServerDowntime(ctx, isRankMode)) return 8;
 
     if (eventSettings.showSuspectedBan && pointData.isUnexpectedReappearance) return 8;
 
@@ -466,7 +479,9 @@ export const useChartConfig = ({
 
     const pointData = tooltip.dataPoints?.[0]?.raw?.raw;
     const downtime = getServerDowntime(pointData);
-    const isDowntime = !!downtime;
+    // Only treat it as a downtime point if the catch-up actually moved this player's metric; a
+    // neutral point (player didn't play across the outage) has nothing to explain.
+    const isDowntime = !!downtime && downtimePointChanged(tooltip.dataPoints?.[0]?.raw, isRankMode);
 
     if (pointData) {
       // Hide tooltips for certain synthetic points, but always show them for ban/unban event anchors.
@@ -1602,7 +1617,7 @@ export const useChartConfig = ({
         return rsDownIcon;
       }
     }
-    if (getVisibleServerDowntime(ctx)) return unexpectedReappearanceIcon;
+    if (getVisibleServerDowntime(ctx, isRankMode)) return unexpectedReappearanceIcon;
     const direction = isRankMode ? null : getNewLogicPointDirection(ctx);
     return (direction === 'up' || direction === 'down') ? 'triangle' : 'circle';
   }, [eventSettings, isRankMode]);
@@ -1616,7 +1631,7 @@ export const useChartConfig = ({
       (hasVisibleEvent(ctx, 'COMBINED_CHANGE')) ||
       (eventSettings.showSuspectedBan && (pointData?.isUnexpectedReappearance || pointData?.isBanStartAnchor || pointData?.isBanEndAnchor)) ||
       (eventSettings.showRsAdjustment && getRsEvent(ctx)) || (eventSettings.showRsAdjustment && pointData?.isRsAdjustmentAnchor) ||
-      getVisibleServerDowntime(ctx)) {
+      getVisibleServerDowntime(ctx, isRankMode)) {
       return 0;
     }
 
