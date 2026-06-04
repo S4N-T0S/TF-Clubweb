@@ -36,7 +36,10 @@ export const SERVER_DOWNTIMES = [
   { timestamp: 1757948908, durationHours: 7 },
   { timestamp: 1755986731, durationHours: 19 },
   { timestamp: 1751716380, durationHours: 8 },
-  { timestamp: 1750666711, durationHours: 8 }
+  { timestamp: 1750666711, durationHours: 8 },
+  { timestamp: 1745520973, durationHours: 7 },
+  { timestamp: 1744895294, durationHours: 14 },
+  { timestamp: 1743936731, durationHours: 8 },
 ];
 
 export const getSeasonLeaderboard = (seasonKey) => {
