@@ -1,6 +1,6 @@
 import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import { Chart as ChartJS } from 'chart.js';
-import { SEASONS } from '../services/historicalDataService';
+import { SEASONS, SERVER_DOWNTIMES } from '../services/historicalDataService';
 import { formatDuration } from '../utils/timeUtils';
 
 // Constants from GraphModal
@@ -62,6 +62,7 @@ TIME.DISPLAY_FORMATS = {
 };
 
 const NEW_LOGIC_TIMESTAMP_MS = 1750436334 * 1000;
+const SERVER_DOWNTIME_BY_MS = new Map(SERVER_DOWNTIMES.map(d => [d.timestamp * 1000, d]));
 
 // Create Image objects for custom point styles
 const nameChangeIcon = new Image(16, 16);
@@ -92,6 +93,34 @@ const getRsEvent = (ctx) => {
     return pointData.events.find(e => e.event_type === 'RS_ADJUSTMENT');
   }
   return null;
+};
+
+/**
+ * Returns the server-downtime entry whose poll timestamp matches this point exactly, else null.
+ * Matched on the precise timestamp — synthetic points (staircase/bridge/interpolation) are
+ * minute-offset and so never collide with it.
+ * @param {object} point A processed data point.
+ * @returns {{timestamp: number, durationHours?: number} | null}
+ */
+const getServerDowntime = (point) => SERVER_DOWNTIME_BY_MS.get(point?.timestamp?.getTime()) || null;
+
+// Upper bound on the visible window for the downtime icon to render.
+const DOWNTIME_ICON_MAX_SPAN = TIME.WEEK * 2;
+
+/**
+ * Zoom-aware variant of getServerDowntime: returns the entry only while the view is tight enough
+ * (visible span ≤ DOWNTIME_ICON_MAX_SPAN) for the outage gap to read; otherwise null, so callers
+ * fall back to a normal point + style. The hover tooltip is intentionally left ungated (see
+ * externalTooltipHandler), so the explanation stays reachable at any zoom.
+ * @param {import('chart.js').ScriptableContext<'line'>} ctx The chart context.
+ * @returns {{timestamp: number, durationHours?: number} | null}
+ */
+const getVisibleServerDowntime = (ctx) => {
+  const downtime = getServerDowntime(ctx?.raw?.raw);
+  if (!downtime) return null;
+  const xScale = ctx?.chart?.scales?.x;
+  if (!xScale) return downtime; // scales not ready yet — fall back to always-show
+  return (xScale.max - xScale.min) <= DOWNTIME_ICON_MAX_SPAN ? downtime : null;
 };
 
 /**
@@ -369,6 +398,8 @@ export const useChartConfig = ({
     const pointData = ctx.raw?.raw;
     if (!ctx.chart || !pointData) return 3;
 
+    if (getVisibleServerDowntime(ctx)) return 8;
+
     if (eventSettings.showSuspectedBan && pointData.isUnexpectedReappearance) return 8;
 
     // Make the ban anchor icons visible and large if enabled
@@ -425,10 +456,6 @@ export const useChartConfig = ({
     const { chart, tooltip } = context;
     const tooltipEl = getOrCreateTooltip(chart);
 
-    // Reset width to auto at the beginning of every render.
-    // This allows tooltips to be naturally sized by their content by default.
-    tooltipEl.style.width = 'auto';
-
     // Guard against stale datasetIndex when a dataset is removed. If the tooltip tries
     // to render for a non-existent dataset, hide it and bail to prevent a crash.
     const datasetIndexFromTooltip = tooltip.dataPoints?.[0]?.datasetIndex;
@@ -438,6 +465,8 @@ export const useChartConfig = ({
     }
 
     const pointData = tooltip.dataPoints?.[0]?.raw?.raw;
+    const downtime = getServerDowntime(pointData);
+    const isDowntime = !!downtime;
 
     if (pointData) {
       // Hide tooltips for certain synthetic points, but always show them for ban/unban event anchors.
@@ -445,7 +474,7 @@ export const useChartConfig = ({
       // Also always show tooltip for RS Adjustment anchors
       const isRsAnchor = eventSettings.showRsAdjustment && pointData.isRsAdjustmentAnchor;
 
-      if (!isBanPoint && !isRsAnchor) {
+      if (!isBanPoint && !isRsAnchor && !isDowntime) {
         const timeRange = chart.scales.x.max - chart.scales.x.min;
         const isHiddenInterpolatedPoint = (pointData.isInterpolated || pointData.isExtrapolated) &&
           timeRange > TIME.SEVENTY_TWO_HOURS;
@@ -485,7 +514,7 @@ export const useChartConfig = ({
     const rsEvent = pointData?.events?.find(e => e.event_type === 'RS_ADJUSTMENT');
     const isRsAdjustment = eventSettings.showRsAdjustment && rsEvent;
 
-    const hasEventToShow = isBanStart || isBanEnd || isUnexpected || isRsAdjustment;
+    const hasEventToShow = isBanStart || isBanEnd || isUnexpected || isRsAdjustment || isDowntime;
     const hasScoreContent = !!tooltip.body;
 
     if (hasScoreContent || hasEventToShow) {
@@ -496,6 +525,9 @@ export const useChartConfig = ({
       while (tooltipEl.firstChild) {
         tooltipEl.firstChild.remove();
       }
+
+      // Reset to content-driven width on each rebuild
+      tooltipEl.style.width = 'auto';
 
       const tableRoot = document.createElement('table');
       tableRoot.style.margin = '0px';
@@ -857,6 +889,28 @@ export const useChartConfig = ({
         const summary = "Reappeared during a suspected ban, likely due to an RS adjustment that temporarily dropped them off the leaderboard (we thought it was a ban).";
         descRow.innerHTML = `<td colspan="2" style="font-size: 12px; color: #9ca3af; white-space: normal;">${summary}</td>`;
         tooltipEl.style.width = '220px'; // good enough...
+        tableRoot.appendChild(descRow);
+      }
+
+      // Server Downtime marker
+      if (isDowntime) {
+        if (hasScoreContent || isRsAdjustment || isBanStart || isBanEnd || isUnexpected) {
+          const hrRow = document.createElement('tr');
+          const hrCell = document.createElement('td');
+          hrCell.colSpan = 2;
+          hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
+          hrRow.appendChild(hrCell);
+          tableRoot.appendChild(hrRow);
+        }
+        const titleRow = document.createElement('tr');
+        titleRow.innerHTML = `<td colspan="2" style="font-weight: bold; font-size: 13px; color: #facc15; padding-bottom: 4px;">Server Downtime</td>`;
+        tableRoot.appendChild(titleRow);
+
+        const descRow = document.createElement('tr');
+        const durationText = downtime.durationHours ? `~${downtime.durationHours}h of downtime` : 'a period of downtime';
+        const summary = `Follows ${durationText} on Embark's servers. A score change here is the catch-up after the outage, not a single game.`;
+        descRow.innerHTML = `<td colspan="2" style="font-size: 12px; color: #9ca3af; white-space: normal;">${summary}</td>`;
+        tooltipEl.style.width = '220px';
         tableRoot.appendChild(descRow);
       }
     } else {
@@ -1548,6 +1602,7 @@ export const useChartConfig = ({
         return rsDownIcon;
       }
     }
+    if (getVisibleServerDowntime(ctx)) return unexpectedReappearanceIcon;
     const direction = isRankMode ? null : getNewLogicPointDirection(ctx);
     return (direction === 'up' || direction === 'down') ? 'triangle' : 'circle';
   }, [eventSettings, isRankMode]);
@@ -1560,7 +1615,8 @@ export const useChartConfig = ({
       (eventSettings.showClubChange && hasVisibleEvent(ctx, 'CLUB_CHANGE')) ||
       (hasVisibleEvent(ctx, 'COMBINED_CHANGE')) ||
       (eventSettings.showSuspectedBan && (pointData?.isUnexpectedReappearance || pointData?.isBanStartAnchor || pointData?.isBanEndAnchor)) ||
-      (eventSettings.showRsAdjustment && getRsEvent(ctx)) || (eventSettings.showRsAdjustment && pointData?.isRsAdjustmentAnchor)) {
+      (eventSettings.showRsAdjustment && getRsEvent(ctx)) || (eventSettings.showRsAdjustment && pointData?.isRsAdjustmentAnchor) ||
+      getVisibleServerDowntime(ctx)) {
       return 0;
     }
 

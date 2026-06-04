@@ -27,6 +27,18 @@ export const SEASONS = {
 
 export const currentSeasonKey = Object.keys(SEASONS).find(key => SEASONS[key].isCurrent); // Reminder: update CF worker when season changes
 
+// Known outages of Embark's ranked leaderboard servers. (end of outage timestamp)
+export const SERVER_DOWNTIMES = [
+  { timestamp: 1780571955, durationHours: 45 },
+  { timestamp: 1773393510, durationHours: 17 },
+  { timestamp: 1773905836, durationHours: 45 },
+  { timestamp: 1773331350, durationHours: 21 },
+  { timestamp: 1757948908, durationHours: 7 },
+  { timestamp: 1755986731, durationHours: 19 },
+  { timestamp: 1751716380, durationHours: 8 },
+  { timestamp: 1750666711, durationHours: 8 }
+];
+
 export const getSeasonLeaderboard = (seasonKey) => {
   const season = SEASONS[seasonKey];
   if (!season || !season.data) return { leaderboard: [] };
