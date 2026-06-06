@@ -1,6 +1,7 @@
 import { Helmet } from 'react-helmet-async';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { SEOHeadProps } from '../types/propTypes';
+import { SEASONS, currentSeasonKey } from '../services/historicalDataService';
 
 const BASE_URL = 'https://ogclub.s4nt0s.eu';
 
@@ -83,11 +84,38 @@ export const SEOHead = ({
   // 6. Priority: Main Views (Background)
   else {
     switch (view) {
-      case 'clubs':
-        title = 'Top Clubs | THE FINALS Tracker';
-        description = 'Leaderboard of the top performing clubs in The Finals based on aggregate score.';
+      case 'clubs': {
+        const rawSeason = searchParams.get('season');
+        const rawPage = searchParams.get('page');
+
+        // Only canonicalise a real, non-current club season (S5..S9).
+        let validSeason = null;
+        let seasonText = '';
+        if (rawSeason && /^S[1-9]\d*$/.test(rawSeason) && SEASONS[rawSeason]?.hasClubs && rawSeason !== currentSeasonKey) {
+          validSeason = rawSeason;
+          seasonText = ` (Season ${validSeason.substring(1)})`;
+        }
+
+        const pageNum = parseInt(rawPage, 10);
+        let validPage = null;
+        let pageText = '';
+        if (!isNaN(pageNum) && pageNum > 1) {
+          validPage = pageNum;
+          pageText = ` - Page ${validPage}`;
+        }
+
+        title = `Top Clubs${seasonText}${pageText} | THE FINALS Tracker`;
+        description = `Leaderboard of the top performing clubs in The Finals${seasonText} based on aggregate score${pageText}.`;
         keywords = 'top clubs, clan leaderboard, best clubs, the finals teams';
+        if (validSeason) keywords += `, ${validSeason.toLowerCase()} clubs`;
+
+        const canonicalParams = new URLSearchParams();
+        if (validSeason) canonicalParams.set('season', validSeason);
+        if (validPage) canonicalParams.set('page', validPage.toString());
+        const q = canonicalParams.toString();
+        if (q) canonicalSearch = `?${q}`;
         break;
+      }
       case 'spray': {
         const weaponName = weaponSlug ? WEAPON_NAMES[weaponSlug.toLowerCase()] : null;
         if (weaponName) {
@@ -110,8 +138,8 @@ export const SEOHead = ({
           let isHistorical = false;
           let validSeason = null;
 
-          // Strictly validate season format
-          if (rawSeason && /^(ALL|OB|S[1-9]\d*)$/.test(rawSeason)) {
+          // Only canonicalise season params that name a real, non-current season.
+          if (rawSeason && /^(ALL|OB|S[1-9]\d*)$/.test(rawSeason) && SEASONS[rawSeason] && rawSeason !== currentSeasonKey) {
             validSeason = rawSeason;
             if (validSeason === 'ALL') {
               seasonText = ' (All Seasons)';

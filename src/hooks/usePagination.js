@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useLocation } from 'react-router-dom';
-import { filterPlayerByQuery } from '../utils/searchUtils';
+import { filterPlayerByQuery, filterClubByQuery } from '../utils/searchUtils';
 
 export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {}, urlSync = false, basePath = '/' } = {}) => {
   // Always call hooks unconditionally (Rules of Hooks).
@@ -141,11 +141,9 @@ export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {
         return filterPlayerByQuery(item, searchQuery);
       }
 
-      // Handle club list items (items with 'tag' property) - This is for a different view
+      // Handle club list items (items with 'tag' property) - the Top Clubs view.
       if ('tag' in item) {
-        // Sanitize the query by removing any brackets for this specific search type.
-        const sanitizedQuery = searchQuery.toLowerCase().replace(/[[\]]/g, '');
-        return item.tag.toLowerCase().includes(sanitizedQuery);
+        return filterClubByQuery(item, searchQuery);
       }
       
       // If the item doesn't match known filterable structures (e.g., it's an event),
@@ -211,16 +209,26 @@ export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {
     setPage(Math.min(Math.max(1, newPage), totalPages), { replace: true });
   };
 
-  // When urlSync is on, return a builder for /current-path?page=N URLs that
-  // preserves any other existing search params. Returns null when off so the
-  // <Pagination/> component falls back to plain buttons.
-  const buildPageHref = !urlSync ? null : (n) => {
+  // Builder for ?page=N <Link> hrefs that preserves any other search params.
+  // Returns null (so <Pagination/> falls back to plain buttons) when urlSync is
+  // off OR when we're not currently on basePath — i.e. this view is frozen in
+  // the background while a modal route (/history, /graph, ...) is on top.
+  //
+  // Two things matter for SEO here:
+  //  1. pathname: basePath — a relative, search-only `to` would resolve against
+  //     whatever pathname is current. With the leaderboard mounted behind a
+  //     /history/<name> modal, its "Last" link (page 400 on mobile) would become
+  //     /history/<name>?page=400 and get crawled. Pinning the pathname keeps
+  //     page links on their own page.
+  //  2. null off-base — the frozen background view shouldn't emit crawlable
+  //     page links at all, so we drop them entirely there.
+  const buildPageHref = (!urlSync || !isOnBasePath) ? null : (n) => {
     const next = new URLSearchParams(searchParams);
     const clamped = Math.min(Math.max(1, n), totalPages);
     if (clamped <= 1) next.delete('page');
     else next.set('page', String(clamped));
     const qs = next.toString();
-    return { search: qs ? `?${qs}` : '' };
+    return { pathname: basePath, search: qs ? `?${qs}` : '' };
   };
 
   return {

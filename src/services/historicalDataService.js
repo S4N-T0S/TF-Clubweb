@@ -1,4 +1,5 @@
 import { getLeagueInfo } from '../utils/leagueUtils';
+import { aggregateClubs } from '../utils/dataProcessing';
 import OBData from '../data/Betas/OB-crossplay.json';
 import S1Data from '../data/S1/S1-merged.json';
 import S2Data from '../data/S2/S2-merged.json';
@@ -17,12 +18,12 @@ export const SEASONS = {
   S2: { id: 2, data: S2Data, label: 'Season 2', hasRuby: false, hasRankScore: false, isGraphable: false },
   S3: { id: 3, data: S3Data, label: 'Season 3', hasRuby: true, hasRankScore: true, isGraphable: false, rubyCutoff: 63929 },
   S4: { id: 4, data: S4Data, label: 'Season 4', hasRuby: true, hasRankScore: true, isGraphable: false, rubyCutoff: 46543 },
-  S5: { id: 5, data: S5Data, label: 'Season 5', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1735429827, endTimestamp: 1742498648, rubyCutoff: 49750, hasEvents: true },
-  S6: { id: 6, data: S6Data, label: 'Season 6', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1742502488, endTimestamp: 1749721922, rubyCutoff: 50347, hasEvents: true },
-  S7: { id: 7, data: S7Data, label: 'Season 7', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1749734705, endTimestamp: 1757514600, rubyCutoff: 51701, hasEvents: true },
-  S8: { id: 8, data: S8Data, label: 'Season 8', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1757516400, endTimestamp: 1765375200, rubyCutoff: 52044, hasEvents: true },
-  S9: { id: 9, data: S9Data, label: 'Season 9', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1765382400, endTimestamp: 1774535400, rubyCutoff: 54132, hasEvents: true },
-  S10: { id: 10, data: null, label: 'Season 10', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1774535400, endTimestamp: null, rubyCutoff: null, hasEvents: true, isCurrent: true }
+  S5: { id: 5, data: S5Data, label: 'Season 5', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1735429827, endTimestamp: 1742498648, rubyCutoff: 49750, hasClubs: true, hasEvents: true },
+  S6: { id: 6, data: S6Data, label: 'Season 6', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1742502488, endTimestamp: 1749721922, rubyCutoff: 50347, hasClubs: true, hasEvents: true },
+  S7: { id: 7, data: S7Data, label: 'Season 7', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1749734705, endTimestamp: 1757514600, rubyCutoff: 51701, hasClubs: true, hasEvents: true },
+  S8: { id: 8, data: S8Data, label: 'Season 8', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1757516400, endTimestamp: 1765375200, rubyCutoff: 52044, hasClubs: true, hasEvents: true },
+  S9: { id: 9, data: S9Data, label: 'Season 9', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1765382400, endTimestamp: 1774535400, rubyCutoff: 54132, hasClubs: true, hasEvents: true },
+  S10: { id: 10, data: null, label: 'Season 10', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1774535400, endTimestamp: null, rubyCutoff: null, hasClubs: true, hasEvents: true, isCurrent: true }
 };
 
 export const currentSeasonKey = Object.keys(SEASONS).find(key => SEASONS[key].isCurrent); // Reminder: update CF worker when season changes
@@ -68,6 +69,15 @@ export const getSeasonLeaderboard = (seasonKey) => {
     );
 
   return { leaderboard };
+};
+
+// Top clubs for a historical season, aggregated from that season's leaderboard.
+// The current season has no static data (data: null) — callers pass the live
+// `topClubs` instead. Returns [] for seasons before clubs existed (pre-S5).
+export const getSeasonClubs = (seasonKey) => {
+  const season = SEASONS[seasonKey];
+  if (!season || !season.hasClubs || !season.data) return [];
+  return aggregateClubs(getSeasonLeaderboard(seasonKey).leaderboard);
 };
 
 export const getAllSeasonsLeaderboard = (currentSeasonData) => {

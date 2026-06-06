@@ -93,3 +93,48 @@ export const filterPlayerByQuery = (player, query) => {
 
     return namePasses && clubPasses;
 };
+
+/**
+ * The advanced filter for club objects (the Top Clubs view), using the same
+ * shared parsing logic as the player filter so the bracket syntax is consistent
+ * everywhere. A club only has a tag, so every check resolves against it:
+ * - `[tag]`: Exactly matches the club tag.
+ * - `[tag`: Matches clubs that START WITH `tag`.
+ * - `tag]`: Matches clubs that END WITH `tag`.
+ * - `tag` (no brackets): Matches clubs whose tag CONTAINS the text.
+ * - `[]`: Matches nothing — no club has an empty tag.
+ * Any leftover name portion of a compound query (e.g. `[OG] 00`) is also matched
+ * (contains) against the tag, since that's the only field a club has.
+ *
+ * @param {object} club - The club object ({ tag, ... }).
+ * @param {string} query - The search query.
+ * @returns {boolean} - True if the club matches.
+ */
+export const filterClubByQuery = (club, query) => {
+    const { nameQuery, clubQuery, clubSearchType } = parseSearchQuery(query);
+
+    if (!nameQuery && clubQuery === null) return true;
+
+    const tag = club.tag ? club.tag.toLowerCase() : '';
+
+    // A plain (no-bracket) query matches the tag as a substring — mirrors how the
+    // player filter also falls back to the club tag for a bare name query.
+    const namePasses = !nameQuery || tag.includes(nameQuery);
+
+    let clubPasses = true;
+    if (clubQuery !== null) {
+        switch (clubSearchType) {
+            case 'exact':
+                clubPasses = tag === clubQuery; // `[]` -> '' -> never matches a real tag
+                break;
+            case 'startsWith':
+                clubPasses = tag.startsWith(clubQuery);
+                break;
+            case 'endsWith':
+                clubPasses = tag.endsWith(clubQuery);
+                break;
+        }
+    }
+
+    return namePasses && clubPasses;
+};

@@ -1,3 +1,28 @@
+// Aggregate a list of players into ranked clubs by summing each club's member
+// rankScores. Shared by the live leaderboard (processLeaderboardData) and the
+// historical season views (historicalDataService.getSeasonClubs).
+export const aggregateClubs = (players) => {
+  const clubScores = new Map();
+  players.forEach(player => {
+    if (player?.clubTag) {
+      const existing = clubScores.get(player.clubTag) || { score: 0, members: 0 };
+      clubScores.set(player.clubTag, {
+        score: existing.score + (player.rankScore || 0),
+        members: existing.members + 1
+      });
+    }
+  });
+
+  return Array.from(clubScores.entries())
+    .map(([tag, data]) => ({
+      tag,
+      totalScore: data.score,
+      memberCount: data.members,
+      averageScore: data.members > 0 ? data.score / data.members : 0
+    }))
+    .sort((a, b) => b.totalScore - a.totalScore);
+};
+
 export const processLeaderboardData = (rawData) => {
   // Find Ruby cutoff score
   const rubyPlayers = rawData.filter(player => player.leagueNumber === 21); // Ruby League remember to change if API changes
@@ -12,26 +37,8 @@ export const processLeaderboardData = (rawData) => {
     displayName: player.clubTag ? `[${player.clubTag}] ${player.name}` : player.name
   }));
 
-  // Process club scores
-  const clubScores = new Map();
-  rawData.forEach(player => {
-    if (player?.clubTag) {
-      const existing = clubScores.get(player.clubTag) || { score: 0, members: 0 };
-      clubScores.set(player.clubTag, {
-        score: existing.score + (player.rankScore || 0),
-        members: existing.members + 1
-      });
-    }
-  });
-
-  const topClubs = Array.from(clubScores.entries())
-    .map(([tag, data]) => ({
-      tag,
-      totalScore: data.score,
-      memberCount: data.members,
-      averageScore: data.members > 0 ? data.score / data.members : 0
-    }))
-    .sort((a, b) => b.totalScore - a.totalScore);
+  // Aggregate the current season's players into ranked clubs.
+  const topClubs = aggregateClubs(rawData);
 
   return {
     topClubs,

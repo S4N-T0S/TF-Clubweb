@@ -5,10 +5,11 @@ import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
 import { ClubsViewProps, ClubRowProps, NoResultsMessageProps } from '../../types/propTypes';
 import { SortButton } from '../SortButton';
-import { useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { useRef, useMemo } from 'react';
+import { Link, useSearchParams, useLocation } from 'react-router-dom';
 import { useModal } from '../../context/ModalProvider';
 import { buildClubSearchHref } from '../../utils/modalHrefs';
+import { SEASONS, currentSeasonKey, getSeasonClubs } from '../../services/historicalDataService';
 
 const NoResultsMessage = () => {
   return (
@@ -19,12 +20,12 @@ const NoResultsMessage = () => {
   );
 };
 
-const ClubRow = ({ club, onClubClick, isMobile }) => {
+const ClubRow = ({ club, onClubClick, isMobile, selectedSeason }) => {
   // Mobile row rendering
   if (isMobile) {
     return (
-      <div 
-        className="flex flex-col gap-2 p-4 border-b border-gray-700 bg-gray-800 rounded-lg shadow-sm 
+      <div
+        className="flex flex-col gap-2 p-4 border-b border-gray-700 bg-gray-800 rounded-lg shadow-sm
         active:bg-gray-750 active:scale-[0.99] transition-all duration-150 ease-in-out"
       >
         <div className="flex justify-between items-center">
@@ -32,8 +33,8 @@ const ClubRow = ({ club, onClubClick, isMobile }) => {
             #{club.originalRank.toLocaleString()}
           </span>
           <Link
-            to={buildClubSearchHref(club.tag)}
-            onClick={(e) => { e.preventDefault(); onClubClick(club.tag); }}
+            to={buildClubSearchHref(club.tag, selectedSeason)}
+            onClick={(e) => { e.preventDefault(); onClubClick(club.tag, selectedSeason); }}
             className={`hover:text-blue-400 cursor-pointer ${club.tag === 'OG' ? 'text-blue-500' : 'text-gray-300'}`}
           >
             [{club.tag}]
@@ -74,8 +75,8 @@ const ClubRow = ({ club, onClubClick, isMobile }) => {
       </td>
       <td className="px-4 py-2">
         <Link
-          to={buildClubSearchHref(club.tag)}
-          onClick={(e) => { e.preventDefault(); onClubClick(club.tag); }}
+          to={buildClubSearchHref(club.tag, selectedSeason)}
+          onClick={(e) => { e.preventDefault(); onClubClick(club.tag, selectedSeason); }}
           className={`hover:text-blue-400 cursor-pointer ${club.tag === 'OG' ? 'text-blue-500' : 'text-gray-300'}`}
         >
           [{club.tag}]
@@ -98,6 +99,33 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
   const { isModalOpen } = useModal();
   const searchInputRef = useRef(null);
   const viewContainerRef = useRef(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+
+  const isOnClubs = location.pathname.startsWith('/clubs');
+  const frozenSeasonRef = useRef(currentSeasonKey);
+  const selectedSeasonLive = useMemo(() => {
+    const s = searchParams.get('season');
+    if (!s) return currentSeasonKey;
+    return SEASONS[s]?.hasClubs ? s : currentSeasonKey;
+  }, [searchParams]);
+  if (isOnClubs) frozenSeasonRef.current = selectedSeasonLive;
+  const selectedSeason = isOnClubs ? selectedSeasonLive : frozenSeasonRef.current;
+  const isCurrentSeason = selectedSeason === currentSeasonKey;
+
+  // Season + page reset go in one atomic setSearchParams call — two separate
+  // updates would race on the same stale params (see usePagination/App notes).
+  const handleSeasonChange = (e) => {
+    const next = e.target.value;
+    setSearchParams(prev => {
+      const n = new URLSearchParams(prev);
+      if (!next || next === currentSeasonKey) n.delete('season');
+      else n.set('season', next);
+      n.delete('page'); // new season -> back to page 1
+      return n;
+    }, { replace: true });
+  };
+
   const { slideDirection, showIndicator } = useSwipe(
     () => currentPage < totalPages && handlePageChange(currentPage + 1),
     () => currentPage > 1 && handlePageChange(currentPage - 1),
@@ -114,11 +142,13 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
     }
   );
 
-  // Pre-process club to add original rank
-  const rankedClubs = topClubs.map((club, index) => ({
-    ...club,
-    originalRank: index + 1
-  }));
+  // Top clubs for the selected season. The current season uses the live
+  // aggregate passed from App; historical seasons are computed from static JSON.
+  // Ranks are assigned after sorting so each season is numbered from #1.
+  const rankedClubs = useMemo(() => {
+    const source = isCurrentSeason ? topClubs : getSeasonClubs(selectedSeason);
+    return source.map((club, index) => ({ ...club, originalRank: index + 1 }));
+  }, [isCurrentSeason, selectedSeason, topClubs]);
 
   const {
     searchQuery,
@@ -137,13 +167,36 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
 
   return (
     <div ref={viewContainerRef}>
-      <SearchBar
-        value={searchQuery}
-        onChange={setSearchQuery}
-        placeholder="Search through clubs..."
-        searchInputRef={searchInputRef}
-      />
-      <div className="page-transition-container mt-4">
+      <div className="flex flex-col sm:flex-row gap-2 mb-4 items-stretch sm:items-center">
+        <div className="flex-1">
+          <SearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search through clubs..."
+            searchInputRef={searchInputRef}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedSeason}
+            onChange={handleSeasonChange}
+            aria-label="Select season"
+            className={`w-full sm:w-48 bg-gray-700 text-gray-200 rounded-lg px-4 py-1.5 border ${
+              selectedSeason !== currentSeasonKey ? 'border-blue-500 border-2' : 'border-gray-600'
+            } focus:ring-2 focus:ring-blue-500 focus-visible:ring-blue-500 focus-visible:border-blue-500 focus-visible:outline-none flex-shrink-0 text-sm h-[42px]`}
+          >
+            {/* Seasons before S5 predate clubs — shown but disabled. 'ALL' is disabled */}
+            {Object.entries(SEASONS).reverse().map(([key, season]) =>
+              key !== 'ALL' && (
+                <option key={key} value={key} disabled={!season.hasClubs}>
+                  {season.label}{season.hasClubs ? '' : ' (no clubs)'}
+                </option>
+              )
+            )}
+          </select>
+        </div>
+      </div>
+      <div className="page-transition-container">
       <div className={`page-content ${slideDirection}`} key={currentPage}>
       <div className="table-container">
         {isMobile ? (
@@ -152,11 +205,12 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
               <NoResultsMessage />
             ) : (
               currentItems.map((club) => (
-                <ClubRow 
+                <ClubRow
                   key={club.tag}
                   club={club}
                   onClubClick={onClubClick}
                   isMobile={true}
+                  selectedSeason={selectedSeason}
                 />
               ))
             )}
@@ -227,11 +281,12 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
                   </tr>
                 ) : (
                   currentItems.map((club) => (
-                    <ClubRow 
+                    <ClubRow
                       key={club.tag}
                       club={club}
                       onClubClick={onClubClick}
                       isMobile={false}
+                      selectedSeason={selectedSeason}
                     />
                   ))
                 )}

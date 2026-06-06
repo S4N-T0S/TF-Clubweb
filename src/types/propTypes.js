@@ -68,7 +68,8 @@ export const LeagueDisplayProps = {
 export const ClubRowProps = {
   club: PropTypes.shape(ClubType).isRequired,
   onClubClick: PropTypes.func.isRequired,
-  isMobile: PropTypes.bool.isRequired
+  isMobile: PropTypes.bool.isRequired,
+  selectedSeason: PropTypes.string
 };
 
 export const ClubsViewProps = {

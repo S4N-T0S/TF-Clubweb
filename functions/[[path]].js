@@ -10,8 +10,10 @@ const URL_HASH_REPLACEMENT = '+';
 const COMPARE_SEPARATOR = '&';
 const BASE_URL = 'https://ogclub.s4nt0s.eu';
 
-// Default to a fallback season for legacy URLs
-const FALLBACK_SEASON_ID = '10';
+// Current/latest season
+const CURRENT_SEASON_NUM = 10;
+const CURRENT_SEASON_KEY = `S${CURRENT_SEASON_NUM}`;
+const FALLBACK_SEASON_ID = String(CURRENT_SEASON_NUM);
 
 // Slug -> display name for spray-pattern weapon pages.
 // Kept in sync with SEOHead.jsx and src/data/recoil/weapons.json.
@@ -164,9 +166,36 @@ function generateMetadata(url) {
     meta.description = 'Learn more about the OG Club Dashboard, methodology, and features.';
     meta.keywords = 'about og club, faq, methodology, features, api details';
   } else if (baseRoute === 'clubs') {
-    meta.title = 'Top Clubs | THE FINALS Tracker';
-    meta.description = 'Leaderboard of the top performing clubs in The Finals based on aggregate score.';
+    const rawSeason = url.searchParams.get('season');
+    const rawPage = url.searchParams.get('page');
+
+    // Only canonicalise a real, non-current club season (S5..S9).
+    let validSeason = null;
+    let seasonText = '';
+    const clubNum = rawSeason && /^S[1-9]\d*$/.test(rawSeason) ? parseInt(rawSeason.slice(1), 10) : null;
+    if (clubNum !== null && clubNum >= 5 && clubNum <= CURRENT_SEASON_NUM && rawSeason !== CURRENT_SEASON_KEY) {
+      validSeason = rawSeason;
+      seasonText = ` (Season ${validSeason.substring(1)})`;
+    }
+
+    const pageNum = parseInt(rawPage, 10);
+    let validPage = null;
+    let pageText = '';
+    if (!isNaN(pageNum) && pageNum > 1) {
+      validPage = pageNum;
+      pageText = ` - Page ${validPage}`;
+    }
+
+    meta.title = `Top Clubs${seasonText}${pageText} | THE FINALS Tracker`;
+    meta.description = `Leaderboard of the top performing clubs in The Finals${seasonText} based on aggregate score${pageText}.`;
     meta.keywords = 'top clubs, clan leaderboard, best clubs, the finals teams';
+    if (validSeason) meta.keywords += `, ${validSeason.toLowerCase()} clubs`;
+
+    const canonicalParams = new URLSearchParams();
+    if (validSeason) canonicalParams.set('season', validSeason);
+    if (validPage) canonicalParams.set('page', validPage.toString());
+    const q = canonicalParams.toString();
+    if (q) canonicalSearch = `?${q}`;
   } else if (baseRoute === 'spray-patterns') {
     const slug = parts.length > 1 ? parts[1].toLowerCase() : null;
     const weaponName = slug ? WEAPON_NAMES[slug] : null;
@@ -190,18 +219,22 @@ function generateMetadata(url) {
     let isHistorical = false;
     let validSeason = null;
 
-    // Strictly validate season format (e.g. ALL, OB, S1, S10)
-    if (rawSeason && /^(ALL|OB|S[1-9]\d*)$/.test(rawSeason)) {
-      validSeason = rawSeason;
-      if (validSeason === 'ALL') {
-        seasonText = ' (All Seasons)';
-        isHistorical = true;
-      } else if (validSeason === 'OB') {
-        seasonText = ' (Open Beta)';
-        isHistorical = true;
-      } else {
-        seasonText = ` (Season ${validSeason.substring(1)})`;
-        isHistorical = true;
+    // Only canonicalise a real, non-current season.
+    if (rawSeason && /^(ALL|OB|S[1-9]\d*)$/.test(rawSeason) && rawSeason !== CURRENT_SEASON_KEY) {
+      const num = rawSeason[0] === 'S' ? parseInt(rawSeason.slice(1), 10) : null;
+      const seasonExists = rawSeason === 'ALL' || rawSeason === 'OB' || (num >= 1 && num <= CURRENT_SEASON_NUM);
+      if (seasonExists) {
+        validSeason = rawSeason;
+        if (validSeason === 'ALL') {
+          seasonText = ' (All Seasons)';
+          isHistorical = true;
+        } else if (validSeason === 'OB') {
+          seasonText = ' (Open Beta)';
+          isHistorical = true;
+        } else {
+          seasonText = ` (Season ${validSeason.substring(1)})`;
+          isHistorical = true;
+        }
       }
     }
 
