@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Hexagon } from './icons/Hexagon';
-import { LeagueRangeSliderProps } from '../types/propTypes';
 
 // Added hex values for creating a CSS gradient for the track
 const leagues = [
@@ -113,7 +112,7 @@ export const LeagueRangeSlider = ({ value, onChange }) => {
           <button
             onMouseDown={(e) => { e.preventDefault(); setIsDragging(true); }}
             onTouchStart={() => setIsDragging(true)}
-            className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 flex items-center justify-center rounded-full ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 ${currentLeague.textColor.replace('text', 'focus:ring')}`}
+            className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 flex items-center justify-center rounded-full ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 ${currentLeague.textColor.replace('text', 'focus:ring-3')}`}
             style={{ left: `${handlePos}%`, zIndex: 10 }}
             aria-label={`Minimum league: ${currentLeague.name}`}
           >
@@ -124,5 +123,3 @@ export const LeagueRangeSlider = ({ value, onChange }) => {
     </div>
   );
 };
-
-LeagueRangeSlider.propTypes = LeagueRangeSliderProps;

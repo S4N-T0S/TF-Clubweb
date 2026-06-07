@@ -15,7 +15,7 @@ export default [
   // Note: Most modern plugins export flat-config-ready objects.
   react.configs.flat.recommended, 
   react.configs.flat['jsx-runtime'],
-  // The react-hooks plugin doesn't have a flat config preset yet, so we configure it manually.
+  { settings: { react: { version: 'detect' } } },
 
   // 4. Custom configuration object with overrides
   {
@@ -31,7 +31,6 @@ export default [
         sourceType: 'module',
       },
     },
-    settings: { react: { version: '18.3' } },
     plugins: {
       // We still need to declare the plugins we are using in this config object
       react,
@@ -51,12 +50,15 @@ export default [
       ],
 
       // Add other rules from plugins or your own preferences
-      ...reactHooks.configs.recommended.rules, // Manually add hook rules
+      // Classic React Hooks rules (matches eslint-plugin-react-hooks v5 behavior).
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },
       ],
       'react/jsx-no-target-blank': 'off',
+      'react/prop-types': 'off',
     },
   },
 

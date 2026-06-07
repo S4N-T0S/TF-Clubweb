@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, Settings2, MousePointer2, Crosshair } from 'lucide-react';
 import { pxToDeg, degPerCount, cmPer360, countsForDeg, countsPer360 } from '../../data/recoil/sensitivity';
 import { getStoredAimSettings, setStoredAimSettings, isAimCustomized } from '../../services/localStorageManager';
-import { RecoilPracticeModalProps, RecoilPracticeModal_NumberFieldProps, RecoilPracticeModal_AimSettingsPanelProps } from '../../types/propTypes';
 
 const BOX = 360;
 const PAD = 36;
@@ -40,7 +39,7 @@ const NumberField = ({ label, value, onChange, step = 1, min, max, suffix, hint 
       <input
         type="number" value={value} step={step} min={min} max={max}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full bg-gray-900 border border-gray-600 rounded-md px-2 py-1.5 text-white tabular-nums focus:outline-none focus:border-blue-500"
+        className="w-full bg-gray-900 border border-gray-600 rounded-md px-2 py-1.5 text-white tabular-nums focus:outline-hidden focus:border-blue-500"
       />
       {suffix && <span className="text-gray-500 text-[11px] shrink-0">{suffix}</span>}
     </div>
@@ -323,7 +322,7 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
   const my = START.y + marker.dy * scale;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
+    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 p-4"
       onMouseDown={(e) => { backdropDownRef.current = e.target === e.currentTarget; }}
       onClick={(e) => { if (e.target === e.currentTarget && backdropDownRef.current) onClose(); }}>
       <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl w-full max-w-lg lg:max-w-xl p-5" onClick={(e) => e.stopPropagation()}>
@@ -466,8 +465,3 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
     </div>
   );
 };
-
-RecoilPracticeModal.propTypes = RecoilPracticeModalProps;
-NumberField.propTypes = RecoilPracticeModal_NumberFieldProps;
-AimSettingsPanel.propTypes = RecoilPracticeModal_AimSettingsPanelProps;
-

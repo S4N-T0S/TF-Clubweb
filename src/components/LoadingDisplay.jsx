@@ -1,6 +1,5 @@
 import { Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { LoadingDisplayProps } from '../types/propTypes';
 
 const loadingMessages = [
   "Stealing cashout...",
@@ -62,5 +61,3 @@ export const LoadingDisplay = ({ variant = 'page', message }) => {
     </div>
   );
 };
-
-LoadingDisplay.propTypes = LoadingDisplayProps;

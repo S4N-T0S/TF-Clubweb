@@ -3,7 +3,6 @@ import { Play, Pause, Repeat, Crosshair, Eye, EyeOff, Film } from 'lucide-react'
 import { CLASS_ACCENT, getWeaponBounds, shotColor, MIN_RECOIL_UNITS, hasRecoil } from '../../data/recoil';
 import { RecoilPracticeModal } from './RecoilPracticeModal';
 import { useVisibility } from '../../hooks/useVisibility';
-import { RecoilViewerProps } from '../../types/propTypes';
 
 const VBW = 300;
 const VBH = 420;
@@ -331,11 +330,9 @@ export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef,
 
       <input type="range" min="0" max="1" step="0.001" value={playhead}
         onChange={(e) => handleScrub(parseFloat(e.target.value))}
-        className="w-full max-w-[620px] mt-3 cursor-pointer" aria-label="Spray progress" />
+        className="w-full max-w-155 mt-3 cursor-pointer" aria-label="Spray progress" />
 
       {practiceOpen && recoil && <RecoilPracticeModal weapon={weapon} globalBounds={patternBounds} onClose={() => setPracticeOpen(false)} />}
     </div>
   );
 };
-
-RecoilViewer.propTypes = RecoilViewerProps;

@@ -376,7 +376,7 @@ const App = () => {
         {/* Modals: Rendered OUTSIDE the loading conditional */}
         <ModalPortal>
           {isInfoOpen && (
-            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"><LoadingDisplay variant="component" /></div>}>
+            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><LoadingDisplay variant="component" /></div>}>
               <InfoModal
                 key={`info-${modalKeys.info}`}
                 isOpen={isInfoOpen}
@@ -387,7 +387,7 @@ const App = () => {
           )}
 
           {isMembersOpen && (
-            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"><LoadingDisplay variant="component" /></div>}>
+            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><LoadingDisplay variant="component" /></div>}>
               <MembersModal
                 key={`members-${modalKeys.members}`}
                 isOpen={isMembersOpen}
@@ -401,7 +401,7 @@ const App = () => {
           )}
 
           {isEventsOpen && (
-            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"><LoadingDisplay variant="component" /></div>}>
+            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><LoadingDisplay variant="component" /></div>}>
               <EventsModal
                 key={`events-${modalKeys.events}`}
                 isOpen={isEventsOpen}
@@ -416,7 +416,7 @@ const App = () => {
           )}
 
           {isSearchOpen && (
-            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"><LoadingDisplay variant="component" /></div>}>
+            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><LoadingDisplay variant="component" /></div>}>
               <SearchModal
                 key={`search-${modalKeys.search}`}
                 isOpen={isSearchOpen}
@@ -432,7 +432,7 @@ const App = () => {
           )}
 
           {isGraphOpen && (
-            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"><LoadingDisplay variant="component" /></div>}>
+            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><LoadingDisplay variant="component" /></div>}>
               <GraphModal
                 key={`graph-${modalKeys.graph}`}
                 isOpen={isGraphOpen}

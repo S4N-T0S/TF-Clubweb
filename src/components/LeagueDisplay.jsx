@@ -1,6 +1,5 @@
 import { Hexagon } from './icons/Hexagon';
 import { getLeagueInfo } from '../utils/leagueUtils';
-import { LeagueDisplayProps } from '../types/propTypes';
 
 export const LeagueDisplay = ({ league, score, leagueNumber, isMobile }) => {
   const { name, style } = getLeagueInfo(leagueNumber);
@@ -29,5 +28,3 @@ export const LeagueDisplay = ({ league, score, leagueNumber, isMobile }) => {
     </td>
   );
 };
-
-LeagueDisplay.propTypes = LeagueDisplayProps;

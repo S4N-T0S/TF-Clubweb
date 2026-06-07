@@ -12,7 +12,6 @@ import {
 import { Link } from 'react-router-dom';
 import { formatTimeAgo, formatDuration } from '../utils/timeUtils';
 import { buildHistoryHref, buildGraphHref, buildClubSearchHref } from '../utils/modalHrefs';
-import { EventCardProps, EventCard_PlayerNameProps, EventCard_ClubTagProps } from '../types/propTypes';
 
 // Helper component for clickable player names.
 // Renders a real <Link to="/history/<name>"> when the name can be encoded
@@ -354,11 +353,11 @@ export const EventCard = ({ event, onPlayerSearch, onClubClick, onGraphOpen, isM
   return (
     <div className="relative bg-gray-800 rounded-lg p-4 flex items-start gap-4 border-b border-gray-700">
       {/* Top-left Event Icon */}
-      <div className="flex-shrink-0 mt-1">
+      <div className="shrink-0 mt-1">
         <Icon className={`w-6 h-6 ${colorClass}`} />
       </div>
 
-      <div className="flex-grow min-w-0">
+      <div className="grow min-w-0">
         {/* Header: Title and Graph Icon */}
         <div className="flex justify-between items-start mb-1">
           <h3 className={`font-bold text-lg ${colorClass} pr-2`}>{title}</h3>
@@ -372,13 +371,13 @@ export const EventCard = ({ event, onPlayerSearch, onClubClick, onGraphOpen, isM
                 to={graphHref}
                 onClick={(e) => { e.preventDefault(); handleGraphClick(); }}
                 aria-label={`View graph for ${event.current_embark_id}`}
-                className="flex-shrink-0"
+                className="shrink-0"
               >
                 <LineChart className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer" />
               </Link>
             ) : (
               <LineChart
-                className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer flex-shrink-0"
+                className="w-5 h-5 text-gray-400 hover:text-blue-400 cursor-pointer shrink-0"
                 onClick={handleGraphClick}
               />
             );
@@ -386,7 +385,7 @@ export const EventCard = ({ event, onPlayerSearch, onClubClick, onGraphOpen, isM
         </div>
         
         {/* Event Details Content */}
-        <div className="break-words mb-2">
+        <div className="wrap-break-word mb-2">
             {renderEventDetails(event, onPlayerSearch, onClubClick, isMobile, colorClass)}
         </div>
 
@@ -406,7 +405,7 @@ export const EventCard = ({ event, onPlayerSearch, onClubClick, onGraphOpen, isM
       {isMassClubChange && (
         <div className="absolute bottom-4 left-4 group">
           <Info className="w-4 h-4 text-yellow-400 cursor-help" />
-          <span className="absolute hidden group-hover:block bg-gray-900 text-white px-2 py-1 rounded text-xs bottom-full mb-2 left-0 z-50 w-56 border border-gray-600 shadow-lg">
+          <span className="absolute hidden group-hover:block bg-gray-900 text-white px-2 py-1 rounded-sm text-xs bottom-full mb-2 left-0 z-50 w-56 border border-gray-600 shadow-lg">
               This was part of a coordinated club tag change, likely initiated by the club owner or Embark.
           </span>
         </div>
@@ -414,7 +413,3 @@ export const EventCard = ({ event, onPlayerSearch, onClubClick, onGraphOpen, isM
     </div>
   );
 };
-
-EventCard.propTypes = EventCardProps;
-ClubTag.propTypes = EventCard_ClubTagProps;
-PlayerName.propTypes = EventCard_PlayerNameProps;

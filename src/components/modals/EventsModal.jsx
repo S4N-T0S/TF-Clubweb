@@ -15,12 +15,11 @@ import { parseSearchQuery } from '../../utils/searchUtils';
 import { getStoredEventsSettings, setStoredEventsSettings } from '../../services/localStorageManager';
 import { SEASONS, currentSeasonKey } from '../../services/historicalDataService';
 import { UserPen, Gavel, ChevronsUpDown, Users, X, RefreshCw, SlidersHorizontal, Info } from 'lucide-react';
-import { EventsModalProps, FilterToggleButtonProps, EventsModal_InfoPopupProps } from '../../types/propTypes';
 
 // Helper component for filter buttons, now with enhanced styling capabilities.
 const FilterToggleButton = ({ label, isActive, onClick, Icon, colorClass, textColorClass, activeBorderClass }) => {
   // Base classes to ensure consistent sizing and prevent layout shifts on state change.
-  const baseClasses = "flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors w-full border";
+  const baseClasses = "grow sm:grow-0 flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors w-full border";
   
   // New style: for event type filters with persistent colored text.
   if (textColorClass) {
@@ -62,12 +61,12 @@ const EventInfoPopup = ({ onClose }) => {
   const { modalRef: infoModalRef } = useModal(true, onClose, modalOptions); 
 
   return (
-    <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+    <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div 
         ref={infoModalRef} 
         className="bg-gray-800 rounded-lg w-full max-w-xl lg:max-w-3xl border border-gray-600 shadow-xl animate-fade-in-fast flex flex-col max-h-[90dvh]"
       >
-        <header className="p-6 pb-4 flex-shrink-0 border-b border-gray-700 flex justify-between items-center">
+        <header className="p-6 pb-4 shrink-0 border-b border-gray-700 flex justify-between items-center">
           <h3 className="text-lg font-bold text-white">About The Events Feed</h3>
           <button onClick={onClose} className="p-1 text-gray-400 hover:text-white rounded-full">
             <X className="w-5 h-5" />
@@ -536,7 +535,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   if (!isOpen) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4`}>
+    <div className={`fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4`}>
       <div 
         ref={modalRef} 
         className={`bg-gray-900 rounded-lg w-full flex flex-col shadow-2xl overflow-hidden relative transition-transform duration-75 ease-out
@@ -545,7 +544,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
           ${!isTopModal ? 'pointer-events-none' : ''}
           `}
       >
-        <header className="flex-shrink-0 bg-gray-800 p-4 border-b border-gray-700 flex items-center justify-between sm:relative">
+        <header className="shrink-0 bg-gray-800 p-4 border-b border-gray-700 flex items-center justify-between sm:relative">
             {/* Left side controls */}
             <div className="flex items-center gap-2">
                 <button
@@ -580,7 +579,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
                     <select
                       value={selectedSeason}
                       onChange={(e) => setSelectedSeason(e.target.value)}
-                      className={`appearance-none bg-gray-700 text-sm font-medium rounded-md py-1 pl-3 pr-7 border transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500
+                      className={`appearance-none bg-gray-700 text-sm font-medium rounded-md py-1 pl-3 pr-7 border transition-colors cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-blue-500
                         ${isSeasonFiltered 
                           ? 'text-yellow-400 border-yellow-400' 
                           : 'text-gray-200 border-gray-600 hover:border-gray-500'}`}
@@ -598,11 +597,11 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
             </div>
         </header>
 
-        <div ref={scrollContainerRef} className="flex-grow overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
-          <div className="flex-shrink-0 mb-4">
+        <div ref={scrollContainerRef} className="grow overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+          <div className="shrink-0 mb-4">
             <fieldset className="bg-gray-800 p-4 rounded-lg border border-gray-700">
               <div className={`flex gap-2 items-center ${isFilterSectionExpanded ? 'mb-4' : ''}`}>
-                <div className="flex-grow">
+                <div className="grow">
                   <SearchBar
                     value={filters.searchQuery}
                     onChange={(val) => handleFilterChange('searchQuery', val)}
@@ -612,7 +611,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
                 </div>
                 <button
                   onClick={toggleFilterSection}
-                  className={`flex-shrink-0 h-10 px-3 rounded-lg flex items-center transition-colors ${
+                  className={`shrink-0 h-10 px-3 rounded-lg flex items-center transition-colors ${
                     areFiltersActive 
                       ? 'bg-green-600 text-white hover:bg-green-500' 
                       : 'text-gray-300 bg-gray-700 hover:bg-gray-600'
@@ -676,7 +675,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
         </div>
 
         {filteredItems.length > 0 && 
-            <footer className="flex-shrink-0 p-2 border-t border-gray-700 bg-gray-800">
+            <footer className="shrink-0 p-2 border-t border-gray-700 bg-gray-800">
                 <Pagination 
                   currentPage={currentPage} 
                   totalPages={totalPages} 
@@ -696,9 +695,5 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     </div>
   );
 };
-
-EventsModal.propTypes = EventsModalProps;
-FilterToggleButton.propTypes = FilterToggleButtonProps;
-EventInfoPopup.propTypes = EventsModal_InfoPopupProps;
 
 export default memo(EventsModal);

@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock, X, Loader2, Info } from 'lucide-react';
-import { ToastProps } from '../types/propTypes';
 import { formatTimeAgo } from '../utils/timeUtils';
 
 const formatTtl = (ttl, type) => {
@@ -133,11 +132,11 @@ const Toast = ({
   return (
     <div 
       data-toast-container="true"
-      className={`fixed ${positionClass} z-[60] transition-all duration-300 ${
+      className={`fixed ${positionClass} z-60 transition-all duration-300 ${
         isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
       } max-w-[90vw] sm:max-w-sm w-auto`}
     >
-      <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 ${toastConfig.bgColor} text-white min-w-[160px]`}>
+      <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 ${toastConfig.bgColor} text-white min-w-40`}>
         <div className="shrink-0 flex items-center self-stretch">
           <IconComponent className={`w-5 h-5 text-white ${toastConfig.iconClassName || ''}`} />
         </div>
@@ -146,7 +145,7 @@ const Toast = ({
           {title && (
             <p className={`font-semibold ${textSizeClass} mb-1`}>{title}</p>
           )}
-          <p className={`${!title ? 'font-medium' : ''} ${textSizeClass} break-words`}>
+          <p className={`${!title ? 'font-medium' : ''} ${textSizeClass} wrap-break-word`}>
             {currentMessage}
           </p>
           {showMeta && (timestamp || typeof ttl === 'number') ? (
@@ -175,7 +174,6 @@ const Toast = ({
   );
 };
 
-Toast.propTypes = ToastProps;
 export default Toast;
 
 /* Complete example of setToastMessage with all available options

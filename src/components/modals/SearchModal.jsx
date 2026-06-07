@@ -5,7 +5,6 @@ import { searchPlayerHistory, SEASONS } from '../../services/historicalDataServi
 import { Hexagon } from '../icons/Hexagon';
 import { PlatformIcons } from '../icons/Platforms';
 import { getLeagueInfo } from '../../utils/leagueUtils';
-import { SearchModalProps } from '../../types/propTypes';
 import { isValidEmbarkId, formatUsernameForUrl } from '../../utils/urlHandler';
 import { useModal } from '../../context/ModalProvider';
 import { LoadingDisplay } from '../LoadingDisplay';
@@ -231,7 +230,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
     : searchState.results;
 
   return (
-    <div className={`fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4`}>
+    <div className={`fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4`}>
       <div 
         ref={modalRef} 
         className={`bg-gray-800 rounded-lg p-6 w-full flex flex-col transition-transform duration-75 ease-out
@@ -239,7 +238,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
           `}
       >
-        <div className="flex-shrink-0">
+        <div className="shrink-0">
           <div className="flex items-center mb-4 relative">
             <button 
               onClick={onClose}
@@ -342,7 +341,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
             </div>
           </div>
           {searchState.error && (
-            <div className="mb-4 p-3 bg-red-900 bg-opacity-20 border border-red-700 rounded-lg text-red-400">
+            <div className="mb-4 p-3 bg-red-900/20 border border-red-700 rounded-lg text-red-400">
               {searchState.error}
             </div>
           )}
@@ -351,7 +350,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
           
           {/* Conditional Rendering: Loading State vs Results Grid */}
           {(isLeaderboardLoading && initialSearch && searchState.results.length === 0) ? (
-             <div className="h-full min-h-[150px] flex items-center justify-center">
+             <div className="h-full min-h-37.5 flex items-center justify-center">
                 <LoadingDisplay variant="component" />
              </div>
           ) : (
@@ -391,7 +390,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
                     <span className="text-lg font-medium text-blue-400">{result.season}</span>
                     {result.rank && (
                       <div className="flex flex-col items-end gap-1">
-                        <span className={`text-gray-300 ${result.isTop500 ? 'border-2 border-red-500 rounded px-2' : ''}`}>
+                        <span className={`text-gray-300 ${result.isTop500 ? 'border-2 border-red-500 rounded-sm px-2' : ''}`}>
                           Rank #{result.rank.toLocaleString()}
                         </span>
                         {!result.name && (
@@ -438,7 +437,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
                           {result.foundViaSteamName && (
                             <div className="relative group">
                               <AlertTriangle className={`w-4 h-4 hover:cursor-help ${result.supersededByDirectMatch ? 'text-red-400' : 'text-yellow-400'}`} />
-                              <span className="absolute hidden group-hover:block bg-gray-900 text-white px-2 py-1 rounded text-sm -top-10 left-1/2 -translate-x-1/2 z-50 w-48 hover:cursor-help">
+                              <span className="absolute hidden group-hover:block bg-gray-900 text-white px-2 py-1 rounded-sm text-sm -top-10 left-1/2 -translate-x-1/2 z-50 w-48 hover:cursor-help">
                                 {result.supersededByDirectMatch
                                   ? 'Likely a different player — this Embark ID was directly confirmed in surrounding seasons.'
                                   : 'Steam names are not unique, this could be a different player.'}
@@ -483,7 +482,5 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
     </div>
   );
 };
-
-SearchModal.propTypes = SearchModalProps;
 
 export default memo(SearchModal);

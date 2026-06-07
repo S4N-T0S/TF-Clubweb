@@ -13,7 +13,6 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useModal } from '../../context/ModalProvider';
 import { LoadingDisplay } from '../LoadingDisplay';
 import { X, ExternalLink, ChevronRight } from 'lucide-react';
-import { InfoModalProps, LinkRendererProps, CollapsibleMarkdownSectionProps } from '../../types/propTypes';
 import { useSwipe } from '../../hooks/useSwipe';
 
 // Fetches and parses the markdown content file from the public folder.
@@ -141,7 +140,7 @@ const markdownComponents = {
     }
     if (inline) {
       return (
-        <code className="bg-gray-700/60 text-pink-400 rounded-sm px-1.5 py-1 font-mono text-[0.9em]" {...props}>
+        <code className="bg-gray-700/60 text-pink-400 rounded-xs px-1.5 py-1 font-mono text-[0.9em]" {...props}>
           {children}
         </code>
       );
@@ -218,7 +217,7 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4">
       {/* CSS Styling */}
       <style>{`
         .slide-left-enter { transform: translateX(25%); opacity: 0; }
@@ -232,16 +231,16 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
         `}
       >
-        <header className="flex-shrink-0 bg-gray-800 p-4 border-b border-gray-700 flex items-center justify-between">
+        <header className="shrink-0 bg-gray-800 p-4 border-b border-gray-700 flex items-center justify-between">
           <h2 className="text-xl font-bold text-white">Information</h2>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full">
             <X className="w-5 h-5" />
           </button>
         </header>
         
-        <div className="flex-grow flex flex-col md:flex-row overflow-hidden">
+        <div className="grow flex flex-col md:flex-row overflow-hidden">
           {/* Tab Navigation */}
-          <nav className="flex-shrink-0 md:w-48 bg-gray-800 p-2 md:p-4 border-b md:border-b-0 md:border-r border-gray-700 overflow-x-auto md:overflow-y-auto">
+          <nav className="shrink-0 md:w-48 bg-gray-800 p-2 md:p-4 border-b md:border-b-0 md:border-r border-gray-700 overflow-x-auto md:overflow-y-auto">
             <ul className="flex flex-row md:flex-col gap-2">
               {tabs.map((tab, index) => (
                 <li key={tab.key}>
@@ -261,7 +260,7 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
           </nav>
           
           {/* Content */}
-          <main ref={contentRef} className="flex-grow p-4 md:p-6 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+          <main ref={contentRef} className="grow p-4 md:p-6 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
             {loading ? <LoadingDisplay variant="component" /> :
              error ? <p className="text-red-400">{error}</p> :
              activeTab && (
@@ -277,9 +276,5 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
     </div>
   );
 };
-
-InfoModal.propTypes = InfoModalProps;
-LinkRenderer.propTypes = LinkRendererProps;
-CollapsibleMarkdownSection.propTypes = CollapsibleMarkdownSectionProps;
 
 export default memo(InfoModal);

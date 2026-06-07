@@ -7,7 +7,6 @@ import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { GlobalViewProps, GlobalPlayerRowProps, RankChangeDisplayProps, RubyCutoffIndicatorProps, NoResultsMessageProps, FavouritesButtonProps } from '../../types/propTypes';
 import { PlatformIcons } from "../icons/Platforms";
 import { SortButton } from '../SortButton';
 import { Hexagon } from '../icons/Hexagon';
@@ -58,7 +57,7 @@ const RubyCutoffIndicator = ({ cutoff, onCutoffClick }) => {
 
   return (
     <div 
-      className={`fixed top-6 left-6 z-40 bg-gray-800/95 shadow-lg px-3 py-1.5 rounded-full border border-red-500/20 backdrop-blur-sm cursor-pointer hover:border-red-500/40 transition-colors`}
+      className={`fixed top-6 left-6 z-40 bg-gray-800/95 shadow-lg px-3 py-1.5 rounded-full border border-red-500/20 backdrop-blur-xs cursor-pointer hover:border-red-500/40 transition-colors`}
       onClick={onCutoffClick}
     >
       <div className="flex items-center gap-2 select-none">
@@ -97,9 +96,9 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
 
   const getBackgroundClass = () => {
     if (!isCurrentSeason) return '';
-    if (player.notFound) return '!bg-red-900/50';
-    if (player.foundViaFallback) return '!bg-amber-800/30';
-    if (isFav) return '!bg-yellow-600/20';
+    if (player.notFound) return 'bg-red-900/50!';
+    if (player.foundViaFallback) return 'bg-amber-800/30!';
+    if (isFav) return 'bg-yellow-600/20!';
     return '';
   };
   
@@ -116,7 +115,7 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
   if (isMobile) {
     return (
       <div 
-        ref={isCurrentSeason ? ref : null} className={`player-row flex flex-col gap-2 p-4 border-b border-gray-700 bg-gray-800 rounded-lg shadow-sm active:bg-gray-750 
+        ref={isCurrentSeason ? ref : null} className={`player-row flex flex-col gap-2 p-4 border-b border-gray-700 bg-gray-800 rounded-lg shadow-xs active:bg-gray-750 
           active:scale-[0.99] transition-all duration-150 ease-in-out ${getBackgroundClass()} ${animationClasses}`}
         {...(isCurrentSeason ? holdProps : {})}
         >
@@ -163,7 +162,7 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
                 <Link
                   to={buildClubSearchHref(player.clubTag, selectedSeason)}
                   onClick={(e) => { e.preventDefault(); onClubClick(player.clubTag); }}
-                  className="self-start bg-gray-700 px-1.5 py-0.5 rounded text-blue-400 hover:text-blue-300 cursor-pointer mb-1"
+                  className="self-start bg-gray-700 px-1.5 py-0.5 rounded-sm text-blue-400 hover:text-blue-300 cursor-pointer mb-1"
                 >
                   [{player.clubTag}]
                 </Link>
@@ -180,13 +179,13 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
                       to={historyHref}
                       onClick={(e) => { e.preventDefault(); onSearchClick(player.name); }}
                       aria-label={`Search history for ${player.name}`}
-                      className="flex-shrink-0"
+                      className="shrink-0"
                     >
                       <UserSearch className="w-6 h-6 p-1 text-gray-400 hover:text-blue-400 cursor-pointer rounded-full hover:bg-gray-700 transition-colors" />
                     </Link>
                   ) : (
                     <UserSearch
-                      className="flex-shrink-0 w-6 h-6 p-1 text-gray-400 hover:text-blue-400 cursor-pointer rounded-full hover:bg-gray-700 transition-colors"
+                      className="shrink-0 w-6 h-6 p-1 text-gray-400 hover:text-blue-400 cursor-pointer rounded-full hover:bg-gray-700 transition-colors"
                       onClick={() => onSearchClick(player.name)}
                     />
                   );
@@ -196,27 +195,27 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
             {(player.steamName || player.psnName || player.xboxName) && (
               <div className="text-[11px] text-gray-400 mt-1 flex flex-wrap gap-1.5">
                 {player.steamName && (
-                  <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
-                    <PlatformIcons.Steam className="w-3 h-3 flex-shrink-0" />
-                    <span className="truncate max-w-[120px]">{player.steamName}</span>
+                  <span className="flex items-center gap-1 bg-gray-700 rounded-sm px-1.5 py-0.5">
+                    <PlatformIcons.Steam className="w-3 h-3 shrink-0" />
+                    <span className="truncate max-w-30">{player.steamName}</span>
                   </span>
                 )}
                 {player.psnName && (
-                  <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
-                    <PlatformIcons.PSN className="w-3 h-3 flex-shrink-0" />
-                    <span className="truncate max-w-[120px]">{player.psnName}</span>
+                  <span className="flex items-center gap-1 bg-gray-700 rounded-sm px-1.5 py-0.5">
+                    <PlatformIcons.PSN className="w-3 h-3 shrink-0" />
+                    <span className="truncate max-w-30">{player.psnName}</span>
                   </span>
                 )}
                 {player.xboxName && (
-                  <span className="flex items-center gap-1 bg-gray-700 rounded px-1.5 py-0.5">
-                    <PlatformIcons.Xbox className="w-3 h-3 flex-shrink-0" />
-                    <span className="truncate max-w-[120px]">{player.xboxName}</span>
+                  <span className="flex items-center gap-1 bg-gray-700 rounded-sm px-1.5 py-0.5">
+                    <PlatformIcons.Xbox className="w-3 h-3 shrink-0" />
+                    <span className="truncate max-w-30">{player.xboxName}</span>
                   </span>
                 )}
               </div>
             )}
           </div>
-          <div className="flex-shrink-0 mt-auto">
+          <div className="shrink-0 mt-auto">
             <LeagueDisplay 
               league={player.league}
               score={player.rankScore}
@@ -281,7 +280,7 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
                 <Link
                   to={buildClubSearchHref(player.clubTag, selectedSeason)}
                   onClick={(e) => { e.preventDefault(); onClubClick(player.clubTag); }}
-                  className="bg-gray-700 px-1 py-0.5 rounded text-blue-400 hover:text-blue-300 cursor-pointer"
+                  className="bg-gray-700 px-1 py-0.5 rounded-sm text-blue-400 hover:text-blue-300 cursor-pointer"
                 >
                   [{player.clubTag}]
                 </Link>
@@ -378,7 +377,7 @@ const FavouritesButton = ({ favourites, selectedSeason, currentSeason, showFavou
   const isDisabled = !hasFavourites || isHistoricalSeason;
   const isActive = showFavourites && !isHistoricalSeason;
   const buttonClass = `
-    px-4 py-2 rounded-lg flex items-center justify-center gap-2 text-white h-[42px]
+    px-4 py-2 rounded-lg flex items-center justify-center gap-2 text-white h-10.5
     whitespace-nowrap
     ${isActive ? 'bg-yellow-500' : 'bg-gray-700 hover:bg-gray-600'} 
     ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
@@ -619,7 +618,7 @@ export const GlobalView = ({
             onChange={handleSeasonChange}
             className={`w-full sm:w-48 bg-gray-700 text-gray-200 rounded-lg px-4 py-1.5 border ${
               selectedSeason !== currentSeason ? 'border-blue-500 border-2' : 'border-gray-600'
-            } focus:ring-2 focus:ring-blue-500 focus-visible:ring-blue-500 focus-visible:border-blue-500 focus-visible:outline-none flex-shrink-0 text-sm h-[42px]`}
+            } focus:ring-2 focus:ring-blue-500 focus-visible:ring-blue-500 focus-visible:border-blue-500 focus-visible:outline-hidden shrink-0 text-sm h-10.5`}
           >
             {Object.entries(SEASONS).reverse().map(([key, season]) => 
               key !== 'ALL' && (
@@ -662,7 +661,7 @@ export const GlobalView = ({
         </div>
       ) : (
           <div className="overflow-hidden rounded-lg">
-            <table className="w-full min-w-[640px] rounded-lg">
+            <table className="w-full min-w-160 rounded-lg">
               <thead>
                 <tr className="bg-gray-700">
                   <th className="px-4 py-2 text-center text-gray-300 w-24">
@@ -758,10 +757,3 @@ export const GlobalView = ({
     </div>
   );
 };
-
-GlobalView.propTypes = GlobalViewProps;
-PlayerRow.propTypes = GlobalPlayerRowProps;
-RankChangeDisplay.propTypes = RankChangeDisplayProps;
-RubyCutoffIndicator.propTypes = RubyCutoffIndicatorProps;
-NoResultsMessage.propTypes = NoResultsMessageProps;
-FavouritesButton.propTypes = FavouritesButtonProps;

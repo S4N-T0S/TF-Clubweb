@@ -22,7 +22,6 @@ import { Line } from 'react-chartjs-2';
 import annotationPlugin from 'chartjs-plugin-annotation';
 import zoomPlugin from 'chartjs-plugin-zoom';
 import 'chartjs-adapter-date-fns';
-import { GraphModalProps, GraphErrorViewProps, ComparePlayerModalProps, GraphSettingsModalProps, FilterToggleButtonProps, PlayerStatsModalProps, LiveUpdateBadgeProps } from '../../types/propTypes';
 import { useModal } from '../../context/ModalProvider';
 import { usePlayerGraphData } from '../../hooks/usePlayerGraphData';
 import { useChartConfig } from '../../hooks/useChartConfig';
@@ -72,7 +71,7 @@ TIME.RANGES = {
 };
 
 const FilterToggleButton = ({ label, isActive, onClick, Icon, textColorClass, activeBorderClass, disabled = false, title }) => {
-  const baseClasses = "flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all w-full border";
+  const baseClasses = "grow sm:grow-0 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all w-full border";
   const dynamicClasses = disabled
     ? 'border-gray-800 bg-gray-800/20 opacity-40 cursor-not-allowed'
     : isActive
@@ -140,11 +139,11 @@ const LiveUpdateBadge = ({ lastLeaderboardUpdate, startDateStr }) => {
       <span className="text-gray-400">{startDateStr}</span>
       <span className="text-gray-600 text-xs mt-0.5">to</span>
       <span className="relative group inline-flex items-center">
-        <span className="cursor-help inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-gray-700 bg-gray-800/80 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
+        <span className="cursor-help inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm border border-gray-700 bg-gray-800/80 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
           <span className={`w-1.5 h-1.5 rounded-full ${dotColor} ${dotShadow}`}></span>
           {agoStr}
         </span>
-        <span className="absolute top-full left-0 mt-2 w-max max-w-[80vw] sm:max-w-[250px] bg-gray-900 text-white text-left text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30 shadow-lg border border-gray-700 whitespace-normal">
+        <span className="absolute top-full left-0 mt-2 w-max max-w-[80vw] sm:max-w-62.5 bg-gray-900 text-white text-left text-xs rounded-sm py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30 shadow-lg border border-gray-700 whitespace-normal">
           {statusMsg}
         </span>
       </span>
@@ -159,7 +158,7 @@ const PlayerStatsModal = ({ stats, gameCount, playerName, onClose }) => {
   // If there are no stats, show a helpful empty state instead of returning null
   if (!stats) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
         <div ref={modalRef} className="bg-gray-800 rounded-2xl p-6 max-w-sm w-full border border-gray-700 shadow-2xl relative flex flex-col items-center text-center">
           <button onClick={onClose} aria-label="Close stats" className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors bg-gray-700/50 hover:bg-gray-700 p-1.5 rounded-lg">
             <X className="w-5 h-5" />
@@ -179,7 +178,7 @@ const PlayerStatsModal = ({ stats, gameCount, playerName, onClose }) => {
             We haven&apos;t tracked enough games for this player in this season to generate meaningful statistics.
           </p>
           
-          <button onClick={onClose} className="w-full px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-xl transition-all active:scale-95 border border-gray-600 shadow-sm">
+          <button onClick={onClose} className="w-full px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-xl transition-all active:scale-95 border border-gray-600 shadow-xs">
             Close
           </button>
         </div>
@@ -206,11 +205,11 @@ const PlayerStatsModal = ({ stats, gameCount, playerName, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
       <div ref={modalRef} className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border border-gray-700 shadow-2xl relative">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-bold text-white flex items-center gap-2 truncate pr-4">
-            <Activity className="w-5 h-5 text-blue-400 flex-shrink-0" />
+            <Activity className="w-5 h-5 text-blue-400 shrink-0" />
             <span className="truncate">{playerName ? `${playerName}'s Stats` : 'Seasonal Statistics'}</span>
           </h3>
           <button onClick={onClose} aria-label="Close stats" className="text-gray-400 hover:text-white transition-colors bg-gray-700/50 hover:bg-gray-700 p-1.5 rounded-lg">
@@ -220,7 +219,7 @@ const PlayerStatsModal = ({ stats, gameCount, playerName, onClose }) => {
 
         <div className="space-y-4">
           {/* Hero Stat: Win Rate */}
-          <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 border border-blue-500/30 p-4 rounded-xl flex items-center justify-between">
+          <div className="bg-linear-to-br from-blue-900/40 to-indigo-900/40 border border-blue-500/30 p-4 rounded-xl flex items-center justify-between">
             <div>
               <p className="text-blue-200 text-sm font-medium mb-1 flex items-center gap-1.5"><Trophy className="w-4 h-4"/> Win Rate (+RS)</p>
               <p className="text-3xl font-bold text-white">{stats.winrate}%</p>
@@ -340,14 +339,14 @@ const GraphErrorView = ({ error, availableSeasons, onSwitchSeason, targetSeasonI
         {isSeasonMismatch && (
           <div className="animate-fadeIn">
             <p className="text-sm text-gray-300 font-semibold mb-3">Available Data:</p>
-            <div className="flex flex-wrap gap-2 justify-center max-h-[150px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 pr-1">
+            <div className="flex flex-wrap gap-2 justify-center max-h-37.5 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 pr-1">
               {availableSeasons
                 .sort((a, b) => b.id - a.id) // Sort descending
                 .map((season, index) => (
                   <button
                     key={`${season.id}-${season.embarkId}-${index}`}
                     onClick={() => onSwitchSeason(season.id, season.embarkId)}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-sm font-medium transition-colors flex flex-col items-center gap-0.5 min-w-[120px]"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-sm font-medium transition-colors flex flex-col items-center gap-0.5 min-w-30"
                   >
                     <span>{getSeasonName(season.id)}</span>
                     <span className="text-blue-200 text-[10px] opacity-90">{season.embarkId}</span>
@@ -441,7 +440,7 @@ const GraphSettingsModal = ({ settings, onSettingsChange, onClose, mainEvents, c
   }, [mainEvents, comparisonData, mainPlayerId, settings]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
       <div ref={modalRef} className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border border-gray-700 shadow-2xl relative flex flex-col max-h-[85vh]">
         <div className="flex justify-between items-center mb-5">
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -454,7 +453,7 @@ const GraphSettingsModal = ({ settings, onSettingsChange, onClose, mainEvents, c
         </div>
 
         {/* --- Display: chart metric & indicator lines --- */}
-        <div className="mb-5 flex-shrink-0">
+        <div className="mb-5 shrink-0">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2.5">Display</h4>
 
           {/* Metric toggle (Rank Score vs Rank) — only seasons that track per-snapshot rank (S7+) */}
@@ -465,7 +464,7 @@ const GraphSettingsModal = ({ settings, onSettingsChange, onClose, mainEvents, c
                 aria-pressed={settings.displayMode !== 'rank'}
                 className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                   settings.displayMode !== 'rank'
-                    ? 'bg-blue-600 text-white shadow-sm'
+                    ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
                 }`}
               >
@@ -477,7 +476,7 @@ const GraphSettingsModal = ({ settings, onSettingsChange, onClose, mainEvents, c
                 aria-pressed={settings.displayMode === 'rank'}
                 className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                   settings.displayMode === 'rank'
-                    ? 'bg-blue-600 text-white shadow-sm'
+                    ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
                 }`}
               >
@@ -503,15 +502,15 @@ const GraphSettingsModal = ({ settings, onSettingsChange, onClose, mainEvents, c
         </div>
 
         {/* --- Events: which timeline events appear on the chart --- */}
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2.5 flex-shrink-0">Events</h4>
-        <div className="grid grid-cols-2 gap-3 mb-5 flex-shrink-0">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2.5 shrink-0">Events</h4>
+        <div className="grid grid-cols-2 gap-3 mb-5 shrink-0">
           <FilterToggleButton label="Names" Icon={UserPen} isActive={settings.showNameChange} onClick={() => handleFilterChange('showNameChange', !settings.showNameChange)} textColorClass="text-indigo-400" activeBorderClass="border-indigo-500/50" />
           <FilterToggleButton label="Clubs" Icon={Users} isActive={settings.showClubChange} onClick={() => handleFilterChange('showClubChange', !settings.showClubChange)} textColorClass="text-teal-400" activeBorderClass="border-teal-500/50" />
           <FilterToggleButton label="Scores" Icon={ChevronsUpDown} isActive={settings.showRsAdjustment} onClick={() => handleFilterChange('showRsAdjustment', !settings.showRsAdjustment)} textColorClass="text-yellow-400" activeBorderClass="border-yellow-500/50" />
           <FilterToggleButton label="Bans" Icon={Gavel} isActive={settings.showSuspectedBan} onClick={() => handleFilterChange('showSuspectedBan', !settings.showSuspectedBan)} textColorClass="text-red-400" activeBorderClass="border-red-500/50" />
         </div>
 
-        <div className="flex-1 min-h-[220px] flex flex-col bg-gray-900/50 rounded-xl border border-gray-700 overflow-hidden shadow-inner">
+        <div className="flex-1 min-h-55 flex flex-col bg-gray-900/50 rounded-xl border border-gray-700 overflow-hidden shadow-inner">
           <div className="px-4 py-2.5 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
             <span className="text-sm font-semibold text-gray-300">Visible Events Log</span>
             <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-700 text-gray-400">{visibleEvents.length}</span>
@@ -533,11 +532,11 @@ const GraphSettingsModal = ({ settings, onSettingsChange, onClose, mainEvents, c
                     <div className="min-w-0 flex-1">
                       <div className="flex justify-between items-baseline mb-1">
                         <span className="text-xs font-bold text-gray-200 truncate pr-2">{event._player}</span>
-                        <span className="text-[10px] text-gray-500 flex-shrink-0 font-medium">
+                        <span className="text-[10px] text-gray-500 shrink-0 font-medium">
                           {new Date(event.start_timestamp * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      <p className="text-[13px] text-gray-400 leading-snug break-words">
+                      <p className="text-[13px] text-gray-400 leading-snug wrap-break-word">
                         {config.text}
                       </p>
                     </div>
@@ -548,7 +547,7 @@ const GraphSettingsModal = ({ settings, onSettingsChange, onClose, mainEvents, c
           </div>
         </div>
 
-        <p className="text-xs text-gray-500 text-center mt-4 flex-shrink-0">
+        <p className="text-xs text-gray-500 text-center mt-4 shrink-0">
           Hidden event types will not appear on the graph or in this log.
         </p>
       </div>
@@ -626,9 +625,9 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
   }, [searchTerm, mainEmbarkId, leaderboard, comparisonData, getClosestPlayers]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
       <div ref={modalContentRef} className="bg-gray-800 rounded-2xl w-full max-w-xl lg:max-w-3xl border border-gray-700 shadow-2xl relative flex flex-col max-h-[75dvh]">
-        <div className="p-6 pb-4 flex-shrink-0 border-b border-gray-700 flex justify-between items-center">
+        <div className="p-6 pb-4 shrink-0 border-b border-gray-700 flex justify-between items-center">
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
             <Users className="w-5 h-5 text-blue-400" />
             Compare Players
@@ -639,7 +638,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
           </button>
         </div>
 
-        <div className="px-6 py-4 flex-shrink-0 bg-gray-900/30 border-b border-gray-700/50">
+        <div className="px-6 py-4 shrink-0 bg-gray-900/30 border-b border-gray-700/50">
           <SearchBar
             value={searchTerm}
             onChange={setSearchTerm}
@@ -648,7 +647,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
           />
         </div>
 
-        <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent p-4 space-y-1">
+        <div className="grow overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent p-4 space-y-1">
           {filteredPlayers.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-gray-500 space-y-2">
               <Info className="w-8 h-8 opacity-20" />
@@ -666,14 +665,14 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
                   onClick={() => onSelect(player)}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-gray-500 font-medium w-10 flex-shrink-0 text-right pr-2">#{player.rank}</span>
+                    <span className="text-gray-500 font-medium w-10 shrink-0 text-right pr-2">#{player.rank}</span>
                     <span className="text-gray-200 font-medium truncate">
                       {player.clubTag && (
                         <span className={`text-blue-400 mr-1 ${isMobile ? 'hidden' : ''}`}>[{player.clubTag}]</span>
                       )}
                       {player.name}
                     </span>
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md flex-shrink-0 shadow-sm
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md shrink-0 shadow-xs
                         ${scoreDiff > 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
                         scoreDiff < 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
                           'bg-gray-600/30 text-gray-400 border border-gray-600/50'}`}>
@@ -681,7 +680,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
                     </span>
                   </div>
                   <div className="p-1.5 rounded-lg bg-gray-700/0 group-hover:bg-blue-500/20 transition-colors">
-                    <Plus className="w-5 h-5 text-gray-500 group-hover:text-blue-400 flex-shrink-0 transition-colors" />
+                    <Plus className="w-5 h-5 text-gray-500 group-hover:text-blue-400 shrink-0 transition-colors" />
                   </div>
                 </div>
               );
@@ -1040,7 +1039,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
   if (!isOpen || !embarkId) return null;
 
   return (
-    <div className={`fixed inset-0 bg-[#0f121b]/80 backdrop-blur-sm flex items-center justify-center z-50 ${isMobile ? 'p-0' : 'p-4'}`}>
+    <div className={`fixed inset-0 bg-[#0f121b]/80 backdrop-blur-xs flex items-center justify-center z-50 ${isMobile ? 'p-0' : 'p-4'}`}>
       <div
         ref={modalRef}
         className={`
@@ -1090,11 +1089,11 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                   <h2 className={`font-bold text-white truncate ${isMobile ? 'text-lg' : 'text-xl'}`}>
                     {displayedEmbarkId}
                   </h2>
-                  <div ref={seasonDropdownRef} className="relative group flex-shrink-0">
+                  <div ref={seasonDropdownRef} className="relative group shrink-0">
                     <button
                       onClick={() => setShowSeasonDropdown(p => !p)}
                       disabled={loading || mainPlayerAvailableSeasons.length <= 1}
-                      className={`flex items-center gap-1.5 bg-gray-700 border border-gray-600 shadow-sm text-blue-300 text-xs font-semibold px-2.5 py-1 rounded-lg transition-all duration-200 
+                      className={`flex items-center gap-1.5 bg-gray-700 border border-gray-600 shadow-xs text-blue-300 text-xs font-semibold px-2.5 py-1 rounded-lg transition-all duration-200 
                         ${(loading || mainPlayerAvailableSeasons.length <= 1) ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-600 hover:border-gray-500 hover:shadow-md hover:-translate-y-px'}`}
                       title="Switch season"
                     >
@@ -1125,7 +1124,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                   <button
                     onClick={onClose}
                     aria-label="Close modal"
-                    className="p-2 hover:bg-gray-700 rounded-lg flex-shrink-0"
+                    className="p-2 hover:bg-gray-700 rounded-lg shrink-0"
                   >
                     <X className="w-5 h-5 text-gray-400" />
                   </button>
@@ -1139,7 +1138,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                         <span className="text-gray-300 font-medium cursor-help border-b border-dotted border-gray-500 hover:border-gray-400 transition-colors">
                           {mainPlayerGameCount.toLocaleString()} Games
                         </span>
-                        <div className="absolute top-full left-0 mt-2 w-max max-w-[80vw] sm:max-w-[250px] bg-gray-900 text-white text-left text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30 shadow-lg border border-gray-700 whitespace-normal">
+                        <div className="absolute top-full left-0 mt-2 w-max max-w-[80vw] sm:max-w-62.5 bg-gray-900 text-white text-left text-xs rounded-sm py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30 shadow-lg border border-gray-700 whitespace-normal">
                           {GAME_COUNT_TOOLTIP}
                         </div>
                       </div>
@@ -1183,7 +1182,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                 </div>
               )}
             </div>
-            <div className={`relative flex flex-col ${isMobile ? 'w-full' : 'flex-shrink min-w-0'}`}>
+            <div className={`relative flex flex-col ${isMobile ? 'w-full' : 'shrink min-w-0'}`}>
               <div className={`flex items-center flex-wrap ${isMobile ? 'w-full justify-between gap-2' : 'justify-end gap-2'}`}>
                 <div className="flex items-center gap-2">
                   <div className="relative">
@@ -1244,7 +1243,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                       title={isHistoricalSeason ? 'Disabled for historical seasons' : 'Select time range'}
                       className={`px-3 py-1 text-sm rounded-md transition-all duration-200 ${
                         selectedTimeRange === range
-                          ? 'bg-blue-600/90 text-white shadow-sm ring-1 ring-blue-500/50'
+                          ? 'bg-blue-600/90 text-white shadow-xs ring-1 ring-blue-500/50'
                           : 'text-gray-400'
                       } ${isHistoricalSeason || !!error
                           ? 'cursor-not-allowed opacity-50'
@@ -1262,7 +1261,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
           {comparisonData.size > 0 && !error && (
             <div className={`flex gap-2 mt-4 ${
               isMobile
-                ? 'flex-wrap max-h-[100px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600'
+                ? 'flex-wrap max-h-25 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600'
                 : 'flex-wrap'
             }`}>
               {Array.from(comparisonData.entries()).map(([compareId, { color, gameCount }]) => (
@@ -1286,7 +1285,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                     ) : (
                       <div className="relative group inline-flex items-center">
                         <span className="text-gray-400 text-xs cursor-help">({gameCount})</span>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[80vw] sm:max-w-[250px] bg-gray-900 text-white text-center text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30 shadow-lg border border-gray-700 whitespace-normal">
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-max max-w-[80vw] sm:max-w-62.5 bg-gray-900 text-white text-center text-xs rounded-sm py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30 shadow-lg border border-gray-700 whitespace-normal">
                           {GAME_COUNT_TOOLTIP}
                         </div>
                       </div>
@@ -1297,7 +1296,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                     onClick={() => removeComparison(compareId)}
                     title={`Remove ${compareId}`}
                     aria-label={`Remove ${compareId}`}
-                    className="text-gray-400 hover:text-white flex-shrink-0"
+                    className="text-gray-400 hover:text-white shrink-0"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1325,7 +1324,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
           )}
           {!loading && !error && showZoomHint && (
             <div
-              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800 bg-opacity-90 text-white px-4 py-2 rounded-lg transition-opacity duration-300 cursor-pointer z-10 animate-fadeIn shadow-lg"
+              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800/90 text-white px-4 py-2 rounded-lg transition-opacity duration-300 cursor-pointer z-10 animate-fadeIn shadow-lg"
               onClick={() => setShowZoomHint(false)}
               style={{ backdropFilter: 'blur(2px)' }}
             >
@@ -1352,13 +1351,5 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
     </div>
   );
 };
-
-GraphModal.propTypes = GraphModalProps;
-GraphErrorView.propTypes = GraphErrorViewProps;
-ComparePlayerModal.propTypes = ComparePlayerModalProps;
-GraphSettingsModal.propTypes = GraphSettingsModalProps;
-FilterToggleButton.propTypes = FilterToggleButtonProps;
-PlayerStatsModal.propTypes = PlayerStatsModalProps;
-LiveUpdateBadge.propTypes = LiveUpdateBadgeProps;
 
 export default memo(GraphModal);

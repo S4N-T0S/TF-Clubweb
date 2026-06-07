@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronRight, RefreshCw, LifeBuoy } from 'lucide-react';
-import { ErrorDisplayProps } from '../types/propTypes';
 
 export const ErrorDisplay = ({ error, onRetry, variant = 'page' }) => {
   const [showDetails, setShowDetails] = useState(false);
@@ -65,7 +64,7 @@ export const ErrorDisplay = ({ error, onRetry, variant = 'page' }) => {
                     <button 
                         onClick={() => setShowDetails(!showDetails)}
                         className={`flex items-center justify-between w-full px-3 py-2 text-xs font-mono text-gray-500 bg-gray-900/50 hover:bg-gray-900 border border-gray-700 transition-colors ${
-                          showDetails ? 'rounded-t border-b-0' : 'rounded'
+                          showDetails ? 'rounded-t border-b-0' : 'rounded-sm'
                         }`}
                     >
                         <span>Technical Details</span>
@@ -74,7 +73,7 @@ export const ErrorDisplay = ({ error, onRetry, variant = 'page' }) => {
 
                     {showDetails && (
                         <div className="p-3 bg-black/40 rounded-b border border-gray-700 border-t-0 text-left overflow-x-auto">
-                            <p className="text-xs text-red-400 font-mono break-words whitespace-pre-wrap">
+                            <p className="text-xs text-red-400 font-mono wrap-break-word whitespace-pre-wrap">
                                 {errorMessage}
                             </p>
                             {errorContext && (
@@ -103,5 +102,3 @@ export const ErrorDisplay = ({ error, onRetry, variant = 'page' }) => {
     </div>
   );
 };
-
-ErrorDisplay.propTypes = ErrorDisplayProps;

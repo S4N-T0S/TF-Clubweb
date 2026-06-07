@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import { Crown, Globe, Trophy, Crosshair, Sparkles, Zap } from 'lucide-react';
-import { HubView_FeatureTileProps } from '../../types/propTypes';
 
 // Feature tiles.
 const FEATURES = [
@@ -82,5 +81,3 @@ export const HubView = () => {
     </div>
   );
 };
-
-FeatureTile.propTypes = HubView_FeatureTileProps;

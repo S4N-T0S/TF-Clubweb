@@ -3,7 +3,6 @@ import { SearchBar } from '../SearchBar';
 import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
-import { ClubsViewProps, ClubRowProps, NoResultsMessageProps } from '../../types/propTypes';
 import { SortButton } from '../SortButton';
 import { useRef, useMemo } from 'react';
 import { Link, useSearchParams, useLocation } from 'react-router-dom';
@@ -25,7 +24,7 @@ const ClubRow = ({ club, onClubClick, isMobile, selectedSeason }) => {
   if (isMobile) {
     return (
       <div
-        className="flex flex-col gap-2 p-4 border-b border-gray-700 bg-gray-800 rounded-lg shadow-sm
+        className="flex flex-col gap-2 p-4 border-b border-gray-700 bg-gray-800 rounded-lg shadow-xs
         active:bg-gray-750 active:scale-[0.99] transition-all duration-150 ease-in-out"
       >
         <div className="flex justify-between items-center">
@@ -67,7 +66,7 @@ const ClubRow = ({ club, onClubClick, isMobile, selectedSeason }) => {
     <tr
       key={club.tag}
       className={`border-t border-gray-700 ${
-        club.tag === 'OG' ? 'bg-blue-900 bg-opacity-20' : 'hover:bg-gray-700'
+        club.tag === 'OG' ? 'bg-blue-900/20' : 'hover:bg-gray-700'
       }`}
     >
       <td className="px-4 py-2 text-gray-300">
@@ -183,7 +182,7 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
             aria-label="Select season"
             className={`w-full sm:w-48 bg-gray-700 text-gray-200 rounded-lg px-4 py-1.5 border ${
               selectedSeason !== currentSeasonKey ? 'border-blue-500 border-2' : 'border-gray-600'
-            } focus:ring-2 focus:ring-blue-500 focus-visible:ring-blue-500 focus-visible:border-blue-500 focus-visible:outline-none flex-shrink-0 text-sm h-[42px]`}
+            } focus:ring-2 focus:ring-blue-500 focus-visible:ring-blue-500 focus-visible:border-blue-500 focus-visible:outline-hidden shrink-0 text-sm h-10.5`}
           >
             {/* Seasons before S5 predate clubs — shown but disabled. 'ALL' is disabled */}
             {Object.entries(SEASONS).reverse().map(([key, season]) =>
@@ -217,7 +216,7 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
           </div>
         ) : (
           <div className="overflow-hidden rounded-lg">
-            <table className="w-full min-w-[640px] rounded-lg">
+            <table className="w-full min-w-160 rounded-lg">
               <thead>
                 <tr className="bg-gray-700">
                   <th className="px-4 py-2 text-left text-gray-300">
@@ -313,7 +312,3 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
     </div>
   );
 };
-
-ClubsView.propTypes = ClubsViewProps;
-ClubRow.propTypes = ClubRowProps;
-NoResultsMessage.propTypes = NoResultsMessageProps;

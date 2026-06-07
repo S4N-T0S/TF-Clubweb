@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Users, Trophy, Globe, UserSearch, Zap, Info, House } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { DashboardHeaderProps, ViewButtonProps } from '../types/propTypes';
 
 const ViewButton = ({ active, to, onClick, icon, text }) => (
   <Link
@@ -11,7 +10,7 @@ const ViewButton = ({ active, to, onClick, icon, text }) => (
       active 
         ? 'bg-blue-600 text-white' 
         : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-    } w-full sm:w-auto min-w-[100px]`}
+    } w-full sm:w-auto min-w-25`}
   >
     {icon}
     <span className="hidden sm:inline">{text}</span>
@@ -232,6 +231,3 @@ export const DashboardHeader = ({
     </>
   );
 };
-
-DashboardHeader.propTypes = DashboardHeaderProps;
-ViewButton.propTypes = ViewButtonProps;

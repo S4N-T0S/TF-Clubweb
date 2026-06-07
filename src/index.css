@@ -1,6 +1,36 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@plugin '@tailwindcss/typography';
+@plugin 'tailwind-scrollbar' {
+  nocompatible: true;
+}
+
+@source './**/*.{js,ts,jsx,tsx}';
+
+/*
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+/*
+  Tailwind v4 changed the default <button> cursor from `pointer` to `default`.
+  Restore the v3 behavior so interactive controls show the pointer cursor.
+*/
+@layer base {
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
 
 html {
   @apply scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800;

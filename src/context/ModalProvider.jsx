@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { ModalProviderProps } from '../types/propTypes';
 
 const ModalContext = createContext(null);
 
@@ -128,6 +127,3 @@ export const useModal = (isOpen, onClose, options) => {
 
     return { modalRef, isTopModal: isCurrentlyTop, isActive };
 };
-
-
-ModalProvider.propTypes = ModalProviderProps;

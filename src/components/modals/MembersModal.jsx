@@ -10,24 +10,21 @@ import { getLeagueInfo } from '../../utils/leagueUtils';
 import { Hexagon } from '../icons/Hexagon';
 import { buildGraphHref, buildHistoryHref } from '../../utils/modalHrefs';
 import { currentSeasonKey } from '../../services/historicalDataService';
-import { MembersModalProps, MemberRowProps, StatusBadgeProps } from '../../types/propTypes';
 
 const StatusBadge = ({ status }) => {
   switch (status) {
     case 'verified':
-      return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-900 text-green-300 border border-green-700 whitespace-nowrap"><CheckCircle className="w-3 h-3 mr-1" /> Verified</span>;
+      return <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-green-900 text-green-300 border border-green-700 whitespace-nowrap"><CheckCircle className="w-3 h-3 mr-1" /> Verified</span>;
     case 'wrong_tag':
-      return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-900 text-red-300 border border-red-700 whitespace-nowrap"><ShieldAlert className="w-3 h-3 mr-1" /> Leaver</span>;
+      return <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-red-900 text-red-300 border border-red-700 whitespace-nowrap"><ShieldAlert className="w-3 h-3 mr-1" /> Leaver</span>;
     case 'unranked':
-      return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-900 text-yellow-300 border border-yellow-700 whitespace-nowrap"><UserX className="w-3 h-3 mr-1" /> Unranked</span>;
+      return <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-yellow-900 text-yellow-300 border border-yellow-700 whitespace-nowrap"><UserX className="w-3 h-3 mr-1" /> Unranked</span>;
     case 'new_member':
-      return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-900 text-emerald-200 border border-emerald-600 whitespace-nowrap"><UserPlus className="w-3 h-3 mr-1" /> Newb</span>;
+      return <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-medium bg-emerald-900 text-emerald-200 border border-emerald-600 whitespace-nowrap"><UserPlus className="w-3 h-3 mr-1" /> Newb</span>;
     default:
       return null;
   }
 };
-
-StatusBadge.propTypes = StatusBadgeProps;
 
 const MemberRow = ({ member, onGraphOpen, onSearch }) => {
   const { style } = member.leagueNumber ? getLeagueInfo(member.leagueNumber) : { style: 'text-gray-500' };
@@ -40,7 +37,7 @@ const MemberRow = ({ member, onGraphOpen, onSearch }) => {
       ${member.status === 'new_member' ? 'border-l-4 border-l-emerald-400' : ''}
     `}>
       <div className="flex items-center gap-3 overflow-hidden w-full sm:w-auto">
-         <div className="relative flex-shrink-0">
+         <div className="relative shrink-0">
              <Hexagon className={`w-8 h-8 ${style}`} />
              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-900">
                  {member.leagueNumber ? (member.leagueNumber > 4 ? ' ' : '') : '?'}
@@ -213,7 +210,7 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4">
       <div 
         ref={modalRef} 
         className={`bg-gray-900 rounded-lg w-full flex flex-col shadow-2xl overflow-hidden relative transition-transform duration-75 ease-out
@@ -221,7 +218,7 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
         `}
       >
-        <header className="flex-shrink-0 bg-gray-800 p-4 border-b border-gray-700 flex items-center justify-between">
+        <header className="shrink-0 bg-gray-800 p-4 border-b border-gray-700 flex items-center justify-between">
            <div className="flex items-center gap-2">
                 <Users className="w-6 h-6 text-blue-400" />
                 <h2 className="text-xl font-bold text-white">OG Club Membership</h2>
@@ -231,7 +228,7 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
            </button>
         </header>
 
-        <div className="flex-shrink-0 p-4 bg-gray-800 border-b border-gray-700 space-y-4">
+        <div className="shrink-0 p-4 bg-gray-800 border-b border-gray-700 space-y-4">
            {/* Stats Cards */}
            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               <button onClick={() => setFilter('all')} className={`p-2 rounded-lg border flex flex-col items-center justify-center ${filter === 'all' ? 'bg-gray-700 border-gray-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-700'}`}>
@@ -263,7 +260,7 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
            />
         </div>
 
-        <div ref={scrollContainerRef} className="flex-grow overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+        <div ref={scrollContainerRef} className="grow overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
            {loading ? (
              <LoadingDisplay variant="component" />
            ) : filteredMembers.length === 0 ? (
@@ -285,8 +282,5 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
     </div>
   );
 };
-
-MembersModal.propTypes = MembersModalProps;
-MemberRow.propTypes = MemberRowProps;
 
 export default memo(MembersModal);

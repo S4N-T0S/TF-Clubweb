@@ -1,6 +1,5 @@
 import { Helmet } from 'react-helmet-async';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import { SEOHeadProps } from '../types/propTypes';
 import { SEASONS, currentSeasonKey } from '../services/historicalDataService';
 
 const BASE_URL = 'https://ogclub.s4nt0s.eu';
@@ -253,5 +252,3 @@ export const SEOHead = ({
     </Helmet>
   );
 };
-
-SEOHead.propTypes = SEOHeadProps;

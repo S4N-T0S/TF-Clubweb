@@ -1,12 +1,11 @@
 import { Link } from 'react-router-dom';
-import { PaginationProps, Pagination_PageControlProps } from '../types/propTypes';
 
 // One pagination control. Renders:
 //   - a <span> when disabled (crawlers won't follow, no nav happens)
 //   - a <Link to=...> when buildPageHref is provided (SEO/right-click friendly)
 //   - a <button> otherwise (legacy state-only pagination)
 const PageControl = ({ disabled, href, onClick, children }) => {
-  const baseClass = 'px-3 py-1 rounded';
+  const baseClass = 'px-3 py-1 rounded-sm';
   const stateClass = disabled
     ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
     : 'bg-gray-700 text-gray-300 hover:bg-gray-600';
@@ -106,6 +105,3 @@ export const Pagination = ({
     </div>
   );
 };
-
-Pagination.propTypes =  PaginationProps;
-PageControl.propTypes = Pagination_PageControlProps;

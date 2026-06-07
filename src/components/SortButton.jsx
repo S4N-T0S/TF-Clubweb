@@ -1,5 +1,4 @@
 import { List, ArrowUpNarrowWide, ArrowDownNarrowWide } from 'lucide-react';
-import { SortButtonProps } from '../types/propTypes';
 
 export const SortButton = ({ field, sortConfig, onSort }) => {
   const isActive = sortConfig.field === field;
@@ -18,11 +17,9 @@ export const SortButton = ({ field, sortConfig, onSort }) => {
   return (
     <button 
       onClick={() => onSort(field)}
-      className="ml-2 p-1 hover:bg-gray-600 rounded transition-colors"
+      className="ml-2 p-1 hover:bg-gray-600 rounded-sm transition-colors"
     >
       {getIcon()}
     </button>
   );
 };
-
-SortButton.propTypes = SortButtonProps;

@@ -5,7 +5,6 @@ import { loadWeapons, getGlobalBounds, getGlobalPatternBounds, WEAPON_CLASSES, C
 import { LoadingDisplay } from '../LoadingDisplay';
 import { RecoilViewer } from '../recoil/RecoilViewer';
 import { getStoredSpraySettings, setStoredSpraySettings } from '../../services/localStorageManager';
-import { SprayPatternsView_WeaponVideoProps, SprayPatternsView_FireModeBadgeProps, SprayPatternsView_StatBoxProps } from '../../types/propTypes';
 
 // Gameplay clip.
 const WeaponVideo = ({ weapon, videoRef, sync, onReady }) => {
@@ -69,7 +68,7 @@ const WeaponVideo = ({ weapon, videoRef, sync, onReady }) => {
 const FireModeBadge = ({ mode, className = '' }) => {
   const meta = FIRE_MODE_META[mode] || FIRE_MODE_META.auto;
   return (
-    <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${meta.cls} ${className}`}>
+    <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-sm border ${meta.cls} ${className}`}>
       {meta.label}
     </span>
   );
@@ -295,7 +294,3 @@ export const SprayPatternsView = () => {
     </div>
   );
 };
-
-StatBox.propTypes = SprayPatternsView_StatBoxProps;
-FireModeBadge.propTypes = SprayPatternsView_FireModeBadgeProps;
-WeaponVideo.propTypes = SprayPatternsView_WeaponVideoProps;
