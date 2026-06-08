@@ -1,49 +1,55 @@
 import { ArrowUp } from 'lucide-react';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 
-// Throttle function to limit how often a function can be called.
-const throttle = (func, limit) => {
-  let inThrottle;
-  return (...args) => {
-    if (!inThrottle) {
-      func.apply(this, args);
-      inThrottle = true;
-      setTimeout(() => (inThrottle = false), limit);
-    }
-  };
-};
+// Show the button once the page is scrolled past this many pixels.
+const SCROLL_THRESHOLD = 300;
 
 export const BackToTop = ({ isMobile }) => {
   const [isVisible, setIsVisible] = useState(false);
 
-  // Cross-browser way to get scroll position
-  const getScrollPosition = () => {
-    return Math.max(
-      window.pageYOffset,
-      document.documentElement.scrollTop,
-      document.body.scrollTop
-    );
-  };
-
-  // Create a stable reference to the scroll check function
-  const checkScroll = useCallback(() => {
-    if (getScrollPosition() > 300) {
-      setIsVisible(true);
-    } else {
-      setIsVisible(false);
-    }
-  }, []);
-
-  // Create throttled version of checkScroll
-  const handleScroll = useMemo(
-    () => throttle(checkScroll, 100),
-    [checkScroll]
-  );
-
   useEffect(() => {
+    // Preferred path: drop a sentinel SCROLL_THRESHOLD px down the page and let the browser report when it crosses the viewport edge.
+    if ('IntersectionObserver' in window) {
+      const sentinel = document.createElement('div');
+      sentinel.style.cssText =
+        `position:absolute;top:${SCROLL_THRESHOLD}px;left:0;width:1px;height:1px;pointer-events:none;`;
+      document.body.appendChild(sentinel);
+
+      const observer = new IntersectionObserver(
+        ([entry]) => setIsVisible(!entry.isIntersecting),
+        { threshold: 0 }
+      );
+      observer.observe(sentinel);
+
+      return () => {
+        observer.disconnect();
+        sentinel.remove();
+      };
+    }
+
+    // Fallback for browsers without IntersectionObserver: an rAF-throttled scroll handler.
+    const getScrollPosition = () =>
+      Math.max(
+        window.pageYOffset,
+        document.documentElement.scrollTop,
+        document.body.scrollTop
+      );
+
+    let ticking = false;
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          setIsVisible(getScrollPosition() > SCROLL_THRESHOLD);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
     window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll(); // sync the initial state (e.g. page loaded already scrolled)
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [handleScroll]);
+  }, []);
 
   const scrollToTop = () => {
     // Try smooth scroll with fallback
@@ -68,8 +74,8 @@ export const BackToTop = ({ isMobile }) => {
   return (
     <button
       className={`fixed bg-blue-600 text-white p-3 rounded-full shadow-lg transition-opacity duration-200 hover:bg-blue-700 z-40 ${
-        isMobile 
-          ? 'bottom-16 right-4' // Positioned above the mobile navbar 
+        isMobile
+          ? 'bottom-16 right-4' // Positioned above the mobile navbar
           : 'bottom-4 right-4'  // Keep existing desktop positioning
       } ${
         isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
