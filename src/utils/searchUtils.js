@@ -57,9 +57,17 @@ export const parseSearchQuery = (query) => {
  * @param {string} query - The search query.
  * @returns {boolean} - True if the player matches.
  */
-export const filterPlayerByQuery = (player, query) => {
-    const { nameQuery, clubQuery, clubSearchType } = parseSearchQuery(query);
+export const filterPlayerByQuery = (player, query) =>
+    matchesParsedPlayer(player, parseSearchQuery(query));
 
+/**
+ * Same matching logic as filterPlayerByQuery, but takes an already-parsed query
+ * (the output of parseSearchQuery). parseSearchQuery is query-only — its result
+ * is identical for every player — so when filtering a large list (the
+ * leaderboard is ~10k rows, ~90k in the All-Seasons view) callers should parse
+ * ONCE and reuse it here, instead of re-parsing per item on every keystroke.
+ */
+export const matchesParsedPlayer = (player, { nameQuery, clubQuery, clubSearchType }) => {
     if (!nameQuery && clubQuery === null) return true;
 
     // 1. Collect all searchable text fields from the player object.
@@ -110,9 +118,14 @@ export const filterPlayerByQuery = (player, query) => {
  * @param {string} query - The search query.
  * @returns {boolean} - True if the club matches.
  */
-export const filterClubByQuery = (club, query) => {
-    const { nameQuery, clubQuery, clubSearchType } = parseSearchQuery(query);
+export const filterClubByQuery = (club, query) =>
+    matchesParsedClub(club, parseSearchQuery(query));
 
+/**
+ * Same matching logic as filterClubByQuery, but takes an already-parsed query
+ * so a large list can be filtered with a single parse (see matchesParsedPlayer).
+ */
+export const matchesParsedClub = (club, { nameQuery, clubQuery, clubSearchType }) => {
     if (!nameQuery && clubQuery === null) return true;
 
     const tag = club.tag ? club.tag.toLowerCase() : '';

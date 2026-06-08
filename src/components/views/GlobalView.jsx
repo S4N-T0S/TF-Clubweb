@@ -512,16 +512,22 @@ export const GlobalView = ({
   }, [isCurrentSeason, showFavourites, setShowFavourites]);
 
   // Define custom sorters to pass to the pagination hook.
-  const customSorters = useMemo(() => ({
-    season: (a, b, direction) => {
-      const seasonOrder = Object.entries(SEASONS)
+  const customSorters = useMemo(() => {
+    // Precompute season -> chronological index ONCE
+    const seasonRank = new Map(
+      Object.entries(SEASONS)
         .filter(([, season]) => season.id !== undefined && !season.isAggregate)
         .sort(([, sA], [, sB]) => sA.id - sB.id)
-        .map(([key]) => key);
-      const comparison = seasonOrder.indexOf(a.season) - seasonOrder.indexOf(b.season);
-      return direction === 'asc' ? comparison : -comparison;
-    }
-  }), []);
+        .map(([key], index) => [key, index])
+    );
+    return {
+      season: (a, b, direction) => {
+        // Unknown seasons fall back to -1
+        const comparison = (seasonRank.get(a.season) ?? -1) - (seasonRank.get(b.season) ?? -1);
+        return direction === 'asc' ? comparison : -comparison;
+      }
+    };
+  }, []);
 
   const {
     searchQuery,

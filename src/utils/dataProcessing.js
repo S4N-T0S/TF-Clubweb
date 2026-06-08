@@ -30,12 +30,8 @@ export const processLeaderboardData = (rawData) => {
     player.rankScore < lowest ? player.rankScore : lowest,
     Infinity
   ) : false;
-
-  // Process global leaderboard data
-  const globalLeaderboard = rawData.map(player => ({
-    ...player,
-    displayName: player.clubTag ? `[${player.clubTag}] ${player.name}` : player.name
-  }));
+  // Raw global leaderboard data (no processing needed)
+  const globalLeaderboard = rawData;
 
   // Aggregate the current season's players into ranked clubs.
   const topClubs = aggregateClubs(rawData);

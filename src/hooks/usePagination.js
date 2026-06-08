@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useLocation } from 'react-router-dom';
-import { filterPlayerByQuery, filterClubByQuery } from '../utils/searchUtils';
+import { parseSearchQuery, matchesParsedPlayer, matchesParsedClub } from '../utils/searchUtils';
 
 export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {}, urlSync = false, basePath = '/' } = {}) => {
   // Always call hooks unconditionally (Rules of Hooks).
@@ -135,17 +135,19 @@ export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {
 
   // Memoize filtered and sorted items
   const processedItems = useMemo(() => {
+    // Parse the query ONCE per keystroke, not once per item.
+    const parsedQuery = parseSearchQuery(searchQuery);
     const filtered = items.filter(item => {
       // Handle player items (items with 'name' property) - This is for GlobalView
       if (item.name) {
-        return filterPlayerByQuery(item, searchQuery);
+        return matchesParsedPlayer(item, parsedQuery);
       }
 
       // Handle club list items (items with 'tag' property) - the Top Clubs view.
       if ('tag' in item) {
-        return filterClubByQuery(item, searchQuery);
+        return matchesParsedClub(item, parsedQuery);
       }
-      
+
       // If the item doesn't match known filterable structures (e.g., it's an event),
       // let it pass through. The consuming component (EventsView) handles its own filtering.
       return true;
