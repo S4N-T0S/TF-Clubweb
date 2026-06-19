@@ -43,9 +43,10 @@ const ModeDonut = ({ segments, total, hovered, onHover }) => {
                   strokeDasharray={`${len.toFixed(2)} ${(C - len).toFixed(2)}`}
                   strokeDashoffset={(-off).toFixed(2)}
                   opacity={dim ? 0.3 : 1}
-                  style={{ cursor: 'pointer', transition: 'opacity 0.15s, stroke-width 0.15s' }}
-                  onMouseEnter={() => onHover(s.key)}
-                  onMouseLeave={() => onHover(null)}
+                  style={{ cursor: 'pointer', touchAction: 'manipulation', transition: 'opacity 0.15s, stroke-width 0.15s' }}
+                  onPointerEnter={(e) => e.pointerType === 'mouse' && onHover(s.key)}
+                  onPointerLeave={(e) => e.pointerType === 'mouse' && onHover(null)}
+                  onClick={() => onHover(hovered === s.key ? null : s.key)}
                 />
               );
               off += len;
@@ -199,9 +200,10 @@ export const CareerPage = () => {
                     {careerModes.map((m) => (
                       <tr
                         key={m.key}
-                        onMouseEnter={() => setHoveredMode(m.key)}
-                        onMouseLeave={() => setHoveredMode(null)}
-                        className={`border-b border-gray-700/40 last:border-0 cursor-default transition-colors ${
+                        onPointerEnter={(e) => e.pointerType === 'mouse' && setHoveredMode(m.key)}
+                        onPointerLeave={(e) => e.pointerType === 'mouse' && setHoveredMode(null)}
+                        onClick={() => setHoveredMode(hoveredMode === m.key ? null : m.key)}
+                        className={`border-b border-gray-700/40 last:border-0 cursor-pointer transition-colors ${
                           hoveredMode === m.key ? 'bg-gray-700/40' : ''
                         }`}
                       >

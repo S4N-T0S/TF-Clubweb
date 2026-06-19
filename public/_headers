@@ -5,3 +5,11 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self' https://api.ogclub.s4nt0s.eu https://docs.google.com https://*.googleusercontent.com; font-src 'self' data: https:; frame-ancestors 'none';
   Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
+
+# Offline GDPR vault art (maps/weapon icons) remember its immutable
+/vault/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Offline GeoIP data (DB-IP mmdb + world geometry)
+/geo/*
+  Cache-Control: public, max-age=2592000

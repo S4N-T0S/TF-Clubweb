@@ -2,7 +2,7 @@
 // Runs ONCE after parsing; results are memoised in the provider.
 import { resolveWeapon } from './weapons';
 import { archetypeLabel, classifyMode, careerModeGroup, CAREER_MODE_GROUPS, parseMapVariant, parseCondition, roundsRemaining, stageLabel, stageTeams, tournamentPlacement } from './gameMeta';
-import { resolveMap, conditionType } from './maps';
+import { resolveMap, resolveLtmBackground, conditionType } from './maps';
 import { resolveDlc, steamAppUrl, STEAM_BASE_GAME_ID } from './economy';
 
 // timestamp helpers (export mixes ISO-8601 strings and epoch-ms)
@@ -317,6 +317,7 @@ function buildMatchesAndWeapons(byType) {
     const archetype = archetypeLabel(d.CharacterArchetype);
     const pmap = parseMapVariant(d.MapVariant);
     const rmap = resolveMap(d.MapVariant); // precise name + one bg photo + crop focus
+    const ltmBg = resolveLtmBackground(d.ScenarioID); // LTM-specific background by gamemode id (overrides the map photo)
     const cond = parseCondition(d.EnvironmentalCondition);
     const kpi = d.KillsPerItem || {};
     // Per-round weapon usage. KillsPerItem is kills-only (an item appears only
@@ -352,9 +353,12 @@ function buildMatchesAndWeapons(byType) {
       fame: d.FameAmount || 0,
       archetype,
       map: pmap,
+      mapVariant: d.MapVariant ?? null, // raw codename (e.g. DA_MV_LasVegas_02_Sunset) — kept for the debug copy
       mapName: rmap.name, // precise map name (Skyway Stadium, Horizon, …) or null
-      mapImage: rmap.image, // one bundled background photo per map, or null
-      mapFocus: rmap.focus, // object-position for cropping the wide photo
+      // LTM background (keyed by gamemode/ScenarioID) takes priority over the map photo.
+      mapImage: ltmBg?.image ?? rmap.image, // one bundled background photo, or null
+      mapFocus: ltmBg?.focus ?? rmap.focus, // object-position for cropping the wide photo
+      mapZoom: ltmBg?.zoom ?? rmap.zoom, // 1 = cover; <1 zooms out (blurred fill), >1 zooms in
       layout: pmap.variant && pmap.variant !== 'Base' ? pmap.variant : null, // non-default layout
       condition: cond,
       condType: conditionType(cond), // time/weather icon family
@@ -457,6 +461,7 @@ function buildMatchesAndWeapons(byType) {
     m.mapName = rep?.mapName || null;
     m.mapImage = rep?.mapImage || null;
     m.mapFocus = rep?.mapFocus || '50% 40%';
+    m.mapZoom = rep?.mapZoom ?? 1;
   }
   matches.sort((a, b) => (b.start ?? 0) - (a.start ?? 0)); // newest first
 

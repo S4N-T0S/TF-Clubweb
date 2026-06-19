@@ -177,7 +177,9 @@ const CASUAL_MODES = [
 ];
 const LTM_MODES = [
   { id: 597953832, map: 'DA_MV_Monaco_01_Base', winChance: 0.5 }, // Bunny Bash
-  { id: 152796620, map: 'DA_MV_Playground_01_Base', winChance: 0.5 }, // Heavy Hitters
+  { id: 152796620, map: 'DA_MV_Playground_01_Base', winChance: 0.5 }, // Heavy Hitters (Playground arena)
+  { id: 152796620, map: 'DA_MV_HeavyHitters_02_Base', winChance: 0.5 }, // Heaven or Else (same id, HeavyHitters arena)
+  { id: 905608807, map: 'DA_MV_CashBall_01_Base', winChance: 0.5 }, // Super Cashball
   { id: 106717113, map: 'DA_MV_Monaco_01_Base', winChance: 0.5 }, // Snowball Blitz
 ];
 

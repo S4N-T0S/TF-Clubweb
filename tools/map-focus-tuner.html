@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Map focus tuner — TF Vault</title>
+    <style>
+      :root { --cw: 992px; --ar: 992 / 129; --ov: 0; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: #0b0f17; color: #e5e7eb;
+        font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      header {
+        position: sticky; top: 0; z-index: 10; background: #0b0f17ee; backdrop-filter: blur(6px);
+        border-bottom: 1px solid #1f2937; padding: 14px 20px;
+      }
+      h1 { margin: 0 0 2px; font-size: 18px; }
+      .sub { color: #9ca3af; font-size: 12px; margin-bottom: 10px; max-width: 900px; }
+      .controls { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+      .controls label { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: #cbd5e1; }
+      input[type="number"] { width: 64px; background: #111827; border: 1px solid #374151; color: #e5e7eb; border-radius: 6px; padding: 5px 7px; font: inherit; font-size: 13px; }
+      input[type="checkbox"] { accent-color: #10b981; width: 16px; height: 16px; }
+      input[type="range"] { accent-color: #10b981; }
+      button {
+        font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; color: #e5e7eb;
+        background: #1f2937; border: 1px solid #374151; border-radius: 8px; padding: 7px 13px;
+        transition: background .15s, border-color .15s;
+      }
+      button:hover { background: #374151; }
+      button.primary { background: #059669; border-color: #10b981; }
+      button.primary:hover { background: #10b981; }
+      button.mini { padding: 4px 9px; font-size: 12px; font-weight: 500; }
+      .preset { padding: 5px 10px; font-size: 12px; }
+      #status { font-size: 12px; color: #6ee7b7; min-height: 16px; }
+      main { padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+      .card { width: 100%; max-width: var(--cw); background: #111827; border: 1px solid #1f2937; border-radius: 12px; overflow: hidden; }
+      .frame {
+        position: relative; width: 100%; aspect-ratio: var(--ar); overflow: hidden;
+        background: #000; cursor: grab; touch-action: none; user-select: none;
+      }
+      .frame.grabbing { cursor: grabbing; }
+      .frame .blur { position: absolute; inset: 0; background-size: cover; filter: blur(16px) brightness(.8); transform: scale(1.12); display: none; }
+      .frame .fg { position: absolute; inset: 0; background-repeat: no-repeat; }
+      .frame .overlay { position: absolute; inset: 0; background: rgba(17,24,39, var(--ov)); pointer-events: none; }
+      .frame .center {
+        position: absolute; inset: 0; pointer-events: none; opacity: .3;
+        background:
+          linear-gradient(to right, transparent calc(50% - 0.5px), #fff 50%, transparent calc(50% + 0.5px)),
+          linear-gradient(to bottom, transparent calc(50% - 0.5px), #fff 50%, transparent calc(50% + 0.5px));
+      }
+      .meta { padding: 9px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+      .name { font-weight: 600; }
+      .slug { color: #93c5fd; font-size: 12px; }
+      .codes { color: #6b7280; font-size: 11px; }
+      .right { display: inline-flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+      .zoomctl { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: #cbd5e1; }
+      .zoomval { font-variant-numeric: tabular-nums; color: #cbd5e1; width: 34px; }
+      .focus { font-variant-numeric: tabular-nums; color: #fbbf24; font-size: 13px; font-weight: 600; }
+      .hint { color: #6b7280; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Map focus tuner</h1>
+      <div class="sub">
+        Each photo is shown at the <b>real card size</b>. <b>Drag</b> to frame the recognizable part (→ <code>focus</code>),
+        and use <b>zoom</b> to pull out (&lt;1, more of the scene — gaps get a blurred fill, exactly like the card) or push in
+        (&gt;1).
+      </div>
+      <div class="controls">
+        <label>Card size
+          <input id="cw" type="number" min="200" max="3000" value="992" /> ×
+          <input id="ch" type="number" min="40" max="1400" value="129" /> px
+        </label>
+        <button class="preset" data-w="992" data-h="129">Tournament (992×129)</button>
+        <button class="preset" data-w="992" data-h="77">Single match (992×77)</button>
+        <button class="preset" data-w="992" data-h="320">Expanded (992×320)</button>
+        <label><input id="ov" type="checkbox" /> Dark overlay</label>
+        <label><input id="cx" type="checkbox" checked /> Centre guide</label>
+        <button class="primary" id="save">Save to maps.js</button>
+        <button id="copy">Copy JSON</button>
+        <button id="resetAll">Reset all</button>
+        <span id="status"></span>
+      </div>
+    </header>
+    <main id="grid"></main>
+
+    <script>
+      const MAPS = __MAPS_JSON__;
+      const root = document.documentElement;
+      const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+      const parseFocus = (f) => {
+        const m = /(-?\d+(?:\.\d+)?)%\s+(-?\d+(?:\.\d+)?)%/.exec(f || '50% 40%');
+        return m ? [parseFloat(m[1]), parseFloat(m[2])] : [50, 40];
+      };
+      const state = {}; // slug -> { x, y, zoom, orig, fg, blur, nat, readout, zoomVal, src }
+
+      const fmt = (s) => Math.round(state[s].x) + '% ' + Math.round(state[s].y) + '%';
+      const apply = (s) => {
+        const st = state[s];
+        const pos = fmt(s);
+        st.fg.style.backgroundSize = st.zoom === 1 ? 'cover' : st.zoom * 100 + '% auto';
+        st.fg.style.backgroundPosition = pos;
+        st.blur.style.display = st.zoom < 1 ? 'block' : 'none';
+        st.blur.style.backgroundPosition = pos;
+        st.readout.textContent = pos;
+        st.zoomVal.textContent = st.zoom.toFixed(2) + '×';
+      };
+
+      function attachDrag(frame, slug) {
+        let on = false, lx = 0, ly = 0;
+        frame.addEventListener('pointerdown', (e) => {
+          on = true; lx = e.clientX; ly = e.clientY;
+          try { frame.setPointerCapture(e.pointerId); } catch {}
+          frame.classList.add('grabbing');
+        });
+        frame.addEventListener('pointermove', (e) => {
+          if (!on) return;
+          const dx = e.clientX - lx, dy = e.clientY - ly;
+          lx = e.clientX; ly = e.clientY;
+          const st = state[slug], r = frame.getBoundingClientRect();
+          if (!st.nat) return;
+          const renderedW = st.zoom * r.width;             // bg-size width = zoom * container width
+          const renderedH = renderedW * (st.nat[1] / st.nat[0]);
+          const ovX = renderedW - r.width, ovY = renderedH - r.height;
+          if (ovX > 0.5) st.x = clamp(st.x - (dx / ovX) * 100, 0, 100);
+          if (ovY > 0.5) st.y = clamp(st.y - (dy / ovY) * 100, 0, 100);
+          apply(slug);
+        });
+        const stop = (e) => { on = false; frame.classList.remove('grabbing'); try { frame.releasePointerCapture(e.pointerId); } catch {} };
+        frame.addEventListener('pointerup', stop);
+        frame.addEventListener('pointercancel', stop);
+      }
+
+      const grid = document.getElementById('grid');
+      for (const m of MAPS) {
+        const [x, y] = parseFocus(m.focus);
+        const zoom = m.zoom || 1;
+        const src = '/vault/maps/' + m.slug + '.webp';
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML =
+          '<div class="frame"><div class="blur"></div><div class="fg"></div><div class="overlay"></div><div class="center"></div></div>' +
+          '<div class="meta">' +
+          '<div><span class="name">' + m.name + '</span> <span class="slug">' + m.slug + '</span> ' +
+          '<span class="codes">· ' + m.codenames.join(', ') + '</span></div>' +
+          '<div class="right">' +
+          '<label class="zoomctl">zoom <input type="range" class="zoom" min="0.5" max="2" step="0.05" value="' + zoom + '"><span class="zoomval"></span></label>' +
+          '<span class="focus"></span><button class="mini reset">Reset</button>' +
+          '</div></div>';
+        grid.appendChild(card);
+        const frame = card.querySelector('.frame');
+        const fg = card.querySelector('.fg');
+        const blur = card.querySelector('.blur');
+        fg.style.backgroundImage = 'url("' + src + '")';
+        blur.style.backgroundImage = 'url("' + src + '")';
+        state[m.slug] = {
+          x, y, zoom, orig: { x, y, zoom }, fg, blur, nat: null, src,
+          readout: card.querySelector('.focus'), zoomVal: card.querySelector('.zoomval'),
+        };
+        // probe natural dimensions for accurate drag math
+        const probe = new Image();
+        probe.onload = () => { state[m.slug].nat = [probe.naturalWidth, probe.naturalHeight]; };
+        probe.src = src;
+        apply(m.slug);
+        attachDrag(frame, m.slug);
+        card.querySelector('.zoom').addEventListener('input', (e) => { state[m.slug].zoom = +e.target.value; apply(m.slug); });
+        card.querySelector('.reset').addEventListener('click', () => {
+          const o = state[m.slug].orig;
+          Object.assign(state[m.slug], { x: o.x, y: o.y, zoom: o.zoom });
+          card.querySelector('.zoom').value = o.zoom;
+          apply(m.slug);
+        });
+      }
+
+      const setStatus = (t, ok = true) => {
+        const el = document.getElementById('status');
+        el.textContent = t; el.style.color = ok ? '#6ee7b7' : '#fca5a5';
+      };
+      const payload = () => {
+        const p = {};
+        for (const m of MAPS) p[m.slug] = { focus: fmt(m.slug), zoom: +state[m.slug].zoom.toFixed(2) };
+        return p;
+      };
+
+      const cw = document.getElementById('cw'), ch = document.getElementById('ch');
+      const updateDims = () => {
+        const w = +cw.value || 992, h = +ch.value || 129;
+        root.style.setProperty('--cw', w + 'px');
+        root.style.setProperty('--ar', w + ' / ' + h);
+      };
+      cw.addEventListener('input', updateDims);
+      ch.addEventListener('input', updateDims);
+      document.querySelectorAll('.preset').forEach((b) =>
+        b.addEventListener('click', () => { cw.value = b.dataset.w; ch.value = b.dataset.h; updateDims(); })
+      );
+      updateDims();
+
+      document.getElementById('ov').addEventListener('change', (e) => root.style.setProperty('--ov', e.target.checked ? '0.9' : '0'));
+      document.getElementById('cx').addEventListener('change', (e) =>
+        document.querySelectorAll('.center').forEach((c) => (c.style.display = e.target.checked ? '' : 'none'))
+      );
+      document.getElementById('copy').addEventListener('click', async () => {
+        await navigator.clipboard.writeText(JSON.stringify(payload(), null, 2));
+        setStatus('Copied JSON to clipboard.');
+      });
+      document.getElementById('resetAll').addEventListener('click', () => {
+        for (const m of MAPS) {
+          const o = state[m.slug].orig;
+          Object.assign(state[m.slug], { x: o.x, y: o.y, zoom: o.zoom });
+          state[m.slug].fg.closest('.card').querySelector('.zoom').value = o.zoom;
+          apply(m.slug);
+        }
+        setStatus('Reset all to saved values.');
+      });
+      document.getElementById('save').addEventListener('click', async () => {
+        setStatus('Saving…');
+        try {
+          const res = await fetch('/__maptuner', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload()) });
+          const j = await res.json();
+          if (j.ok) setStatus('Saved ' + j.count + ' map' + (j.count === 1 ? '' : 's') + ' to maps.js ✓ — the vault will hot-reload.');
+          else setStatus('Save failed: ' + j.error, false);
+        } catch (err) {
+          setStatus('Save failed: ' + err, false);
+        }
+      });
+    </script>
+  </body>
+</html>

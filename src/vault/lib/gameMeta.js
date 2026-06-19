@@ -90,7 +90,7 @@ export const SCENARIO_MODES = {
   '531991356': { label: 'Ranked Terminal Attack', category: 'Ranked', teams: 2 }, // S3's ranked was Terminal Attack — verified: 0 revives, 0 defib kills, single 2-team "0-0" match (no bracket), fills the Jul-Aug 2024 gap in Ranked Cashout
   // Limited-time modes.
   '639859186': { label: 'Blast Off!', category: 'LTM', teams: 2 }, // Bernal "Fog"
-  '152796620': { label: 'Heavy Hitters', category: 'LTM', teams: 2 }, // on the Playground/HeavyHitters arena
+  // 152796620 (Heavy Hitters / Heaven or Else) is split by arena in classifyMode — both share this id.
   '905608807': { label: 'Super Cashball', category: 'LTM', teams: 2 }, // user
   '473424892': { label: 'Steal the Spotlight', category: 'LTM', teams: 12 }, // user — old big-lobby LTM
   '805886560': { label: 'Ghoul Rush', category: 'LTM', teams: 11 }, // user — Halloween LTM (aka Haunted Harvest)
@@ -131,9 +131,9 @@ const WORLD_TOUR_SCENARIOS = new Set([
   '688748083', '193786221', '205691223', '961608855', '609953292', '769621951',
 ]);
 
-// Maps that, by themselves, identify a Limited-Time Mode.
+// Maps that, by themselves, identify a Limited-Time Mode
 const LTM_MAPS = {
-  HeavyHitters: 'Heavy Hitters',
+  HeavyHitters: 'Heaven or Else',
   CashBall: 'Cashball',
 };
 
@@ -143,6 +143,12 @@ const LTM_MAPS = {
  */
 export const classifyMode = (data) => {
   if (!data) return { label: 'Unknown', category: 'Other', teams: null, confirmed: false };
+
+  // Heavy Hitters & Heaven or Else share ScenarioID 152796620 — the arena tells them apart
+  if (String(data.ScenarioID) === '152796620') {
+    const onHeavenOrElse = parseMapVariant(data.MapVariant).map === 'HeavyHitters';
+    return { label: onHeavenOrElse ? 'Heaven or Else' : 'Heavy Hitters', category: 'LTM', teams: 2, confirmed: true };
+  }
 
   const known = SCENARIO_MODES[String(data.ScenarioID)];
   if (known) return { ...known, confirmed: true };

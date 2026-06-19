@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
+import { mapTunerPlugin } from './tools/vite-map-tuner.js';
 
 export default defineConfig({
   // mmdb-lib (offline GeoIP, lazy-loaded in the vault) imports Node's `net` for IP validation; pointed at a tiny browser shim.
@@ -11,6 +12,7 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    mapTunerPlugin(),
     {
       name: 'generate-version-json',
       // This hook runs during the build process not dev

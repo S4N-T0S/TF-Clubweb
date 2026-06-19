@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Swords, Trophy, MapPin, ChevronDown, Crosshair, X,
+  Swords, Trophy, MapPin, ChevronDown, Crosshair, X, Check,
   Sun, Moon, Sunset, CloudFog, CloudLightning, CloudRain, Wind, Snowflake, Sparkles,
 } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
@@ -28,13 +28,80 @@ const categoryTone = {
   Other: 'gray',
 };
 
+// Class colours — same scheme as the Loadouts page + the weapon-filter picker
+const ARCH_TONE = { Light: 'blue', Medium: 'emerald', Heavy: 'red' };
+// Active-state styling for the class filter chips (mirrors ARCH_TONE)
+const CLASS_FILTER_ON = {
+  Light: 'bg-blue-500/20 text-blue-300 ring-blue-500/40',
+  Medium: 'bg-emerald-500/20 text-emerald-300 ring-emerald-500/40',
+  Heavy: 'bg-red-500/20 text-red-300 ring-red-500/40',
+};
+const CLASSES = ['Light', 'Medium', 'Heavy'];
+
+// Copy text to the clipboard, with a legacy execCommand fallback for older / insecure-context browsers. Resolves true on success.
+const copyText = async (text) => {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* fall through to the legacy path */
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+};
+
+// A copy-pasteable debug dump for one match
+const matchDebugText = (m) => {
+  const rounds = m.rounds || [];
+  const scenarios = [...new Set(rounds.map((r) => r.scenarioId).filter((v) => v != null))];
+  return [
+    'THE FINALS — match debug',
+    `mode:        ${m.mode?.label ?? '—'} (${m.mode?.category ?? '—'})${m.mode?.confirmed ? '' : ' [heuristic]'}`,
+    `scenarioId:  ${scenarios.join(', ') || '—'}`,
+    `tournament:  ${m.tournamentId ? `${m.tournamentId}${m.isBracket ? ' · bracket' : ''}` : 'no'}`,
+    `map:         ${m.mapName ?? m.map?.display ?? '—'}`,
+    `class:       ${m.archetypes?.join(' / ') || '—'}`,
+    `date:        ${dateTime(m.start)}`,
+    `rounds:      ${rounds.length}`,
+    '— per round —',
+    ...rounds.map(
+      (r, i) =>
+        `${i + 1}) scenario ${r.scenarioId ?? '—'} · matchId ${r.matchId ?? '—'} · tier ${r.tier ?? '—'} · ${
+          r.mapVariant ?? '—'
+        }${r.position != null ? ` · pos ${r.position}` : ''}`
+    ),
+  ].join('\n');
+};
+
 // One recognizable map photo as the card background. `focus` (object-position)
 // frames the shot; the dark overlay keeps foreground text legible. `null` src
 // just renders nothing (the plain card shows).
-const MapBg = ({ src, focus = '50% 40%', overlay = 'bg-gray-900/72' }) =>
+const MapBg = ({ src, focus = '50% 40%', zoom = 1, overlay = 'bg-gray-900/90' }) =>
   src ? (
     <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-      <img src={src} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: focus }} />
+      {zoom < 1 && (
+        <div
+          className="absolute inset-0 blur-xl scale-110"
+          style={{ backgroundImage: `url("${src}")`, backgroundSize: 'cover', backgroundPosition: focus }}
+        />
+      )}
+      <div
+        className="absolute inset-0 bg-no-repeat"
+        style={{ backgroundImage: `url("${src}")`, backgroundPosition: focus, backgroundSize: zoom === 1 ? 'cover' : `${zoom * 100}% auto` }}
+      />
       <div className={`absolute inset-0 ${overlay}`} />
     </div>
   ) : null;
@@ -149,24 +216,28 @@ const KillsTooltip = ({ items, label, children }) => {
 // tournament (shown once on the card), so a round highlights what VARIES: the
 // time/weather, the layout, the weapon used, placement, cashout and combat.
 const RoundRow = ({ r }) => (
-  <div className="relative flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-gray-950/35">
+  <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3 px-3 py-2 rounded-lg bg-gray-950/45">
     <div className="min-w-0">
-      <div className="flex items-center gap-2 text-sm font-semibold text-gray-100">
+      <div className="flex items-center gap-2 flex-wrap text-sm font-semibold text-gray-100">
         <span>{r.stageLabel}</span>
         {r.tournamentWon && (
           <Badge tone="yellow">
-            <Trophy className="w-3 h-3 inline -mt-0.5 mr-0.5" />Won
+            <Trophy className="w-3 h-3" />Won
           </Badge>
         )}
         {r.backfill && <span className="text-[10px] font-normal text-gray-400">joined in progress</span>}
         {r.disconnected && <span className="text-[10px] font-normal text-red-300">disconnected</span>}
+        <span className="ml-auto sm:hidden inline-flex items-center gap-2 text-xs font-normal text-gray-300">
+          <ConditionTag type={r.condType} label={r.condition} />
+          {r.layout && <span className="text-gray-400">{r.layout.replace(/([a-z])([A-Z])/g, '$1 $2')}</span>}
+        </span>
       </div>
-      <div className="text-xs text-gray-300 mt-0.5 flex items-center gap-2 flex-wrap">
+      <div className="hidden sm:flex text-xs text-gray-300 mt-0.5 items-center gap-2 flex-wrap">
         <ConditionTag type={r.condType} label={r.condition} />
         {r.layout && <span className="text-gray-400">· {r.layout.replace(/([a-z])([A-Z])/g, '$1 $2')}</span>}
       </div>
     </div>
-    <div className="flex items-center gap-4 sm:gap-6 shrink-0 text-right">
+    <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 shrink-0 text-right">
       <div className="w-16">
         <p className="text-[10px] uppercase text-gray-400">Place</p>
         <p className={`text-sm font-semibold ${r.roundWon ? 'text-emerald-300' : 'text-gray-100'}`}>
@@ -193,12 +264,32 @@ const MatchCard = ({ m, expanded, onToggle }) => {
   const tone = categoryTone[m.mode?.category] || 'gray';
   const expandable = m.isTournament;
   const mapName = m.mapName || m.map?.display;
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef(null);
+
+  // Shift / Ctrl / ⌘ + click copies a debug dump
+  const onCardClickCapture = (e) => {
+    if (!(e.shiftKey || e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    copyText(matchDebugText(m)).then((ok) => {
+      if (!ok) return;
+      setCopied(true);
+      clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), 1600);
+    });
+  };
 
   return (
-    <div className="relative bg-gray-800 rounded-xl overflow-hidden">
+    <div className="relative bg-gray-800 rounded-xl overflow-hidden" onClickCapture={onCardClickCapture}>
       {/* One map photo behind the whole card — it stretches to fill the taller
           expanded card, so opening a tournament reveals a bigger picture. */}
-      <MapBg src={m.mapImage} focus={m.mapFocus} />
+      <MapBg src={m.mapImage} focus={m.mapFocus} zoom={m.mapZoom} />
+      {copied && (
+        <div className="absolute top-2 right-2 z-20 inline-flex items-center gap-1 rounded-full bg-emerald-600 text-white text-[10px] font-semibold px-2 py-1 shadow-lg">
+          <Check className="w-3 h-3" /> Debug copied
+        </div>
+      )}
       <div className="relative" style={m.mapImage ? OVER_PHOTO : undefined}>
         {/* Header (clickable for tournaments) */}
         <div
@@ -236,7 +327,15 @@ const MatchCard = ({ m, expanded, onToggle }) => {
                 {/* For single-round matches the time/weather is fixed, so show it here. */}
                 {!m.isTournament && m.condition && <ConditionTag type={m.rounds[0]?.condType} label={m.condition} />}
                 {m.durationMs != null && <span>{duration(m.durationMs)}</span>}
-                {m.archetypes?.length > 0 && <span>{m.archetypes.join(' / ')}</span>}
+                {m.archetypes?.length > 0 && (
+                  <span className="inline-flex items-center gap-1">
+                    {m.archetypes.map((a) => (
+                      <Badge key={a} tone={ARCH_TONE[a] || 'gray'}>
+                        {a}
+                      </Badge>
+                    ))}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -248,7 +347,7 @@ const MatchCard = ({ m, expanded, onToggle }) => {
                   <div className="flex items-center gap-2">
                     {m.tournamentWon && (
                       <Badge tone="yellow">
-                        <Trophy className="w-3 h-3 inline -mt-0.5 mr-0.5" />Won
+                        <Trophy className="w-3 h-3" />Won
                       </Badge>
                     )}
                     {m.placement ? (
@@ -306,13 +405,6 @@ const MatchCard = ({ m, expanded, onToggle }) => {
                 </div>
               </div>
             </KillsTooltip>
-
-            {/* Expand affordance (tournaments only) */}
-            {expandable && (
-              <ChevronDown
-                className={`w-5 h-5 text-gray-200 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
-              />
-            )}
           </div>
         </div>
 
@@ -327,6 +419,21 @@ const MatchCard = ({ m, expanded, onToggle }) => {
             ))}
           </div>
         )}
+
+        {/* Expand affordance: a full-width handle at the bottom-centre of the card */}
+        {expandable && (
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={expanded}
+            className="group/bar relative w-full flex items-center justify-center gap-1.5 py-1.5 border-t border-white/10 bg-black/25 hover:bg-black/40 text-gray-300 hover:text-white transition-colors"
+          >
+            <span className="text-[10px] font-semibold uppercase tracking-wider">{expanded ? 'Hide rounds' : 'Show rounds'}</span>
+            <ChevronDown
+              className={`w-4 h-4 transition-transform duration-200 ${expanded ? 'rotate-180' : 'group-hover/bar:translate-y-0.5'}`}
+            />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -336,6 +443,7 @@ export const MatchesPage = () => {
   const { model } = useVaultData();
   const { matches } = model;
   const [filter, setFilter] = useState('All'); // mode group, or 'All'
+  const [classSel, setClassSel] = useState(() => new Set()); // archetypes to require (Light/Medium/Heavy)
   const [weaponSel, setWeaponSel] = useState(() => new Set()); // content-ids to require a kill with
   const [modalOpen, setModalOpen] = useState(false);
   const [page, setPage] = useState(1); // 1-based, matches the shared Pagination
@@ -359,16 +467,16 @@ export const MatchesPage = () => {
     return c;
   }, [matches]);
 
-  // Mode group AND weapon selection (a match passes the weapon filter if it has
-  // a kill with ANY selected item — weaponKills only lists items that got kills).
+  // Mode group AND class AND weapon selection
   const filtered = useMemo(
     () =>
       matches.filter((m) => {
         if (filter !== 'All' && careerModeGroup(m.mode) !== filter) return false;
+        if (classSel.size > 0 && !(m.archetypes || []).some((a) => classSel.has(a))) return false;
         if (weaponSel.size > 0 && !(m.weaponKills || []).some((wk) => weaponSel.has(wk.id))) return false;
         return true;
       }),
-    [matches, filter, weaponSel]
+    [matches, filter, classSel, weaponSel]
   );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
@@ -379,6 +487,16 @@ export const MatchesPage = () => {
   const tabs = ['All', ...CAREER_MODE_GROUPS.filter((g) => groupCounts[g]), ...(groupCounts.Other ? ['Other'] : [])];
   const setTab = (t) => {
     setFilter(t);
+    setPage(1);
+  };
+
+  const toggleClass = (c) => {
+    setClassSel((prev) => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c);
+      else next.add(c);
+      return next;
+    });
     setPage(1);
   };
 
@@ -422,6 +540,23 @@ export const MatchesPage = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] text-gray-500 uppercase tracking-wide">Class</span>
+          {CLASSES.map((c) => {
+            const on = classSel.has(c);
+            return (
+              <button
+                key={c}
+                onClick={() => toggleClass(c)}
+                aria-pressed={on}
+                className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ring-1 ${
+                  on ? CLASS_FILTER_ON[c] : 'bg-gray-800 text-gray-400 ring-transparent hover:text-white'
+                }`}
+              >
+                {c}
+              </button>
+            );
+          })}
+          <span className="hidden sm:block w-px h-5 bg-gray-700 mx-1" aria-hidden="true" />
           <button
             onClick={() => setModalOpen(true)}
             className={`inline-flex items-center gap-2 shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
@@ -456,8 +591,8 @@ export const MatchesPage = () => {
 
       {filtered.length === 0 ? (
         <EmptyState icon={Swords} title="No matches with these filters">
-          {weaponSel.size > 0
-            ? 'No matches here have a kill with the selected weapon(s). Try removing a weapon or switching mode.'
+          {weaponSel.size > 0 || classSel.size > 0
+            ? 'No matches match every filter. Try removing a class or weapon, or switching mode.'
             : null}
         </EmptyState>
       ) : (
@@ -490,13 +625,16 @@ export const MatchesPage = () => {
       )}
 
       <Note>
-        Filter by mode, or by weapon to find the rounds where you got a kill with a specific item — a gun, a Mine, a Jump
-        Pad, a Defibrillator, anything that can score (the export records kills per item). Ranked Cashout is an 8-team
+        Filter by mode, by class, or by weapon to find the rounds where you got a kill with a specific item — a gun, a Mine,
+        a Jump Pad, a Defibrillator, anything that can score. Tip: hold{' '}
+        <span className="text-gray-300">Shift</span> (or <span className="text-gray-300">Ctrl</span> /{' '}
+        <span className="text-gray-300">⌘</span>) and click a match to copy its debug details — the scenario (gamemode) id,
+        match id and per-round data — to your clipboard. Ranked Cashout is an 8-team
         tournament — click any tournament to see its rounds. The bracket is Round 1 (two parallel 4-team lobbies, top 2
         advance) → Round 2 (4 teams, top 2 advance) → a 1v1 Final. Placement is derived from the furthest round you reached
         and your finish there; Round-1 exits resolve to a tied range (5th–6th or 7th–8th) because the two lobbies run in
-        parallel. Each card’s photo is the arena; the icon by each round marks the time/weather. Per-round “Cashout” is the
-        in-match cash you banked. Mode labels marked “heuristic” are inferred from structure, not a confirmed ScenarioID.
+        parallel. Each card’s photo is the arena; the icon by each round marks the time/weather. Mode labels marked “heuristic” are inferred
+        from structure, not a confirmed ScenarioID.
       </Note>
 
       {modalOpen && (

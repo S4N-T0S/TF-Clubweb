@@ -39,7 +39,7 @@ export const Badge = ({ children, tone = 'gray' }) => {
     purple: 'bg-purple-500/20 text-purple-300',
   };
   return (
-    <span className={`inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${tones[tone] || tones.gray}`}>
+    <span className={`inline-flex items-center justify-center gap-1 align-middle text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${tones[tone] || tones.gray}`}>
       {children}
     </span>
   );
