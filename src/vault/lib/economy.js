@@ -74,6 +74,14 @@ export const SOURCE_GROUPS = [
   { key: 'Other', match: ['giveaway', 'thirdpartysubscription', 'unknown'] },
 ];
 
+// The price we display is the standard USD/EUR store price (TransactionLog.PricePoint —
+// the same number in $ and €). A wallet in one of these currencies paid exactly that
+// amount; any other wallet paid a regionally-priced / converted amount we can't derive,
+// so the page shows a disclaimer for non-base wallets. Treat an unknown (null) code as
+// base — we can't claim a different amount was charged without evidence.
+export const BASE_CURRENCIES = new Set(['EUR', 'USD']);
+export const isBaseCurrency = (code) => !code || BASE_CURRENCIES.has(code);
+
 // Steam app ids
 export const STEAM_BASE_GAME_ID = 2073850;
 export const DLC_NAMES = {

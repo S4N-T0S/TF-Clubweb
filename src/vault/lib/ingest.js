@@ -81,6 +81,45 @@ function classify(flat) {
 // Decode an entry's bytes to a UTF-8 string (the export is UTF-8; € is valid).
 export const entryText = (entry) => (entry ? strFromU8(entry.bytes) : '');
 
+// Inspect a classified fileset and report which expected SAR components were found.
+export function summarizeFileset(fileset) {
+  const eosFound = fileset.eos.anticheat.length > 0 || fileset.eos.linkedAccounts.length > 0;
+  const anybrainFound = !!(fileset.anybrain.os || fileset.anybrain.screens || fileset.anybrain.sessions);
+
+  const components = [
+    {
+      key: 'persistence', label: 'Game & account data', file: '<id>_persistence', required: true,
+      found: !!fileset.persistence, powers: 'Career, match history, weapons, breakdowns and purchases',
+    },
+    {
+      key: 'audit', label: 'Account audit log', file: '<id>_audit', required: false,
+      found: !!fileset.audit, powers: 'name-change history and the reports you’ve filed',
+    },
+    {
+      key: 'eos', label: 'Easy Anti-Cheat (EOS)', file: 'eos-archive_clean.zip', required: false,
+      found: eosFound, powers: 'login sessions and linked platform accounts',
+    },
+    {
+      key: 'anybrain', label: 'Anybrain anti-cheat', file: 'anybrain_clean.zip', required: false,
+      found: anybrainFound, powers: 'extra play-session records on the Sessions page',
+    },
+    {
+      key: 'denuvo', label: 'Denuvo anti-cheat', file: 'denuvo_clean.jsonl', required: false,
+      found: fileset.denuvo.length > 0, powers: 'per-platform session records',
+    },
+  ];
+
+  const missing = components.filter((c) => !c.required && !c.found);
+  return {
+    components,
+    missing,
+    foundCount: components.filter((c) => c.found).length,
+    total: components.length,
+    complete: missing.length === 0,
+    unknownCount: fileset.unknown.length,
+  };
+}
+
 /**
  * Ingest a FileList / File[] into a classified, flat fileset.
  * @param {FileList|File[]} fileList

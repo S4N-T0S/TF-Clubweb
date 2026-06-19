@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ingestFiles } from '../lib/ingest';
+import { ingestFiles, summarizeFileset } from '../lib/ingest';
 import { parseFileset } from '../lib/parse';
 import { buildModel } from '../lib/model';
 import { buildSampleRaw } from '../lib/sampleData';
@@ -26,17 +26,21 @@ export const VaultDataProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [model, setModel] = useState(null);
   const [isSample, setIsSample] = useState(false);
+  // Which expected SAR components turned up in the last real import (null for the sample / before any load)
+  const [importSummary, setImportSummary] = useState(null);
 
   const load = useCallback(async (fileList) => {
     setStatus('loading');
     setError(null);
     setIsSample(false);
+    setImportSummary(null);
     setProgress('Reading files…');
     // Warm the weapon/map image cache now (during import) so the Matches page
     // and weapon-filter picker are ready by the time the user gets there.
     preloadVaultImages();
     try {
       const fileset = await ingestFiles(fileList, setProgress);
+      setImportSummary(summarizeFileset(fileset));
       const raw = await parseFileset(fileset, setProgress);
       setProgress('Building dashboards…');
       const built = buildModel(raw);
@@ -56,6 +60,7 @@ export const VaultDataProvider = ({ children }) => {
   const loadSample = useCallback(() => {
     setError(null);
     setProgress('');
+    setImportSummary(null);
     preloadVaultImages();
     try {
       setModel(buildModel(buildSampleRaw()));
@@ -73,12 +78,13 @@ export const VaultDataProvider = ({ children }) => {
     setError(null);
     setProgress('');
     setIsSample(false);
+    setImportSummary(null);
     setStatus('idle');
   }, []);
 
   const value = useMemo(
-    () => ({ status, progress, error, model, isSample, hasData: status === 'ready' && !!model, load, loadSample, reset }),
-    [status, progress, error, model, isSample, load, loadSample, reset]
+    () => ({ status, progress, error, model, isSample, importSummary, hasData: status === 'ready' && !!model, load, loadSample, reset }),
+    [status, progress, error, model, isSample, importSummary, load, loadSample, reset]
   );
 
   return <VaultDataContext.Provider value={value}>{children}</VaultDataContext.Provider>;

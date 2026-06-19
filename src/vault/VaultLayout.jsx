@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import { User, Swords, Crosshair, Layers, BarChart3, Wallet, Radar, ShieldAlert, WifiOff, LogOut, RotateCcw, FlaskConical } from 'lucide-react';
 import { useVaultData } from './context/VaultDataContext';
 import { VAULT_BASE } from './constants';
+import { ImportSummaryBanner } from './components/ImportSummaryBanner';
 import { BackToTop } from '../components/BackToTop';
 import { useMobileDetect } from '../hooks/useMobileDetect';
 
@@ -88,7 +89,10 @@ export const VaultLayout = ({ children }) => {
         </aside>
 
         {/* Page content */}
-        <main className="flex-1 min-w-0">{children}</main>
+        <main className="flex-1 min-w-0">
+          <ImportSummaryBanner />
+          {children}
+        </main>
       </div>
 
       <BackToTop isMobile={isMobile} />

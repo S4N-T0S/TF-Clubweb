@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Wallet, CreditCard, Store, Coins, Clock, ExternalLink } from 'lucide-react';
+import { Wallet, CreditCard, Store, Coins, Clock, ExternalLink, Info } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, StatCard, Badge, Note, EmptyState, PageJump } from '../components/ui';
 import { Pagination } from '../../components/Pagination';
-import { num, decimal, date, dateTime, duration } from '../lib/format';
-import { sourceLabel, sourceTone, storeLabel, typeLabel, logTypeMeta, SOURCE_GROUPS } from '../lib/economy';
+import { num, money, date, dateTime, duration } from '../lib/format';
+import { sourceLabel, sourceTone, storeLabel, typeLabel, logTypeMeta, SOURCE_GROUPS, BASE_CURRENCIES, isBaseCurrency } from '../lib/economy';
 import { seasonsInRange } from '../lib/seasons';
 
 const PER_PAGE = 15;
@@ -120,8 +120,26 @@ const Donut = ({ segments, total }) => {
   );
 };
 
-// Per-row price. LocalizedPrice is the only field with the TRUE amount charged (e.g. "PLN 20.95") and is present on only some rows. Otherwise PricePoint is Valve's base price tier (≈ USD/EUR), NOT the local charge — shown as approx
-const fiatPrice = (t) => t.localizedPrice || (t.pricePoint != null ? `≈ ${decimal(t.pricePoint)}` : '—');
+// The standard USD/EUR store price — TransactionLog.PricePoint is the same number in $
+// and €, so we show it as the primary, solid amount (formatted in € for a clean symbol;
+// the figure is identical in USD). This is exactly what a EUR/USD wallet was charged.
+const baseMoney = (pp) => (pp != null ? money(pp, 'EUR') : '—');
+
+// Does this row's wallet match the USD/EUR base we display? If so the base price IS what
+// was paid and any recorded local price just repeats it; if not (e.g. a PLN wallet),
+// LocalizedPrice carries the real local charge worth surfacing.
+const rowInBaseCurrency = (t) => (t.currency ? isBaseCurrency(t.currency) : !t.localizedPrice || /^[€$]/.test(t.localizedPrice.trim()));
+
+// Price cell for the real-money table: the standard USD/EUR price, with the real local
+// charge underneath when the wallet isn't USD/EUR and the export recorded it.
+const PriceCell = ({ t }) => (
+  <div className="leading-tight">
+    <span className="text-white tabular-nums">{baseMoney(t.pricePoint)}</span>
+    {t.localizedPrice && !rowInBaseCurrency(t) && (
+      <span className="block text-[11px] text-gray-400 tabular-nums">paid {t.localizedPrice}</span>
+    )}
+  </div>
+);
 
 // What a real-money charge actually granted — matched by timestamp in the model (Multibucks top-up and/or a Steam DLC; DLC packs bundle both)
 const Contents = ({ c }) => {
@@ -175,7 +193,10 @@ export const PurchasesPage = () => {
 
   const setGroup = (key) => { setFilter(key); setTxPage(1); };
 
-  const spentValue = fiatGrantedCount ? `≈ ${decimal(spendBaseTotal)}` : '—';
+  // If any granted purchase used a wallet that isn't USD/EUR, the displayed standard price is only an estimate of what they actually paid — flag it for the disclaimer
+  const nonBaseCurrencies = walletCurrencies.filter((c) => !BASE_CURRENCIES.has(c));
+  const walletIsBase = nonBaseCurrencies.length === 0;
+  const spentValue = fiatGrantedCount ? baseMoney(spendBaseTotal) : '—';
   const mbInflowSegs = MB_SEGMENTS.map((s) => ({ ...s, value: mb[s.key] || 0 })).filter((s) => s.value > 0);
   const mbInflowTotal = mb.inTotal;
 
@@ -199,7 +220,11 @@ export const PurchasesPage = () => {
               label="Real money spent"
               value={spentValue}
               accent="text-yellow-400"
-              sub={fiatGrantedCount ? `${num(fiatGrantedCount)} purchase${fiatGrantedCount === 1 ? '' : 's'} · est.` : 'no real-money purchases'}
+              sub={
+                fiatGrantedCount
+                  ? `${num(fiatGrantedCount)} purchase${fiatGrantedCount === 1 ? '' : 's'} · standard USD/EUR price${walletIsBase ? '' : ' (approx)'}`
+                  : 'no real-money purchases'
+              }
             />
             <StatCard label="Multibucks balance" value={num(currentBalance)} accent="text-emerald-400" sub="current premium currency" />
             <StatCard label="Multibucks bought" value={num(mb.bought)} sub="with real money" />
@@ -216,9 +241,9 @@ export const PurchasesPage = () => {
             ) : (
               <>
                 <div className="flex flex-wrap items-end gap-x-4 gap-y-1 mb-4">
-                  <p className="text-3xl font-bold text-yellow-400">≈ {decimal(spendBaseTotal)}</p>
+                  <p className="text-3xl font-bold text-yellow-400">{baseMoney(spendBaseTotal)}</p>
                   <p className="text-xs text-gray-500 pb-1">
-                    estimated from base (USD/EUR) price points · {num(fiatGrantedCount)} purchase{fiatGrantedCount === 1 ? '' : 's'}
+                    standard USD / EUR store price · {num(fiatGrantedCount)} purchase{fiatGrantedCount === 1 ? '' : 's'}
                     {walletCurrencies.length > 0 && <> · wallet: {walletCurrencies.join(', ')}</>}
                   </p>
                 </div>
@@ -237,7 +262,7 @@ export const PurchasesPage = () => {
                       {fiat.map((t, i) => (
                         <tr key={i} className="border-b border-gray-700/40 last:border-0">
                           <td className="py-2 px-3 text-gray-300 whitespace-nowrap">{dateTime(t.purchasedAt)}</td>
-                          <td className="py-2 px-3 text-right tabular-nums text-white">{fiatPrice(t)}</td>
+                          <td className="py-2 px-3 text-right"><PriceCell t={t} /></td>
                           <td className="py-2 px-3"><Contents c={t.contents} /></td>
                           <td className="py-2 px-3 text-gray-400">{storeLabel(t.store)}</td>
                           <td className="py-2 px-3">
@@ -253,12 +278,22 @@ export const PurchasesPage = () => {
                     {num(fiatFailedCount)} failed/cancelled attempt{fiatFailedCount === 1 ? '' : 's'} shown above but excluded from the total.
                   </p>
                 )}
+                {!walletIsBase && (
+                  <div className="mt-3 flex items-start gap-2.5 rounded-lg border border-amber-700/40 bg-amber-950/30 px-3 py-2.5 text-xs text-amber-200/90">
+                    <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <p>
+                      Your wallet is in <strong>{nonBaseCurrencies.join(', ')}</strong>, but the game only records the
+                      standard <strong>USD / EUR</strong> price (the same number in both). Items are usually priced lower
+                      in other regions, so <strong>you may have actually paid up to ~20% less</strong> than the amounts shown
+                      here. Where the export recorded your exact local charge, it’s shown beneath the price.
+                    </p>
+                  </div>
+                )}
                 <Note>
                   Each charge is matched to the Multibucks and/or DLC it granted by exact timestamp (DLC packs bundle both).
-                  <strong> Amounts are approximate</strong> — the export stores Valve’s base price point (≈ USD/EUR), not what
-                  your wallet was actually charged: e.g. a PLN wallet billed 74.99&nbsp;zł is recorded as the 19.99 tier. The
-                  real local amount only appears on some rows (shown when present), so treat the total as a USD/EUR-equivalent
-                  estimate, not your exact local spend.
+                  {walletIsBase
+                    ? ' Prices are the exact USD / EUR amount your wallet was charged.'
+                    : ' Prices shown are the standard USD / EUR store price, not your exact local spend (see above).'}
                 </Note>
               </>
             )}
@@ -401,7 +436,7 @@ export const PurchasesPage = () => {
                       <td className="py-2 px-3"><Badge tone={sourceTone(t.source)}>{sourceLabel(t.source)}</Badge></td>
                       <td className="py-2 px-3 text-gray-400">{typeLabel(t.type)}</td>
                       <td className="py-2 px-3 text-gray-400">{storeLabel(t.store)}</td>
-                      <td className="py-2 px-3 text-right tabular-nums text-gray-300">{t.isFiat && t.pricePoint != null ? fiatPrice(t) : '—'}</td>
+                      <td className="py-2 px-3 text-right tabular-nums text-gray-300">{t.isFiat && t.pricePoint != null ? baseMoney(t.pricePoint) : '—'}</td>
                       <td className="py-2 px-3">
                         {t.granted ? <span className="text-gray-500 text-xs">granted</span> : <Badge tone="red">{t.state}</Badge>}
                       </td>
