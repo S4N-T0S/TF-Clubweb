@@ -11,12 +11,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "buffer": "^6.0.3",
     "chart.js": "^4.4.7",
     "chartjs-adapter-date-fns": "^3.0.0",
     "chartjs-plugin-annotation": "^3.1.0",
     "chartjs-plugin-zoom": "^2.2.0",
     "date-fns": "^4.1.0",
+    "fflate": "^0.8.3",
     "lucide-react": "^1.17.0",
+    "mmdb-lib": "^3.0.2",
     "react": "^19.2.7",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "^19.2.7",

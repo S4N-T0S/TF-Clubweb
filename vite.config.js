@@ -1,7 +1,14 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+  // mmdb-lib (offline GeoIP, lazy-loaded in the vault) imports Node's `net` for IP validation; pointed at a tiny browser shim.
+  resolve: {
+    alias: {
+      net: fileURLToPath(new URL('./src/vault/lib/net-shim.js', import.meta.url)),
+    },
+  },
   plugins: [
     react(),
     {

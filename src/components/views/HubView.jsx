@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Crown, Globe, Trophy, Crosshair, Sparkles, Zap } from 'lucide-react';
+import { Crown, Globe, Trophy, Crosshair, Sparkles, Zap, ShieldCheck } from 'lucide-react';
 
 // Feature tiles.
 const FEATURES = [
@@ -32,19 +32,33 @@ const FEATURES = [
     icon: Crosshair,
     title: 'Spray Patterns',
     desc: 'Interactive recoil patterns and control guides for every weapon.',
+    color: 'text-red-400',
+    ring: 'hover:border-red-500/60',
+    badge: 'New',
+  },
+  {
+    to: '/gdpr-vault',
+    icon: ShieldCheck,
+    title: 'Your Data Vault',
+    desc: 'Load your GDPR data export and explore it privately — offline, nothing uploaded.',
     color: 'text-emerald-400',
     ring: 'hover:border-emerald-500/60',
-    badge: 'New',
+    badge: 'Beta',
+    badgeTone: 'orange',
   },
 ];
 
-const FeatureTile = ({ to, icon: Icon, title, desc, color, ring, badge }) => (
+const FeatureTile = ({ to, icon: Icon, title, desc, color, ring, badge, badgeTone }) => (
   <Link
     to={to}
     className={`group relative bg-gray-800 p-6 rounded-xl border border-gray-700 ${ring} transition-colors flex flex-col`}
   >
     {badge && (
-      <span className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full">
+      <span
+        className={`absolute top-3 right-3 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+          badgeTone === 'orange' ? 'bg-orange-500/20 text-orange-300' : 'bg-emerald-500/20 text-emerald-300'
+        }`}
+      >
         {badge}
       </span>
     )}

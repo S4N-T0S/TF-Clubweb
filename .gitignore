@@ -15,6 +15,7 @@ dist-ssr
 .TODO
 clean.ps1
 c.js
+public/__verify/
 
 # Editor directories and files
 .vscode/*

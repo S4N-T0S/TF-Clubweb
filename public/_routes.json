@@ -4,6 +4,8 @@
   "exclude": [
     "/assets/*",
     "/videos/*",
+    "/geo/*",
+    "/vault/*",
     "/version.json",
     "/robots.txt",
     "/sitemap.xml",

@@ -1,6 +1,11 @@
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import App from './App';
 import OverlayRoot from './components/overlay/OverlayRoot';
+import { LoadingDisplay } from './components/LoadingDisplay';
+
+// The GDPR/SAR data vault is a fully separate, offline route tree.
+const VaultRoot = lazy(() => import('./vault/VaultRoot'));
 
 const router = createBrowserRouter([
   {
@@ -28,6 +33,14 @@ const router = createBrowserRouter([
   {
     path: '/overlay/*',
     element: <OverlayRoot />
+  },
+  {
+    path: '/gdpr-vault/*',
+    element: (
+      <Suspense fallback={<LoadingDisplay iconColor="text-emerald-400" />}>
+        <VaultRoot />
+      </Suspense>
+    )
   },
   {
     path: '*',

@@ -25,7 +25,7 @@ const loadingMessages = [
   "Complaining about Light players..."
 ];
 
-export const LoadingDisplay = ({ variant = 'page', message }) => {
+export const LoadingDisplay = ({ variant = 'page', message, iconColor = 'text-blue-500' }) => {
   const [currentMessage, setCurrentMessage] = useState(
     loadingMessages[Math.floor(Math.random() * loadingMessages.length)]
   );
@@ -56,7 +56,7 @@ export const LoadingDisplay = ({ variant = 'page', message }) => {
 
   return (
     <div className={containerClass}>
-      <Loader2 className={`${iconClass} animate-spin text-blue-500`} />
+      <Loader2 className={`${iconClass} animate-spin ${iconColor}`} />
       <p className={`mt-4 ${textClass} text-gray-300`}>{message || currentMessage}</p>
     </div>
   );

@@ -1,0 +1,448 @@
+// Synthetic "sample player" for the landing-page preview.
+//
+// This builds a fully fictional RAW export (the same shape parse.js produces)
+// and hands it to the real buildModel(), so every page renders from the exact
+// same pipeline as a real upload — no separate mock view-models to drift out of
+// sync, and nothing can crash on a field the generator forgot, because the
+// generator only has to produce the raw records the parser would.
+//
+// It is deterministic (seeded RNG, fixed timeline anchors, no Date.now()) so the
+// preview looks identical on every visit. The identity is obviously-fake and the
+// numbers are a believable composite of a long-time THE FINALS player — there is
+// no real personal data here.
+
+// --- deterministic RNG ----------------------------------------------------
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rng = mulberry32(0x0067_4c5b);
+const rf = () => rng();
+const ri = (lo, hi) => lo + Math.floor(rng() * (hi - lo + 1));
+const pick = (arr) => arr[Math.floor(rng() * arr.length)];
+const chance = (p) => rng() < p;
+
+// --- timeline (fixed, in the past, so the sample never drifts) ------------
+const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
+const iso = (ms) => new Date(ms).toISOString();
+const lerp = (a, b, t) => a + (b - a) * t;
+const hoursToMs = (h) => Math.round(h * HOUR);
+
+const ACCOUNT_CREATED = Date.parse('2023-09-25T14:30:00Z'); // closed-beta era veteran
+const SPAN_START = Date.parse('2024-01-20T18:00:00Z');
+const SPAN_END = Date.parse('2026-06-14T22:00:00Z');
+const ANYBRAIN_GOLIVE = Date.parse('2025-07-24T00:00:00Z');
+
+// Two London-block IPs (the classic GeoIP example range) so the offline
+// geolocation map lights up for the preview. Real exports carry the player's
+// own addresses; redacted donor samples show "no usable IPs" instead.
+const IPS = ['81.2.69.142', '81.2.69.160'];
+
+// --- content ids (all present in weapons.js / gameMeta.js / maps.js) ------
+const ARCH_KEY = { Light: 'DA_Archetype_Small', Medium: 'DA_Archetype_Medium', Heavy: 'DA_Archetype_Heavy' };
+const PRIMARY = {
+  Light: ['199277493', '1599997630', '-322594587', '-158222801', '1612446258', '-657541680'], // ARN-220, M11, XP-54, V9S, SH1900, SR-84
+  Medium: ['473278792', '-566338044', '-2101446056', '-240495033', '107797000', '1501440399'], // AKM, FCAR, PIKE-556, FAMAS, Cerberus, CL-40
+  Heavy: ['-212966229', '-676727577', '-160507163', '1743942098', '1096645849', '1480845770'], // M60, SHAK-50, SA1216, Lewis Gun, KS-23, Flamethrower
+};
+const GADGET = {
+  Light: ['432758549', '1948814529'], // Breach Charge, Gateway
+  Medium: ['-21077747', '1886362451'], // Gas Mine, APS Turret
+  Heavy: ['1042541498', '-455578974', '1647891907'], // RPG-7, C4, Pyro Mine
+};
+const GLOBAL_GADGET = ['1082327915', '-351094439', '81925953']; // Frag, Explosive Mine, Pyro Grenade
+
+const TOURNEY_MAPS = [
+  'DA_MV_Arena_01_Base', 'DA_MV_Arena_02_Base', 'DA_MV_Arena_04_Base', 'DA_MV_Seoul_01_Base',
+  'DA_MV_Seoul_02_Base', 'DA_MV_Kyoto_01_Base', 'DA_MV_LasVegas_02_Base', 'DA_MV_LasVegas_02_Sundown',
+  'DA_MV_BayCity_01_Base',
+];
+const CASUAL_MAPS = ['DA_MV_Monaco_01_Base', 'DA_MV_Seoul_01_Base', 'DA_MV_Kyoto_01_Base', 'DA_MV_LasVegas_02_Base', 'DA_MV_Arena_01_Base'];
+const CONDS = ['Day', 'Night', 'Sunset', 'Sandstorm', 'HeavyRain', 'Fog'];
+const SQUADS = ['THE OG CLUB', 'Iron Vultures', 'Night Shift', 'Vault Runners', 'Last Call', 'Static Hazard', 'Concrete Jungle'];
+
+const archetypeRoll = () => (chance(0.3) ? 'Light' : chance(0.685) ? 'Medium' : 'Heavy');
+
+// kills -> KillsPerItem (primary gun gets most; a gadget/grenade chips in ~45%)
+function killsPerItem(arch, kills) {
+  const kpi = {};
+  if (kills <= 0) return kpi;
+  let gadget = chance(0.45) ? Math.min(kills, ri(1, 2)) : 0;
+  const prim = kills - gadget;
+  if (prim > 0) kpi[pick(PRIMARY[arch])] = prim;
+  if (gadget > 0) kpi[pick([...GADGET[arch], ...GLOBAL_GADGET])] = gadget;
+  return kpi;
+}
+
+// One round record (the { CreatedAt, Data } the parser yields per RoundStat).
+function roundRecord({ arch, map, scenarioId, t, dur, combat, tournamentId = null, tier = null, matchId = null, position = null, roundWon = false, tournamentWon = false, backfill = false, disconnected = false }) {
+  const cond = pick(CONDS);
+  return {
+    CreatedAt: iso(t),
+    Data: {
+      CharacterArchetype: ARCH_KEY[arch],
+      MapVariant: map,
+      EnvironmentalCondition: cond,
+      KillsPerItem: killsPerItem(arch, combat.kills),
+      StartTime: iso(t),
+      EndTime: iso(t + dur),
+      Kills: combat.kills,
+      Deaths: combat.deaths,
+      Dbnos: combat.dbnos,
+      RevivesDone: combat.revives,
+      DamageDone: combat.damage,
+      Currency: combat.currency,
+      FameAmount: combat.fame,
+      ScenarioID: scenarioId,
+      Tier: tier,
+      TournamentID: tournamentId,
+      MatchID: matchId,
+      TournamentWon: tournamentWon,
+      RoundWon: roundWon,
+      LeaderboardPosition: position == null ? undefined : position,
+      IsBackfill: backfill,
+      Disconnected: disconnected,
+      SquadName: pick(SQUADS),
+      SquadID: `sq_${ri(100000, 999999)}`,
+    },
+  };
+}
+
+function combat(kLo, kHi, dLo, dHi, cashLo, cashHi) {
+  const kills = ri(kLo, kHi);
+  const deaths = ri(dLo, dHi);
+  return {
+    kills,
+    deaths,
+    dbnos: Math.round(kills * (0.5 + rf() * 0.5)),
+    revives: ri(0, 4),
+    damage: kills * ri(280, 460) + ri(0, 900),
+    currency: cashLo === 0 && cashHi === 0 ? 0 : ri(cashLo, cashHi),
+    fame: ri(200, 2600),
+  };
+}
+
+// An 8-team bracket: Round 1 (rr2) -> Round 2 (rr1) -> Final (rr0). MatchID's
+// first number == Tier == rounds-remaining (the bracket counts DOWN). `skill`
+// (0 early career -> 1 now) ramps how far the player gets, so the newest
+// matches — the first page the user sees — are full of deep runs and wins, not
+// the rookie losses from the start of the account.
+function tournament(rounds, scenarioId, startT, skill = 0.5) {
+  const arch = archetypeRoll();
+  const map = pick(TOURNEY_MAPS);
+  const tid = `T${ri(1_000_000, 9_999_999)}`;
+  const r1Exit = 0.45 - skill * 0.25; // ~45% R1 exits early, ~20% now
+  const reach = chance(r1Exit) ? 'R1' : chance(0.45) ? 'R2' : 'FINAL';
+  const won = reach === 'FINAL' && chance(0.4 + skill * 0.2); // wins the final ~40% -> ~60%
+  let t = startT;
+  const advR1 = reach !== 'R1';
+  const posR1 = advR1 ? ri(1, 2) : ri(3, 4);
+  rounds.push(roundRecord({ arch, map, scenarioId, t, dur: ri(7, 11) * 60_000, combat: combat(2, 16, 2, 10, 12000, 52000), tournamentId: tid, tier: 2, matchId: `2-${ri(0, 1)}`, position: posR1, roundWon: posR1 === 1, backfill: chance(0.05) }));
+  t += ri(13, 22) * 60_000;
+  if (advR1) {
+    const advR2 = reach === 'FINAL';
+    const posR2 = advR2 ? ri(1, 2) : ri(3, 4);
+    rounds.push(roundRecord({ arch, map, scenarioId, t, dur: ri(7, 11) * 60_000, combat: combat(3, 17, 2, 9, 20000, 60000), tournamentId: tid, tier: 1, matchId: '1-0', position: posR2, roundWon: posR2 === 1 }));
+    t += ri(13, 22) * 60_000;
+    if (advR2) {
+      const posF = won ? 1 : 2;
+      rounds.push(roundRecord({ arch, map, scenarioId, t, dur: ri(8, 12) * 60_000, combat: combat(4, 19, 2, 9, 35000, 90000), tournamentId: tid, tier: 0, matchId: '0-0', position: posF, roundWon: won, tournamentWon: won }));
+      t += ri(8, 12) * 60_000;
+    }
+  }
+  return t;
+}
+
+function casualMatch(rounds, mode, startT) {
+  const arch = archetypeRoll();
+  const map = mode.map ? mode.map : pick(CASUAL_MAPS);
+  const c = mode.tdm ? combat(5, 25, 5, 20, 0, 0) : combat(1, 14, 2, 11, 0, 40000);
+  rounds.push(roundRecord({ arch, map, scenarioId: mode.id, t: startT, dur: ri(6, 12) * 60_000, combat: c, roundWon: chance(mode.winChance ?? 0.42), disconnected: chance(0.03) }));
+  return startT + ri(8, 16) * 60_000;
+}
+
+const RANKED_ID = 498553443;
+const WORLD_TOUR_IDS = [296178816, 465304560, 308426432];
+const CASUAL_MODES = [
+  { id: 164312917, winChance: 0.4 }, // Quick Cash
+  { id: 758421811, winChance: 0.34 }, // Bank It
+  { id: 545190106, winChance: 0.5 }, // Power Shift
+  { id: 418401773, tdm: true, map: 'DA_MV_Forest_01_Base', winChance: 0.55 }, // Team Deathmatch (P.E.A.C.E. Center)
+];
+const LTM_MODES = [
+  { id: 597953832, map: 'DA_MV_Monaco_01_Base', winChance: 0.5 }, // Bunny Bash
+  { id: 152796620, map: 'DA_MV_Playground_01_Base', winChance: 0.5 }, // Heavy Hitters
+  { id: 106717113, map: 'DA_MV_Monaco_01_Base', winChance: 0.5 }, // Snowball Blitz
+];
+
+// --- match history --------------------------------------------------------
+function buildRounds() {
+  const rounds = [];
+  const DAYS = 132;
+  for (let d = 0; d < DAYS; d++) {
+    const dayMs = lerp(SPAN_START, SPAN_END, (d + rf() * 0.7) / DAYS);
+    const skill = (d + 0.5) / DAYS; // improves over the account's lifetime
+    let t = dayMs + ri(0, 3) * HOUR;
+    const matches = ri(1, 4);
+    for (let m = 0; m < matches; m++) {
+      const roll = rf();
+      if (roll < 0.4) t = tournament(rounds, RANKED_ID, t, skill);
+      else if (roll < 0.6) t = tournament(rounds, pick(WORLD_TOUR_IDS), t, skill);
+      else if (roll < 0.86) t = casualMatch(rounds, pick(CASUAL_MODES), t);
+      else t = casualMatch(rounds, pick(LTM_MODES), t);
+      t += ri(4, 30) * 60_000;
+    }
+  }
+  return rounds;
+}
+
+// --- lifetime summary (RoundStatSummary buckets, the career headline) -----
+function bucket(o) {
+  return {
+    Kills: o.kills, Deaths: o.deaths, DamageDone: o.damage, Dbnos: o.dbnos, Respawns: o.respawns ?? 0,
+    RevivesDone: o.revives, RoundsPlayed: o.rounds, RoundsWon: o.wins, TournamentsPlayed: o.tPlayed,
+    TournamentsWon: o.tWon, TotalCashOut: o.cash, TotalTimePlayed: hoursToMs(o.hours), Disconnects: o.dcs,
+    HighestFameAmount: o.fame ?? 0, ...(o.byArch ? { TimePlayedByArchetype: o.byArch } : {}),
+  };
+}
+function buildSummary() {
+  const totalHours = 1156;
+  const total = bucket({
+    kills: 18540, deaths: 14210, damage: 6190000, dbnos: 14820, respawns: 9100, revives: 3820,
+    rounds: 7390, wins: 2620, tPlayed: 1248, tWon: 95, cash: 48250000, hours: totalHours, dcs: 61, fame: 148500,
+    byArch: {
+      DA_Archetype_Medium: hoursToMs(totalHours * 0.48),
+      DA_Archetype_Small: hoursToMs(totalHours * 0.3),
+      DA_Archetype_Heavy: hoursToMs(totalHours * 0.22),
+    },
+  });
+  const ranked = bucket({ kills: 6240, deaths: 4360, damage: 2120000, dbnos: 5200, respawns: 2600, revives: 1290, rounds: 2180, wins: 790, tPlayed: 362, tWon: 41, cash: 16480000, hours: 382, dcs: 21, fame: 0 });
+  const casual = bucket({ kills: 8960, deaths: 6980, damage: 3010000, dbnos: 7100, respawns: 4400, revives: 1980, rounds: 3580, wins: 1520, tPlayed: 610, tWon: 37, cash: 21900000, hours: 524, dcs: 28, fame: 148500 });
+  return [{ UpdatedAt: iso(SPAN_END), Data: { total, casual, ranked } }];
+}
+
+// --- purchases & economy --------------------------------------------------
+const PURCHASES = [
+  { iso: '2024-02-10T20:14:00Z', price: 9.99, mb: 1150, localized: '£8.39' },
+  { iso: '2024-06-20T18:42:00Z', price: 19.99, mb: 2800, dlc: 3025990 },
+  { iso: '2024-12-15T13:05:00Z', price: 4.99, mb: 500 },
+  { iso: '2025-03-22T21:30:00Z', price: 9.99, mb: 1150, dlc: 4124770, localized: '£8.39' },
+  { iso: '2025-09-12T19:18:00Z', price: 29.99, mb: 5000, dlc: 3519910, localized: '£25.99' },
+  { iso: '2026-04-02T17:55:00Z', price: 8.99, mb: 1000, dlc: 4167870 },
+];
+
+function buildTransactions() {
+  const tx = [];
+  // Real-money purchases (the only rows with a price).
+  for (const p of PURCHASES) {
+    tx.push({ TransactionType: 'purchase', State: 'granted', Source: 'realmoneytransaction', GameStore: 'steam', GameStorePurchasedAt: p.iso, CreatedAt: p.iso, PricePoint: p.price, CurrencyCode: 'GBP', Country: 'GB', LocalizedPrice: p.localized ?? null });
+  }
+  // One failed attempt (shown, excluded from the total).
+  tx.push({ TransactionType: 'purchase', State: 'failed', Source: 'realmoneytransaction', GameStore: 'steam', GameStorePurchasedAt: '2025-01-08T22:01:00Z', CreatedAt: '2025-01-08T22:01:00Z', PricePoint: 19.99, CurrencyCode: null, Country: 'GB', LocalizedPrice: null });
+  // Non-fiat grants — fill out the "where your items came from" bars + the log.
+  const SOURCES = [
+    ['battlepass', 'embark', 40], ['battlepass-historical', 'embark', 8], ['collectionevent', 'embark', 18],
+    ['embarkstore', 'embark', 22], ['twitchdrop', 'twitch', 14], ['giveaway', 'giveaway', 6], ['thirdpartysubscription', 'twitch', 4],
+  ];
+  for (const [source, store, n] of SOURCES) {
+    for (let i = 0; i < n; i++) {
+      const t = lerp(SPAN_START, SPAN_END, (i + 0.5) / n) + ri(-5, 5) * DAY;
+      tx.push({ TransactionType: source === 'embarkstore' ? 'purchase' : 'reward', State: 'granted', Source: source, GameStore: store, GameStorePurchasedAt: iso(t), CreatedAt: iso(t), PricePoint: null, CurrencyCode: null, Country: null, LocalizedPrice: null });
+    }
+  }
+  return tx;
+}
+
+// Coherent Multibucks ledger: events get unique, increasing timestamps and a
+// chained running balance, so the model's balance-reconstruction reconciles
+// exactly (total in − spent + start = current). 'bought' rows reuse each
+// purchase's exact timestamp so the page can show what the charge granted.
+// Spending is sized to leave a believable positive balance at the end, rather
+// than draining to zero.
+const TARGET_BALANCE = 1750;
+function buildLedger() {
+  const inflow = [];
+  for (const p of PURCHASES) inflow.push({ ms: Date.parse(p.iso), logType: 'bought', qty: p.mb });
+  for (let i = 0; i < 60; i++) inflow.push({ ms: lerp(SPAN_START, SPAN_END, (i + 0.5) / 60) + ri(0, 6) * HOUR, logType: 'earned', qty: ri(150, 400) }); // battle pass + rank rewards
+  for (let i = 0; i < 5; i++) inflow.push({ ms: lerp(SPAN_START, SPAN_END, (i + 0.5) / 5) + ri(0, 20) * DAY, logType: 'gifted', qty: pick([500, 1000, 1700]) });
+  for (let i = 0; i < 12; i++) inflow.push({ ms: lerp(SPAN_START, SPAN_END, (i + 0.5) / 12) + ri(0, 10) * DAY, logType: 'unknown', qty: 75 }); // small reward drops
+
+  const totalIn = inflow.reduce((s, e) => s + e.qty, 0);
+  // Spend most of it back on skins, leaving ~TARGET_BALANCE. Spends sit in the
+  // latter 75% of the timeline so the running balance rarely needs clamping.
+  let toSpend = Math.max(0, totalIn - TARGET_BALANCE);
+  const spends = [];
+  const N = 34;
+  const spendStart = SPAN_START + (SPAN_END - SPAN_START) * 0.25;
+  for (let i = 0; i < N && toSpend > 0; i++) {
+    const amt = Math.min(toSpend, pick([500, 700, 1100, 1400, 1900, 2400]));
+    toSpend -= amt;
+    spends.push({ ms: lerp(spendStart, SPAN_END, (i + rf() * 0.5) / N), logType: 'spent', qty: amt });
+  }
+  if (toSpend > 0) spends.push({ ms: SPAN_END - 5 * DAY, logType: 'spent', qty: toSpend });
+
+  const ev = [...inflow, ...spends].sort((a, b) => a.ms - b.ms);
+  let last = -1;
+  for (const e of ev) {
+    if (e.ms <= last) e.ms = last + 1000; // keep timestamps unique for clean chaining
+    last = e.ms;
+  }
+  let bal = 0;
+  const rows = [];
+  for (const e of ev) {
+    let qty = e.qty;
+    if (e.logType === 'spent') {
+      qty = Math.min(qty, bal);
+      if (qty <= 0) continue;
+      bal -= qty;
+    } else bal += qty;
+    rows.push({ LogType: e.logType, Quantity: qty, NewUserTotalBalance: bal, CreatedAt: iso(e.ms), UpdatedAt: iso(e.ms) });
+  }
+  return rows;
+}
+
+function buildSteamDlc() {
+  const rows = [];
+  for (const p of PURCHASES) {
+    if (!p.dlc) continue;
+    for (let c = 0; c < 3; c++) rows.push({ SteamID: '76561198000000000', DLCID: p.dlc, TenancyUserID: 'sample', UnsettledHardCurrency: 0, CreatedAt: p.iso, UpdatedAt: p.iso });
+  }
+  return rows;
+}
+
+function buildOffers() {
+  const out = [];
+  for (let i = 0; i < 6; i++) {
+    const t = lerp(SPAN_START, SPAN_END, (i + 0.5) / 6);
+    out.push({ StartedTime: iso(t), DurationInSeconds: pick([86400, 172800, 259200]), IsCompleted: chance(0.3) });
+  }
+  return out;
+}
+
+// --- identity / linked accounts / restriction ----------------------------
+function buildPersistence() {
+  const byType = {
+    EmbarkUser: [{ EmbarkUserID: '00000000-5a3f-4e21-9c7a-5a3p1ed0000', CreatedAt: iso(ACCOUNT_CREATED) }],
+    Profile: [{
+      DisplayName: 'SAMPLE_PLAYER', DisplayNameDiscriminator: '0000', Email: 'sample.player@example.com',
+      EmailVerifiedAt: iso(ACCOUNT_CREATED + DAY), DateOfBirth: '1996-04-12', CountryCode: 'GB',
+      TOSVersionSeen: 7, IsPlaytester: true, CreatedAt: iso(ACCOUNT_CREATED), UpdatedAt: iso(SPAN_END),
+      // Embark's backend "have they ever spent real money" marker — surfaced as
+      // the dollar badge by the username (the sample player has purchases below).
+      is_spender: true,
+    }],
+    // One temporary, already-expired matchmaking penalty — demonstrates the
+    // restriction history UI without the scary permanent-ban banner (this one
+    // ended long ago, so the account reads as "in good standing, none active").
+    Restriction: [{ Reason: 'Early match leave (matchmaking penalty)', StartsAt: iso(Date.parse('2025-04-18T19:30:00Z')), CreatedAt: iso(Date.parse('2025-04-18T19:30:00Z')), EndsAt: iso(Date.parse('2025-04-21T19:30:00Z')) }],
+    ThirdPartyUser: [
+      { ThirdPartyProviderID: 'steam', ThirdPartyUserID: '76561198000000000', LastSeenAccountName: 'SamplePlayer', Enabled: true, CreatedAt: iso(ACCOUNT_CREATED) },
+      { ThirdPartyProviderID: 'xbox', ThirdPartyUserID: 'xuid_000', LastSeenAccountName: 'Demo Gamer#1234', Enabled: true, CreatedAt: iso(ACCOUNT_CREATED + 40 * DAY) },
+      { ThirdPartyProviderID: 'twitch', ThirdPartyUserID: '123456789', LastSeenAccountName: '123456789#demostreamer', Enabled: true, CreatedAt: iso(ACCOUNT_CREATED + 120 * DAY) },
+      { ThirdPartyProviderID: 'discord', ThirdPartyUserID: 'disc_000', LastSeenAccountName: 'sampleplayer#0', Enabled: true, CreatedAt: iso(ACCOUNT_CREATED + 5 * DAY) },
+    ],
+    RoundStatSummary: buildSummary(),
+    RoundStat: buildRounds(),
+    RankBucket: [{ XP: 184500, Rank: 'Diamond' }, { XP: 92000, Rank: 'Platinum' }],
+    TransactionLog: buildTransactions(),
+    HardCurrencyLog: buildLedger(),
+    SteamDLC: buildSteamDlc(),
+    OfferTransaction: buildOffers(),
+  };
+  const counts = Object.fromEntries(Object.entries(byType).map(([k, v]) => [k, v.length]));
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  return { byType, counts, total, badLines: 0 };
+}
+
+// --- anti-cheat / sessions ------------------------------------------------
+function buildEosAnticheat() {
+  const sessions = [];
+  const BUILDS = ['2024-03-12T09:00:00Z', '2024-09-26T09:00:00Z', '2025-06-12T09:00:00Z', '2026-03-26T09:00:00Z'];
+  for (let i = 0; i < 90; i++) {
+    const start = lerp(SPAN_START, SPAN_END, (i + rf() * 0.6) / 90);
+    sessions.push({
+      timeStart: iso(start), timeEnd: iso(start + ri(15, 24) * 60_000),
+      eacClient: { OperatingSystem: 'Windows 11', ClientIP: pick(IPS) },
+      gameClient: { ClientBuildTime: pick(BUILDS) },
+    });
+  }
+  return [{ sessions, kicks: [] }];
+}
+function buildAnybrain() {
+  const sessions = [];
+  for (let i = 0; i < 24; i++) {
+    const start = lerp(ANYBRAIN_GOLIVE, SPAN_END, (i + rf() * 0.6) / 24);
+    sessions.push({ sessionStart: Math.round(start), sessionEnd: Math.round(start + ri(20, 90) * 60_000), ipAddress: pick(IPS) });
+  }
+  return { os: [{ name: 'Windows 11' }], screens: [{ width: '2560', height: '1440' }, { width: '1920', height: '1080' }], sessions };
+}
+function buildDenuvo() {
+  const steam = [];
+  for (let i = 0; i < 26; i++) {
+    const start = lerp(SPAN_START, SPAN_END, (i + rf() * 0.6) / 26);
+    steam.push({ start: iso(start), end: iso(start + ri(30, 150) * 60_000) });
+  }
+  const xbox = [];
+  for (let i = 0; i < 6; i++) {
+    const start = lerp(Date.parse('2024-10-01T00:00:00Z'), SPAN_END, (i + 0.5) / 6);
+    xbox.push({ start: iso(start), end: iso(start + ri(30, 120) * 60_000) });
+  }
+  return [
+    { gameInfos: [{ name: 'Steam' }], sessionInfos: steam },
+    { gameInfos: [{ name: 'Xbox' }], sessionInfos: xbox },
+  ];
+}
+// Reports the player FILED against other players (audit `PlayerReport`). Reason +
+// the free-text note are kept; the target is anonymised (blank origin_uuid) just
+// like a real export. A long-time player reports cheaters regularly.
+const REPORT_NOTES = [
+  ['Cheating', 'Snapping straight to heads through walls'],
+  ['Cheating', 'Tracked our whole squad through the smoke'],
+  ['Cheating', 'Zero recoil, beaming from across the map'],
+  ['Cheating', 'Spinbot in the final round'],
+  ['Cheating', 'Pre-firing every corner before we pushed'],
+  ['Cheating', 'Impossible flicks in every single duel'],
+  ['Cheating', 'Saw us through the wall the whole match'],
+  ['Cheating', ''],
+  ['Cheating', ''],
+  ['Verbal abuse', 'Abusive voice chat the entire match'],
+  ['Verbal abuse', 'Threats in team chat after the round'],
+  ['Offensive name', 'Slur in their display name'],
+  ['Teaming', 'Teaming with the enemy squad in ranked'],
+];
+function buildPlayerReports() {
+  const out = [];
+  for (let i = 0; i < 28; i++) {
+    const ms = lerp(SPAN_START, SPAN_END, (i + rf() * 0.6) / 28);
+    const [reason, message] = pick(REPORT_NOTES);
+    out.push({ logtime: iso(ms), reason, message, target_client: { origin_uuid: '' } });
+  }
+  return out;
+}
+function buildAudit() {
+  const login = [];
+  for (let i = 0; i < 30; i++) login.push({ tamper_id: 'TPM-9F3A-DEMO-0001' }); // one machine
+  const reports = buildPlayerReports();
+  const byType = { ClientUserLoginDetails: login, PlayerReport: reports };
+  return { byType, counts: { ClientUserLoginDetails: login.length, PlayerReport: reports.length }, total: login.length + reports.length, badLines: 0 };
+}
+
+/**
+ * Build a complete fictional raw export, shaped exactly like parseFileset()'s
+ * output, ready for buildModel(). No real personal data; deterministic.
+ */
+export function buildSampleRaw() {
+  return {
+    persistence: buildPersistence(),
+    audit: buildAudit(),
+    eos: { anticheat: buildEosAnticheat(), linkedAccounts: [] },
+    anybrain: buildAnybrain(),
+    denuvo: buildDenuvo(),
+  };
+}

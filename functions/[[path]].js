@@ -297,6 +297,11 @@ function generateMetadata(url) {
     if (validPage) canonicalParams.set('page', validPage.toString());
     const q = canonicalParams.toString();
     if (q) canonicalSearch = `?${q}`;
+  } else if (baseRoute === 'gdpr-vault') {
+    meta.title = 'Your Data Vault — Offline GDPR Explorer | THE FINALS Tracker';
+    meta.description = 'Load the GDPR / Subject Access Request data export Embark emailed you and explore it as a private, readable dashboard — match history, weapons, loadouts, career and account status. Fully offline: everything is parsed in your browser and nothing is ever uploaded.';
+    meta.keywords = 'the finals gdpr, the finals data request, sar export, embark data export, the finals match history, the finals data vault, offline, privacy, the finals tracker';
+    canonicalPath = '/gdpr-vault';
   } else {
     // Resolves root to /hub mirroring SEOHead.jsx
     if (canonicalPath === '/') canonicalPath = '/hub';
