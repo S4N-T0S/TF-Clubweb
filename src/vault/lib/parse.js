@@ -101,5 +101,8 @@ export async function parseFileset(fileset, onProgress = () => {}) {
   // Denuvo files are single-object JSON (despite .jsonl)
   const denuvo = fileset.denuvo.map((e) => safeJson(entryText(e))).filter(Boolean);
 
-  return { persistence, audit, eos, anybrain, denuvo };
+  // Request metadata parsed from the README pdf filename (date/ticket), if present
+  const readme = fileset.readme || null;
+
+  return { persistence, audit, eos, anybrain, denuvo, readme };
 }

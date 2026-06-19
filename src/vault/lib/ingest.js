@@ -18,7 +18,24 @@ const unzipAsync = (bytes) =>
   });
 
 const isZip = (name) => /\.zip$/i.test(name);
-const basename = (p) => p.split(/[\\/]/).pop().toLowerCase();
+const rawBasename = (p) => p.split(/[\\/]/).pop();
+const basename = (p) => rawBasename(p).toLowerCase();
+
+// The SAR README is named `README_<DD Month_YYYY>(<id>).pdf`
+const MONTHS = {
+  january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+  july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
+};
+function parseReadmeName(name) {
+  const m = name.match(/readme[_ ]+(\d{1,2})\s+([a-z]+)[_ ]+(\d{4}).*?\((\d+)\)/i);
+  if (!m) return null;
+  const month = MONTHS[m[2].toLowerCase()];
+  if (month == null) return null;
+  const day = Number(m[1]);
+  const year = Number(m[3]);
+  const monthName = m[2][0].toUpperCase() + m[2].slice(1).toLowerCase();
+  return { requestedAtMs: Date.UTC(year, month, day), requestId: m[4], label: `${day} ${monthName} ${year}` };
+}
 
 // Recursively expand an entry, unzipping nested archives, into a flat list.
 async function expandEntry(path, bytes, out, depth = 0) {
@@ -47,6 +64,7 @@ function classify(flat) {
     eos: { anticheat: [], linkedAccounts: [] },
     anybrain: { os: null, screens: null, sessions: null },
     denuvo: [],
+    readme: null, // { requestedAtMs, requestId, label } parsed from the README pdf name
     unknown: [],
     all: flat,
   };
@@ -54,7 +72,10 @@ function classify(flat) {
   for (const entry of flat) {
     const base = basename(entry.path);
 
-    if (/persistence\.(jsonl|json|txt)$/.test(base) || (base.includes('persistence') && /\.(jsonl|txt)$/.test(base))) {
+    if (base.startsWith('readme') && base.endsWith('.pdf')) {
+      // Capture the request date/ticket from the filename; ignore the PDF bytes.
+      fileset.readme = parseReadmeName(rawBasename(entry.path)) || fileset.readme;
+    } else if (/persistence\.(jsonl|json|txt)$/.test(base) || (base.includes('persistence') && /\.(jsonl|txt)$/.test(base))) {
       // Prefer the largest persistence file if several appear.
       if (!fileset.persistence || entry.bytes.length > fileset.persistence.bytes.length) fileset.persistence = entry;
     } else if (base.includes('audit') && /\.(jsonl|json|txt)$/.test(base)) {
@@ -106,6 +127,10 @@ export function summarizeFileset(fileset) {
     {
       key: 'denuvo', label: 'Denuvo anti-cheat', file: 'denuvo_clean.jsonl', required: false,
       found: fileset.denuvo.length > 0, powers: 'per-platform session records',
+    },
+    {
+      key: 'readme', label: 'Request README', file: 'README_<date>(<id>).pdf', required: false,
+      found: !!fileset.readme, powers: 'the “data as of” date',
     },
   ];
 

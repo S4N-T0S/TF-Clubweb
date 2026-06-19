@@ -3,11 +3,21 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import {
   ShieldCheck, Upload, FolderOpen, WifiOff, Lock, AlertTriangle, Loader2, ChevronLeft, ChevronDown,
-  Mail, ExternalLink, Copy, Check, Sparkles, ArrowRight, HelpCircle,
+  Mail, ExternalLink, Copy, Check, ArrowRight, HelpCircle, Info,
   User, Swords, Crosshair, BarChart3, Layers, Wallet, Radar, ShieldAlert,
 } from 'lucide-react';
 import { useVaultData } from './context/VaultDataContext';
 import { SITE_URL, VAULT_BASE } from './constants';
+
+// Recursively collect every File in a directory chosen via the File System Access API
+async function collectFilesFromDir(dirHandle) {
+  const files = [];
+  for await (const handle of dirHandle.values()) {
+    if (handle.kind === 'file') files.push(await handle.getFile());
+    else if (handle.kind === 'directory') files.push(...(await collectFilesFromDir(handle)));
+  }
+  return files;
+}
 
 // SEO for the public landing page only
 const SEO = {
@@ -131,8 +141,30 @@ export const VaultLanding = () => {
     if (files?.length) load(files);
   };
 
+  // Open the folder picker. Prefer the File System Access API: its permission
+  // prompt reads "Let this site view files?" instead of the alarming "Upload N
+  // files to this site?" that a webkitdirectory <input> shows — even though we
+  // only ever read locally. Fall back to that input where the API is missing
+  // (Firefox, Safari) or unavailable.
+  const pickFolder = async () => {
+    if (isLoading) return;
+    if (window.showDirectoryPicker) {
+      try {
+        const dir = await window.showDirectoryPicker({ mode: 'read' });
+        const files = await collectFilesFromDir(dir);
+        if (files.length) load(files);
+      } catch (err) {
+        // AbortError = the user dismissed the picker; ignore. Anything else
+        // (e.g. blocked by policy) — fall back to the directory input.
+        if (err?.name !== 'AbortError') folderInput.current?.click();
+      }
+      return;
+    }
+    folderInput.current?.click();
+  };
+
   return (
-    <div className="max-w-4xl mx-auto px-4 py-10 animate-fade-in-up">
+    <div className="max-w-4xl mx-auto px-4 py-6 animate-fade-in-up">
       <Helmet>
         <title>{SEO.title}</title>
         <meta name="description" content={SEO.description} />
@@ -151,8 +183,8 @@ export const VaultLanding = () => {
       </Link>
 
       {/* Hero */}
-      <div className="text-center mb-8">
-        <ShieldCheck className="w-14 h-14 text-emerald-400 mx-auto mb-3" />
+      <div className="text-center mb-6">
+        <ShieldCheck className="w-12 h-12 text-emerald-400 mx-auto mb-2" />
         <h1 className="text-3xl font-bold text-white">Your Data Vault</h1>
         <p className="text-gray-400 max-w-2xl mx-auto mt-3">
           THE FINALS quietly records <em>everything</em> — every match you’ve ever played, every login, every purchase.
@@ -161,32 +193,15 @@ export const VaultLanding = () => {
         </p>
       </div>
 
-      {/* Instant preview — see the whole thing before you even request your data */}
-      <div className="rounded-2xl border border-emerald-600/30 bg-emerald-950/20 p-5 sm:p-6 mb-8 flex flex-col sm:flex-row sm:items-center gap-4">
-        <Sparkles className="w-8 h-8 text-emerald-400 shrink-0 mx-auto sm:mx-0" />
-        <div className="flex-1 text-center sm:text-left">
-          <p className="text-white font-semibold">Don’t have your data yet? Take a look around first.</p>
-          <p className="text-sm text-gray-400 mt-0.5">
-            Explore a fictional player’s dashboard to see exactly what yours will look like once Embark sends your files.
-          </p>
-        </div>
-        <button
-          onClick={() => preview()}
-          className="shrink-0 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
-        >
-          Preview with sample data <ArrowRight className="w-4 h-4" />
-        </button>
-      </div>
-
       {/* Showcase grid — the example-player tour, front and centre */}
-      <section className="mb-8">
+      <section className="mb-6">
         <div className="flex items-end justify-between gap-4 mb-4">
           <div>
             <h2 className="text-xl font-bold text-white">What you’ll be able to explore</h2>
             <p className="text-sm text-gray-400 mt-0.5">Click any card to open it with sample data.</p>
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {SHOWCASE.map(({ icon: Icon, label, sub, desc }) => (
             <button
               key={label}
@@ -205,7 +220,7 @@ export const VaultLanding = () => {
       </section>
 
       {/* Collapsible guide — keep the long explanations tucked away by default */}
-      <section className="mb-8">
+      <section className="mb-6">
         <button
           onClick={() => setShowGuide((v) => !v)}
           aria-expanded={showGuide}
@@ -305,7 +320,7 @@ export const VaultLanding = () => {
       </section>
 
       {/* Upload zone */}
-      <section className="mb-10">
+      <section className="mb-6">
         <h2 className="text-xl font-bold text-white mb-1">Already have your export?</h2>
         <p className="text-sm text-gray-400 mb-4">Drop it in — it’s read on your device and never uploaded anywhere.</p>
         <div
@@ -315,7 +330,7 @@ export const VaultLanding = () => {
           }}
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
-          className={`relative rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
+          className={`relative rounded-2xl border-2 border-dashed p-6 text-center transition-colors ${
             dragging ? 'border-emerald-400 bg-emerald-500/5' : 'border-gray-600 bg-gray-800/40'
           }`}
         >
@@ -341,18 +356,26 @@ export const VaultLanding = () => {
                   <Upload className="w-4 h-4" /> Choose files
                 </button>
                 <button
-                  onClick={() => folderInput.current?.click()}
+                  onClick={pickFolder}
                   className="inline-flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
                 >
                   <FolderOpen className="w-4 h-4" /> Choose a folder
                 </button>
               </div>
+              <p className="mx-auto mt-4 max-w-md text-xs text-gray-500 inline-flex items-start gap-1.5 text-left">
+                <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-gray-400" />
+                <span>
+                  Choosing a folder shows a browser permission prompt — it may use the word
+                  “upload”. That’s just how browsers word folder access; nothing is sent anywhere,
+                  and your files are read entirely on your device.
+                </span>
+              </p>
 
               <input
                 ref={fileInput}
                 type="file"
                 multiple
-                accept=".zip,.jsonl,.json,.txt,.csv"
+                accept=".zip,.jsonl,.json,.txt,.csv,.pdf"
                 className="hidden"
                 onChange={(e) => e.target.files?.length && load(e.target.files)}
               />

@@ -85,7 +85,7 @@ const Row = ({ label, value }) => (
 
 export const CareerPage = () => {
   const { model } = useVaultData();
-  const { career, careerModes, identity, ban, meta } = model;
+  const { career, careerModes, identity, ban, meta, economy } = model;
   const t = career.total;
 
   const [hoveredMode, setHoveredMode] = useState(null);
@@ -95,20 +95,13 @@ export const CareerPage = () => {
     .map((m) => ({ key: m.key, label: m.label, value: m.matches, color: MODE_COLOR[m.key] || MODE_COLOR.Other }))
     .filter((s) => s.value > 0);
 
-  const spender = identity.spender?.value
-    ? (
-      <Tooltip
-        label={
-          <>
-            Embark’s backend marks this account with <code className="text-yellow-300">is_spender = true</code> — an internal
-            flag for whether you’ve ever spent real money. Oddly, it rides along in your data export.
-          </>
-        }
-      >
-        <BadgeDollarSign className="w-5 h-5 text-yellow-400" aria-label="Account flagged as a spender" />
-      </Tooltip>
-    )
-    : null;
+  // "Spender" badge = real-money purchases (TransactionLog)
+  const purchaseCount = economy.fiatGrantedCount;
+  const spender = purchaseCount > 0 ? (
+    <Tooltip label={`Made ${purchaseCount} real-money purchase${purchaseCount === 1 ? '' : 's'} — see the Purchases page for details.`}>
+      <BadgeDollarSign className="w-5 h-5 text-yellow-400" aria-label={`Made ${purchaseCount} real-money purchases`} />
+    </Tooltip>
+  ) : null;
 
   return (
     <div className="animate-fade-in-up space-y-5">

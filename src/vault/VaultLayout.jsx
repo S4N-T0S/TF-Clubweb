@@ -4,6 +4,8 @@ import { User, Swords, Crosshair, Layers, BarChart3, Wallet, Radar, ShieldAlert,
 import { useVaultData } from './context/VaultDataContext';
 import { VAULT_BASE } from './constants';
 import { ImportSummaryBanner } from './components/ImportSummaryBanner';
+import { MultiAccountBanner } from './components/MultiAccountBanner';
+import { DataFreshnessBanner } from './components/DataFreshnessBanner';
 import { BackToTop } from '../components/BackToTop';
 import { useMobileDetect } from '../hooks/useMobileDetect';
 
@@ -53,6 +55,9 @@ export const VaultLayout = ({ children }) => {
         </div>
       )}
 
+      {/* Point-in-time reminder so a snapshot isn't mistaken for live data */}
+      <DataFreshnessBanner />
+
       <div className="max-w-7xl mx-auto p-4 flex flex-col lg:flex-row gap-4">
         {/* Sidebar */}
         <aside className="lg:w-60 shrink-0">
@@ -90,6 +95,7 @@ export const VaultLayout = ({ children }) => {
 
         {/* Page content */}
         <main className="flex-1 min-w-0">
+          <MultiAccountBanner />
           <ImportSummaryBanner />
           {children}
         </main>

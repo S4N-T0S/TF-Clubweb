@@ -38,6 +38,9 @@ const ACCOUNT_CREATED = Date.parse('2023-09-25T14:30:00Z'); // closed-beta era v
 const SPAN_START = Date.parse('2024-01-20T18:00:00Z');
 const SPAN_END = Date.parse('2026-06-14T22:00:00Z');
 const ANYBRAIN_GOLIVE = Date.parse('2025-07-24T00:00:00Z');
+// A SECOND Embark account merged into the same export (shares the email), to show multi account ui.
+const ALT_CREATED = Date.parse('2025-08-01T12:00:00Z');
+const ALT_EMBARK_ID = '00000000-7b2c-4d81-aa31-5a3p1ed0001';
 
 // Two London-block IPs (the classic GeoIP example range) so the offline
 // geolocation map lights up for the preview. Real exports carry the player's
@@ -327,18 +330,46 @@ function buildOffers() {
   return out;
 }
 
+// Owned items (persistence `InventoryItem`). No item ids exist in the export, so
+// only per-Type counts are meaningful — a believable cosmetic-heavy spread.
+const INVENTORY_SPREAD = [
+  ['CustomizationItem', 180], ['WeaponSkin', 142], ['WeaponCharm', 46], ['WeaponSticker', 38],
+  ['PlayerCardCustomization', 33], ['AnimationCustomization', 21], ['Spray', 16], ['Emoticon', 12],
+  ['GameItem', 9], ['BattlePass', 6], ['ClansCustomization', 4], ['Currency', 3],
+];
+function buildInventoryItems() {
+  const rows = [];
+  for (const [type, n] of INVENTORY_SPREAD) {
+    for (let i = 0; i < n; i++) rows.push({ Type: type, Amount: 1, HasSeen: true, UpdatedAt: iso(lerp(SPAN_START, SPAN_END, (i + 0.5) / n)) });
+  }
+  return rows;
+}
+
 // --- identity / linked accounts / restriction ----------------------------
 function buildPersistence() {
   const byType = {
-    EmbarkUser: [{ EmbarkUserID: '00000000-5a3f-4e21-9c7a-5a3p1ed0000', CreatedAt: iso(ACCOUNT_CREATED) }],
-    Profile: [{
-      DisplayName: 'SAMPLE_PLAYER', DisplayNameDiscriminator: '0000', Email: 'sample.player@example.com',
-      EmailVerifiedAt: iso(ACCOUNT_CREATED + DAY), DateOfBirth: '1996-04-12', CountryCode: 'GB',
-      TOSVersionSeen: 7, IsPlaytester: true, CreatedAt: iso(ACCOUNT_CREATED), UpdatedAt: iso(SPAN_END),
-      // Embark's backend "have they ever spent real money" marker — surfaced as
-      // the dollar badge by the username (the sample player has purchases below).
-      is_spender: true,
-    }],
+    // TWO Embark accounts wrapped in one export (share the email) — the primary
+    // SAMPLE_PLAYER and a later secondary SMURF_SAMPLE, paired to their EmbarkUser
+    // by CreatedAt. Profile[0] is the primary the dashboard's header reads.
+    EmbarkUser: [
+      { EmbarkUserID: '00000000-5a3f-4e21-9c7a-5a3p1ed0000', CreatedAt: iso(ACCOUNT_CREATED) },
+      { EmbarkUserID: ALT_EMBARK_ID, CreatedAt: iso(ALT_CREATED) },
+    ],
+    Profile: [
+      {
+        DisplayName: 'SAMPLE_PLAYER', DisplayNameDiscriminator: '0000', Email: 'sample.player@example.com',
+        EmailVerifiedAt: iso(ACCOUNT_CREATED + DAY), DateOfBirth: '1996-04-12', CountryCode: 'GB',
+        TOSVersionSeen: 7, IsPlaytester: true, CreatedAt: iso(ACCOUNT_CREATED), UpdatedAt: iso(SPAN_END),
+        // NB: the "have they ever spent real money" marker (is_spender) is NOT here —
+        // like a real export, it rides along only in the audit ProfileUpdated snapshots
+        // (see buildAudit), surfaced as the dollar badge by the username.
+      },
+      {
+        DisplayName: 'SMURF_SAMPLE', DisplayNameDiscriminator: '0001', Email: 'sample.player@example.com',
+        DateOfBirth: '1996-04-12', CountryCode: 'GB', TOSVersionSeen: 7, IsPlaytester: false,
+        CreatedAt: iso(ALT_CREATED), UpdatedAt: iso(SPAN_END), // no EmailVerifiedAt → unverified second account
+      },
+    ],
     // One temporary, already-expired matchmaking penalty — demonstrates the
     // restriction history UI without the scary permanent-ban banner (this one
     // ended long ago, so the account reads as "in good standing, none active").
@@ -349,6 +380,7 @@ function buildPersistence() {
       { ThirdPartyProviderID: 'twitch', ThirdPartyUserID: '123456789', LastSeenAccountName: '123456789#demostreamer', Enabled: true, CreatedAt: iso(ACCOUNT_CREATED + 120 * DAY) },
       { ThirdPartyProviderID: 'discord', ThirdPartyUserID: 'disc_000', LastSeenAccountName: 'sampleplayer#0', Enabled: true, CreatedAt: iso(ACCOUNT_CREATED + 5 * DAY) },
     ],
+    InventoryItem: buildInventoryItems(),
     RoundStatSummary: buildSummary(),
     RoundStat: buildRounds(),
     RankBucket: [{ XP: 184500, Rank: 'Diamond' }, { XP: 92000, Rank: 'Platinum' }],
@@ -427,12 +459,53 @@ function buildPlayerReports() {
   }
   return out;
 }
+// Account name history (audit `AccountNameAudit2`). The sample renamed once on
+// Steam (RookieRunner -> SamplePlayer) and never changed on Xbox — enough to show
+// both a rename timeline and a stable "since" entry. third_party_user_id matches
+// the ThirdPartyUser ids below so the model resolves the platform.
+function buildNameAudit() {
+  const rows = [];
+  const steamId = '76561198000000000';
+  const xuid = 'xuid_000';
+  const renameAt = ACCOUNT_CREATED + 190 * DAY;
+  for (let i = 0; i < 20; i++) rows.push({ logtime: iso(lerp(ACCOUNT_CREATED, renameAt - DAY, (i + 0.5) / 20)), last_seen_account_name: 'RookieRunner', third_party_provider_id: 8, third_party_user_id: steamId });
+  for (let i = 0; i < 40; i++) rows.push({ logtime: iso(lerp(renameAt, SPAN_END, (i + 0.5) / 40)), last_seen_account_name: 'SamplePlayer', third_party_provider_id: 8, third_party_user_id: steamId });
+  for (let i = 0; i < 10; i++) rows.push({ logtime: iso(lerp(ACCOUNT_CREATED + 40 * DAY, SPAN_END, (i + 0.5) / 10)), last_seen_account_name: 'Demo Gamer', third_party_provider_id: 3, third_party_user_id: xuid });
+  return rows;
+}
+
 function buildAudit() {
+  // One physical machine, fingerprinted two ways across client updates (TPM +
+  // firmware) — demonstrates "Machines (est.) = 1" with a method breakdown rather
+  // than miscounting the two fingerprints as two machines.
+  const TPM = 'Tpm:9F3A77C1D2E4B5A6F8091A2B3C4D5E6F70819293A4B5C6D7E8F90A1B2C3D4E5F';
+  const FMW = 'Fmw:11223344556677889900AABBCCDDEEFF00112233445566778899AABBCCDDEEFF';
   const login = [];
-  for (let i = 0; i < 30; i++) login.push({ tamper_id: 'TPM-9F3A-DEMO-0001' }); // one machine
+  for (let i = 0; i < 30; i++) login.push({ tamper_id: i % 4 === 0 ? FMW : TPM });
+  const names = buildNameAudit();
   const reports = buildPlayerReports();
-  const byType = { ClientUserLoginDetails: login, PlayerReport: reports };
-  return { byType, counts: { ClientUserLoginDetails: login.length, PlayerReport: reports.length }, total: login.length + reports.length, badLines: 0 };
+  // Versioned profile snapshots. They carry the EMBARK name history (the sample
+  // renamed RookiePlayer -> SAMPLE_PLAYER, distinct from the Steam/Xbox platform
+  // names) and the raw is_spender flag (= spent AND email-verified; here verified
+  // throughout, flips true at the first purchase).
+  const EMAIL = 'sample.player@example.com';
+  const FORMER_EMAIL = 'old.sample@example.com'; // changed away from — shows in "emails on record"
+  // `created_msts` = each event's account creation time — the key that attributes
+  // an event to one of the two accounts (so they don't read as one renaming).
+  const profileUpdated = [
+    // Primary account: renamed RookiePlayer -> SAMPLE_PLAYER; email verified; also
+    // changed email once (FORMER_EMAIL -> EMAIL) so two addresses are on record.
+    { logtime: iso(ACCOUNT_CREATED + DAY), created_msts: ACCOUNT_CREATED, display_name: 'RookiePlayer', display_name_discriminator: '0000', is_spender: false, email_verified_msts: ACCOUNT_CREATED + DAY, email: FORMER_EMAIL },
+    { logtime: iso(Date.parse('2024-02-10T20:14:01Z')), created_msts: ACCOUNT_CREATED, display_name: 'SAMPLE_PLAYER', display_name_discriminator: '0000', is_spender: true, email_verified_msts: ACCOUNT_CREATED + DAY, email: EMAIL },
+    { logtime: iso(SPAN_END), created_msts: ACCOUNT_CREATED, display_name: 'SAMPLE_PLAYER', display_name_discriminator: '0000', is_spender: true, email_verified_msts: ACCOUNT_CREATED + DAY, email: EMAIL },
+    // Secondary account: renamed NoobAlt -> SMURF_SAMPLE; email never verified.
+    { logtime: iso(ALT_CREATED), created_msts: ALT_CREATED, display_name: 'NoobAlt', display_name_discriminator: '0001', is_spender: false, email_verified_msts: 0, email: EMAIL },
+    { logtime: iso(ALT_CREATED + 60 * DAY), created_msts: ALT_CREATED, display_name: 'SMURF_SAMPLE', display_name_discriminator: '0001', is_spender: false, email_verified_msts: 0, email: EMAIL },
+    { logtime: iso(SPAN_END), created_msts: ALT_CREATED, display_name: 'SMURF_SAMPLE', display_name_discriminator: '0001', is_spender: false, email_verified_msts: 0, email: EMAIL },
+  ];
+  const byType = { ClientUserLoginDetails: login, AccountNameAudit2: names, PlayerReport: reports, ProfileUpdated3: profileUpdated };
+  const counts = { ClientUserLoginDetails: login.length, AccountNameAudit2: names.length, PlayerReport: reports.length, ProfileUpdated3: profileUpdated.length };
+  return { byType, counts, total: login.length + names.length + reports.length + profileUpdated.length, badLines: 0 };
 }
 
 /**
@@ -446,5 +519,8 @@ export function buildSampleRaw() {
     eos: { anticheat: buildEosAnticheat(), linkedAccounts: [] },
     anybrain: buildAnybrain(),
     denuvo: buildDenuvo(),
+    // Request "worked on" a few days after the last session — demonstrates the
+    // "data as of your request" freshness banner (request date > last activity).
+    readme: { requestedAtMs: Date.parse('2026-06-18T00:00:00Z'), requestId: '0000', label: '18 June 2026' },
   };
 }

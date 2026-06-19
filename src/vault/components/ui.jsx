@@ -64,7 +64,7 @@ export const Tooltip = ({ label, children, className = '', side = 'bottom' }) =>
     {children}
     <span
       role="tooltip"
-      className={`pointer-events-none absolute left-1/2 -translate-x-1/2 z-50 w-64 max-w-[80vw] rounded-lg bg-gray-900 border border-gray-700 px-3 py-2 text-xs font-normal normal-case tracking-normal leading-relaxed text-gray-200 shadow-xl opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity ${
+      className={`pointer-events-none absolute left-1/2 -translate-x-1/2 z-50 w-max max-w-[16rem] rounded-lg bg-gray-900 border border-gray-700 px-3 py-2 text-xs font-normal normal-case tracking-normal leading-relaxed text-gray-200 shadow-xl opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity ${
         side === 'bottom' ? 'top-full mt-2' : 'bottom-full mb-2'
       }`}
     >

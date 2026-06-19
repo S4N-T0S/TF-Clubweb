@@ -123,7 +123,7 @@ export const SessionsPage = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard label="Total sessions" value={num(sessions.length)} />
         <StatCard label="Unique IPs" value={num(ips.length)} accent={ips.length ? 'text-emerald-400' : 'text-white'} />
-        <StatCard label="Machines (TPM)" value={num(antiCheat.distinctTamperIds)} />
+        <StatCard label="Machines (est.)" value={num(antiCheat.machineEstimate)} />
         <StatCard label="Countries" value={countriesValue} sub={countryCount > 1 ? 'multiple locations' : undefined} accent={countriesAccent} />
       </div>
 

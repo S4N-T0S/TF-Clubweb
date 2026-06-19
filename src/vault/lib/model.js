@@ -18,12 +18,6 @@ const toMs = (v) => {
 };
 const div = (a, b) => (b ? a / b : 0);
 
-// Embark stamps a backend "is_spender" marker (whether the account has ever
-// spent real money) and — oddly — it can ride along in the SAR export. It isn't
-// in a fixed place across schema generations, so look in the likely homes:
-// the Profile, the EmbarkUser, and the BucketObject KV store (both as an
-// ObjectKey and inside a nested-JSON Value blob like player_career). Returns
-// { value: bool|null, found, source } — value is null when the flag is absent.
 const SPENDER_KEY_RE = /^is[_-]?spender$/i;
 const truthyFlag = (v) => v === true || v === 1 || v === '1' || /^(true|yes)$/i.test(String(v ?? ''));
 
@@ -35,7 +29,26 @@ function scanKeysForSpender(obj, source) {
   return null;
 }
 
-function detectSpender(byType) {
+// The flag's real home is the AUDIT trail: it rides along in the snake_case
+// `ProfileUpdated`/`2`/`3` profile snapshots, NOT the persistence Profile (which
+// usually omits it). Those snapshots are versioned and repeat over the account's
+// life, and the flag is NOT sticky — it flips false when the email loses verified
+// status — so take the latest one (by logtime) that carries it = current value.
+function detectSpenderFromAudit(auditByType) {
+  if (!auditByType) return null;
+  let best = null; // { ms, value }
+  for (const type of ['ProfileUpdated3', 'ProfileUpdated2', 'ProfileUpdated']) {
+    for (const r of auditByType[type] || []) {
+      const hit = scanKeysForSpender(r, 'audit');
+      if (!hit) continue;
+      const ms = toMs(r.logtime);
+      if (!best || (ms ?? -Infinity) >= (best.ms ?? -Infinity)) best = { ms, value: hit.value };
+    }
+  }
+  return best ? { value: best.value, found: true, source: 'audit' } : null;
+}
+
+function detectSpender(byType, auditByType) {
   const direct =
     scanKeysForSpender((byType.Profile || [])[0], 'profile') ||
     scanKeysForSpender((byType.EmbarkUser || [])[0], 'account');
@@ -60,11 +73,12 @@ function detectSpender(byType) {
       if (hit) return hit;
     }
   }
-  return { value: null, found: false, source: null };
+  // Not in persistence anywhere — fall back to the audit profile snapshots.
+  return detectSpenderFromAudit(auditByType) || { value: null, found: false, source: null };
 }
 
 // identity / ban / linked accounts
-function buildIdentity(byType) {
+function buildIdentity(byType, auditByType) {
   const user = (byType.EmbarkUser || [])[0] || {};
   const profile = (byType.Profile || [])[0] || {};
   return {
@@ -83,7 +97,7 @@ function buildIdentity(byType) {
     tosVersionSeen: profile.TOSVersionSeen ?? null,
     isPlaytester: profile.IsPlaytester ?? null,
     profileUpdatedAt: profile.UpdatedAt ?? null,
-    spender: detectSpender(byType),
+    spender: detectSpender(byType, auditByType),
   };
 }
 
@@ -158,6 +172,234 @@ function buildLinkedAccounts(byType) {
     const id = t.ThirdPartyUserID ?? null;
     return { provider, name, id, ...linkInfo(provider, name, id), enabled: t.Enabled ?? null, createdAt: t.CreatedAt ?? null };
   });
+}
+
+// --- Embark accounts -------------------------------------------------------
+// An export can WRAP MULTIPLE Embark accounts
+function buildAccounts(byType) {
+  const users = byType.EmbarkUser || [];
+  const profiles = byType.Profile || [];
+  const mk = (p, u) => ({
+    embarkUserId: u?.EmbarkUserID ?? null,
+    displayName: p?.DisplayName ?? null,
+    discriminator: p?.DisplayNameDiscriminator ?? null,
+    fullName: p?.DisplayName != null ? `${p.DisplayName}#${p.DisplayNameDiscriminator ?? '????'}` : null,
+    email: p?.Email ?? null,
+    emailVerifiedAt: p?.EmailVerifiedAt ?? null,
+    countryCode: p?.CountryCode ?? null,
+    createdAt: p?.CreatedAt ?? u?.CreatedAt ?? null,
+    createdMs: toMs(p?.CreatedAt) ?? toMs(u?.CreatedAt),
+  });
+  // Normally one Profile per EmbarkUser; pair by nearest CreatedAt.
+  const list = (profiles.length ? profiles : users).map((rec) => {
+    if (!profiles.length) return mk(null, rec); // EmbarkUser-only (rare)
+    const pMs = toMs(rec.CreatedAt);
+    let user = null;
+    let diff = Infinity;
+    for (const u of users) {
+      const d = Math.abs((toMs(u.CreatedAt) ?? 0) - (pMs ?? 0));
+      if (d < diff) { diff = d; user = u; }
+    }
+    return mk(rec, user);
+  });
+  return list.sort((a, b) => (a.createdMs ?? 0) - (b.createdMs ?? 0)); // oldest first
+}
+
+// Attribute a ProfileUpdated event to one account. Its `created_msts` IS the
+// account's creation time (matches Profile.CreatedAt), so it's the reliable key
+// when present — essential while two accounts overlap in time. Older-schema events
+// omit it; fall back to "the account current at logtime" (the most-recently-created
+// account that already existed then), safe because those events predate later ones.
+function attributeAccount(accounts, createdMsts, logMs) {
+  if (accounts.length <= 1) return accounts[0] || null;
+  if (createdMsts != null) {
+    let best = accounts[0];
+    let diff = Infinity;
+    for (const a of accounts) {
+      const d = Math.abs((a.createdMs ?? 0) - createdMsts);
+      if (d < diff) { diff = d; best = a; }
+    }
+    return best;
+  }
+  let chosen = accounts[0];
+  for (const a of accounts) if ((a.createdMs ?? 0) <= (logMs ?? Infinity)) chosen = a;
+  return chosen;
+}
+
+// Collect EVERY distinct email Embark has on file, across ALL sources: persistence
+// Profile(s), the audit `ProfileUpdated*` + `EmailCollectedProfileStore2` `email`
+// fields, and the addresses embedded in the SES send/delivery logs
+// (`AwsSesEvent.mail`, `EmailStatus.delivery` — nested-JSON strings). Captures
+// emails you've CHANGED AWAY from, and recovers the address when one file redacts
+// it but another doesn't. Embark's own sending addresses are filtered out.
+const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+const SYSTEM_EMAIL_RE = /@embark\.email\b|amazonses|@sentry|noreply|no-reply|donotreply|do-not-reply/i;
+const isRealEmail = (e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) && /[A-Za-z0-9]/.test(e.split('@')[0]) && !SYSTEM_EMAIL_RE.test(e);
+
+function collectEmails(byType, auditByType) {
+  const found = new Map(); // lowercased -> { email, sources:Set, count }
+  const add = (raw, source) => {
+    if (typeof raw !== 'string') return;
+    const e = raw.trim();
+    if (!isRealEmail(e)) return;
+    const key = e.toLowerCase();
+    let rec = found.get(key);
+    if (!rec) found.set(key, (rec = { email: e, sources: new Set(), count: 0 }));
+    rec.sources.add(source);
+    rec.count += 1;
+  };
+  for (const p of byType.Profile || []) add(p.Email, 'profile');
+  const A = auditByType || {};
+  for (const t of ['ProfileUpdated', 'ProfileUpdated2', 'ProfileUpdated3', 'EmailCollectedProfileStore2']) {
+    for (const r of A[t] || []) add(r.email, 'audit');
+  }
+  // Addresses embedded in the SES nested-JSON blobs — regex them out (don't full-parse).
+  for (const r of A.AwsSesEvent || []) {
+    const m = typeof r.mail === 'string' ? r.mail.match(EMAIL_RE) : null;
+    if (m) for (const e of m) add(e, 'sent');
+  }
+  for (const r of A.EmailStatus || []) {
+    const blob = [r.delivery, r.bounce, r.complaint].filter((v) => typeof v === 'string').join(' ');
+    const m = blob.match(EMAIL_RE);
+    if (m) for (const e of m) add(e, 'sent');
+  }
+  return [...found.values()]
+    .map((r) => ({ email: r.email, sources: [...r.sources], count: r.count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+// --- name history ---------------------------------------------------------
+const NUMERIC_PROVIDER = { 8: 'steam', 3: 'xbox' }; // confirmed; PSN/others TBD (no sample yet)
+
+// Collapse a time-ordered [{name, ms}] list into consecutive-name spans.
+function nameSpans(events) {
+  events.sort((a, b) => (a.ms ?? 0) - (b.ms ?? 0));
+  const spans = [];
+  for (const e of events) {
+    const last = spans[spans.length - 1];
+    if (last && last.name === e.name) {
+      if (e.ms != null) last.lastMs = e.ms;
+      last.count += 1;
+    } else {
+      spans.push({ name: e.name, firstMs: e.ms, lastMs: e.ms, count: 1 });
+    }
+  }
+  return spans;
+}
+
+function buildEmbarkNameHistory(auditByType, accounts) {
+  // Merge all ProfileUpdated schema generations, attributing each event to its
+  // account via created_msts (so two merged accounts don't read as one renaming).
+  const perAccount = new Map(); // key -> { account, events }
+  for (const type of ['ProfileUpdated', 'ProfileUpdated2', 'ProfileUpdated3']) {
+    for (const r of (auditByType || {})[type] || []) {
+      const name = r.display_name;
+      if (name == null || name === '') continue;
+      const disc = r.display_name_discriminator;
+      const ms = toMs(r.logtime);
+      const account = attributeAccount(accounts, r.created_msts ?? null, ms);
+      const key = account?.embarkUserId ?? account?.createdMs ?? '_';
+      let bucket = perAccount.get(key);
+      if (!bucket) perAccount.set(key, (bucket = { account, events: [] }));
+      bucket.events.push({ name: disc != null && disc !== '' ? `${name}#${disc}` : name, ms });
+    }
+  }
+  const accts = [...perAccount.values()]
+    .map(({ account, events }) => {
+      const spans = nameSpans(events);
+      return {
+        embarkUserId: account?.embarkUserId ?? null,
+        label: account?.fullName ?? spans[spans.length - 1]?.name ?? null,
+        createdAt: account?.createdAt ?? null,
+        spans,
+        changed: spans.length > 1,
+        current: spans[spans.length - 1] || null,
+      };
+    })
+    .sort((a, b) => (a.spans[0]?.firstMs ?? 0) - (b.spans[0]?.firstMs ?? 0));
+  return { has: accts.length > 0, multi: accts.length > 1, accounts: accts };
+}
+
+function buildPlatformNameHistory(raw) {
+  const rows = raw.audit?.byType?.AccountNameAudit2 || [];
+  const idToProvider = new Map();
+  for (const t of raw.persistence?.byType?.ThirdPartyUser || []) {
+    if (t.ThirdPartyUserID != null) idToProvider.set(String(t.ThirdPartyUserID), t.ThirdPartyProviderID || null);
+  }
+  const byAccount = new Map(); // third_party_user_id -> { provider, events }
+  for (const r of rows) {
+    const name = r.last_seen_account_name || null;
+    if (!name) continue;
+    const uid = r.third_party_user_id != null ? String(r.third_party_user_id) : `pid:${r.third_party_provider_id}`;
+    const provider =
+      idToProvider.get(uid) ||
+      NUMERIC_PROVIDER[r.third_party_provider_id] ||
+      (r.third_party_provider_id != null ? `provider-${r.third_party_provider_id}` : 'unknown');
+    let acc = byAccount.get(uid);
+    if (!acc) byAccount.set(uid, (acc = { uid, provider, events: [] }));
+    acc.events.push({ name, ms: toMs(r.logtime) });
+  }
+  return [...byAccount.values()]
+    .map((a) => {
+      const spans = nameSpans(a.events);
+      return { provider: a.provider, uid: a.uid, spans, changed: spans.length > 1, current: spans[spans.length - 1] || null, firstMs: spans[0]?.firstMs ?? null };
+    })
+    .sort((a, b) => (b.current?.lastMs ?? 0) - (a.current?.lastMs ?? 0)); // most-recent account first
+}
+
+function buildNameHistory(raw, accounts) {
+  const embark = buildEmbarkNameHistory(raw.audit?.byType, accounts);
+  const platforms = buildPlatformNameHistory(raw);
+  return { embark, platforms, hasPlatform: platforms.length > 0, has: embark.has || platforms.length > 0 };
+}
+
+// --- inventory counts by type (persistence `InventoryItem`) ----------------
+// InventoryItem rows carry NO item id (inherent to the export), so individual
+// cosmetics can't be listed — only counted by Type. We report the number of
+// items per category plus the summed Amount (which differs from the count only
+// for stackables like Currency).
+const INVENTORY_LABELS = {
+  CustomizationItem: 'Customizations',
+  WeaponSkin: 'Weapon skins',
+  WeaponCharm: 'Weapon charms',
+  WeaponSticker: 'Weapon stickers',
+  WeaponAttachment: 'Weapon attachments',
+  PlayerCardCustomization: 'Player-card customizations',
+  PlayerCard: 'Player cards',
+  AnimationCustomization: 'Animations',
+  Spray: 'Sprays',
+  Emoticon: 'Emotes',
+  ClansCustomization: 'Club customizations',
+  BattlePass: 'Battle passes',
+  GameItem: 'Game items',
+  Currency: 'Currencies',
+  Quest: 'Quests / contracts',
+  Archetype: 'Builds',
+  ContestantPack: 'Contestant packs',
+  Loadout: 'Loadout slots',
+  Fame: 'Fame',
+  Sanction: 'Sanctions',
+  PersistentEntity: 'Persistent entities',
+};
+const humanizeType = (t) => INVENTORY_LABELS[t] || t.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+
+function buildInventory(byType) {
+  const rows = byType.InventoryItem || [];
+  const map = new Map();
+  for (const it of rows) {
+    const type = it.Type || 'Unknown';
+    let rec = map.get(type);
+    if (!rec) map.set(type, (rec = { type, label: humanizeType(type), count: 0, amount: 0 }));
+    rec.count += 1;
+    rec.amount += typeof it.Amount === 'number' ? it.Amount : 0;
+  }
+  const categories = [...map.values()].sort((a, b) => b.count - a.count);
+  return {
+    has: rows.length > 0,
+    total: rows.length,
+    totalAmount: categories.reduce((s, r) => s + r.amount, 0),
+    categories,
+  };
 }
 
 // --- career (aggregated across ALL RoundStatSummary snapshots) ------------
@@ -915,8 +1157,40 @@ function buildAntiCheat(raw) {
   const anybrainOses = [...new Set((raw.anybrain.os || []).map((r) => r.name).filter(Boolean))];
   const resolutions = [...new Set((raw.anybrain.screens || []).map((r) => (r.width && r.height ? `${r.width}×${r.height}` : null)).filter(Boolean))];
 
-  const tamperIds = new Set();
-  for (const l of raw.audit?.byType?.ClientUserLoginDetails || []) if (l?.tamper_id) tamperIds.add(l.tamper_id);
+  // Device fingerprints. The audit's `tamper_id` is namespaced by the SOURCE of
+  // the fingerprint — `Tpm:` (TPM module), `Fmw:` (firmware/UEFI), `Usn:` (disk
+  // volume serial); older clients logged a bare GUID. ONE physical machine can
+  // present several of these (one per method, and the method changes across
+  // client updates), so counting distinct strings over-counts machines. Dedupe
+  // WITHIN each method, then estimate machines as the largest single hardware
+  // method count — NOT the sum, and NOT "TPM" specifically.
+  const fpByMethod = new Map(); // method -> Set(hash)
+  for (const l of raw.audit?.byType?.ClientUserLoginDetails || []) {
+    const tid = l?.tamper_id;
+    if (!tid || typeof tid !== 'string') continue;
+    const c = tid.indexOf(':');
+    const method = c > 0 ? tid.slice(0, c).toLowerCase() : 'legacy';
+    const hash = c > 0 ? tid.slice(c + 1) : tid;
+    if (!hash) continue;
+    let set = fpByMethod.get(method);
+    if (!set) fpByMethod.set(method, (set = new Set()));
+    set.add(hash);
+  }
+  const FP_LABEL = { tpm: 'TPM', fmw: 'Firmware', usn: 'Disk serial', legacy: 'Legacy ID' };
+  const HARDWARE_METHODS = new Set(['tpm', 'fmw', 'usn']);
+  const fingerprintMethods = [...fpByMethod.entries()]
+    .map(([key, set]) => ({ key, label: FP_LABEL[key] || key, distinct: set.size, hardware: HARDWARE_METHODS.has(key) }))
+    .sort((a, b) => Number(b.hardware) - Number(a.hardware) || b.distinct - a.distinct);
+  const hardwareCounts = fingerprintMethods.filter((m) => m.hardware).map((m) => m.distinct);
+  const legacyCounts = fingerprintMethods.filter((m) => !m.hardware).map((m) => m.distinct);
+  // Best estimate of distinct PHYSICAL machines: the largest count from any one
+  // hardware method. Legacy GUIDs are a looser fallback (they can change on
+  // reinstall), used only when no hardware fingerprint is present.
+  const machineEstimate = hardwareCounts.length
+    ? Math.max(...hardwareCounts)
+    : legacyCounts.length
+      ? Math.max(...legacyCounts)
+      : 0;
 
   return {
     kicks,
@@ -931,7 +1205,10 @@ function buildAntiCheat(raw) {
     redactedIpCount,
     operatingSystems: [...new Set([...eosOses, ...anybrainOses])],
     resolutions,
-    distinctTamperIds: tamperIds.size,
+    // Device-fingerprint summary (see comment above). `machineEstimate` replaces
+    // the old "distinct TPM ids" count, which conflated fingerprint methods.
+    machineEstimate,
+    fingerprintMethods,
     denuvoPlatforms: raw.denuvo.length,
   };
 }
@@ -976,10 +1253,37 @@ export function buildModel(raw) {
     if (m.tournamentWon) tournamentsWon++;
   }
 
+  // "Data as of" date, so users don't mistake a snapshot for live data. The SAR
+  // README filename carries the request date (parsed in ingest.js); the data
+  // itself can run slightly past it, so the displayed date is whichever is later
+  // — the request date or the player's last recorded activity.
+  const requestedAtMs = toMs(raw.readme?.requestedAtMs ?? null);
+  let asOfMs = requestedAtMs;
+  let asOfSource = requestedAtMs != null ? 'request' : null;
+  if (lastActivity != null && (requestedAtMs == null || lastActivity > requestedAtMs)) {
+    asOfMs = lastActivity;
+    asOfSource = 'activity';
+  }
+  const snapshot = {
+    requestedAtMs: requestedAtMs ?? null,
+    requestId: raw.readme?.requestId ?? null,
+    requestLabel: raw.readme?.label ?? null,
+    lastActivityMs: lastActivity,
+    asOfMs: asOfMs ?? null,
+    asOfSource, // 'request' | 'activity' | null
+  };
+
+  const accounts = buildAccounts(byType);
+
   return {
-    identity: buildIdentity(byType),
+    identity: buildIdentity(byType, raw.audit?.byType),
+    accounts,
+    multiAccount: accounts.length > 1,
+    emails: collectEmails(byType, raw.audit?.byType),
     ban: buildBans(byType),
     linkedAccounts: buildLinkedAccounts(byType),
+    nameHistory: buildNameHistory(raw, accounts),
+    inventory: buildInventory(byType),
     career: buildCareer(byType),
     matches,
     modeBreakdown: buildModeBreakdown(matches),
@@ -997,6 +1301,7 @@ export function buildModel(raw) {
       tournamentsWon,
       counts: raw.persistence.counts,
       lastActivity,
+      snapshot,
       hasAudit: !!raw.audit,
       hasEos: raw.eos.anticheat.length > 0,
       hasAnybrain: (raw.anybrain.os?.length || raw.anybrain.sessions?.length || 0) > 0,

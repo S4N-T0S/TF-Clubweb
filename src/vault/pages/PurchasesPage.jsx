@@ -162,7 +162,7 @@ const Contents = ({ c }) => {
 
 export const PurchasesPage = () => {
   const { model } = useVaultData();
-  const { economy } = model;
+  const { economy, inventory } = model;
   const {
     transactions, transactionCount, grantedCount, bySource, byStore,
     fiat, fiatGrantedCount, fiatFailedCount, spendBaseTotal, walletCurrencies,
@@ -172,6 +172,7 @@ export const PurchasesPage = () => {
   const [filter, setFilter] = useState('All');
   const [txPage, setTxPage] = useState(1);
   const [ledgerPage, setLedgerPage] = useState(1);
+  const [offersPage, setOffersPage] = useState(1);
 
   const activeGroup = SOURCE_GROUPS.find((g) => g.key === filter) || SOURCE_GROUPS[0];
   const filteredTx = useMemo(
@@ -190,6 +191,12 @@ export const PurchasesPage = () => {
   const lgSafePage = Math.min(ledgerPage, lgTotalPages);
   const lgStart = (lgSafePage - 1) * PER_PAGE;
   const lgSlice = ledger.slice(lgStart, lgStart + PER_PAGE);
+
+  // offers paging (some accounts have hundreds of impression rows)
+  const ofTotalPages = Math.max(1, Math.ceil(offers.length / PER_PAGE));
+  const ofSafePage = Math.min(offersPage, ofTotalPages);
+  const ofStart = (ofSafePage - 1) * PER_PAGE;
+  const ofSlice = offers.slice(ofStart, ofStart + PER_PAGE);
 
   const setGroup = (key) => { setFilter(key); setTxPage(1); };
 
@@ -504,7 +511,7 @@ export const PurchasesPage = () => {
           {/* Limited-time offers (impressions, not purchases) */}
           {offers.length > 0 && (
             <Panel title={`Limited-time offers shown (${num(offers.length)})`}>
-              <div className="table-container">
+              <div className="table-container" style={{ minHeight: PER_PAGE * 38 }}>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-gray-400 border-b border-gray-700">
@@ -514,8 +521,8 @@ export const PurchasesPage = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {offers.slice(0, 30).map((o, i) => (
-                      <tr key={i} className="border-b border-gray-700/40 last:border-0">
+                    {ofSlice.map((o, i) => (
+                      <tr key={ofStart + i} className="border-b border-gray-700/40 last:border-0">
                         <td className="py-2 px-3 text-gray-300 whitespace-nowrap">{dateTime(o.startedAt)}</td>
                         <td className="py-2 px-3 text-right tabular-nums text-gray-400">{o.durationSec ? duration(o.durationSec * 1000) : '—'}</td>
                         <td className="py-2 px-3">
@@ -526,7 +533,20 @@ export const PurchasesPage = () => {
                   </tbody>
                 </table>
               </div>
-              {offers.length > 30 && <p className="text-xs text-gray-500 mt-2">Showing the 30 most recent of {num(offers.length)}.</p>}
+              <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                <PageJump totalPages={ofTotalPages} onJump={setOffersPage} />
+                <div className="flex-1">
+                  <Pagination
+                    currentPage={ofSafePage}
+                    totalPages={ofTotalPages}
+                    startIndex={ofStart}
+                    endIndex={ofStart + PER_PAGE}
+                    totalItems={offers.length}
+                    onPageChange={setOffersPage}
+                    variant="compact"
+                  />
+                </div>
+              </div>
               <Note>
                 <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /></span> These are limited-time
                 store offers the game <em>showed</em> you, not confirmed purchases.
@@ -534,6 +554,25 @@ export const PurchasesPage = () => {
             </Panel>
           )}
         </>
+      )}
+
+      {/* Inventory counts by type — shown independently of purchase/currency data. */}
+      {inventory.has && (
+        <Panel title={`Items you own (${num(inventory.total)})`}>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {inventory.categories.map((c) => (
+              <div key={c.type} className="bg-gray-900/50 rounded-lg px-3 py-2.5">
+                <p className="text-2xl font-bold text-white tabular-nums">{num(c.count)}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{c.label}</p>
+              </div>
+            ))}
+          </div>
+          <Note>
+            Counts come from your <code>InventoryItem</code> records. The export stores each item’s <em>type</em> and
+            quantity but no item IDs, so individual cosmetics can’t be named or listed — only counted by category. We
+            need help filling out this category and making it more accurate.
+          </Note>
+        </Panel>
       )}
     </div>
   );
