@@ -474,6 +474,95 @@ function buildNameAudit() {
   return rows;
 }
 
+// Marketing + account emails (audit `AwsSesEvent` + legacy `EmailStatus`).
+// Embark's season/event blasts and transactional notices go through Amazon SES,
+// whose per-message Send → Delivery → Open → Click stream is kept in the audit.
+// We synthesise a believable inbox so the Email-tracking page shows a full
+// funnel: most delivered, several opened (one re-opened many times), a couple
+// clicked, plus a few account emails that aren't open-tracked. Subjects mirror
+// real THE FINALS campaigns; the dates line up with the season calendar.
+const SES_SENDER = 'THE FINALS <noreply@embark.email>';
+const SES_OPEN_UAS = [
+  'Mozilla/5.0 (Windows NT 5.1; rv:11.0) Gecko Firefox/11.0 (via ggpht.com GoogleImageProxy)', // Gmail's tracking-pixel proxy
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+];
+const SES_LINKS = [
+  'https://id.embark.games/id/the-finals/giveaway',
+  'https://www.reachthefinals.com/patchnotes',
+  'https://store.steampowered.com/app/2073850/THE_FINALS/',
+];
+
+// One SES `mail` blob (a JSON STRING, exactly as the audit stores it).
+const sesMailBlob = (mid, ms, subject, email, { topic = null, transactional = false } = {}) => {
+  const source = transactional ? 'Embark <noreply@embark.email>' : SES_SENDER;
+  const headers = [
+    { name: 'From', value: source },
+    { name: 'To', value: email },
+    { name: 'Subject', value: subject },
+  ];
+  if (topic) headers.push({ name: 'List-Unsubscribe', value: `https://id.embark.games/api/unsubscribe?token=sample&topics=${topic}` });
+  // Marketing runs through the "email-scheduler" identity; transactional mail doesn't.
+  const tags = transactional
+    ? { 'ses:operation': ['SendEmail'], 'ses:configuration-set': ['email-events'] }
+    : { 'ses:operation': ['SendTemplatedEmail'], 'ses:caller-identity': ['email-scheduler'], 'ses:configuration-set': ['email-events'] };
+  return JSON.stringify({ timestamp: iso(ms), source, messageId: mid, destination: [email], headers, commonHeaders: { from: [source], to: [email], subject }, tags });
+};
+
+function buildSesEvents(email) {
+  const ses = []; // AwsSesEvent rows (the modern Send/Delivery/Open/Click stream)
+  const legacy = []; // EmailStatus rows (older delivery-only system)
+  let n = 0;
+  const mid = () => `0100sample${String(++n).padStart(4, '0')}-${(n * 7919).toString(16)}`;
+  const MK = 'PROMOTIONAL_MARKETING';
+  const ARC = 'PROMOTIONAL_MARKETING_ARC';
+  // [date, subject, topic, opens, clicks]
+  const CAMPAIGNS = [
+    ['2024-03-14T17:00:00Z', 'THE FINALS | SEASON 2', MK, 1, 0],
+    ['2024-06-13T17:00:00Z', 'Claim your S3 gifts!', MK, 0, 1],
+    ['2024-09-26T17:00:00Z', "SEASON 4: IT'S SHOWTIME!", MK, 2, 1],
+    ['2024-12-12T17:00:00Z', 'SEASON 5: NEXT STAGE!', MK, 1, 0],
+    ['2025-03-20T17:00:00Z', 'SEASON 6: RISING STARS', MK, 0, 0],
+    ['2025-05-22T17:00:00Z', 'BLAST OFF! New Event Starts Now!', MK, 3, 0],
+    ['2025-06-12T17:00:00Z', 'Season 7 is here with new free gifts!', MK, 2, 1],
+    ['2025-07-18T17:00:00Z', 'Sign Up for a Chance to Play ARC Raiders', ARC, 1, 0],
+    ['2025-08-21T17:00:00Z', 'Your judgment awaits. The Heaven or Else event is LIVE with free rewards!', MK, 2, 0],
+    ['2025-09-10T17:00:00Z', 'Claim your free SEASON 8 Gift!', MK, 1, 0],
+    ['2025-10-23T17:00:00Z', 'The Hunt is On: GHOUL RUSH is LIVE with FREE rewards! 👻', MK, 4, 1],
+    ['2025-12-10T17:00:00Z', 'Season 9 Reveal Recap: Here’s What Awaits You on Dec. 10 🐉', MK, 2, 0],
+    ['2026-01-29T17:00:00Z', 'Mid-Season: Event, Map, and More!', MK, 9, 1], // re-opened a lot → "most re-opened" callout
+    ['2026-02-19T17:00:00Z', 'SCORE GOALS! Super Cashball Kicks Off!', MK, 1, 0],
+    ['2026-04-09T17:00:00Z', "Outfit's Fluffed, Basket's Loaded - Let the Bunny Bash begin!", MK, 0, 0],
+  ];
+  for (const [d, subject, topic, opens, clicks] of CAMPAIGNS) {
+    const sentMs = Date.parse(d);
+    const id = mid();
+    const mail = sesMailBlob(id, sentMs, subject, email, { topic });
+    ses.push({ logtime: iso(sentMs), event_type: 'Send', mail, send: '{}' });
+    const delMs = sentMs + ri(20, 90) * 1000;
+    ses.push({ logtime: iso(delMs), event_type: 'Delivery', mail, delivery: JSON.stringify({ timestamp: iso(delMs), processingTimeMillis: ri(300, 900), recipients: [email], smtpResponse: '250 2.0.0 OK', reportingMTA: 'a8-64.smtp-out.eu-north-1.amazonses.com' }) });
+    for (let k = 0; k < opens; k++) {
+      const oms = sentMs + ri(1, 96) * HOUR + k * ri(1, 40) * HOUR;
+      ses.push({ logtime: iso(oms), event_type: 'Open', mail, open: JSON.stringify({ timestamp: iso(oms), userAgent: pick(SES_OPEN_UAS), ipAddress: pick(IPS) }) });
+    }
+    for (let k = 0; k < clicks; k++) {
+      const cms = sentMs + ri(2, 72) * HOUR;
+      ses.push({ logtime: iso(cms), event_type: 'Click', mail, click: JSON.stringify({ timestamp: iso(cms), userAgent: SES_OPEN_UAS[1], ipAddress: pick(IPS), link: pick(SES_LINKS), linkTags: null }) });
+    }
+  }
+  // A few transactional account emails (no open tracking) via the older system.
+  const ACCOUNT = [
+    [ACCOUNT_CREATED + DAY, 'Verify Email'],
+    [Date.parse('2024-02-10T20:13:00Z'), 'Updated email'],
+    [Date.parse('2024-02-10T20:14:30Z'), 'Verify Email'],
+  ];
+  for (const [ms, subject] of ACCOUNT) {
+    const id = mid();
+    legacy.push({ logtime: iso(ms + 30_000), delivery: JSON.stringify({ timestamp: iso(ms + 30_000), processingTimeMillis: ri(300, 800), recipients: [email], smtpResponse: '250 2.0.0 OK', reportingMTA: 'a8-64.smtp-out.eu-north-1.amazonses.com' }), mail: sesMailBlob(id, ms, subject, email, { transactional: true }), notification_type: 'Delivery' });
+  }
+  return { ses, legacy };
+}
+
 function buildAudit() {
   // One physical machine, fingerprinted two ways across client updates (TPM +
   // firmware) — demonstrates "Machines (est.) = 1" with a method breakdown rather
@@ -503,9 +592,11 @@ function buildAudit() {
     { logtime: iso(ALT_CREATED + 60 * DAY), created_msts: ALT_CREATED, display_name: 'SMURF_SAMPLE', display_name_discriminator: '0001', is_spender: false, email_verified_msts: 0, email: EMAIL },
     { logtime: iso(SPAN_END), created_msts: ALT_CREATED, display_name: 'SMURF_SAMPLE', display_name_discriminator: '0001', is_spender: false, email_verified_msts: 0, email: EMAIL },
   ];
-  const byType = { ClientUserLoginDetails: login, AccountNameAudit2: names, PlayerReport: reports, ProfileUpdated3: profileUpdated };
-  const counts = { ClientUserLoginDetails: login.length, AccountNameAudit2: names.length, PlayerReport: reports.length, ProfileUpdated3: profileUpdated.length };
-  return { byType, counts, total: login.length + names.length + reports.length + profileUpdated.length, badLines: 0 };
+  const { ses, legacy } = buildSesEvents(EMAIL);
+  const byType = { ClientUserLoginDetails: login, AccountNameAudit2: names, PlayerReport: reports, ProfileUpdated3: profileUpdated, AwsSesEvent: ses, EmailStatus: legacy };
+  const counts = Object.fromEntries(Object.entries(byType).map(([k, v]) => [k, v.length]));
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  return { byType, counts, total, badLines: 0 };
 }
 
 /**

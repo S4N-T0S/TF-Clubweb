@@ -62,6 +62,7 @@ const SHOWCASE = [
   { icon: Layers, label: 'Loadouts', sub: `${VAULT_BASE}/loadouts`, desc: 'How much you played each class and your top weapons.' },
   { icon: Wallet, label: 'Purchases', sub: `${VAULT_BASE}/purchases`, desc: 'Real money spent, Multibucks ledger and owned DLC.' },
   { icon: Radar, label: 'Sessions', sub: `${VAULT_BASE}/sessions`, desc: 'Every login, IP and country on an offline world map.' },
+  { icon: Mail, label: 'Email tracking', sub: `${VAULT_BASE}/emails`, desc: 'Which emails Embark sent, opened and click-tracked.' },
   { icon: ShieldAlert, label: 'Account & bans', sub: `${VAULT_BASE}/account`, desc: 'Email, DOB, country, linked accounts and ban status.' },
 ];
 

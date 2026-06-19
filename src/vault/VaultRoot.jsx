@@ -17,6 +17,7 @@ import { BreakdownPage } from './pages/BreakdownPage';
 import { LoadoutsPage } from './pages/LoadoutsPage';
 import { PurchasesPage } from './pages/PurchasesPage';
 import { SessionsPage } from './pages/SessionsPage';
+import { EmailsPage } from './pages/EmailsPage';
 import { AccountPage } from './pages/AccountPage';
 import { preloadVaultImages } from './lib/preload';
 import { VAULT_BASE } from './constants';
@@ -39,6 +40,7 @@ const VaultInner = () => {
         <Route path="loadouts" element={<LoadoutsPage />} />
         <Route path="purchases" element={<PurchasesPage />} />
         <Route path="sessions" element={<SessionsPage />} />
+        <Route path="emails" element={<EmailsPage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="*" element={<Navigate to={VAULT_BASE} replace />} />
       </Routes>

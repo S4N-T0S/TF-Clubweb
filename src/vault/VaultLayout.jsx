@@ -1,6 +1,6 @@
 import { NavLink, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { User, Swords, Crosshair, Layers, BarChart3, Wallet, Radar, ShieldAlert, WifiOff, LogOut, RotateCcw, FlaskConical } from 'lucide-react';
+import { User, Swords, Crosshair, Layers, BarChart3, Wallet, Radar, Mail, ShieldAlert, WifiOff, LogOut, RotateCcw, FlaskConical } from 'lucide-react';
 import { useVaultData } from './context/VaultDataContext';
 import { VAULT_BASE } from './constants';
 import { ImportSummaryBanner } from './components/ImportSummaryBanner';
@@ -18,6 +18,7 @@ const NAV = [
   { to: `${VAULT_BASE}/loadouts`, icon: Layers, label: 'Loadouts' },
   { to: `${VAULT_BASE}/purchases`, icon: Wallet, label: 'Purchases' },
   { to: `${VAULT_BASE}/sessions`, icon: Radar, label: 'Sessions' },
+  { to: `${VAULT_BASE}/emails`, icon: Mail, label: 'Emails' },
   { to: `${VAULT_BASE}/account`, icon: ShieldAlert, label: 'Account & Bans' },
 ];
 

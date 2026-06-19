@@ -1234,6 +1234,159 @@ function buildReports(raw) {
   return { count: reports.length, reports, byReason };
 }
 
+// --- email delivery / open / click tracking (audit SES events) ------------
+// Embark's mail (marketing season/event blasts + transactional verify/change
+// notices) is sent through Amazon SES, and the SAR audit keeps SES's per-message
+// event stream: `AwsSesEvent` (Send → Delivery → Open → Click, the current
+// system) and the older `EmailStatus` (delivery-only). Each row carries a
+// nested-JSON `mail` blob (subject, recipient, send time, marketing topic, SES
+// tags) plus an event-specific blob — `open`/`click` hold the timestamp, the
+// reader's userAgent/IP and (for clicks) the exact link followed. We unify them
+// per `messageId` into one timeline per email, so a player can see precisely
+// which emails they were sent, which they opened (and how many times), and what
+// they clicked — i.e. the engagement data a marketing team normally sees.
+const sesJson = (s) => {
+  if (typeof s !== 'string') return null;
+  try { return JSON.parse(s); } catch { return null; }
+};
+
+// Turn a raw email userAgent into a short, friendly label. Email "opens" are
+// detected when the client loads a 1px tracking pixel; webmail providers proxy
+// that fetch (so the recorded IP is theirs, not the reader's) — flag those.
+const prettyUserAgent = (ua) => {
+  if (!ua) return null;
+  if (/GoogleImageProxy|ggpht/i.test(ua)) return 'Gmail (image proxy)';
+  if (/YahooMailProxy/i.test(ua)) return 'Yahoo Mail (proxy)';
+  if (/Outlook|Microsoft Office/i.test(ua)) return 'Outlook';
+  const os = /Windows/i.test(ua) ? 'Windows'
+    : /iPhone|iPad|iPod|iOS/i.test(ua) ? 'iOS'
+    : /Mac OS X|Macintosh/i.test(ua) ? 'macOS'
+    : /Android/i.test(ua) ? 'Android'
+    : /Linux/i.test(ua) ? 'Linux' : null;
+  const br = /Edg[/A]/i.test(ua) ? 'Edge'
+    : /OPR\/|Opera/i.test(ua) ? 'Opera'
+    : /Firefox/i.test(ua) ? 'Firefox'
+    : /Chrome|CriOS/i.test(ua) ? 'Chrome'
+    : /Safari/i.test(ua) ? 'Safari' : null;
+  if (br && os) return `${br} on ${os}`;
+  return br || os || 'Unknown client';
+};
+
+const cleanSesIp = (ip) => (typeof ip === 'string' && ip && !/REDACT|\[/.test(ip) ? ip : null);
+
+// Marketing blasts go through the "email-scheduler" SES identity and carry a
+// List-Unsubscribe topic; everything else (verify-email, email-change) is
+// transactional account/security mail with no marketing topic or scheduler tag.
+const categorizeEmail = (topic, caller) => {
+  if (topic && /_ARC\b/i.test(topic)) return 'marketing_arc';
+  if (topic && /(MARKETING|PROMO|NEWS)/i.test(topic)) return 'marketing';
+  if (caller && /scheduler|marketing/i.test(caller)) return 'marketing';
+  return 'account';
+};
+
+function buildEmailTracking(auditByType) {
+  const A = auditByType || {};
+  const ses = A.AwsSesEvent || [];
+  const legacy = A.EmailStatus || [];
+  if (ses.length === 0 && legacy.length === 0) return { has: false, emails: [], stats: null, trackingAvailable: false };
+
+  const byId = new Map();
+  const touch = (mid) => {
+    let e = byId.get(mid);
+    if (!e) byId.set(mid, (e = { messageId: mid, subject: null, sender: null, recipient: null, topic: null, caller: null, tracked: false, sentMs: null, deliveredMs: null, opens: [], clicks: [], bounced: false, complained: false }));
+    return e;
+  };
+  const ingestMail = (blob) => {
+    const m = sesJson(blob);
+    if (!m || !m.messageId) return null;
+    const e = touch(m.messageId);
+    const subj = m.commonHeaders?.subject || (Array.isArray(m.headers) ? m.headers.find((h) => h.name === 'Subject')?.value : null) || null;
+    if (subj && !e.subject) e.subject = subj;
+    if (m.source && !e.sender) e.sender = m.source;
+    if (Array.isArray(m.destination) && m.destination[0] && !e.recipient) e.recipient = m.destination[0];
+    const tags = m.tags || {};
+    if (!e.caller && tags['ses:caller-identity']?.[0]) e.caller = tags['ses:caller-identity'][0];
+    if (!e.topic && Array.isArray(m.headers)) {
+      const lu = m.headers.find((h) => h.name === 'List-Unsubscribe');
+      const t = lu?.value?.match(/topics=([A-Za-z_]+)/);
+      if (t) e.topic = t[1];
+    }
+    const ts = toMs(m.timestamp); // the original SEND time (identical on every event of a message)
+    if (ts != null && (e.sentMs == null || ts < e.sentMs)) e.sentMs = ts;
+    return e;
+  };
+
+  for (const r of ses) {
+    const e = ingestMail(r.mail);
+    if (!e) continue;
+    e.tracked = true; // came from the SES event stream → open/click tracking was active
+    const lt = toMs(r.logtime);
+    switch (r.event_type) {
+      case 'Delivery': { const d = sesJson(r.delivery); if (e.deliveredMs == null) e.deliveredMs = toMs(d?.timestamp) ?? lt; break; }
+      case 'Open': { const o = sesJson(r.open); e.opens.push({ ms: toMs(o?.timestamp) ?? lt, device: prettyUserAgent(o?.userAgent), ip: cleanSesIp(o?.ipAddress) }); break; }
+      case 'Click': { const c = sesJson(r.click); e.clicks.push({ ms: toMs(c?.timestamp) ?? lt, link: c?.link || null, device: prettyUserAgent(c?.userAgent), ip: cleanSesIp(c?.ipAddress) }); break; }
+      case 'Bounce': e.bounced = true; break;
+      case 'Complaint': e.complained = true; break;
+      default: break; // 'Send' has no extra payload
+    }
+  }
+  for (const r of legacy) {
+    const e = ingestMail(r.mail);
+    if (!e) continue;
+    const lt = toMs(r.logtime);
+    if (r.notification_type === 'Bounce') e.bounced = true;
+    else if (r.notification_type === 'Complaint') e.complained = true;
+    else if (e.deliveredMs == null) { const d = sesJson(r.delivery); e.deliveredMs = toMs(d?.timestamp) ?? lt; }
+  }
+
+  const emails = [...byId.values()]
+    .map((e) => {
+      e.opens.sort((a, b) => (a.ms ?? 0) - (b.ms ?? 0));
+      e.clicks.sort((a, b) => (a.ms ?? 0) - (b.ms ?? 0));
+      return {
+        ...e,
+        category: categorizeEmail(e.topic, e.caller),
+        delivered: e.deliveredMs != null || e.opens.length > 0 || e.clicks.length > 0,
+        openCount: e.opens.length,
+        clickCount: e.clicks.length,
+        firstOpenMs: e.opens[0]?.ms ?? null,
+        lastOpenMs: e.opens[e.opens.length - 1]?.ms ?? null,
+      };
+    })
+    .sort((a, b) => (b.sentMs ?? 0) - (a.sentMs ?? 0)); // newest first
+
+  const opened = emails.filter((e) => e.openCount > 0);
+  const clicked = emails.filter((e) => e.clickCount > 0);
+  const deliveredCount = emails.filter((e) => e.delivered).length;
+  const trackedCount = emails.filter((e) => e.tracked).length; // emails that COULD be open-tracked
+  const totalOpens = emails.reduce((s, e) => s + e.openCount, 0);
+  const totalClicks = emails.reduce((s, e) => s + e.clickCount, 0);
+  const mostOpened = opened.reduce((best, e) => (!best || e.openCount > best.openCount ? e : best), null);
+  const byCategory = {};
+  for (const e of emails) byCategory[e.category] = (byCategory[e.category] || 0) + 1;
+  const times = emails.map((e) => e.sentMs).filter((v) => v != null);
+  const recipients = [...new Set(emails.map((e) => e.recipient).filter(Boolean))];
+  const openDenom = trackedCount || deliveredCount || emails.length;
+
+  const stats = {
+    total: emails.length,
+    delivered: deliveredCount,
+    tracked: trackedCount,
+    opened: opened.length,
+    clicked: clicked.length,
+    totalOpens,
+    totalClicks,
+    openRate: openDenom ? opened.length / openDenom : 0,
+    clickRate: openDenom ? clicked.length / openDenom : 0,
+    firstMs: times.length ? Math.min(...times) : null,
+    lastMs: times.length ? Math.max(...times) : null,
+    mostOpened: mostOpened ? { subject: mostOpened.subject, count: mostOpened.openCount } : null,
+    byCategory,
+    recipients,
+  };
+  return { has: true, emails, stats, trackingAvailable: ses.length > 0 };
+}
+
 /** Build the full set of view-models from parsed raw records. */
 export function buildModel(raw) {
   const byType = raw.persistence.byType;
@@ -1294,6 +1447,7 @@ export function buildModel(raw) {
     economy: buildEconomy(byType),
     antiCheat: buildAntiCheat(raw),
     reports: buildReports(raw),
+    emailTracking: buildEmailTracking(raw.audit?.byType),
     meta: {
       roundCount,
       matchCount: matches.length,
