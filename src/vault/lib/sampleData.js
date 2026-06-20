@@ -42,9 +42,7 @@ const ANYBRAIN_GOLIVE = Date.parse('2025-07-24T00:00:00Z');
 const ALT_CREATED = Date.parse('2025-08-01T12:00:00Z');
 const ALT_EMBARK_ID = '00000000-7b2c-4d81-aa31-5a3p1ed0001';
 
-// Two London-block IPs (the classic GeoIP example range) so the offline
-// geolocation map lights up for the preview. Real exports carry the player's
-// own addresses; redacted donor samples show "no usable IPs" instead.
+// Two London-block IPs (the classic GeoIP example range)
 const IPS = ['81.2.69.142', '81.2.69.160'];
 
 // --- content ids (all present in weapons.js / gameMeta.js / maps.js) ------
@@ -345,6 +343,60 @@ function buildInventoryItems() {
   return rows;
 }
 
+// Hidden matchmaking / skill ratings (persistence `BucketObject`). A believable
+// long-time-Diamond veteran: OpenSkill-era ranked in S2-S3, the IVK ladder S4+
+// with one Ruby-peak season, plus the casual/World-Tour hidden MMR and the raw
+// OpenSkill model. Includes a couple of zero-match "migration seed" rows so the
+// preview also exercises the de-duplication. Uses the real season ids/dates so
+// the season mapping resolves exactly as a real export would.
+function buildRatingBuckets() {
+  const rb = (ObjectKey, value, CreatedAt, UpdatedAt) => ({ ObjectKey, Value: JSON.stringify(value), CreatedAt, UpdatedAt });
+  const ranked = (ratingId, seasonId, mu, sigma, matches, lri, peak, rp) => ({
+    ratingId, mu, sigma, seasonId: String(seasonId), completedMatches: matches,
+    leagueRankIndex: lri, rankPoints: rp, highestLeagueRankIndex: peak, countSincePromotion: 0, lastTournamentPlayed: '',
+  });
+  const flat = (ratingId, mu, sigma, matches) => ({
+    ratingId, mu, sigma, seasonId: '', completedMatches: matches,
+    leagueRankIndex: 0, rankPoints: 0, highestLeagueRankIndex: 0, countSincePromotion: 0, lastTournamentPlayed: '',
+  });
+
+  const out = [];
+  // Per-season ranked: [objectKey base = ratingId, seasonId, created, updated, mu, sigma, matches, finalIndex, peakIndex, RankPoints]
+  const R = [
+    ['OpenSkillRankedRating', 762104396, '2024-03-14T11:00:00Z', '2024-06-10T22:00:00Z', 32.4, 1.4, 120, 16, 16, 72000],
+    ['OpenSkillRankedRating', 751146294, '2024-06-13T11:00:00Z', '2024-09-20T22:00:00Z', 33.6, 1.1, 185, 18, 19, 83500],
+    ['IVKRankedTournamentRating', 814189767, '2024-09-26T11:00:00Z', '2024-12-10T22:00:00Z', 4050, 0, 150, 17, 17, 40500],
+    ['IVKRankedTournamentRating2', 483101830, '2024-12-12T11:00:00Z', '2025-03-15T22:00:00Z', 4320, 0, 210, 18, 19, 43200],
+    ['IVKRankedTournamentRating2', 279111264, '2025-03-20T11:00:00Z', '2025-06-08T22:00:00Z', 4600, 0, 240, 19, 20, 46000],
+    ['IVKRankedTournamentRating2', 607580158, '2025-06-12T11:00:00Z', '2025-09-05T22:00:00Z', 5200, 0, 300, 20, 21, 52000],
+    ['IVKRankedTournamentRating2', 607608768, '2025-09-10T11:00:00Z', '2025-12-05T22:00:00Z', 4500, 0, 190, 19, 20, 45000],
+    ['IVKRankedTournamentRating3', 825209376, '2025-12-10T11:00:00Z', '2026-02-20T22:00:00Z', 5000, 0, 260, 20, 20, 50000],
+    ['IVKRankedTournamentRating4', 965777394, '2026-03-26T11:00:00Z', '2026-06-12T22:00:00Z', 3800, 0, 35, 16, 16, 38000],
+  ];
+  for (const [rid, sid, c, u, mu, sigma, m, lri, peak, rp] of R)
+    out.push(rb(`${rid}_${sid}`, ranked(rid, sid, mu, sigma, m, lri, peak, rp), c, u));
+
+  // A backfilled migration seed (0 matches) for S9 + the S2/S3-era IVK shadow rating —
+  // both should be de-duplicated away in favour of the real progression.
+  out.push(rb('IVKRankedTournamentRating3_825209376', ranked('IVKRankedTournamentRating3', 825209376, 1250, 0, 0, 0, 0, 0), '2025-12-08T17:03:44Z', '2025-12-08T17:03:44Z'));
+  out.push(rb('IVKRankedRating_751146294', ranked('IVKRankedRating', 751146294, 1700, 0, 0, 0, 0, 0), '2024-06-20T11:00:00Z', '2024-06-20T11:00:00Z'));
+
+  // Hidden MMR for the non-ranked playlists (no league rank, just a skill number).
+  out.push(rb('IVKCasualRating', flat('IVKCasualRating', 905, 0, 3240), '2024-01-20T18:00:00Z', '2026-06-12T22:00:00Z'));
+  out.push(rb('IVKWorldTourRating', flat('IVKWorldTourRating', 842, 0, 2410), '2024-08-24T10:00:00Z', '2026-06-10T22:00:00Z'));
+  out.push(rb('IVKCasualAttackDefendRating', flat('IVKCasualAttackDefendRating', 511, 0, 22), '2024-06-01T13:00:00Z', '2024-10-24T21:00:00Z'));
+  out.push(rb('IVKCasualRating', flat('IVKCasualRating', 160, 0, 0), '2025-12-08T17:03:44Z', '2025-12-08T17:03:44Z'));
+
+  // The raw OpenSkill model the IVK numbers are built from (mu = skill, sigma = uncertainty).
+  out.push(rb('OpenSkillRating', flat('OpenSkillRating', 28.1, 0.72, 88), '2023-10-01T12:00:00Z', '2024-05-25T16:00:00Z'));
+  out.push(rb('OpenSkillCasualRating', flat('OpenSkillCasualRating', 29.6, 0.55, 1410), '2023-12-09T12:00:00Z', '2025-02-08T06:00:00Z'));
+  out.push(rb('OpenSkillV2CasualRatings3', flat('OpenSkillV2CasualRating', 96.4, 2.6, 2520), '2024-06-14T15:00:00Z', '2025-02-10T06:00:00Z'));
+  out.push(rb('OpenSkillTournamentRating', flat('OpenSkillTournamentRating', 24.2, 1.15, 0), '2023-12-09T12:00:00Z', '2024-03-05T20:00:00Z'));
+  out.push(rb('OpenSkillCasualAttackDefendRating', flat('OpenSkillCasualAttackDefendRating', 30.1, 7.6, 12), '2024-06-01T13:00:00Z', '2024-10-24T21:00:00Z'));
+
+  return out;
+}
+
 // --- identity / linked accounts / restriction ----------------------------
 function buildPersistence() {
   const byType = {
@@ -381,6 +433,7 @@ function buildPersistence() {
       { ThirdPartyProviderID: 'discord', ThirdPartyUserID: 'disc_000', LastSeenAccountName: 'sampleplayer#0', Enabled: true, CreatedAt: iso(ACCOUNT_CREATED + 5 * DAY) },
     ],
     InventoryItem: buildInventoryItems(),
+    BucketObject: buildRatingBuckets(),
     RoundStatSummary: buildSummary(),
     RoundStat: buildRounds(),
     RankBucket: [{ XP: 184500, Rank: 'Diamond' }, { XP: 92000, Rank: 'Platinum' }],

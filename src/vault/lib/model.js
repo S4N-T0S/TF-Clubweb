@@ -4,6 +4,7 @@ import { resolveWeapon } from './weapons';
 import { archetypeLabel, classifyMode, careerModeGroup, CAREER_MODE_GROUPS, parseMapVariant, parseCondition, roundsRemaining, stageLabel, stageTeams, tournamentPlacement } from './gameMeta';
 import { resolveMap, resolveLtmBackground, conditionType } from './maps';
 import { resolveDlc, steamAppUrl, STEAM_BASE_GAME_ID } from './economy';
+import { buildRatings } from './ratings';
 
 // timestamp helpers (export mixes ISO-8601 strings and epoch-ms)
 const toMs = (v) => {
@@ -1043,7 +1044,7 @@ function buildEconomy(byType) {
 
 // --- anti-cheat / sessions / hardware signals -----------------------------
 const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
-// A real IP, not a donor redaction placeholder ("[REDACTED]", "CLEAN", …).
+// A real IP
 const isRealIp = (s) => typeof s === 'string' && (IPV4_RE.test(s) || (s.includes(':') && /^[0-9a-f:]+$/i.test(s) && s.length >= 3));
 const ipVersion = (s) => (s.includes(':') ? 6 : 4);
 
@@ -1438,6 +1439,7 @@ export function buildModel(raw) {
     nameHistory: buildNameHistory(raw, accounts),
     inventory: buildInventory(byType),
     career: buildCareer(byType),
+    ratings: buildRatings(byType),
     matches,
     modeBreakdown: buildModeBreakdown(matches),
     careerModes: buildCareerModes(matches),

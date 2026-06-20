@@ -11,6 +11,7 @@ import { VaultLanding } from './VaultLanding';
 import { VaultLayout } from './VaultLayout';
 import { BetaBanner } from './components/BetaBanner';
 import { CareerPage } from './pages/CareerPage';
+import { RatingsPage } from './pages/RatingsPage';
 import { MatchesPage } from './pages/MatchesPage';
 import { WeaponsPage } from './pages/WeaponsPage';
 import { BreakdownPage } from './pages/BreakdownPage';
@@ -34,6 +35,7 @@ const VaultInner = () => {
     <VaultLayout>
       <Routes>
         <Route index element={<CareerPage />} />
+        <Route path="ratings" element={<RatingsPage />} />
         <Route path="matches" element={<MatchesPage />} />
         <Route path="weapons" element={<WeaponsPage />} />
         <Route path="breakdown" element={<BreakdownPage />} />

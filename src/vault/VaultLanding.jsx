@@ -4,7 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import {
   ShieldCheck, Upload, FolderOpen, WifiOff, Lock, AlertTriangle, Loader2, ChevronLeft, ChevronDown,
   Mail, ExternalLink, Copy, Check, ArrowRight, HelpCircle, Info,
-  User, Swords, Crosshair, BarChart3, Layers, Wallet, Radar, ShieldAlert,
+  User, Gauge, Swords, Crosshair, BarChart3, Layers, Wallet, Radar, ShieldAlert,
 } from 'lucide-react';
 import { useVaultData } from './context/VaultDataContext';
 import { SITE_URL, VAULT_BASE } from './constants';
@@ -56,6 +56,7 @@ Thank you,
 // The page cards
 const SHOWCASE = [
   { icon: User, label: 'Career', sub: VAULT_BASE, desc: 'Lifetime hours, K/D, total cash-outs, kills & revives.' },
+  { icon: Gauge, label: 'Skill rating', sub: `${VAULT_BASE}/ratings`, desc: 'Hidden MMR per playlist and your ranked rank every season.' },
   { icon: Swords, label: 'Match history', sub: `${VAULT_BASE}/matches`, desc: 'Every match since launch — ranked tournaments round-by-round.' },
   { icon: Crosshair, label: 'Weapons', sub: `${VAULT_BASE}/weapons`, desc: 'Eliminations per weapon across every class.' },
   { icon: BarChart3, label: 'Breakdown', sub: `${VAULT_BASE}/breakdown`, desc: 'Real K/D and win rate per map, mode and class.' },
