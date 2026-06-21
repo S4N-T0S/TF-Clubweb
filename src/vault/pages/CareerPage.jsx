@@ -3,6 +3,7 @@ import { User, Ban, Activity, Medal, Target, Skull, Flame, HeartPulse, Coins, Ba
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, StatCard, Badge, Note } from '../components/ui';
 import { num, decimal, hours, date, pct, cash } from '../lib/format';
+import { isoToFlag } from '../lib/worldgeo';
 
 // One colour per named game mode (shared by the pie + the per-mode table)
 const MODE_COLOR = {
@@ -146,7 +147,16 @@ export const CareerPage = () => {
         <dl className="flex items-start gap-x-6 gap-y-2 flex-wrap sm:justify-end">
           <HeaderFact label="Created">{date(identity.accountCreatedAt)}</HeaderFact>
           <HeaderFact label="Last active">{date(meta.lastActivity)}</HeaderFact>
-          <HeaderFact label="Country">{identity.countryCode || '—'}</HeaderFact>
+          <HeaderFact label="Country">
+            {identity.countryCode ? (
+              <span className="inline-flex items-center gap-1.5">
+                <span>{identity.countryCode}</span>
+                <span>{isoToFlag(identity.countryCode)}</span>
+              </span>
+            ) : (
+              '—'
+            )}
+          </HeaderFact>
         </dl>
       </PageHeader>
 
