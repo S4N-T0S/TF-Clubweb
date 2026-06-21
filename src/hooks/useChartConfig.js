@@ -1550,7 +1550,8 @@ export const useChartConfig = ({
     setSelectedTimeRange,
     handleChartUpdate,
     isHistoricalSeason,
-    isRankMode
+    isRankMode,
+    isMobile
   ]);
 
   const getPointStyle = useCallback((ctx) => {
