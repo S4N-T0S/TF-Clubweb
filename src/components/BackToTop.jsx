@@ -8,6 +8,7 @@ export const BackToTop = ({ isMobile }) => {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    if (isMobile) return;
     // Preferred path: drop a sentinel SCROLL_THRESHOLD px down the page and let the browser report when it crosses the viewport edge.
     if ('IntersectionObserver' in window) {
       const sentinel = document.createElement('div');
@@ -49,7 +50,7 @@ export const BackToTop = ({ isMobile }) => {
     window.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll(); // sync the initial state (e.g. page loaded already scrolled)
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [isMobile]);
 
   const scrollToTop = () => {
     // Try smooth scroll with fallback
@@ -71,13 +72,12 @@ export const BackToTop = ({ isMobile }) => {
     }
   };
 
+  // Mobile screens have little room to spare, so the back-to-top button is desktop-only
+  if (isMobile) return null;
+
   return (
     <button
-      className={`fixed bg-blue-600 text-white p-3 rounded-full shadow-lg transition-opacity duration-200 hover:bg-blue-700 z-40 ${
-        isMobile
-          ? 'bottom-16 right-4' // Positioned above the mobile navbar
-          : 'bottom-4 right-4'  // Keep existing desktop positioning
-      } ${
+      className={`fixed bg-blue-600 text-white p-3 rounded-full shadow-lg transition-opacity duration-200 hover:bg-blue-700 z-40 bottom-4 right-4 ${
         isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
       }`}
       onClick={scrollToTop}
