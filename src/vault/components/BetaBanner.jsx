@@ -1,5 +1,5 @@
 import { FlaskConical } from 'lucide-react';
-import { DISCORD_URL } from '../constants';
+import { DISCORD_URL } from '../../constants';
 
 export const BetaBanner = () => {
   const cls =

@@ -2,7 +2,7 @@ import { NavLink, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { User, Gauge, Swords, Crosshair, Layers, BarChart3, Wallet, Radar, Mail, ShieldAlert, WifiOff, LogOut, RotateCcw, FlaskConical } from 'lucide-react';
 import { useVaultData } from './context/VaultDataContext';
-import { VAULT_BASE } from './constants';
+import { VAULT_BASE } from '../constants';
 import { ImportSummaryBanner } from './components/ImportSummaryBanner';
 import { MultiAccountBanner } from './components/MultiAccountBanner';
 import { DataFreshnessBanner } from './components/DataFreshnessBanner';

@@ -9,6 +9,7 @@ import { HubView } from './components/views/HubView';
 import { ErrorDisplay } from './components/ErrorDisplay';
 import { LoadingDisplay } from './components/LoadingDisplay';
 import { DashboardHeader } from './components/DashboardHeader';
+import { Footer } from './components/Footer';
 import { safeParseUsernameFromUrl, formatUsernameForUrl, parseMultipleUsernamesFromUrl, formatMultipleUsernamesForUrl } from './utils/urlHandler';
 import { useMobileDetect } from './hooks/useMobileDetect';
 import SearchModal from './components/modals/SearchModal';
@@ -370,6 +371,8 @@ const App = () => {
                 />
               )}
             </div>
+
+            <Footer isMobile={isMobile} />
           </div>
         )}
 

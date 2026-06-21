@@ -1,8 +1,7 @@
 import { Helmet } from 'react-helmet-async';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { SEASONS, currentSeasonKey } from '../services/historicalDataService';
-
-const BASE_URL = 'https://ogclub.s4nt0s.eu';
+import { SITE_URL } from '../constants';
 
 // Slug -> display name for spray-pattern weapon pages. Kept in sync with
 // functions/[[path]].js (edge SEO) and src/data/recoil/weapons.json.
@@ -228,7 +227,7 @@ export const SEOHead = ({
     ? canonicalPath.slice(0, -1) 
     : canonicalPath;
     
-  const canonicalUrl = `${BASE_URL}${cleanPath}${canonicalSearch}`;
+  const canonicalUrl = `${SITE_URL}${cleanPath}${canonicalSearch}`;
 
   return (
     <Helmet>

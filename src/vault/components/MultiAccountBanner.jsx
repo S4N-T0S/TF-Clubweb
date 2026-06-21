@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { UsersRound, Check, ArrowRight } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
-import { VAULT_BASE } from '../constants';
+import { VAULT_BASE } from '../../constants';
 
 // Shown at the top of the dashboard when the imported export contains MORE THAN ONE Embark account 
 export const MultiAccountBanner = () => {

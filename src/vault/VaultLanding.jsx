@@ -7,7 +7,7 @@ import {
   User, Gauge, Swords, Crosshair, BarChart3, Layers, Wallet, Radar, ShieldAlert,
 } from 'lucide-react';
 import { useVaultData } from './context/VaultDataContext';
-import { SITE_URL, VAULT_BASE } from './constants';
+import { SITE_URL, VAULT_BASE } from '../constants';
 
 // Recursively collect every File in a directory chosen via the File System Access API
 async function collectFilesFromDir(dirHandle) {

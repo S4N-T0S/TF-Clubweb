@@ -21,7 +21,7 @@ import { SessionsPage } from './pages/SessionsPage';
 import { EmailsPage } from './pages/EmailsPage';
 import { AccountPage } from './pages/AccountPage';
 import { preloadVaultImages } from './lib/preload';
-import { VAULT_BASE } from './constants';
+import { VAULT_BASE } from '../constants';
 
 // Gate: until an export is parsed, every vault path shows the upload landing
 const VaultInner = () => {
