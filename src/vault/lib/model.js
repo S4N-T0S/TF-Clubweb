@@ -104,22 +104,33 @@ function buildIdentity(byType, auditByType) {
 
 // An account can carry SEVERAL Restriction records over its lifetime, so we
 // surface them all. `active` = ongoing to our knowledge (permanent, or an EndsAt
-// still in the future); the Career/landing banner uses that one, while the
-// Account page lists the full history.
+// still in the future) AND not since cancelled; the Career/landing banner uses
+// that one, while the Account page lists the full history.
+//
+// `CancelReason` + `CancelledAt` (e.g. Embark support lifting a ban for
+// "Player contact" / "Incorrect restriction" / "Goodwill") mean the restriction
+// was REVERSED — it no longer applies even when it had no end date, so a
+// cancelled restriction never counts as active.
 function buildBans(byType) {
   const nowMs = Date.now();
   const all = (byType.Restriction || [])
     .map((r) => {
       const endsAt = r.EndsAt ?? null;
       const endsMs = toMs(endsAt);
-      const permanent = endsAt == null; // no EndsAt => permanent (per schema docs)
+      const cancelledAt = r.CancelledAt ?? null;
+      const cancelReason = r.CancelReason ?? null;
+      const cancelled = cancelledAt != null || cancelReason != null; // lifted by support
+      const permanent = endsAt == null; // no EndsAt => open-ended (per schema docs)
       return {
         reason: r.Reason ?? 'Unknown',
         startsAt: r.StartsAt ?? r.CreatedAt ?? null,
         createdAt: r.CreatedAt ?? null,
         endsAt,
+        cancelledAt,
+        cancelReason,
+        cancelled,
         permanent,
-        active: permanent || (endsMs != null && endsMs > nowMs),
+        active: !cancelled && (permanent || (endsMs != null && endsMs > nowMs)),
       };
     })
     .sort((a, b) => (toMs(b.startsAt) ?? 0) - (toMs(a.startsAt) ?? 0)); // newest first
@@ -131,6 +142,7 @@ function buildBans(byType) {
     active, // the ongoing restriction (or null) — for Career/landing display
     all, // full lifetime history — for the Account page
     count: all.length,
+    cancelledCount: all.filter((b) => b.cancelled).length, // how many were lifted
   };
 }
 

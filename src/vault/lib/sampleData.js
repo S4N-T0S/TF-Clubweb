@@ -422,10 +422,15 @@ function buildPersistence() {
         CreatedAt: iso(ALT_CREATED), UpdatedAt: iso(SPAN_END), // no EmailVerifiedAt → unverified second account
       },
     ],
-    // One temporary, already-expired matchmaking penalty — demonstrates the
-    // restriction history UI without the scary permanent-ban banner (this one
-    // ended long ago, so the account reads as "in good standing, none active").
-    Restriction: [{ Reason: 'Early match leave (matchmaking penalty)', StartsAt: iso(Date.parse('2025-04-18T19:30:00Z')), CreatedAt: iso(Date.parse('2025-04-18T19:30:00Z')), EndsAt: iso(Date.parse('2025-04-21T19:30:00Z')) }],
+    // Two non-active restrictions — both showcase the history UI without the
+    // scary permanent-ban banner (so the account still reads "in good standing").
+    //   1. A permanent "Cheating" flag Embark later REVERSED as a false positive
+    //      (CancelReason/CancelledAt) → demonstrates the lifted state + reason.
+    //   2. A temporary matchmaking penalty that has since expired.
+    Restriction: [
+      { Reason: 'Cheating', StartsAt: iso(Date.parse('2024-11-02T08:15:00Z')), CreatedAt: iso(Date.parse('2024-11-02T08:15:00Z')), CancelReason: 'Incorrect restriction', CancelledAt: iso(Date.parse('2024-11-09T14:20:00Z')) },
+      { Reason: 'Early match leave (matchmaking penalty)', StartsAt: iso(Date.parse('2025-04-18T19:30:00Z')), CreatedAt: iso(Date.parse('2025-04-18T19:30:00Z')), EndsAt: iso(Date.parse('2025-04-21T19:30:00Z')) },
+    ],
     ThirdPartyUser: [
       { ThirdPartyProviderID: 'steam', ThirdPartyUserID: '76561198000000000', LastSeenAccountName: 'SamplePlayer', Enabled: true, CreatedAt: iso(ACCOUNT_CREATED) },
       { ThirdPartyProviderID: 'xbox', ThirdPartyUserID: 'xuid_000', LastSeenAccountName: 'Demo Gamer#1234', Enabled: true, CreatedAt: iso(ACCOUNT_CREATED + 40 * DAY) },

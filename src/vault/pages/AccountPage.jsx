@@ -1,13 +1,21 @@
 import { useState } from 'react';
-import { ShieldAlert, Ban, CheckCircle, Link2, Cpu, Monitor, ExternalLink, Flag, BadgeCheck, AlertTriangle, Fingerprint, History } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, Ban, CheckCircle, Link2, Cpu, Monitor, ExternalLink, Flag, BadgeCheck, AlertTriangle, Fingerprint, History } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, Badge, StatCard, Note, EmptyState, PageJump, Tooltip } from '../components/ui';
 import { Pagination } from '../../components/Pagination';
 import { num, date, dateTime } from '../lib/format';
 
-const Row = ({ label, value, mono }) => (
+const Row = ({ label, value, mono, hint }) => (
   <div className="flex justify-between gap-4 py-1.5 border-b border-gray-700/50 last:border-0 text-sm">
-    <span className="text-gray-400 shrink-0">{label}</span>
+    <span className="text-gray-400 shrink-0">
+      {hint ? (
+        <Tooltip label={hint}>
+          <span className="underline decoration-dotted decoration-gray-600 underline-offset-2 cursor-help">{label}</span>
+        </Tooltip>
+      ) : (
+        label
+      )}
+    </span>
     <span className={`text-white font-medium text-right truncate ${mono ? 'font-mono text-xs' : ''}`}>{value ?? '—'}</span>
   </div>
 );
@@ -56,29 +64,69 @@ const NameTimeline = ({ span }) =>
     </div>
   );
 
-// One restriction record. Active restrictions are red (permanent) or yellow (temporary, still running); lapsed ones are muted with an "Expired" badge.
+// Visual treatment per restriction state — drives the card chrome and icon.
+const CHROME = {
+  red: { card: 'border-red-500/30 bg-red-500/5!', icon: 'text-red-400', title: 'text-red-300' },
+  yellow: { card: 'border-yellow-500/30 bg-yellow-500/5!', icon: 'text-yellow-400', title: 'text-yellow-200' },
+  emerald: { card: 'border-emerald-500/30 bg-emerald-500/5!', icon: 'text-emerald-400', title: 'text-gray-300' },
+  gray: { card: 'border-gray-600/40 bg-gray-700/10!', icon: 'text-gray-500', title: 'text-gray-300' },
+};
+
+// One restriction record. States, in priority order:
+//   cancelled (lifted by Embark) -> emerald "Lifted", with when + why rows
+//   active permanent             -> red "Permanent"
+//   active temporary             -> yellow "Active"
+//   lapsed temporary             -> muted "Expired"
+// Kept deliberately compact: the badge + a couple of dated rows tell the whole
+// story, so a lifted restriction reads clearly without a wall of text.
 const RestrictionCard = ({ r, lastActivity }) => {
-  const tone = r.active ? (r.permanent ? 'red' : 'yellow') : 'gray';
-  const status = r.active ? (r.permanent ? 'Permanent' : 'Active') : 'Expired';
+  const tone = r.cancelled ? 'emerald' : r.active ? (r.permanent ? 'red' : 'yellow') : 'gray';
+  const status = r.cancelled ? 'Lifted' : r.active ? (r.permanent ? 'Permanent' : 'Active') : 'Expired';
+  const ui = CHROME[tone];
+  const Icon = r.cancelled ? ShieldCheck : Ban;
   return (
-    <Panel className={`border ${r.active ? 'border-red-500/30 bg-red-500/5!' : 'border-gray-600/40 bg-gray-700/10!'}`}>
+    <Panel className={`border ${ui.card}`}>
       <div className="flex items-start gap-3">
-        <Ban className={`w-6 h-6 shrink-0 mt-0.5 ${r.active ? 'text-red-400' : 'text-gray-500'}`} />
-        <div className="flex-1">
+        <Icon className={`w-6 h-6 shrink-0 mt-0.5 ${ui.icon}`} />
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className={`font-semibold text-lg ${r.active ? 'text-red-300' : 'text-gray-300'}`}>Restricted — {r.reason}</p>
+            <p className={`font-semibold text-lg ${ui.title}`}>
+              Restricted — <span className={r.cancelled ? 'line-through decoration-gray-500/60' : ''}>{r.reason}</span>
+            </p>
             <Badge tone={tone}>{status}</Badge>
           </div>
           <div className="grid sm:grid-cols-2 gap-x-8 mt-3">
             <Row label="Restriction started" value={dateTime(r.startsAt)} />
             <Row label="Recorded at" value={dateTime(r.createdAt)} />
-            <Row label="Ends" value={r.endsAt ? dateTime(r.endsAt) : 'No end date (permanent)'} />
-            <Row label="Last activity" value={dateTime(lastActivity)} />
+            {r.cancelled ? (
+              <>
+                <Row label="Lifted on" value={dateTime(r.cancelledAt)} />
+                <Row
+                  label="Reason for lifting"
+                  value={r.cancelReason || 'Lifted'}
+                  hint="Shown exactly as Embark recorded it. This is the verbatim reason they noted when cancelling the restriction."
+                />
+              </>
+            ) : (
+              <>
+                <Row label="Ends" value={r.endsAt ? dateTime(r.endsAt) : 'No end date (permanent)'} />
+                <Row label="Last activity" value={dateTime(lastActivity)} />
+              </>
+            )}
           </div>
         </div>
       </div>
     </Panel>
   );
+};
+
+// Header summary line above the restriction list (shown when >1 on record).
+const banSummary = (ban) => {
+  const noun = `${ban.count} restrictions on record`;
+  if (ban.hasActive) return `${noun}, newest first.`;
+  if (ban.cancelledCount === ban.count) return `${noun} — all since lifted by Embark, newest first.`;
+  if (ban.cancelledCount > 0) return `${noun} — none currently active (${ban.cancelledCount} lifted), newest first.`;
+  return `${noun} — none currently active, newest first.`;
 };
 
 const REPORTS_PER_PAGE = 10;
@@ -169,10 +217,12 @@ export const AccountPage = () => {
         <div className="space-y-3">
           {ban.count > 1 && (
             <div className="flex items-center gap-2 text-sm text-gray-400">
-              <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
-              <span>
-                {ban.count} restrictions on record{ban.hasActive ? '' : ' — none currently active'}, newest first.
-              </span>
+              {ban.hasActive ? (
+                <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
+              ) : (
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+              )}
+              <span>{banSummary(ban)}</span>
             </div>
           )}
           {ban.all.map((r, i) => (
