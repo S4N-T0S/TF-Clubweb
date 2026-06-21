@@ -46,6 +46,16 @@ export const money = (amount, currency) => {
 // In-match virtual cash (the cashout "$"), an integer -> "$50,000".
 export const cash = (n) => (n == null || !Number.isFinite(Number(n)) ? '—' : `$${Number(n).toLocaleString()}`);
 
+// Compact a large count for a tight stat column: 2417 -> "2.4k", 950 -> "950", 1.2e6 -> "1.2M".
+export const compact = (n) => {
+  if (n == null || !Number.isFinite(Number(n))) return '—';
+  const v = Number(n);
+  const a = Math.abs(v);
+  if (a >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (a >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
+  return String(Math.round(v));
+};
+
 // 1 -> "1st", 2 -> "2nd" ...
 export const ordinal = (n) => {
   if (n == null) return '—';

@@ -757,6 +757,7 @@ function finalizeStats(map) {
       kd: s.deaths ? s.kills / s.deaths : s.kills,
       winRate: s.rounds ? s.wins / s.rounds : 0,
       avgKills: s.rounds ? s.kills / s.rounds : 0,
+      avgDamage: s.rounds ? s.damage / s.rounds : 0,
     }))
     .sort((a, b) => b.rounds - a.rounds);
 }
@@ -834,6 +835,87 @@ function buildCareerModes(matches) {
       winRate: s.rounds ? s.wins / s.rounds : 0,
       avgKills: s.rounds ? s.kills / s.rounds : 0,
     }));
+}
+
+// --- personal records (career bests) --------------------------------------
+// Single-game (per-round) bests for kills / damage / revives / cashout, plus a
+// match-level "biggest payday" = the tournament with the highest TOTAL cash.
+// Each record carries the context that makes it a story: the mode it happened in
+// (a 62-kill game is a high-respawn LTM, not ranked), the precise map and the
+// date. ALL modes count — the mode label explains the big outliers. A record is
+// null when there's nothing to show (e.g. an account with zero revives) so the
+// page can omit empty cards.
+function roundContext(r) {
+  return {
+    mode: r.mode?.label || null,
+    category: r.mode?.category || null,
+    mapName: r.mapName || r.map?.display || null,
+    date: r.start ?? toMs(r.createdAt),
+    weapon: r.weapon?.name || null,
+  };
+}
+
+function bestRound(rounds, field) {
+  let best = null;
+  for (const r of rounds) {
+    const v = r[field] || 0;
+    if (v > 0 && (best == null || v > (best[field] || 0))) best = r;
+  }
+  return best ? { value: best[field], ...roundContext(best) } : null;
+}
+
+// Longest consecutive run of won / lost ROUNDS. `RoundWon` is a per-round flag
+// defined across every mode, so this works everywhere (a tournament round win =
+// placing 1st in that lobby). Rounds are ordered chronologically here so the
+// streak is robust even if the caller's array order changes.
+function bestStreaks(rounds) {
+  const ordered = [...rounds].sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
+  let bestWin = 0, bestLoss = 0, curWin = 0, curLoss = 0, winEnd = null, lossEnd = null;
+  for (const r of ordered) {
+    if (r.roundWon) {
+      curWin += 1;
+      curLoss = 0;
+      if (curWin > bestWin) { bestWin = curWin; winEnd = r; }
+    } else {
+      curLoss += 1;
+      curWin = 0;
+      if (curLoss > bestLoss) { bestLoss = curLoss; lossEnd = r; }
+    }
+  }
+  return {
+    winStreak: bestWin > 1 ? { value: bestWin, date: winEnd.start ?? toMs(winEnd.createdAt) } : null,
+    lossStreak: bestLoss > 1 ? { value: bestLoss, date: lossEnd.start ?? toMs(lossEnd.createdAt) } : null,
+  };
+}
+
+function buildRecords(rounds, matches) {
+  // Most cash in one MATCH = the tournament (multi-round match) with the highest
+  // TOTAL cash. The best SINGLE round of cash is its own record, so restrict this
+  // to real tournaments to avoid the two cards duplicating each other.
+  let payday = null;
+  for (const m of matches) {
+    if (!m.isTournament) continue;
+    if (m.currency > 0 && (payday == null || m.currency > payday.currency)) payday = m;
+  }
+  return {
+    kills: bestRound(rounds, 'kills'),
+    deaths: bestRound(rounds, 'deaths'),
+    damage: bestRound(rounds, 'damage'),
+    revives: bestRound(rounds, 'revives'),
+    cashout: bestRound(rounds, 'currency'),
+    payday: payday
+      ? {
+          value: payday.currency,
+          mode: payday.mode?.label || null,
+          category: payday.mode?.category || null,
+          mapName: payday.mapName || payday.map?.display || null,
+          date: payday.start,
+          won: payday.tournamentWon || payday.won || false,
+          rounds: payday.rounds.length,
+        }
+      : null,
+    ...bestStreaks(rounds),
+  };
 }
 
 // --- purchases / economy --------------------------------------------------
@@ -1456,6 +1538,7 @@ export function buildModel(raw) {
     modeBreakdown: buildModeBreakdown(matches),
     careerModes: buildCareerModes(matches),
     breakdowns: buildBreakdowns(rounds),
+    records: buildRecords(rounds, matches),
     weapons,
     weaponsByArchetype,
     economy: buildEconomy(byType),

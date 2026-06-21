@@ -344,7 +344,7 @@ export const PurchasesPage = () => {
               <p className="text-sm text-gray-500">No premium-currency movements recorded.</p>
             ) : (
               <>
-                <div className="table-container" style={{ minHeight: PER_PAGE * 38 }}>
+                <div className="table-container" style={lgTotalPages > 1 ? { minHeight: PER_PAGE * 38 } : undefined}>
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-gray-400 border-b border-gray-700">
@@ -424,7 +424,7 @@ export const PurchasesPage = () => {
               ))}
             </div>
 
-            <div className="table-container" style={{ minHeight: PER_PAGE * 38 }}>
+            <div className="table-container" style={txTotalPages > 1 ? { minHeight: PER_PAGE * 38 } : undefined}>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-gray-400 border-b border-gray-700">
@@ -511,7 +511,7 @@ export const PurchasesPage = () => {
           {/* Limited-time offers (impressions, not purchases) */}
           {offers.length > 0 && (
             <Panel title={`Limited-time offers shown (${num(offers.length)})`}>
-              <div className="table-container" style={{ minHeight: PER_PAGE * 38 }}>
+              <div className="table-container" style={ofTotalPages > 1 ? { minHeight: PER_PAGE * 38 } : undefined}>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-gray-400 border-b border-gray-700">

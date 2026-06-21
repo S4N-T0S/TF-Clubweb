@@ -10,7 +10,7 @@ import { WeaponFilterModal } from '../components/WeaponFilterModal';
 import { Pagination } from '../../components/Pagination';
 import { careerModeGroup, CAREER_MODE_GROUPS } from '../lib/gameMeta';
 import { resolveWeapon } from '../lib/weapons';
-import { num, decimal, duration, dateTime, ordinal, cash } from '../lib/format';
+import { num, decimal, duration, dateTime, ordinal, cash, compact } from '../lib/format';
 
 // A small fixed page size so a whole page is visible without scrolling.
 const PER_PAGE = 8;
@@ -237,19 +237,27 @@ const RoundRow = ({ r }) => (
         {r.layout && <span className="text-gray-400">· {r.layout.replace(/([a-z])([A-Z])/g, '$1 $2')}</span>}
       </div>
     </div>
-    <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 shrink-0 text-right">
-      <div className="w-16">
+    <div className="flex items-center justify-between sm:justify-end gap-2 gap-y-1 sm:gap-6 flex-wrap shrink-0 text-right">
+      <div className="w-12 sm:w-16">
         <p className="text-[10px] uppercase text-gray-400">Place</p>
         <p className={`text-sm font-semibold ${r.roundWon ? 'text-emerald-300' : 'text-gray-100'}`}>
           {r.position != null ? `${ordinal(r.position)} / ${r.stageTeams}` : '—'}
         </p>
       </div>
-      <div className="w-20">
+      <div className="w-16 sm:w-20">
         <p className="text-[10px] uppercase text-gray-400">Cashout</p>
         <p className="text-sm font-semibold text-white">{cash(r.currency)}</p>
       </div>
+      <div className="w-12">
+        <p className="text-[10px] uppercase text-gray-400">Dmg</p>
+        <p className="text-sm font-semibold text-gray-100 tabular-nums">{compact(r.damage)}</p>
+      </div>
+      <div className="w-9">
+        <p className="text-[10px] uppercase text-gray-400">Rev</p>
+        <p className="text-sm font-semibold text-gray-100 tabular-nums">{r.revives}</p>
+      </div>
       <KillsTooltip items={r.weaponKills} label="Killed with">
-        <div className="w-14">
+        <div className="w-12 sm:w-14">
           <p className="text-[10px] uppercase text-gray-400">K / D</p>
           <p className="text-sm font-semibold text-gray-100 tabular-nums underline decoration-dotted decoration-gray-500 underline-offset-2">
             {r.kills}/{r.deaths}
@@ -390,7 +398,7 @@ const MatchCard = ({ m, expanded, onToggle }) => {
 
             {/* K/D block — hover/tap for the weapons used across the match */}
             <KillsTooltip items={m.weaponKills} label="Weapons used">
-              <div className="flex gap-4 sm:gap-5 shrink-0 sm:border-l sm:border-white/15 sm:pl-5">
+              <div className="flex gap-3 sm:gap-5 shrink-0 sm:border-l sm:border-white/15 sm:pl-5">
                 <div className="text-center">
                   <p className="text-[10px] uppercase text-gray-300">Kills</p>
                   <p className="text-lg font-bold text-white">{m.kills}</p>
@@ -402,6 +410,14 @@ const MatchCard = ({ m, expanded, onToggle }) => {
                 <div className="text-center">
                   <p className="text-[10px] uppercase text-gray-300">K/D</p>
                   <p className="text-lg font-bold text-emerald-300 underline decoration-dotted decoration-white/40 underline-offset-4">{decimal(m.kd)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] uppercase text-gray-300">Dmg</p>
+                  <p className="text-lg font-bold text-white tabular-nums">{compact(m.damage)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] uppercase text-gray-300">Rev</p>
+                  <p className="text-lg font-bold text-white tabular-nums">{num(m.revives)}</p>
                 </div>
               </div>
             </KillsTooltip>

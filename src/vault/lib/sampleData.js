@@ -32,15 +32,11 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 const iso = (ms) => new Date(ms).toISOString();
 const lerp = (a, b, t) => a + (b - a) * t;
-const hoursToMs = (h) => Math.round(h * HOUR);
 
 const ACCOUNT_CREATED = Date.parse('2023-09-25T14:30:00Z'); // closed-beta era veteran
 const SPAN_START = Date.parse('2024-01-20T18:00:00Z');
 const SPAN_END = Date.parse('2026-06-14T22:00:00Z');
 const ANYBRAIN_GOLIVE = Date.parse('2025-07-24T00:00:00Z');
-// A SECOND Embark account merged into the same export (shares the email), to show multi account ui.
-const ALT_CREATED = Date.parse('2025-08-01T12:00:00Z');
-const ALT_EMBARK_ID = '00000000-7b2c-4d81-aa31-5a3p1ed0001';
 
 // Two London-block IPs (the classic GeoIP example range)
 const IPS = ['81.2.69.142', '81.2.69.160'];
@@ -122,7 +118,7 @@ function combat(kLo, kHi, dLo, dHi, cashLo, cashHi) {
     kills,
     deaths,
     dbnos: Math.round(kills * (0.5 + rf() * 0.5)),
-    revives: ri(0, 4),
+    revives: chance(0.08) ? ri(6, 12) : ri(0, 4),
     damage: kills * ri(280, 460) + ri(0, 900),
     currency: cashLo === 0 && cashHi === 0 ? 0 : ri(cashLo, cashHi),
     fame: ri(200, 2600),
@@ -162,8 +158,8 @@ function tournament(rounds, scenarioId, startT, skill = 0.5) {
 
 function casualMatch(rounds, mode, startT) {
   const arch = archetypeRoll();
-  const map = mode.map ? mode.map : pick(CASUAL_MAPS);
-  const c = mode.tdm ? combat(5, 25, 5, 20, 0, 0) : combat(1, 14, 2, 11, 0, 40000);
+  const map = mode.maps ? pick(mode.maps) : mode.map ? mode.map : pick(CASUAL_MAPS);
+  const c = mode.combatArgs ? combat(...mode.combatArgs) : mode.tdm ? combat(5, 25, 5, 20, 0, 0) : combat(1, 14, 2, 11, 0, 40000);
   rounds.push(roundRecord({ arch, map, scenarioId: mode.id, t: startT, dur: ri(6, 12) * 60_000, combat: c, roundWon: chance(mode.winChance ?? 0.42), disconnected: chance(0.03) }));
   return startT + ri(8, 16) * 60_000;
 }
@@ -172,9 +168,9 @@ const RANKED_ID = 498553443;
 const WORLD_TOUR_IDS = [296178816, 465304560, 308426432];
 const CASUAL_MODES = [
   { id: 164312917, winChance: 0.4 }, // Quick Cash
-  { id: 758421811, winChance: 0.34 }, // Bank It
   { id: 545190106, winChance: 0.5 }, // Power Shift
   { id: 418401773, tdm: true, map: 'DA_MV_Forest_01_Base', winChance: 0.55 }, // Team Deathmatch (P.E.A.C.E. Center)
+  { id: 184486584, maps: ['DA_MV_Arena_02_Base', 'DA_MV_Arena_04_Base', 'DA_MV_Bernal_01_Base', 'DA_MV_Monaco_01_Base'], combatArgs: [4, 20, 4, 14, 20000, 50000], winChance: 0.5 },
 ];
 const LTM_MODES = [
   { id: 597953832, map: 'DA_MV_Monaco_01_Base', winChance: 0.5 }, // Bunny Bash
@@ -182,12 +178,13 @@ const LTM_MODES = [
   { id: 152796620, map: 'DA_MV_HeavyHitters_02_Base', winChance: 0.5 }, // Heaven or Else (same id, HeavyHitters arena)
   { id: 905608807, map: 'DA_MV_CashBall_01_Base', winChance: 0.5 }, // Super Cashball
   { id: 106717113, map: 'DA_MV_Monaco_01_Base', winChance: 0.5 }, // Snowball Blitz
+  { id: 211556165, map: 'DA_MV_Village_01_Base', combatArgs: [5, 22, 3, 12, 25000, 55000], winChance: 0.55 }, // Point Break — Arena Debut LTM (Starlight Hollow)
 ];
 
 // --- match history --------------------------------------------------------
 function buildRounds() {
   const rounds = [];
-  const DAYS = 132;
+  const DAYS = 240;
   for (let d = 0; d < DAYS; d++) {
     const dayMs = lerp(SPAN_START, SPAN_END, (d + rf() * 0.7) / DAYS);
     const skill = (d + 0.5) / DAYS; // improves over the account's lifetime
@@ -206,28 +203,62 @@ function buildRounds() {
 }
 
 // --- lifetime summary (RoundStatSummary buckets, the career headline) -----
-function bucket(o) {
-  return {
-    Kills: o.kills, Deaths: o.deaths, DamageDone: o.damage, Dbnos: o.dbnos, Respawns: o.respawns ?? 0,
-    RevivesDone: o.revives, RoundsPlayed: o.rounds, RoundsWon: o.wins, TournamentsPlayed: o.tPlayed,
-    TournamentsWon: o.tWon, TotalCashOut: o.cash, TotalTimePlayed: hoursToMs(o.hours), Disconnects: o.dcs,
-    HighestFameAmount: o.fame ?? 0, ...(o.byArch ? { TimePlayedByArchetype: o.byArch } : {}),
+// Derived from the generated match history so every career total reconciles with
+// the rounds the dashboard actually shows. (Real exports store these buckets
+// separately, but a real RoundStatSummary ≈ the player's RoundStat history.)
+// ranked = the ranked playlist, casual = the core casual modes, total =
+// everything (World Tour + LTM live only in the total, never in ranked/casual).
+const CASUAL_IDS = new Set(CASUAL_MODES.map((m) => m.id));
+
+function aggregateRoundStats(records) {
+  const tids = new Set();
+  const tWon = new Set();
+  const byArch = {};
+  const a = {
+    Kills: 0, Deaths: 0, DamageDone: 0, Dbnos: 0, Respawns: 0, RevivesDone: 0,
+    RoundsPlayed: 0, RoundsWon: 0, TotalCashOut: 0, TotalTimePlayed: 0, Disconnects: 0, HighestFameAmount: 0,
   };
+  for (const { Data: d } of records) {
+    a.Kills += d.Kills || 0;
+    a.Deaths += d.Deaths || 0;
+    a.DamageDone += d.DamageDone || 0;
+    a.Dbnos += d.Dbnos || 0;
+    a.RevivesDone += d.RevivesDone || 0;
+    a.RoundsPlayed += 1;
+    if (d.RoundWon) a.RoundsWon += 1;
+    a.TotalCashOut += d.Currency || 0;
+    if (d.Disconnected) a.Disconnects += 1;
+    if ((d.FameAmount || 0) > a.HighestFameAmount) a.HighestFameAmount = d.FameAmount;
+    const dur = Date.parse(d.EndTime) - Date.parse(d.StartTime);
+    if (dur > 0) {
+      a.TotalTimePlayed += dur;
+      byArch[d.CharacterArchetype] = (byArch[d.CharacterArchetype] || 0) + dur;
+    }
+    if (d.TournamentID) {
+      tids.add(d.TournamentID);
+      if (d.TournamentWon) tWon.add(d.TournamentID);
+    }
+  }
+  a.Respawns = a.Deaths; // real exports: Respawns ≈ Deaths (redundant, not surfaced)
+  a.TournamentsPlayed = tids.size;
+  a.TournamentsWon = tWon.size;
+  if (Object.keys(byArch).length) a.TimePlayedByArchetype = byArch;
+  return a;
 }
-function buildSummary() {
-  const totalHours = 1156;
-  const total = bucket({
-    kills: 18540, deaths: 14210, damage: 6190000, dbnos: 14820, respawns: 9100, revives: 3820,
-    rounds: 7390, wins: 2620, tPlayed: 1248, tWon: 95, cash: 48250000, hours: totalHours, dcs: 61, fame: 148500,
-    byArch: {
-      DA_Archetype_Medium: hoursToMs(totalHours * 0.48),
-      DA_Archetype_Small: hoursToMs(totalHours * 0.3),
-      DA_Archetype_Heavy: hoursToMs(totalHours * 0.22),
+
+function buildSummary(rounds) {
+  const ranked = rounds.filter((r) => r.Data.ScenarioID === RANKED_ID);
+  const casual = rounds.filter((r) => CASUAL_IDS.has(r.Data.ScenarioID));
+  return [
+    {
+      UpdatedAt: iso(SPAN_END),
+      Data: {
+        total: aggregateRoundStats(rounds),
+        casual: aggregateRoundStats(casual),
+        ranked: aggregateRoundStats(ranked),
+      },
     },
-  });
-  const ranked = bucket({ kills: 6240, deaths: 4360, damage: 2120000, dbnos: 5200, respawns: 2600, revives: 1290, rounds: 2180, wins: 790, tPlayed: 362, tWon: 41, cash: 16480000, hours: 382, dcs: 21, fame: 0 });
-  const casual = bucket({ kills: 8960, deaths: 6980, damage: 3010000, dbnos: 7100, respawns: 4400, revives: 1980, rounds: 3580, wins: 1520, tPlayed: 610, tWon: 37, cash: 21900000, hours: 524, dcs: 28, fame: 148500 });
-  return [{ UpdatedAt: iso(SPAN_END), Data: { total, casual, ranked } }];
+  ];
 }
 
 // --- purchases & economy --------------------------------------------------
@@ -399,13 +430,14 @@ function buildRatingBuckets() {
 
 // --- identity / linked accounts / restriction ----------------------------
 function buildPersistence() {
+  // Generate the match history ONCE and derive the lifetime summary from it, so
+  // the RoundStatSummary buckets (career headline + the ranked/casual/other note)
+  // stay consistent with the actual rounds the dashboard shows.
+  const rounds = buildRounds();
   const byType = {
-    // TWO Embark accounts wrapped in one export (share the email) — the primary
-    // SAMPLE_PLAYER and a later secondary SMURF_SAMPLE, paired to their EmbarkUser
-    // by CreatedAt. Profile[0] is the primary the dashboard's header reads.
+    // A single Embark account
     EmbarkUser: [
       { EmbarkUserID: '00000000-5a3f-4e21-9c7a-5a3p1ed0000', CreatedAt: iso(ACCOUNT_CREATED) },
-      { EmbarkUserID: ALT_EMBARK_ID, CreatedAt: iso(ALT_CREATED) },
     ],
     Profile: [
       {
@@ -415,11 +447,6 @@ function buildPersistence() {
         // NB: the "have they ever spent real money" marker (is_spender) is NOT here —
         // like a real export, it rides along only in the audit ProfileUpdated snapshots
         // (see buildAudit), surfaced as the dollar badge by the username.
-      },
-      {
-        DisplayName: 'SMURF_SAMPLE', DisplayNameDiscriminator: '0001', Email: 'sample.player@example.com',
-        DateOfBirth: '1996-04-12', CountryCode: 'GB', TOSVersionSeen: 7, IsPlaytester: false,
-        CreatedAt: iso(ALT_CREATED), UpdatedAt: iso(SPAN_END), // no EmailVerifiedAt → unverified second account
       },
     ],
     // Two non-active restrictions — both showcase the history UI without the
@@ -439,8 +466,8 @@ function buildPersistence() {
     ],
     InventoryItem: buildInventoryItems(),
     BucketObject: buildRatingBuckets(),
-    RoundStatSummary: buildSummary(),
-    RoundStat: buildRounds(),
+    RoundStatSummary: buildSummary(rounds),
+    RoundStat: rounds,
     RankBucket: [{ XP: 184500, Rank: 'Diamond' }, { XP: 92000, Rank: 'Platinum' }],
     TransactionLog: buildTransactions(),
     HardCurrencyLog: buildLedger(),
@@ -637,18 +664,13 @@ function buildAudit() {
   // throughout, flips true at the first purchase).
   const EMAIL = 'sample.player@example.com';
   const FORMER_EMAIL = 'old.sample@example.com'; // changed away from — shows in "emails on record"
-  // `created_msts` = each event's account creation time — the key that attributes
-  // an event to one of the two accounts (so they don't read as one renaming).
   const profileUpdated = [
-    // Primary account: renamed RookiePlayer -> SAMPLE_PLAYER; email verified; also
-    // changed email once (FORMER_EMAIL -> EMAIL) so two addresses are on record.
+    // Renamed RookiePlayer -> SAMPLE_PLAYER; email verified; also changed email once
+    // (FORMER_EMAIL -> EMAIL) so two addresses show in "emails on record". is_spender
+    // flips true at the first purchase.
     { logtime: iso(ACCOUNT_CREATED + DAY), created_msts: ACCOUNT_CREATED, display_name: 'RookiePlayer', display_name_discriminator: '0000', is_spender: false, email_verified_msts: ACCOUNT_CREATED + DAY, email: FORMER_EMAIL },
     { logtime: iso(Date.parse('2024-02-10T20:14:01Z')), created_msts: ACCOUNT_CREATED, display_name: 'SAMPLE_PLAYER', display_name_discriminator: '0000', is_spender: true, email_verified_msts: ACCOUNT_CREATED + DAY, email: EMAIL },
     { logtime: iso(SPAN_END), created_msts: ACCOUNT_CREATED, display_name: 'SAMPLE_PLAYER', display_name_discriminator: '0000', is_spender: true, email_verified_msts: ACCOUNT_CREATED + DAY, email: EMAIL },
-    // Secondary account: renamed NoobAlt -> SMURF_SAMPLE; email never verified.
-    { logtime: iso(ALT_CREATED), created_msts: ALT_CREATED, display_name: 'NoobAlt', display_name_discriminator: '0001', is_spender: false, email_verified_msts: 0, email: EMAIL },
-    { logtime: iso(ALT_CREATED + 60 * DAY), created_msts: ALT_CREATED, display_name: 'SMURF_SAMPLE', display_name_discriminator: '0001', is_spender: false, email_verified_msts: 0, email: EMAIL },
-    { logtime: iso(SPAN_END), created_msts: ALT_CREATED, display_name: 'SMURF_SAMPLE', display_name_discriminator: '0001', is_spender: false, email_verified_msts: 0, email: EMAIL },
   ];
   const { ses, legacy } = buildSesEvents(EMAIL);
   const byType = { ClientUserLoginDetails: login, AccountNameAudit2: names, PlayerReport: reports, ProfileUpdated3: profileUpdated, AwsSesEvent: ses, EmailStatus: legacy };

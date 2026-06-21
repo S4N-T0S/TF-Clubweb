@@ -7,8 +7,8 @@ import { leagueAbbrev, RANK_TIERS } from '../lib/ratings';
 
 // Coloured rank name (Bronze..Ruby), with a swatch dot.
 const RankName = ({ info, className = '' }) => (
-  <span className={`inline-flex items-center gap-1.5 font-bold ${info.text} ${className}`}>
-    <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ background: info.color }} />
+  <span className={`font-bold whitespace-nowrap ${info.text} ${className}`}>
+    <span className="inline-block w-2.5 h-2.5 rounded-full align-middle mr-1.5" style={{ background: info.color }} />
     {info.name}
   </span>
 );
@@ -180,7 +180,7 @@ export const RatingsPage = () => {
             <div className="flex items-center gap-2 mb-4 text-sm">
               <Crown className="w-4 h-4 text-yellow-400 shrink-0" />
               <span className="text-gray-300">
-                Career peak: <RankName info={ranked.peak.peak} className="align-middle" /> in {ranked.peak.seasonLabel}
+                Career peak: <RankName info={ranked.peak.peak} /> in {ranked.peak.seasonLabel}
               </span>
             </div>
           )}

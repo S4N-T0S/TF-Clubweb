@@ -96,7 +96,7 @@ export const VaultLayout = ({ children }) => {
         </aside>
 
         {/* Page content */}
-        <main className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0 overflow-x-clip">
           <MultiAccountBanner />
           <ImportSummaryBanner />
           {children}

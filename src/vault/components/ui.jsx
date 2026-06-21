@@ -2,7 +2,7 @@
 import { useState } from 'react';
 
 export const PageHeader = ({ icon: Icon, title, subtitle, children }) => (
-  <div className="flex items-start justify-between gap-4 mb-5">
+  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 mb-5">
     <div className="flex items-center gap-3">
       {Icon && <Icon className="w-7 h-7 text-emerald-400" />}
       <div>

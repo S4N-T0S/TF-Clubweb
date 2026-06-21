@@ -13,6 +13,7 @@ const COLUMNS = [
   { key: 'kd', label: 'K/D', numeric: true, fmt: (r) => decimal(r.kd), accent: true },
   { key: 'avgKills', label: 'Avg K', numeric: true, fmt: (r) => decimal(r.avgKills, 1) },
   { key: 'highestKills', label: 'Best', numeric: true, fmt: (r) => num(r.highestKills) },
+  { key: 'avgDamage', label: 'Avg Dmg', numeric: true, fmt: (r) => num(Math.round(r.avgDamage)) },
   { key: 'winRate', label: 'Round Win%', numeric: true, fmt: (r) => pct(r.winRate) },
   { key: 'timeMs', label: 'Playtime', numeric: true, fmt: (r) => hours(r.timeMs) },
 ];
@@ -91,7 +92,7 @@ export const BreakdownPage = () => {
 
   return (
     <div className="animate-fade-in-up">
-      <PageHeader icon={BarChart3} title="Breakdown" subtitle="K/D, best kills, win rate and playtime per map, mode and class" />
+      <PageHeader icon={BarChart3} title="Breakdown" subtitle="K/D, kills, average damage, win rate and playtime per map, mode and class" />
 
       <div className="flex gap-2 mb-4">
         {TABS.map((t) => (

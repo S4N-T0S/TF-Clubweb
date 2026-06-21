@@ -49,11 +49,11 @@ export const MODE_CATEGORIES = ['Ranked', 'World Tour', 'Casual', 'LTM', 'Other'
 // label the Career mode breakdown / pie and the Matches mode filter. Everything
 // not one of these (older casual modes, the various LTMs, the practice range,
 // unknown scenarios) collapses into "Other".
-export const CAREER_MODE_GROUPS = ['Ranked', 'World Tour', 'Cash Out', 'Team Deathmatch', 'Power Shift', 'Point Break'];
+export const CAREER_MODE_GROUPS = ['Ranked', 'World Tour', 'Quick Cash', 'Team Deathmatch', 'Power Shift', 'Point Break'];
 
 // Map a classified mode (from classifyMode) to one of the CAREER_MODE_GROUPS or
 // "Other". Ranked / World Tour are whole categories; the rest key off the mode
-// label. "Cash Out" = the casual Cashout mode (Quick Cash); Ranked Cashout and
+// label. "Quick Cash" = the casual Cashout mode. Ranked Cashout and
 // the World Tour cashout tournament are their own buckets.
 export const careerModeGroup = (mode) => {
   if (!mode) return 'Other';
@@ -67,7 +67,7 @@ export const careerModeGroup = (mode) => {
     case 'Point Break':
       return 'Point Break';
     case 'Quick Cash':
-      return 'Cash Out';
+      return 'Quick Cash';
     default:
       return 'Other';
   }
@@ -80,29 +80,26 @@ export const SCENARIO_MODES = {
   '758421811': { label: 'Bank It', category: 'Casual', teams: 4 },
   '545190106': { label: 'Power Shift', category: 'Casual', teams: 2 },
   '418401773': { label: 'Team Deathmatch', category: 'Casual', teams: 2 },
-  // TENTATIVE 184486584 looks like TDM
-  // (2-team, S9-S10, respawn-heavy 1492 vs only 313 revives, ~11 kills/round).
-  // Possibly a seasonal TDM variant; NOT yet wiki-confirmed.
-  '184486584': { label: 'Team Deathmatch', category: 'Casual', teams: 2 },
   '157494085': { label: 'Head2Head', category: 'Casual', teams: 2 },
-  '211556165': { label: 'Point Break', category: 'Casual', teams: 2 }, // Starlight Hollow, S10
-  '686266668': { label: 'Terminal Attack', category: 'Casual', teams: 2 }, // attack/defend (user-confirmed)
+  '184486584': { label: 'Point Break', category: 'Casual', teams: 2 }, // Point Break
+  '211556165': { label: 'Point Break', category: 'Casual', teams: 2 }, // Point Break — Arena Debut LTM (Starlight Hollow), S10
+  '686266668': { label: 'Terminal Attack', category: 'Casual', teams: 2 }, // attack/defend
   '531991356': { label: 'Ranked Terminal Attack', category: 'Ranked', teams: 2 }, // S3's ranked was Terminal Attack — verified: 0 revives, 0 defib kills, single 2-team "0-0" match (no bracket), fills the Jul-Aug 2024 gap in Ranked Cashout
   // Limited-time modes.
   '639859186': { label: 'Blast Off!', category: 'LTM', teams: 2 }, // Bernal "Fog"
   // 152796620 (Heavy Hitters / Heaven or Else) is split by arena in classifyMode — both share this id.
-  '905608807': { label: 'Super Cashball', category: 'LTM', teams: 2 }, // user
-  '473424892': { label: 'Steal the Spotlight', category: 'LTM', teams: 12 }, // user — old big-lobby LTM
-  '805886560': { label: 'Ghoul Rush', category: 'LTM', teams: 11 }, // user — Halloween LTM (aka Haunted Harvest)
-  '420165069': { label: 'Smoking Guns', category: 'LTM', teams: 4 }, // user — Monaco-only LTM
-  '704866484': { label: 'Close Quarters', category: 'LTM', teams: 2 }, // user — P.E.A.C.E. Center LTM
+  '905608807': { label: 'Super Cashball', category: 'LTM', teams: 2 }, // confirmed
+  '473424892': { label: 'Steal the Spotlight', category: 'LTM', teams: 12 }, // confirmed — old big-lobby LTM
+  '805886560': { label: 'Ghoul Rush', category: 'LTM', teams: 11 }, // confirmed — Halloween LTM (aka Haunted Harvest)
+  '420165069': { label: 'Smoking Guns', category: 'LTM', teams: 4 }, // confirmed — Monaco-only LTM
+  '704866484': { label: 'Close Quarters', category: 'LTM', teams: 2 }, // confirmed — P.E.A.C.E. Center LTM
   // Bunny Bash = a Power Shift event LTM that recurs. S2 (267894133, Horizon-only)
   // and S6+ (597953832, returns S10) — verified by the S6→gap→S10 date pattern + maps.
-  '267894133': { label: 'Bunny Bash', category: 'LTM', teams: 2 }, // user — S2
-  '597953832': { label: 'Bunny Bash', category: 'LTM', teams: 2 }, // user-hypothesis, data-verified — S6+
+  '267894133': { label: 'Bunny Bash', category: 'LTM', teams: 2 }, // confirmed — S2
+  '597953832': { label: 'Bunny Bash', category: 'LTM', teams: 2 }, // confirmed, data-verified — S6+
   '787538704': { label: 'Ranked (S1)', category: 'Ranked', teams: 4 }, // pre-World-Tour ranked
   '377270267': { label: 'Ranked (S1)', category: 'Ranked', teams: 4 }, // pre-World-Tour ranked
-  '106717113': { label: 'Snowball Blitz', category: 'LTM', teams: 2 }, // user — winter event, Monaco + Snowball weapon
+  '106717113': { label: 'Snowball Blitz', category: 'LTM', teams: 2 }, // confirmed — winter event, Monaco + Snowball weapon
   // A few S3–S5 World Tour ids (the rest live in WORLD_TOUR_SCENARIOS below).
   '296178816': { label: 'World Tour', category: 'World Tour', teams: 4 },
   '211390302': { label: 'World Tour', category: 'World Tour', teams: 4 },

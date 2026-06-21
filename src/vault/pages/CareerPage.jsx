@@ -1,14 +1,14 @@
 import { useState } from 'react';
-import { User, Ban, Activity, BadgeDollarSign } from 'lucide-react';
+import { User, Ban, Activity, Medal, Target, Skull, Flame, HeartPulse, Coins, Banknote, TrendingUp, TrendingDown } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
-import { PageHeader, Panel, StatCard, Badge, Note, Tooltip } from '../components/ui';
-import { num, decimal, hours, date, pct } from '../lib/format';
+import { PageHeader, Panel, StatCard, Badge, Note } from '../components/ui';
+import { num, decimal, hours, date, pct, cash } from '../lib/format';
 
 // One colour per named game mode (shared by the pie + the per-mode table)
 const MODE_COLOR = {
   Ranked: '#eab308', // yellow
   'World Tour': '#a855f7', // purple
-  'Cash Out': '#10b981', // emerald
+  'Quick Cash': '#10b981', // emerald
   'Team Deathmatch': '#ef4444', // red
   'Power Shift': '#3b82f6', // blue
   'Point Break': '#f97316', // orange
@@ -76,17 +76,58 @@ const ModeDonut = ({ segments, total, hovered, onHover }) => {
   );
 };
 
-const Row = ({ label, value }) => (
-  <div className="flex justify-between py-1.5 border-b border-gray-700/50 last:border-0 text-sm">
-    <span className="text-gray-400">{label}</span>
-    <span className="text-white font-medium">{value}</span>
+// A compact label-over-value fact for the page header (account meta moved up
+// from the old bottom "Account" panel).
+const HeaderFact = ({ label, children }) => (
+  <div>
+    <dt className="text-[10px] uppercase tracking-wider text-gray-500">{label}</dt>
+    <dd className="text-sm font-medium text-white whitespace-nowrap mt-0.5">{children}</dd>
   </div>
 );
 
+// One "career best" card: a big value, a context line (where it happened) and a
+// date. The context explains an outlier — a 60-kill game is a high-respawn LTM.
+const RecordCard = ({ icon: Icon, label, value, accent, context, sub }) => (
+  <div className="bg-gray-800 rounded-xl p-4">
+    <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-gray-500">
+      <Icon className="w-3.5 h-3.5 text-gray-400 shrink-0" aria-hidden="true" />
+      <span className="truncate">{label}</span>
+    </div>
+    <p className={`text-2xl font-bold mt-1 ${accent}`}>{value}</p>
+    {context && <p className="text-xs text-gray-400 mt-1 truncate">{context}</p>}
+    {sub && <p className="text-[11px] text-gray-500 mt-0.5">{sub}</p>}
+  </div>
+);
+
+// Context line for a single-game record: "mode · map", with a "Won · " prefix on
+// the match-level cash record when that tournament was won.
+const gameContext = (rec) => (
+  <>
+    {rec.won && <span className="text-emerald-400 font-semibold">Won · </span>}
+    {[rec.mode, rec.mapName].filter(Boolean).join(' · ') || '—'}
+  </>
+);
+const recDate = (rec) => date(rec.date);
+
+// Personal records: single-game bests (kills/deaths/damage/revives), best cash in
+// one round vs one whole match, and longest won/lost round streaks. Each def maps
+// a model.records[key] to a card; records that are absent are filtered out.
+const RECORD_DEFS = [
+  { key: 'kills', icon: Target, label: 'Most kills', accent: 'text-white', fmt: (r) => num(r.value), context: gameContext, sub: recDate },
+  { key: 'deaths', icon: Skull, label: 'Most deaths', accent: 'text-white', fmt: (r) => num(r.value), context: gameContext, sub: recDate },
+  { key: 'damage', icon: Flame, label: 'Most damage', accent: 'text-white', fmt: (r) => num(Math.round(r.value)), context: gameContext, sub: recDate },
+  { key: 'revives', icon: HeartPulse, label: 'Most revives', accent: 'text-white', fmt: (r) => num(r.value), context: gameContext, sub: recDate },
+  { key: 'cashout', icon: Coins, label: 'Most cash (round)', accent: 'text-yellow-400', fmt: (r) => cash(r.value), context: gameContext, sub: recDate },
+  { key: 'payday', icon: Banknote, label: 'Most cash (match)', accent: 'text-yellow-400', fmt: (r) => cash(r.value), context: gameContext, sub: recDate },
+  { key: 'winStreak', icon: TrendingUp, label: 'Longest win streak', accent: 'text-emerald-400', fmt: (r) => num(r.value), context: () => 'rounds in a row', sub: recDate },
+  { key: 'lossStreak', icon: TrendingDown, label: 'Longest loss streak', accent: 'text-white', fmt: (r) => num(r.value), context: () => 'rounds in a row', sub: recDate },
+];
+
 export const CareerPage = () => {
   const { model } = useVaultData();
-  const { career, careerModes, identity, ban, meta, economy } = model;
+  const { career, careerModes, identity, ban, meta, records } = model;
   const t = career.total;
+  const recordCards = records ? RECORD_DEFS.filter((d) => records[d.key]) : [];
 
   const [hoveredMode, setHoveredMode] = useState(null);
   const tournWinRate = meta.tournamentsPlayed ? meta.tournamentsWon / meta.tournamentsPlayed : null;
@@ -95,26 +136,19 @@ export const CareerPage = () => {
     .map((m) => ({ key: m.key, label: m.label, value: m.matches, color: MODE_COLOR[m.key] || MODE_COLOR.Other }))
     .filter((s) => s.value > 0);
 
-  // "Spender" badge = real-money purchases (TransactionLog)
-  const purchaseCount = economy.fiatGrantedCount;
-  const spender = purchaseCount > 0 ? (
-    <Tooltip label={`Made ${purchaseCount} real-money purchase${purchaseCount === 1 ? '' : 's'} — see the Purchases page for details.`}>
-      <BadgeDollarSign className="w-5 h-5 text-yellow-400" aria-label={`Made ${purchaseCount} real-money purchases`} />
-    </Tooltip>
-  ) : null;
-
   return (
     <div className="animate-fade-in-up space-y-5">
       <PageHeader
         icon={User}
         title="Career"
-        subtitle={
-          <span className="inline-flex items-center gap-2 align-middle">
-            <span>{identity.fullName || 'Lifetime overview'}</span>
-            {spender}
-          </span>
-        }
-      />
+        subtitle={identity.fullName || 'Lifetime overview'}
+      >
+        <dl className="flex items-start gap-x-6 gap-y-2 flex-wrap sm:justify-end">
+          <HeaderFact label="Created">{date(identity.accountCreatedAt)}</HeaderFact>
+          <HeaderFact label="Last active">{date(meta.lastActivity)}</HeaderFact>
+          <HeaderFact label="Country">{identity.countryCode || '—'}</HeaderFact>
+        </dl>
+      </PageHeader>
 
       {ban.hasActive && (
         <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/30 rounded-xl p-4">
@@ -164,6 +198,29 @@ export const CareerPage = () => {
         <StatCard label="Damage dealt" value={num(Math.round(t.damage))} />
         <StatCard label="Matches" value={num(meta.matchCount)} sub={`${num(meta.roundCount)} rounds logged`} />
       </div>
+
+      {/* Personal records — single-game bests + biggest tournament payday */}
+      {recordCards.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Medal className="w-4 h-4 text-gray-400" />
+            <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Personal records</h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {recordCards.map((d) => (
+              <RecordCard
+                key={d.key}
+                icon={d.icon}
+                label={d.label}
+                value={d.fmt(records[d.key])}
+                accent={d.accent}
+                context={d.context(records[d.key])}
+                sub={d.sub(records[d.key])}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Where you played — by game mode */}
       <div>
@@ -220,26 +277,8 @@ export const CareerPage = () => {
               </div>
             </div>
           )}
-          <Note>
-            Game-mode figures are derived from your match history (one match = one session) — the only per-mode source in the
-            export. The single authoritative ranked/casual split (from the lifetime summary) is{' '}
-            <span className="text-gray-300">{num(career.ranked.roundsPlayed)} ranked</span> ·{' '}
-            <span className="text-gray-300">{num(career.casual.roundsPlayed)} casual</span> ·{' '}
-            <span className="text-gray-300">{num(career.otherRoundsPlayed)} other</span> rounds. Win&nbsp;% is per round.
-          </Note>
         </Panel>
       </div>
-
-      {/* Identity quick facts */}
-      <Panel title="Account">
-        <div className="grid sm:grid-cols-2 gap-x-8">
-          <Row label="Embark account created" value={date(identity.accountCreatedAt)} />
-          <Row label="Last activity" value={date(meta.lastActivity, 'd MMM yyyy, HH:mm')} />
-          <Row label="Country" value={identity.countryCode || '—'} />
-          <Row label="Linked platforms" value={num(model.linkedAccounts.length)} />
-          <Row label="Players you reported" value={num(model.reports.count)} />
-        </div>
-      </Panel>
     </div>
   );
 };
