@@ -109,8 +109,7 @@ export const WeaponsPage = () => {
       <Note>
         Kills are summed from every round’s <code>KillsPerItem</code>. The export records kills only — there is no
         per-weapon K/D, damage or accuracy (deaths aren’t attributed to a weapon; those stats live on the in-game career
-        screen). For real K/D by class, map and mode see the Breakdown page. Items unknown to the current ID table show
-        their raw ID and can be named as the table grows.
+        screen). For real K/D by class, map and mode see the Breakdown page.
       </Note>
     </div>
   );

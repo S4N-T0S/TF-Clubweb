@@ -7,7 +7,7 @@ import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { PlatformIcons } from "../icons/Platforms";
+import { PlatformLink } from "../icons/PlatformLink";
 import { SortButton } from '../SortButton';
 import { Hexagon } from '../icons/Hexagon';
 import { useModal } from '../../context/ModalProvider';
@@ -196,19 +196,19 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
               <div className="text-[11px] text-gray-400 mt-1 flex flex-wrap gap-1.5">
                 {player.steamName && (
                   <span className="flex items-center gap-1 bg-gray-700 rounded-sm px-1.5 py-0.5">
-                    <PlatformIcons.Steam className="w-3 h-3 shrink-0" />
+                    <PlatformLink platform="steam" name={player.steamName} className="w-3 h-3" />
                     <span className="truncate max-w-30">{player.steamName}</span>
                   </span>
                 )}
                 {player.psnName && (
                   <span className="flex items-center gap-1 bg-gray-700 rounded-sm px-1.5 py-0.5">
-                    <PlatformIcons.PSN className="w-3 h-3 shrink-0" />
+                    <PlatformLink platform="psn" name={player.psnName} className="w-3 h-3" />
                     <span className="truncate max-w-30">{player.psnName}</span>
                   </span>
                 )}
                 {player.xboxName && (
                   <span className="flex items-center gap-1 bg-gray-700 rounded-sm px-1.5 py-0.5">
-                    <PlatformIcons.Xbox className="w-3 h-3 shrink-0" />
+                    <PlatformLink platform="xbox" name={player.xboxName} className="w-3 h-3" />
                     <span className="truncate max-w-30">{player.xboxName}</span>
                   </span>
                 )}
@@ -316,19 +316,19 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
             <div className="text-xs text-gray-400 mt-1 flex items-center gap-3">
               {player.steamName && (
                 <span className="flex items-center">
-                  <PlatformIcons.Steam />
+                  <PlatformLink platform="steam" name={player.steamName} />
                   {player.steamName}
                 </span>
               )}
               {player.psnName && (
                 <span className="flex items-center">
-                  <PlatformIcons.PSN />
+                  <PlatformLink platform="psn" name={player.psnName} />
                   {player.psnName}
                 </span>
               )}
               {player.xboxName && (
                 <span className="flex items-center">
-                  <PlatformIcons.Xbox />
+                  <PlatformLink platform="xbox" name={player.xboxName} />
                   {player.xboxName}
                 </span>
               )}
@@ -619,20 +619,23 @@ export const GlobalView = ({
           isMobile={isMobile}
         />
         <div className="flex items-center gap-2">
-          <select
-            value={selectedSeason}
-            onChange={handleSeasonChange}
-            className={`w-full sm:w-48 bg-gray-700 text-gray-200 rounded-lg px-4 py-1.5 border ${
-              selectedSeason !== currentSeason ? 'border-blue-500 border-2' : 'border-gray-600'
-            } focus:ring-2 focus:ring-blue-500 focus-visible:ring-blue-500 focus-visible:border-blue-500 focus-visible:outline-hidden shrink-0 text-sm h-10.5`}
-          >
-            {Object.entries(SEASONS).reverse().map(([key, season]) => 
-              key !== 'ALL' && (
-                <option key={key} value={key}>{season.label}</option>
-              )
-            )}
-            <option value="ALL">All Seasons</option>
-          </select>
+          <div className="relative w-full sm:w-48 shrink-0">
+            <select
+              value={selectedSeason}
+              onChange={handleSeasonChange}
+              className={`appearance-none w-full bg-gray-700 text-gray-200 rounded-lg pl-4 pr-10 py-1.5 border cursor-pointer ${
+                selectedSeason !== currentSeason ? 'border-blue-500 border-2' : 'border-gray-600'
+              } focus:ring-2 focus:ring-blue-500 focus-visible:ring-blue-500 focus-visible:border-blue-500 focus-visible:outline-hidden text-sm h-10.5`}
+            >
+              {Object.entries(SEASONS).reverse().map(([key, season]) =>
+                key !== 'ALL' && (
+                  <option key={key} value={key}>{season.label}</option>
+                )
+              )}
+              <option value="ALL">All Seasons</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          </div>
         </div>
       </div>
       {!showFavourites && isCurrentSeason && currentRubyCutoff && (

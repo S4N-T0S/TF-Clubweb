@@ -625,7 +625,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
               {isFilterSectionExpanded && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Event Types</label>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Event Types Filter</label>
                         <div className="grid grid-cols-2 gap-2">
                             <FilterToggleButton label="Name" Icon={UserPen} isActive={filters.showNameChange} onClick={() => handleFilterChange('showNameChange', !filters.showNameChange)} textColorClass="text-indigo-400" activeBorderClass="border-indigo-400" />
                             <FilterToggleButton label="Bans" Icon={Gavel} isActive={filters.showSuspectedBan} onClick={() => handleFilterChange('showSuspectedBan', !filters.showSuspectedBan)} textColorClass="text-red-500" activeBorderClass="border-red-500" />
@@ -634,7 +634,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Player Rank</label>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Player Rank Filter</label>
                         <LeagueRangeSlider 
                           value={filters.minLeague}
                           onChange={(value) => handleFilterChange('minLeague', value)}

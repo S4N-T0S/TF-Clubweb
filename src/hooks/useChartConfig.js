@@ -325,6 +325,7 @@ export const useChartConfig = ({
   rubyCutoff,
   mainPlayerWinrate,
   displayMode = 'rankScore',
+  isMobile = false,
 }) => {
 
   // 'rank' plots true leaderboard rank on an inverted axis (#1 at the top); 'rankScore'
@@ -1422,10 +1423,10 @@ export const useChartConfig = ({
           grid: { color: '#2a3042' },
           ticks: {
             color: '#cecfd3',
-            maxRotation: 69,
-            minRotation: 69,
+            maxRotation: isMobile ? 55 : 69,
+            minRotation: isMobile ? 55 : 69,
             autoSkip: true,
-            maxTicksLimit: 20,
+            maxTicksLimit: isMobile ? 7 : 20,
             padding: 4,
             align: 'end',
             callback: function (value) {

@@ -5,6 +5,7 @@ import { BackToTop } from '../BackToTop';
 import { useSwipe } from '../../hooks/useSwipe';
 import { SortButton } from '../SortButton';
 import { useRef, useMemo } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { Link, useSearchParams, useLocation } from 'react-router-dom';
 import { useModal } from '../../context/ModalProvider';
 import { buildClubSearchHref } from '../../utils/modalHrefs';
@@ -176,23 +177,26 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
           />
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={selectedSeason}
-            onChange={handleSeasonChange}
-            aria-label="Select season"
-            className={`w-full sm:w-48 bg-gray-700 text-gray-200 rounded-lg px-4 py-1.5 border ${
-              selectedSeason !== currentSeasonKey ? 'border-blue-500 border-2' : 'border-gray-600'
-            } focus:ring-2 focus:ring-blue-500 focus-visible:ring-blue-500 focus-visible:border-blue-500 focus-visible:outline-hidden shrink-0 text-sm h-10.5`}
-          >
-            {/* Seasons before S5 predate clubs — shown but disabled. 'ALL' is disabled */}
-            {Object.entries(SEASONS).reverse().map(([key, season]) =>
-              key !== 'ALL' && (
-                <option key={key} value={key} disabled={!season.hasClubs}>
-                  {season.label}{season.hasClubs ? '' : ' (no clubs)'}
-                </option>
-              )
-            )}
-          </select>
+          <div className="relative w-full sm:w-48 shrink-0">
+            <select
+              value={selectedSeason}
+              onChange={handleSeasonChange}
+              aria-label="Select season"
+              className={`appearance-none w-full bg-gray-700 text-gray-200 rounded-lg pl-4 pr-10 py-1.5 border cursor-pointer ${
+                selectedSeason !== currentSeasonKey ? 'border-blue-500 border-2' : 'border-gray-600'
+              } focus:ring-2 focus:ring-blue-500 focus-visible:ring-blue-500 focus-visible:border-blue-500 focus-visible:outline-hidden text-sm h-10.5`}
+            >
+              {/* Seasons before S5 predate clubs — shown but disabled. 'ALL' is disabled */}
+              {Object.entries(SEASONS).reverse().map(([key, season]) =>
+                key !== 'ALL' && (
+                  <option key={key} value={key} disabled={!season.hasClubs}>
+                    {season.label}{season.hasClubs ? '' : ' (no clubs)'}
+                  </option>
+                )
+              )}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          </div>
         </div>
       </div>
       <div className="page-transition-container">

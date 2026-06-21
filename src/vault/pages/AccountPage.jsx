@@ -361,7 +361,7 @@ export const AccountPage = () => {
           </ul>
           <Note>
             Every distinct address found in your data — your profile plus the game’s email and audit logs, including any
-            you’ve changed away from. Embark’s own sending addresses are excluded.
+            you’ve changed away from.
             {emails.length > 1 ? ' More than one usually means you changed your email at some point.' : ''}
           </Note>
         </Panel>
@@ -407,11 +407,6 @@ export const AccountPage = () => {
                 </ul>
               </div>
             )}
-            <Note>
-              Your <strong>in-game name</strong> (name#tag) change history comes from Embark’s profile log. The{' '}
-              <strong>platform names</strong> are the display names on each linked account (Steam, Xbox…) — separate from
-              your Embark name.
-            </Note>
           </div>
         )}
       </Panel>

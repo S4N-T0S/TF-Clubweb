@@ -296,12 +296,6 @@ export const PurchasesPage = () => {
                     </p>
                   </div>
                 )}
-                <Note>
-                  Each charge is matched to the Multibucks and/or DLC it granted by exact timestamp (DLC packs bundle both).
-                  {walletIsBase
-                    ? ' Prices are the exact USD / EUR amount your wallet was charged.'
-                    : ' Prices shown are the standard USD / EUR store price, not your exact local spend (see above).'}
-                </Note>
               </>
             )}
           </Panel>
@@ -467,11 +461,6 @@ export const PurchasesPage = () => {
                 />
               </div>
             </div>
-            <Note>
-              Every grant the account received — purchases, Battle Pass unlocks, event rewards, Twitch drops and gifts.
-              Only real-money rows carry a price; in-game and reward grants don’t record the item, just when and why it
-              was granted.
-            </Note>
           </Panel>
 
           {/* Steam DLC ownership */}

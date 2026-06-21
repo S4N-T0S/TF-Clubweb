@@ -833,6 +833,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
     rubyCutoff: rubyCutoffForChart,
     mainPlayerWinrate,
     displayMode: effectiveDisplayMode,
+    isMobile,
   });
 
   useEffect(() => {

@@ -152,7 +152,7 @@ function buildBans(byType) {
 //   twitch  -> LastSeenAccountName is "uid#name"; link uses the name part
 //   xbox    -> "gamertag#tag"; display keeps it, URL drops the '#'
 //   discord -> "name#0" is the legacy no-discriminator form; show just the name.
-//   psn     -> psnprofiles.com/<name>
+//   psn     -> psnprofiles.com/?psnId=<name>
 //   epic    -> fortnitetracker.com/profile/all/<name>
 //   nexon   -> exists; representation unknown (email or username) 
 function linkInfo(provider, name, id) {
@@ -167,7 +167,7 @@ function linkInfo(provider, name, id) {
     case 'xbox':
       return { handle: n, url: n ? `https://xboxgamertag.com/search/${n.replace(/#/g, '')}` : null };
     case 'psn':
-      return { handle: n, url: n ? `https://psnprofiles.com/${n}` : null };
+      return { handle: n, url: n ? `https://psnprofiles.com/?psnId=${n}` : null };
     case 'epic':
     case 'epicgames':
       return { handle: n, url: n ? `https://fortnitetracker.com/profile/all/${n}` : null };

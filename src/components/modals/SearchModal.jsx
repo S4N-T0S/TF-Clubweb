@@ -4,6 +4,7 @@ import { Search, AlertTriangle, X, ChevronUp, ChevronDown, Users } from 'lucide-
 import { searchPlayerHistory, SEASONS } from '../../services/historicalDataService';
 import { Hexagon } from '../icons/Hexagon';
 import { PlatformIcons } from '../icons/Platforms';
+import { PlatformLink } from '../icons/PlatformLink';
 import { getLeagueInfo } from '../../utils/leagueUtils';
 import { isValidEmbarkId, formatUsernameForUrl } from '../../utils/urlHandler';
 import { useModal } from '../../context/ModalProvider';
@@ -256,7 +257,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
               className={`p-4 rounded-lg text-gray-300 flex justify-between items-center w-full text-left sm:hidden
                 ${playerSummary ? 'bg-blue-900/30 border border-blue-500/25 hover:bg-blue-900/40' : 'bg-gray-700 hover:bg-gray-600'}`}
             >
-              <span className="text-sm">{playerSummary ? 'Tap to view player overview' : 'Tap to view search tool details'}</span>
+              <span className="text-sm [text-box-trim:trim-both] [text-box-edge:cap_alphabetic]">{playerSummary ? 'Tap to view player overview' : 'Tap to view search tool details'}</span>
               {isExplanationExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
             </button>
 
@@ -431,7 +432,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
                       {result.steamName && (
                         <div className="flex items-center gap-2">
                           <p title="Steam display name" className="flex items-center">
-                            <PlatformIcons.Steam />
+                            <PlatformLink platform="steam" name={result.steamName} />
                             {result.steamName}
                           </p>
                           {result.foundViaSteamName && (
@@ -448,13 +449,13 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
                       )}
                       {result.psnName && (
                         <p title="PSN username" className="flex items-center">
-                          <PlatformIcons.PSN />
+                          <PlatformLink platform="psn" name={result.psnName} />
                           {result.psnName}
                         </p>
                       )}
                       {result.xboxName && (
                         <p title="Xbox username" className="flex items-center">
-                          <PlatformIcons.Xbox />
+                          <PlatformLink platform="xbox" name={result.xboxName} />
                           {result.xboxName}
                         </p>
                       )}
