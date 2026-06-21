@@ -18,6 +18,7 @@ const toMs = (v) => {
   return null;
 };
 const div = (a, b) => (b ? a / b : 0);
+const flatLabel = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 const SPENDER_KEY_RE = /^is[_-]?spender$/i;
 const truthyFlag = (v) => v === true || v === 1 || v === '1' || /^(true|yes)$/i.test(String(v ?? ''));
@@ -574,6 +575,8 @@ function buildMatchesAndWeapons(byType) {
     const rmap = resolveMap(d.MapVariant); // precise name + one bg photo + crop focus
     const ltmBg = resolveLtmBackground(d.ScenarioID); // LTM-specific background by gamemode id (overrides the map photo)
     const cond = parseCondition(d.EnvironmentalCondition);
+    const variant = pmap.variant && pmap.variant !== 'Base' ? pmap.variant : null;
+    const layout = variant && flatLabel(variant) !== flatLabel(cond) ? variant : null;
     const kpi = d.KillsPerItem || {};
     // Per-round weapon usage. KillsPerItem is kills-only (an item appears only
     // if it got a kill), so this is "what you killed with", not your loadout —
@@ -614,7 +617,7 @@ function buildMatchesAndWeapons(byType) {
       mapImage: ltmBg?.image ?? rmap.image, // one bundled background photo, or null
       mapFocus: ltmBg?.focus ?? rmap.focus, // object-position for cropping the wide photo
       mapZoom: ltmBg?.zoom ?? rmap.zoom, // 1 = cover; <1 zooms out (blurred fill), >1 zooms in
-      layout: pmap.variant && pmap.variant !== 'Base' ? pmap.variant : null, // non-default layout
+      layout, // non-default layout, unless it merely restates the weather/lighting
       condition: cond,
       condType: conditionType(cond), // time/weather icon family
 
