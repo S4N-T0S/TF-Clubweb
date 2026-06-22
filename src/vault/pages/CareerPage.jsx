@@ -143,8 +143,9 @@ export const CareerPage = () => {
         icon={User}
         title="Career"
         subtitle={identity.fullName || 'Lifetime overview'}
+        mobileCenter
       >
-        <dl className="flex items-start gap-x-6 gap-y-2 flex-wrap sm:justify-end">
+        <dl className="flex items-start justify-center gap-x-6 gap-y-2 flex-wrap text-center sm:justify-end sm:text-left">
           <HeaderFact label="Created">{date(identity.accountCreatedAt)}</HeaderFact>
           <HeaderFact label="Last active">{date(meta.lastActivity)}</HeaderFact>
           <HeaderFact label="Country">

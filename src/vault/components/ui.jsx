@@ -1,10 +1,14 @@
 // Shared presentational primitives for the vault pages.
 import { useState } from 'react';
 
-export const PageHeader = ({ icon: Icon, title, subtitle, children }) => (
-  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 mb-5">
-    <div className="flex items-center gap-3">
-      {Icon && <Icon className="w-7 h-7 text-emerald-400" />}
+export const PageHeader = ({ icon: Icon, title, subtitle, children, mobileCenter = false }) => (
+  <div
+    className={`flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 mb-5 ${
+      mobileCenter ? 'items-center sm:items-start' : ''
+    }`}
+  >
+    <div className={`flex items-center gap-3 ${mobileCenter ? 'text-center sm:text-left' : ''}`}>
+      {Icon && <Icon className="w-7 h-7 text-emerald-400 shrink-0" />}
       <div>
         <h1 className="text-2xl font-bold text-white">{title}</h1>
         {subtitle && <p className="text-sm text-gray-400 mt-0.5">{subtitle}</p>}
