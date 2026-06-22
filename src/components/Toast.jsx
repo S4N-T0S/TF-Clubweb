@@ -33,27 +33,39 @@ const TOAST_TYPE_CONFIG = {
   loading: {
     icon: Loader2,
     iconClassName: 'animate-spin',
-    bgColor: 'bg-blue-600'
+    bar: 'bg-blue-500',
+    iconChip: 'bg-blue-500/10',
+    iconColor: 'text-blue-400'
   },
   success: {
     icon: CheckCircle2,
-    bgColor: 'bg-green-600'
+    bar: 'bg-emerald-500',
+    iconChip: 'bg-emerald-500/10',
+    iconColor: 'text-emerald-400'
   },
   error: {
     icon: AlertCircle,
-    bgColor: 'bg-red-600'
+    bar: 'bg-red-500',
+    iconChip: 'bg-red-500/10',
+    iconColor: 'text-red-400'
   },
   warning: {
     icon: AlertCircle,
-    bgColor: 'bg-orange-500'
+    bar: 'bg-amber-500',
+    iconChip: 'bg-amber-500/10',
+    iconColor: 'text-amber-400'
   },
   info: {
     icon: Info,
-    bgColor: 'bg-blue-600'
+    bar: 'bg-blue-500',
+    iconChip: 'bg-blue-500/10',
+    iconColor: 'text-blue-400'
   },
   default: {
     icon: Clock,
-    bgColor: 'bg-blue-600'
+    bar: 'bg-blue-500',
+    iconChip: 'bg-blue-500/10',
+    iconColor: 'text-blue-400'
   }
 };
 
@@ -132,43 +144,47 @@ const Toast = ({
   return (
     <div 
       data-toast-container="true"
-      className={`fixed ${positionClass} z-60 transition-all duration-300 ${
-        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+      className={`fixed ${positionClass} z-60 transition-all duration-300 ease-out ${
+        isVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-95'
       } max-w-[90vw] sm:max-w-sm w-auto`}
     >
-      <div className={`rounded-lg shadow-lg p-4 flex items-center gap-3 ${toastConfig.bgColor} text-white min-w-40`}>
-        <div className="shrink-0 flex items-center self-stretch">
-          <IconComponent className={`w-5 h-5 text-white ${toastConfig.iconClassName || ''}`} />
-        </div>
-        
-        <div className="flex-1 min-w-0 break-anywhere w-full">
-          {title && (
-            <p className={`font-semibold ${textSizeClass} mb-1`}>{title}</p>
-          )}
-          <p className={`${!title ? 'font-medium' : ''} ${textSizeClass} wrap-break-word`}>
-            {currentMessage}
-          </p>
-          {showMeta && (timestamp || typeof ttl === 'number') ? (
-            <div className="mt-1">
-              {timestamp && (
-                <p className="text-white/80 text-xs">Last updated {formatTimeAgo(timestamp)}</p>
-              )}
-              {typeof ttl === 'number' && (
-                <p className="text-white/80 text-xs">{formatTtl(ttl, type)}</p>
-              )}
-            </div>
-          ) : null}
-        </div>
+      <div className="relative overflow-hidden rounded-xl border border-white/10 bg-gray-800/95 backdrop-blur-sm shadow-xl shadow-black/40 min-w-40">
+        <span aria-hidden="true" className={`pointer-events-none absolute inset-y-0 left-0 w-1 ${toastConfig.bar}`} />
 
-        {effectiveShowClose && (
-          <button 
-            onClick={handleClose}
-            className="text-white/80 hover:text-white rounded-full hover:bg-white/10 shrink-0 p-1 self-stretch flex items-center"
-            aria-label="Close"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+        <div className="flex items-center gap-3 p-4 pl-5">
+          <div className={`shrink-0 rounded-lg p-1.5 ${toastConfig.iconChip}`}>
+            <IconComponent className={`w-5 h-5 ${toastConfig.iconColor} ${toastConfig.iconClassName || ''}`} />
+          </div>
+
+          <div className="flex-1 min-w-0 break-anywhere">
+            {title && (
+              <p className={`font-semibold text-gray-100 ${textSizeClass} mb-0.5`}>{title}</p>
+            )}
+            <p className={`${!title ? 'font-medium' : ''} text-gray-200 ${textSizeClass} wrap-break-word`}>
+              {currentMessage}
+            </p>
+            {showMeta && (timestamp || typeof ttl === 'number') ? (
+              <div className="mt-1.5 space-y-0.5">
+                {timestamp && (
+                  <p className="text-gray-400 text-xs">Last updated {formatTimeAgo(timestamp)}</p>
+                )}
+                {typeof ttl === 'number' && (
+                  <p className="text-gray-400 text-xs">{formatTtl(ttl, type)}</p>
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          {effectiveShowClose && (
+            <button
+              onClick={handleClose}
+              className="text-gray-400 hover:text-white rounded-lg hover:bg-white/10 shrink-0 p-1 self-center flex items-center transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
