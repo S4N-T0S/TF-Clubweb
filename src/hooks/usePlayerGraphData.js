@@ -22,6 +22,26 @@ const GAP_THRESHOLD = 2 * TIME.HOUR;
 const NEW_LOGIC_TIMESTAMP_MS = 1750436334 * 1000;
 const COMBINE_EVENT_WINDOW_MS = 60 * 60 * 1000; // Combine club/name changes within 1 hour
 
+// Guard: drop a completed SUSPECTED_BAN that a NAME_CHANGE already explains (the player renamed rather than disappeared)
+const removeRenameResolvedBans = (events) => {
+  if (!events || events.length < 2) return events;
+  if (!events.some(e => e.event_type === 'NAME_CHANGE')) return events;
+
+  const filtered = events.filter(e => {
+    if (e.event_type !== 'SUSPECTED_BAN' || !e.end_timestamp) return true;
+    const last = e.details?.last_known_name;
+    const reappeared = e.details?.reappeared_as_name;
+    // A genuine ban reappears under the same name (or none); a rename reappears under a new one.
+    if (!reappeared || reappeared === last) return true;
+    return !events.some(o =>
+      o.event_type === 'NAME_CHANGE' &&
+      o.details?.old_name === last &&
+      o.details?.new_name === reappeared
+    );
+  });
+  return filtered.length === events.length ? events : filtered;
+};
+
 // Helper to calculate comprehensive player stats from a processed dataset
 const calculatePlayerStats = (dataset, seasonId) => {
   if (!dataset || !dataset.length) return null;
@@ -708,10 +728,13 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
     const processingSettings = { showNameChange, showClubChange, showSuspectedBan };
     const seasonEndDate = getSeasonEndDate(currentSeasonId);
 
+    // Guard against false-positive bans that are really name changes.
+    const mainEvents = removeRenameResolvedBans(mainPlayerRaw.events);
+
     // Process main player data
     const processedMain = processGraphData(
       mainPlayerRaw.data,
-      mainPlayerRaw.events,
+      mainEvents,
       seasonEndDate,
       processingSettings
     );
@@ -719,15 +742,16 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
       setError(null);
     }
     setData(processedMain);
-    setEvents(mainPlayerRaw.events);
+    setEvents(mainEvents);
     setMainPlayerStats(calculatePlayerStats(processedMain, currentSeasonId));
 
     // Process comparison data
     const newComparisonMap = new Map();
     Array.from(comparisonRaws.entries()).forEach(([id, rawValue], index) => {
+      const compareEvents = removeRenameResolvedBans(rawValue.events);
       const processedCompare = processGraphData(
         rawValue.data,
-        rawValue.events,
+        compareEvents,
         seasonEndDate,
         processingSettings
       );
@@ -740,7 +764,7 @@ export const usePlayerGraphData = (isOpen, embarkId, initialCompareIds, seasonId
           gameCount: rawValue.gameCount,
           winrate: compareStats?.winrate || null,
           stats: compareStats,
-          events: rawValue.events,
+          events: compareEvents,
           availableSeasons: rawValue.availableSeasons,
         });
       }
