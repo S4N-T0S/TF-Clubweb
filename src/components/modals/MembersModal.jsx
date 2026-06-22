@@ -30,24 +30,24 @@ const MemberRow = ({ member, onGraphOpen, onSearch }) => {
   const { style } = member.leagueNumber ? getLeagueInfo(member.leagueNumber) : { style: 'text-gray-500' };
 
   return (
-    <div className={`p-3 rounded-lg bg-gray-700/50 hover:bg-gray-700 transition-colors flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between border border-gray-600/50 
+    <div className={`p-2.5 sm:p-3 rounded-lg bg-gray-700/50 hover:bg-gray-700 transition-colors flex flex-row items-center gap-3 justify-between border border-gray-600/50
       ${member.status === 'wrong_tag' ? 'border-l-4 border-l-red-500' : ''}
       ${member.status === 'unranked' ? 'border-l-4 border-l-yellow-500' : ''}
       ${member.status === 'verified' ? 'border-l-4 border-l-green-500' : ''}
       ${member.status === 'new_member' ? 'border-l-4 border-l-emerald-400' : ''}
     `}>
-      <div className="flex items-center gap-3 overflow-hidden w-full sm:w-auto">
+      <div className="flex items-center gap-2.5 sm:gap-3 overflow-hidden min-w-0 flex-1">
          <div className="relative shrink-0">
              <Hexagon className={`w-8 h-8 ${style}`} />
              <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-gray-900">
                  {member.leagueNumber ? (member.leagueNumber > 4 ? ' ' : '') : '?'}
              </div>
          </div>
-         <div className="flex flex-col min-w-0 w-full">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+         <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-x-2 min-w-0">
                 {(() => {
                   const historyHref = buildHistoryHref(member.name);
-                  const cls = "font-semibold text-white truncate hover:text-blue-400 cursor-pointer";
+                  const cls = "font-semibold text-white truncate hover:text-blue-400 cursor-pointer min-w-0";
                   return historyHref ? (
                     <Link
                       to={historyHref}
@@ -65,15 +65,15 @@ const MemberRow = ({ member, onGraphOpen, onSearch }) => {
                     </span>
                   );
                 })()}
-                <StatusBadge status={member.status} />
+                <span className="shrink-0"><StatusBadge status={member.status} /></span>
             </div>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-gray-400 truncate">
                 {member.rank ? `Rank #${member.rank.toLocaleString()}` : 'Not on Leaderboard'} • {member.rankScore?.toLocaleString() ?? 0} RS
             </span>
          </div>
       </div>
 
-      <div className="flex items-center gap-2 ml-auto">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         {(() => {
           const graphHref = buildGraphHref(member.name, currentSeasonKey);
           const iconClass = "p-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-gray-300 hover:text-white transition-colors";
@@ -218,38 +218,38 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
         `}
       >
-        <header className="shrink-0 bg-gray-800 p-4 border-b border-gray-700 flex items-center justify-between">
+        <header className="shrink-0 bg-gray-800 p-3 sm:p-4 border-b border-gray-700 flex items-center justify-between">
            <div className="flex items-center gap-2">
-                <Users className="w-6 h-6 text-blue-400" />
-                <h2 className="text-xl font-bold text-white">OG Club Membership</h2>
+                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />
+                <h2 className="text-lg sm:text-xl font-bold text-white">OG Club Membership</h2>
            </div>
            <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full">
               <X className="w-5 h-5" />
            </button>
         </header>
 
-        <div className="shrink-0 p-4 bg-gray-800 border-b border-gray-700 space-y-4">
-           {/* Stats Cards */}
-           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              <button onClick={() => setFilter('all')} className={`p-2 rounded-lg border flex flex-col items-center justify-center ${filter === 'all' ? 'bg-gray-700 border-gray-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-700'}`}>
-                 <div className="text-xs text-gray-400">Total</div>
-                 <div className="text-lg font-bold text-white">{stats.total}</div>
+        <div className="shrink-0 p-3 sm:p-4 bg-gray-800 border-b border-gray-700 space-y-3 sm:space-y-4">
+           {/* Stat filter chips */}
+           <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+              <button onClick={() => setFilter('all')} className={`p-1.5 sm:p-2 rounded-lg border flex flex-col items-center justify-center ${filter === 'all' ? 'bg-gray-700 border-gray-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-700'}`}>
+                 <div className="text-[10px] sm:text-xs text-gray-400 leading-tight">Total</div>
+                 <div className="text-base sm:text-lg font-bold text-white leading-tight">{stats.total}</div>
               </button>
-              <button onClick={() => setFilter('verified')} className={`p-2 rounded-lg border flex flex-col items-center justify-center ${filter === 'verified' ? 'bg-green-900/30 border-green-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-700'}`}>
-                 <div className="text-xs text-green-400">Verified</div>
-                 <div className="text-lg font-bold text-green-300">{stats.verified}</div>
+              <button onClick={() => setFilter('verified')} className={`p-1.5 sm:p-2 rounded-lg border flex flex-col items-center justify-center ${filter === 'verified' ? 'bg-green-900/30 border-green-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-700'}`}>
+                 <div className="text-[10px] sm:text-xs text-green-400 leading-tight">Verified</div>
+                 <div className="text-base sm:text-lg font-bold text-green-300 leading-tight">{stats.verified}</div>
               </button>
-              <button onClick={() => setFilter('wrong_tag')} className={`p-2 rounded-lg border flex flex-col items-center justify-center ${filter === 'wrong_tag' ? 'bg-red-900/30 border-red-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-700'}`}>
-                 <div className="text-xs text-red-400">Leavers</div>
-                 <div className="text-lg font-bold text-red-300">{stats.wrong_tag}</div>
+              <button onClick={() => setFilter('wrong_tag')} className={`p-1.5 sm:p-2 rounded-lg border flex flex-col items-center justify-center ${filter === 'wrong_tag' ? 'bg-red-900/30 border-red-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-700'}`}>
+                 <div className="text-[10px] sm:text-xs text-red-400 leading-tight">Leavers</div>
+                 <div className="text-base sm:text-lg font-bold text-red-300 leading-tight">{stats.wrong_tag}</div>
               </button>
-              <button onClick={() => setFilter('unranked')} className={`p-2 rounded-lg border flex flex-col items-center justify-center ${filter === 'unranked' ? 'bg-yellow-900/30 border-yellow-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-700'}`}>
-                 <div className="text-xs text-yellow-400">Unranked</div>
-                 <div className="text-lg font-bold text-yellow-300">{stats.unranked}</div>
+              <button onClick={() => setFilter('unranked')} className={`p-1.5 sm:p-2 rounded-lg border flex flex-col items-center justify-center ${filter === 'unranked' ? 'bg-yellow-900/30 border-yellow-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-700'}`}>
+                 <div className="text-[10px] sm:text-xs text-yellow-400 leading-tight">Unranked</div>
+                 <div className="text-base sm:text-lg font-bold text-yellow-300 leading-tight">{stats.unranked}</div>
               </button>
-              <button onClick={() => setFilter('new_member')} className={`p-2 rounded-lg border flex flex-col items-center justify-center ${filter === 'new_member' ? 'bg-emerald-900/30 border-emerald-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-700'}`}>
-                 <div className="text-xs text-emerald-400">Newbs</div>
-                 <div className="text-lg font-bold text-emerald-300">{stats.new_member}</div>
+              <button onClick={() => setFilter('new_member')} className={`p-1.5 sm:p-2 rounded-lg border flex flex-col items-center justify-center ${filter === 'new_member' ? 'bg-emerald-900/30 border-emerald-500' : 'bg-gray-800 border-gray-700 hover:bg-gray-700'}`}>
+                 <div className="text-[10px] sm:text-xs text-emerald-400 leading-tight">Newbs</div>
+                 <div className="text-base sm:text-lg font-bold text-emerald-300 leading-tight">{stats.new_member}</div>
               </button>
            </div>
            
@@ -260,7 +260,7 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
            />
         </div>
 
-        <div ref={scrollContainerRef} className="grow overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+        <div ref={scrollContainerRef} className="grow overflow-y-auto p-3 sm:p-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
            {loading ? (
              <LoadingDisplay variant="component" />
            ) : filteredMembers.length === 0 ? (
