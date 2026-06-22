@@ -25,7 +25,7 @@ const GridBackdrop = () => (
   </>
 );
 
-export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef, sync, videoReady, onToggleSync, active = true, showVisual, loop, onUpdateSettings }) => {
+export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef, sync, videoReady, onToggleSync, canSync = true, active = true, showVisual, loop, onUpdateSettings }) => {
   const isVisible = useVisibility();
   const [playhead, setPlayhead] = useState(1);
   const [playing, setPlaying] = useState(false);
@@ -320,12 +320,14 @@ export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef,
             </button>
           ))}
         </div>
-        <button onClick={onToggleSync} disabled={!videoReady && !sync} title={videoReady ? 'Play the gameplay clip and spray animation together, kept in sync' : 'Loading gameplay clip...'}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border ${
-            sync ? 'bg-blue-600/20 text-blue-300 border-blue-500/40' : 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600'
-          } ${!videoReady && !sync ? 'opacity-50 cursor-not-allowed' : ''}`}>
-          <Film className="w-4 h-4" /> Sync video
-        </button>
+        {canSync && (
+          <button onClick={onToggleSync} disabled={!videoReady && !sync} title={videoReady ? 'Play the gameplay clip and spray animation together, kept in sync' : 'Loading gameplay clip...'}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border ${
+              sync ? 'bg-blue-600/20 text-blue-300 border-blue-500/40' : 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600'
+            } ${!videoReady && !sync ? 'opacity-50 cursor-not-allowed' : ''}`}>
+            <Film className="w-4 h-4" /> Sync video
+          </button>
+        )}
       </div>
 
       <input type="range" min="0" max="1" step="0.001" value={playhead}

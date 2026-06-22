@@ -5,6 +5,7 @@ import { loadWeapons, getGlobalBounds, getGlobalPatternBounds, WEAPON_CLASSES, C
 import { LoadingDisplay } from '../LoadingDisplay';
 import { RecoilViewer } from '../recoil/RecoilViewer';
 import { getStoredSpraySettings, setStoredSpraySettings } from '../../services/localStorageManager';
+import { useMobileDetect } from '../../hooks/useMobileDetect';
 
 // Gameplay clip.
 const WeaponVideo = ({ weapon, videoRef, sync, onReady }) => {
@@ -44,6 +45,7 @@ const WeaponVideo = ({ weapon, videoRef, sync, onReady }) => {
             src={weaponVideoSrc(weapon)}
             controls={show}
             preload="auto"
+            playsInline
             onLoadedData={onReady}
             onCanPlay={onReady}
             onCanPlayThrough={onReady}
@@ -107,6 +109,11 @@ export const SprayPatternsView = () => {
   const [sync, setSync] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
   const videoRef = useRef(null);
+
+  const isStacked = useMobileDetect(1024);
+  useEffect(() => {
+    if (isStacked) setSync(false);
+  }, [isStacked]);
 
   useEffect(() => {
     let alive = true;
@@ -241,11 +248,12 @@ export const SprayPatternsView = () => {
             bounds={bounds}
             patternBounds={patternBounds}
             uniform={uniform}
-            videoRef={videoRef} 
-            sync={sync} 
-            videoReady={videoReady} 
+            videoRef={videoRef}
+            sync={sync}
+            videoReady={videoReady}
             onToggleSync={() => setSync((s) => !s)}
-            active={!overlayOpen} 
+            canSync={!isStacked}
+            active={!overlayOpen}
             showVisual={spraySettings.showVisual}
             loop={spraySettings.loop}
             onUpdateSettings={updateSpraySetting}
