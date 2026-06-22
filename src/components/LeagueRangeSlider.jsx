@@ -6,7 +6,7 @@ const leagues = [
   { name: 'Silver', short: 'S', textColor: 'text-gray-300' },
   { name: 'Gold', short: 'G', textColor: 'text-yellow-400' },
   { name: 'Platinum', short: 'P', textColor: 'text-cyan-300' },
-  { name: 'Diamond', short: 'D', textColor: 'text-blue-400' },
+  { name: 'Diamond', short: 'D', textColor: 'text-[#60a5fa]' },
   { name: 'Ruby', short: 'R', textColor: 'text-red-600' },
 ];
 

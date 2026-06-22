@@ -234,7 +234,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
     <div className={`fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4`}>
       <div 
         ref={modalRef} 
-        className={`bg-gray-800 rounded-lg p-6 w-full flex flex-col transition-transform duration-75 ease-out
+        className={`bg-gray-800 rounded-lg border border-white/10 p-6 w-full flex flex-col transition-transform duration-75 ease-out
           ${isMobile ? 'max-w-[95dvw] h-[90dvh]' : 'max-w-[60dvw] h-[85dvh]'}
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
           `}

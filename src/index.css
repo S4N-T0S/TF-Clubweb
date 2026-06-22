@@ -32,6 +32,69 @@
   }
 }
 
+/*
+  Theme variants. Each one remaps the dark end of the neutral ramp (the page
+  background, surfaces and borders) and the accent — the `blue-*` ramp the UI
+  uses for buttons, links and active states. Semantic colours stay fixed across
+  every theme (rank tiers, win/loss, event markers) so the data always reads the
+  same; the lone semantic blue, Diamond rank, is pinned to a literal value in
+  code so it doesn't follow the accent.
+
+  Tailwind v4 compiles colour utilities to `var(--color-*)`, so overriding these
+  on the themed element cascades through the whole tree with no per-component
+  work. These rules are intentionally unlayered so they win over Tailwind's
+  layered `:root` defaults, and `default` is restated (not omitted) so the
+  picker's swatch previews, which render inside a nested `data-theme` scope,
+  are accurate too.
+*/
+[data-theme='default'] {
+  --color-gray-950: oklch(13% 0.028 261.692);
+  --color-gray-900: oklch(21% 0.034 264.665);
+  --color-gray-800: oklch(27.8% 0.033 256.848);
+  --color-gray-700: oklch(37.3% 0.034 259.733);
+  --color-gray-600: oklch(44.6% 0.03 256.802);
+
+  /* Accent → Tailwind's blue */
+  --color-blue-300: oklch(80.9% 0.105 251.813);
+  --color-blue-400: oklch(70.7% 0.165 254.624);
+  --color-blue-500: oklch(62.3% 0.214 259.815);
+  --color-blue-600: oklch(54.6% 0.245 262.881);
+  --color-blue-700: oklch(48.8% 0.243 264.376);
+  --color-blue-900: oklch(37.9% 0.146 265.522);
+}
+
+[data-theme='midnight'] {
+  --color-gray-950: oklch(10% 0.055 264);
+  --color-gray-900: oklch(15% 0.07 264);
+  --color-gray-800: oklch(20% 0.078 264);
+  --color-gray-700: oklch(28% 0.08 264);
+  --color-gray-600: oklch(40% 0.07 264);
+
+  /* Accent → violet (Tailwind's violet ramp) */
+  --color-blue-300: #c4b5fd;
+  --color-blue-400: #a78bfa;
+  --color-blue-500: #8b5cf6;
+  --color-blue-600: #7c3aed;
+  --color-blue-700: #6d28d9;
+  --color-blue-900: #4c1d95;
+}
+
+[data-theme='amoled'] {
+  --color-gray-950: oklch(0% 0 0);
+  --color-gray-900: oklch(0% 0 0);
+  --color-gray-800: oklch(16% 0 0);
+  --color-gray-700: oklch(23% 0 0);
+  --color-gray-600: oklch(34% 0 0);
+
+  /* Accent → fuchsia */
+  --color-blue-300: #f0abfc;
+  --color-blue-400: #e879f9;
+  --color-blue-500: #d946ef;
+  --color-blue-600: #c026d3;
+  --color-blue-700: #a21caf;
+  --color-blue-900: #701a75;
+}
+
 html {
   @apply scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800;
 }
@@ -49,7 +112,7 @@ body {
   height: 6px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: #4b5563;
+  background-color: var(--color-gray-600);
   border-radius: 3px;
 }
 
@@ -87,9 +150,9 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background-color: rgb(31, 41, 55); /* gray-800 */
-  border: 1px solid rgb(55, 65, 81); /* gray-700 */
-  color: rgb(209, 213, 219); /* gray-300 */
+  background-color: var(--color-gray-800);
+  border: 1px solid var(--color-gray-700);
+  color: var(--color-gray-300);
   padding: 0.75rem 1.5rem;
   border-radius: 8px;
   pointer-events: none;

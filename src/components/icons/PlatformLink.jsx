@@ -22,7 +22,7 @@ export const PlatformLink = ({ platform, name, className = "w-4 h-4" }) => {
             onClick={(e) => e.stopPropagation()}
             title={`Look up ${name} on ${PROFILE_LABEL[platform]}`}
             aria-label={`Look up ${name} on ${PROFILE_LABEL[platform]}`}
-            className="mr-1 inline-flex shrink-0 select-none hover:text-white focus-visible:text-white focus:outline-hidden transition-colors [-webkit-tap-highlight-color:transparent]"
+            className="mr-1 inline-flex shrink-0 select-none hover:text-blue-400 focus-visible:text-blue-400 focus:outline-hidden transition-colors [-webkit-tap-highlight-color:transparent]"
         >
             <Icon className={className} />
         </a>

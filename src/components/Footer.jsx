@@ -19,7 +19,7 @@ export const Footer = ({ isMobile }) => {
             href={GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors"
+            className="inline-flex items-center gap-1.5 text-gray-400 hover:text-blue-400 focus-visible:text-blue-400 transition-colors"
           >
             <SiGithub className="w-4 h-4" />
             {AUTHOR_NAME}

@@ -305,7 +305,7 @@ const GraphErrorView = ({ error, availableSeasons, onSwitchSeason, targetSeasonI
   };
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-[#1a1f2e] z-10 animate-fade-in-fast p-6">
+    <div className="absolute inset-0 flex items-center justify-center bg-gray-800 z-10 animate-fade-in-fast p-6">
       <div className="bg-gray-800 p-8 rounded-lg shadow-xl border border-gray-700 max-w-lg w-full text-center">
         <div className="flex justify-center mb-4">
           <div className="p-4 bg-gray-700 rounded-full">
@@ -1040,11 +1040,11 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
   if (!isOpen || !embarkId) return null;
 
   return (
-    <div className={`fixed inset-0 bg-[#0f121b]/80 backdrop-blur-xs flex items-center justify-center z-50 ${isMobile ? 'p-0' : 'p-4'}`}>
+    <div className={`fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 ${isMobile ? 'p-0' : 'p-4'}`}>
       <div
         ref={modalRef}
         className={`
-          bg-[#1a1f2e] rounded-lg w-full overflow-hidden grid grid-rows-[auto_1fr]
+          bg-gray-800 rounded-lg border border-white/10 w-full overflow-hidden grid grid-rows-[auto_1fr]
           transition-transform duration-75 ease-out
           ${isMobile ? 'w-full h-full max-w-none rounded-none p-2 gap-2' : 'max-w-[80dvw] h-[85dvh] p-6 gap-4'}
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
@@ -1311,7 +1311,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
           {isOpen && chartData && chartOptions && !error && <Line ref={chartRef} data={chartData} options={chartOptions} />}
 
           {loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#1a1f2e] z-20 animate-fade-in-fast">
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-800 z-20 animate-fade-in-fast">
               <LoadingDisplay variant="component" />
             </div>
           )}

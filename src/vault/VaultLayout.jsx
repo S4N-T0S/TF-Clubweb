@@ -7,6 +7,7 @@ import { ImportSummaryBanner } from './components/ImportSummaryBanner';
 import { MultiAccountBanner } from './components/MultiAccountBanner';
 import { DataFreshnessBanner } from './components/DataFreshnessBanner';
 import { BackToTop } from '../components/BackToTop';
+import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import { useMobileDetect } from '../hooks/useMobileDetect';
 
 // Absolute paths
@@ -64,9 +65,15 @@ export const VaultLayout = ({ children }) => {
         {/* Sidebar */}
         <aside className="lg:w-60 shrink-0">
           <div className="bg-gray-800 rounded-xl p-4 lg:sticky lg:top-4">
-            <div className="px-1 pb-3 mb-3 border-b border-gray-700">
-              <p className="text-[10px] uppercase tracking-wider text-gray-500">Viewing data for</p>
-              <p className="text-white font-semibold truncate" title={name}>{name}</p>
+            <div className="flex items-start justify-between gap-2 px-1 pb-3 mb-3 border-b border-gray-700">
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wider text-gray-500">Viewing data for</p>
+                <p className="text-white font-semibold truncate" title={name}>{name}</p>
+              </div>
+              <ThemeSwitcher
+                placement="bottom-end"
+                triggerClassName="flex items-center justify-center p-2 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/60 transition-colors"
+              />
             </div>
 
             <nav className="flex lg:flex-col gap-1 overflow-x-auto">

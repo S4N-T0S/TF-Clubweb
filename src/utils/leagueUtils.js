@@ -17,10 +17,10 @@ const LEAGUE_DATA = {
   14: { name: "Platinum 3", style: 'text-cyan-300' },
   15: { name: "Platinum 2", style: 'text-cyan-300' },
   16: { name: "Platinum 1", style: 'text-cyan-300' },
-  17: { name: "Diamond 4", style: 'text-blue-400' },
-  18: { name: "Diamond 3", style: 'text-blue-400' },
-  19: { name: "Diamond 2", style: 'text-blue-400' },
-  20: { name: "Diamond 1", style: 'text-blue-400' },
+  17: { name: "Diamond 4", style: 'text-[#60a5fa]' },
+  18: { name: "Diamond 3", style: 'text-[#60a5fa]' },
+  19: { name: "Diamond 2", style: 'text-[#60a5fa]' },
+  20: { name: "Diamond 1", style: 'text-[#60a5fa]' },
   21: { name: "Ruby", style: 'text-red-600' } // Ruby League remember to change if API changes (in dataProcessing.js)
 };
 

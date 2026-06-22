@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Users, Trophy, Globe, UserSearch, Zap, Info, House } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { ThemeSwitcher } from './ThemeSwitcher';
 
 const ViewButton = ({ active, to, onClick, icon, text }) => (
   <Link
@@ -97,7 +98,7 @@ export const DashboardHeader = ({
                 to="/info"
                 onClick={(e) => { e.preventDefault(); onOpenInfo(); }}
                 title="Information"
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-gray-400 hover:text-blue-400 focus-visible:text-blue-400 transition-colors"
               >
                 <Info className="w-5 h-5"/>
               </Link>
@@ -152,12 +153,13 @@ export const DashboardHeader = ({
                 <Link
                   to="/members"
                   onClick={(e) => { e.preventDefault(); onOpenMembers(); }}
-                  className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 
+                  className="px-4 py-2 rounded-lg flex items-center justify-center gap-2
                     bg-gray-700 text-gray-300 hover:bg-gray-600 w-full sm:w-auto"
                   title="OG Club Members"
                 >
                   <Users className="w-4 h-4" />
                 </Link>
+                <ThemeSwitcher />
               </div>
             ) : (
               <div className="flex justify-end gap-2 w-full">
@@ -184,11 +186,12 @@ export const DashboardHeader = ({
                 <Link
                   to="/members"
                   onClick={(e) => { e.preventDefault(); onOpenMembers(); }}
-                  className="px-4 py-2 rounded-lg flex items-center justify-center gap-2 
+                  className="px-4 py-2 rounded-lg flex items-center justify-center gap-2
                     bg-gray-700 text-gray-300 hover:bg-gray-600"
                 >
                   <Users className="w-4 h-4" />
                 </Link>
+                <ThemeSwitcher />
               </div>
             )}
           </div>

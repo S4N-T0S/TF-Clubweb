@@ -2,6 +2,14 @@ import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import { Chart as ChartJS } from 'chart.js';
 import { SEASONS, SERVER_DOWNTIMES } from '../services/historicalDataService';
 import { formatDuration } from '../utils/timeUtils';
+import { useTheme } from '../context/ThemeProvider';
+
+// Gridline colour per theme
+const CHART_GRID = {
+  default: '#2a3042',
+  midnight: '#1b2647',
+  amoled: '#232323',
+};
 
 // Constants from GraphModal
 const RANKS = [
@@ -166,11 +174,11 @@ const createTooltip = (chart) => {
   const tooltipEl = document.createElement('div');
   tooltipEl.className = 'rank-tooltip';
   Object.assign(tooltipEl.style, {
-    background: 'rgba(31, 41, 55, 0.85)', // Transparent gray-800
+    background: 'color-mix(in oklab, var(--color-gray-800) 88%, transparent)', // themed translucent surface
     backdropFilter: 'blur(8px)',          // Glass effect
     WebkitBackdropFilter: 'blur(8px)',    // Safari support
     borderRadius: '8px',
-    border: '1px solid rgba(75, 85, 99, 0.4)', // Softer gray border
+    border: '1px solid color-mix(in oklab, var(--color-gray-600) 55%, transparent)', // themed soft border
     color: '#FAF9F6',
     opacity: 0,
     pointerEvents: 'none',
@@ -331,6 +339,9 @@ export const useChartConfig = ({
   // 'rank' plots true leaderboard rank on an inverted axis (#1 at the top); 'rankScore'
   // is the original rank-score view. The caller only passes 'rank' for supported seasons.
   const isRankMode = displayMode === 'rank';
+
+  const { themeId } = useTheme();
+  const gridColor = CHART_GRID[themeId] ?? CHART_GRID.default;
 
   const seasonConfig = useMemo(() => Object.values(SEASONS).find(s => s.id === seasonId), [seasonId]);
   const seasonEndDate = useMemo(() => seasonConfig?.endTimestamp ? new Date(seasonConfig.endTimestamp * 1000) : null, [seasonConfig]);
@@ -753,7 +764,7 @@ export const useChartConfig = ({
         const hrRow = document.createElement('tr');
         const hrCell = document.createElement('td');
         hrCell.colSpan = 2;
-        hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
+        hrCell.innerHTML = '<hr style="border-color: var(--color-gray-600); margin: 8px 0;" />';
         hrRow.appendChild(hrCell);
         tableRoot.appendChild(hrRow);
 
@@ -796,7 +807,7 @@ export const useChartConfig = ({
           const hrRow = document.createElement('tr');
           const hrCell = document.createElement('td');
           hrCell.colSpan = 2;
-          hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
+          hrCell.innerHTML = '<hr style="border-color: var(--color-gray-600); margin: 8px 0;" />';
           hrRow.appendChild(hrCell);
           tableRoot.appendChild(hrRow);
         }
@@ -816,7 +827,7 @@ export const useChartConfig = ({
           const hrRow = document.createElement('tr');
           const hrCell = document.createElement('td');
           hrCell.colSpan = 2;
-          hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
+          hrCell.innerHTML = '<hr style="border-color: var(--color-gray-600); margin: 8px 0;" />';
           hrRow.appendChild(hrCell);
           tableRoot.appendChild(hrRow);
         }
@@ -841,7 +852,7 @@ export const useChartConfig = ({
           const hrRow = document.createElement('tr');
           const hrCell = document.createElement('td');
           hrCell.colSpan = 2;
-          hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
+          hrCell.innerHTML = '<hr style="border-color: var(--color-gray-600); margin: 8px 0;" />';
           hrRow.appendChild(hrCell);
           tableRoot.appendChild(hrRow);
         }
@@ -862,7 +873,7 @@ export const useChartConfig = ({
           const hrRow = document.createElement('tr');
           const hrCell = document.createElement('td');
           hrCell.colSpan = 2;
-          hrCell.innerHTML = '<hr style="border-color: #4b5563; margin: 8px 0;" />';
+          hrCell.innerHTML = '<hr style="border-color: var(--color-gray-600); margin: 8px 0;" />';
           hrRow.appendChild(hrCell);
           tableRoot.appendChild(hrRow);
         }
@@ -1420,7 +1431,7 @@ export const useChartConfig = ({
               }
             }
           },
-          grid: { color: '#2a3042' },
+          grid: { color: gridColor },
           ticks: {
             color: '#cecfd3',
             maxRotation: isMobile ? 55 : 69,
@@ -1445,7 +1456,7 @@ export const useChartConfig = ({
           min: initialMinY,
           max: initialMaxY,
           reverse: isRankMode, // rank mode plots an inverted axis so #1 sits at the top
-          grid: { color: '#2a3042' },
+          grid: { color: gridColor },
           ticks: {
             color: '#cecfd3',
             callback: value => isRankMode ? `#${Math.round(value).toLocaleString()}` : Math.round(value).toLocaleString(),
@@ -1551,7 +1562,8 @@ export const useChartConfig = ({
     handleChartUpdate,
     isHistoricalSeason,
     isRankMode,
-    isMobile
+    isMobile,
+    gridColor
   ]);
 
   const getPointStyle = useCallback((ctx) => {

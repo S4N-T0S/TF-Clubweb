@@ -2,6 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8"/>
+    <script>
+      (function () {
+        try {
+          document.documentElement.dataset.theme = localStorage.getItem('theme') || 'default';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'default';
+        }
+      })();
+    </script>
     <link rel="icon" type="image/png" sizes="16x16" href="/assets/16.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/assets/32.png">
     <link rel="icon" type="image/png" sizes="96x96" href="/assets/96.png">
