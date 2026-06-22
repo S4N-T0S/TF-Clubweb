@@ -1542,7 +1542,18 @@ export const useChartConfig = ({
             color: '#ffffff',
             boxWidth: 15,
             padding: 15,
-            usePointStyle: true
+            usePointStyle: true,
+            generateLabels: (chart) => {
+              const labels = ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
+              for (const label of labels) {
+                const legendColor = chart.data.datasets[label.datasetIndex]?._legendColor || '#FAF9F6';
+                label.pointStyle = 'circle';
+                label.rotation = 0;
+                label.fillStyle = legendColor;
+                label.strokeStyle = legendColor;
+              }
+              return labels;
+            }
           }
         }
       }
@@ -1714,6 +1725,7 @@ export const useChartConfig = ({
       label: comparisonData.size > 0 && mainPlayerWinrate !== null
         ? ` ${embarkId} (${mainPlayerWinrate}% WR)`
         : ` ${embarkId}`,
+      _legendColor: '#FAF9F6',
       normalized: true,
       data: buildPoints(data),
       segment: {
@@ -1732,6 +1744,7 @@ export const useChartConfig = ({
     },
     ...Array.from(comparisonData.entries()).map(([compareId, { data: compareData, color, winrate }]) => ({
       label: winrate !== null ? ` ${compareId} (${winrate}% WR)` : ` ${compareId}`,
+      _legendColor: color,
       normalized: true,
       data: buildPoints(compareData),
       segment: {
