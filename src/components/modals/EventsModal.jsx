@@ -539,12 +539,12 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
       <div 
         ref={modalRef} 
         className={`bg-gray-900 rounded-lg border border-white/10 w-full flex flex-col shadow-2xl overflow-hidden relative transition-transform duration-75 ease-out
-          ${isMobile ? 'max-w-[95vw] h-[90dvh]' : 'max-w-[60vw] h-[85dvh]'}
+          ${isMobile ? 'max-w-[95dvw] h-[90dvh]' : 'max-w-[60dvw] h-[85dvh]'}
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
           ${!isTopModal ? 'pointer-events-none' : ''}
           `}
       >
-        <header className="shrink-0 bg-gray-800 p-4 border-b border-gray-700 flex items-center justify-between sm:relative">
+        <header className="shrink-0 bg-gray-800 p-3 sm:p-4 border-b border-gray-700 flex items-center justify-between sm:relative">
             {/* Left side controls */}
             <div className="flex items-center gap-2">
                 <button
@@ -597,7 +597,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
             </div>
         </header>
 
-        <div ref={scrollContainerRef} className="grow overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+        <div ref={scrollContainerRef} className="grow overflow-y-auto p-3 sm:p-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
           <div className="shrink-0 mb-4">
             <fieldset className="bg-gray-800 p-4 rounded-lg border border-gray-700">
               <div className={`flex gap-2 items-center ${isFilterSectionExpanded ? 'mb-4' : ''}`}>

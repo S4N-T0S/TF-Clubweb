@@ -131,6 +131,14 @@ const defaultSearchSettings = {
 export const getStoredSearchSettings = () => getStoredJsonItem(SEARCH_MODAL_SETTINGS_KEY, defaultSearchSettings, areValidSearchSettings);
 export const setStoredSearchSettings = (value) => setStoredJsonItem(SEARCH_MODAL_SETTINGS_KEY, value);
 
+// Global (leaderboard) View Settings
+const GLOBAL_VIEW_SETTINGS_KEY = 'globalViewSettings';
+const areValidGlobalViewSettings = (value) =>
+  typeof value === 'object' && value !== null && typeof value.crossSeasonSearch === 'boolean';
+const defaultGlobalViewSettings = { crossSeasonSearch: false };
+export const getStoredGlobalViewSettings = () => getStoredJsonItem(GLOBAL_VIEW_SETTINGS_KEY, defaultGlobalViewSettings, areValidGlobalViewSettings);
+export const setStoredGlobalViewSettings = (value) => setStoredJsonItem(GLOBAL_VIEW_SETTINGS_KEY, value);
+
 // Spray Patterns Settings
 const SPRAY_SETTINGS_KEY = 'spraySettings';
 const areValidSpraySettings = (value) => {

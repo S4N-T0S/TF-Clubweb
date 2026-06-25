@@ -214,7 +214,7 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
       <div 
         ref={modalRef} 
         className={`bg-gray-900 rounded-lg border border-white/10 w-full flex flex-col shadow-2xl overflow-hidden relative transition-transform duration-75 ease-out
-          ${isMobile ? 'max-w-[95vw] h-[90dvh]' : 'max-w-4xl h-[85dvh]'}
+          ${isMobile ? 'max-w-[95dvw] h-[90dvh]' : 'max-w-4xl h-[85dvh]'}
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
         `}
       >

@@ -158,9 +158,9 @@ const PlayerStatsModal = ({ stats, gameCount, playerName, onClose }) => {
   // If there are no stats, show a helpful empty state instead of returning null
   if (!stats) {
     return (
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
+      <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
         <div ref={modalRef} className="bg-gray-800 rounded-2xl p-6 max-w-sm w-full border border-gray-700 shadow-2xl relative flex flex-col items-center text-center">
-          <button onClick={onClose} aria-label="Close stats" className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors bg-gray-700/50 hover:bg-gray-700 p-1.5 rounded-lg">
+          <button onClick={onClose} aria-label="Close stats" className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full">
             <X className="w-5 h-5" />
           </button>
           
@@ -205,14 +205,14 @@ const PlayerStatsModal = ({ stats, gameCount, playerName, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
+    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
       <div ref={modalRef} className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border border-gray-700 shadow-2xl relative">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-bold text-white flex items-center gap-2 truncate pr-4">
             <Activity className="w-5 h-5 text-blue-400 shrink-0" />
             <span className="truncate">{playerName ? `${playerName}'s Stats` : 'Seasonal Statistics'}</span>
           </h3>
-          <button onClick={onClose} aria-label="Close stats" className="text-gray-400 hover:text-white transition-colors bg-gray-700/50 hover:bg-gray-700 p-1.5 rounded-lg">
+          <button onClick={onClose} aria-label="Close stats" className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -440,14 +440,14 @@ const GraphSettingsModal = ({ settings, onSettingsChange, onClose, mainEvents, c
   }, [mainEvents, comparisonData, mainPlayerId, settings]);
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
+    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
       <div ref={modalRef} className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border border-gray-700 shadow-2xl relative flex flex-col max-h-[85vh]">
         <div className="flex justify-between items-center mb-5">
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
             <Settings className="w-5 h-5 text-gray-400" />
             Graph Settings
           </h3>
-          <button onClick={onClose} aria-label="Close settings" className="text-gray-400 hover:text-white transition-colors bg-gray-700/50 hover:bg-gray-700 p-1.5 rounded-lg">
+          <button onClick={onClose} aria-label="Close settings" className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -625,7 +625,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
   }, [searchTerm, mainEmbarkId, leaderboard, comparisonData, getClosestPlayers]);
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
+    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
       <div ref={modalContentRef} className="bg-gray-800 rounded-2xl w-full max-w-xl lg:max-w-3xl border border-gray-700 shadow-2xl relative flex flex-col max-h-[75dvh]">
         <div className="p-6 pb-4 shrink-0 border-b border-gray-700 flex justify-between items-center">
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -633,7 +633,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
             Compare Players
             <span className="text-sm font-medium text-gray-500 ml-1">({isMobile ? seasonKey : currentSeasonLabel})</span>
           </h3>
-          <button onClick={onClose} aria-label="Close comparisons" className="text-gray-400 hover:text-white transition-colors bg-gray-700/50 hover:bg-gray-700 p-1.5 rounded-lg">
+          <button onClick={onClose} aria-label="Close comparisons" className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full">
             <X className="w-5 h-5" />
           </button>
         </div>

@@ -1,7 +1,8 @@
-import { ChevronUp, ChevronDown, UserSearch, LineChart, Star, StarOff, X } from 'lucide-react';
+import { ChevronUp, ChevronDown, UserSearch, LineChart, Star, StarOff, X, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { usePagination } from '../../hooks/usePagination';
 import { SearchBar } from '../SearchBar';
+import { IdentityAutofill } from '../search/IdentityAutofill';
 import { LeagueDisplay } from '../LeagueDisplay';
 import { Pagination } from '../Pagination';
 import { BackToTop } from '../BackToTop';
@@ -15,26 +16,35 @@ import { useOnHold } from '../../hooks/useOnHold';
 import { SEASONS, getSeasonLeaderboard, getAllSeasonsLeaderboard } from '../../services/historicalDataService';
 import { useFavouritesManager } from '../../hooks/useFavouritesManager';
 import { buildHistoryHref, buildGraphHref, buildClubSearchHref } from '../../utils/modalHrefs';
+import { getStoredGlobalViewSettings, setStoredGlobalViewSettings } from '../../services/localStorageManager';
 
-const NoResultsMessage = ({ selectedSeason, onSeasonChange }) => {
-  return (
-    <div className="p-6 text-center text-gray-400">
-      {selectedSeason === 'ALL' ? (
-        "No results found for your search query."
-      ) : (
-        <span>
-          No results found in {SEASONS[selectedSeason]?.label || selectedSeason}.<br />
-          Try searching in <span 
-            className="text-blue-400 cursor-pointer hover:underline" 
-            onClick={() => onSeasonChange('ALL')}
-          >
-            All Seasons
-          </span> for historical records.
-        </span>
-      )}
-    </div>
-  );
-};
+const NoResultsMessage = ({ selectedSeason, onSeasonChange, inFavourites, onExitFavourites }) => (
+  <div className="p-6 text-center text-gray-400">
+    {inFavourites ? (
+      <span>
+        None of your favourites match your search.<br />
+        <span
+          className="text-blue-400 cursor-pointer hover:underline"
+          onClick={onExitFavourites}
+        >
+          Search all of {SEASONS[selectedSeason]?.label || selectedSeason}
+        </span> instead.
+      </span>
+    ) : selectedSeason === 'ALL' ? (
+      'No results found for your search query.'
+    ) : (
+      <span>
+        No results found in {SEASONS[selectedSeason]?.label || selectedSeason}.<br />
+        Switch the season filter to <span
+          className="text-blue-400 cursor-pointer hover:underline"
+          onClick={() => onSeasonChange('ALL')}
+        >
+          All Seasons
+        </span> for older seasons.
+      </span>
+    )}
+  </div>
+);
 
 const RankChangeDisplay = ({ change }) => {
   if (!change || change === 0) return null;
@@ -377,9 +387,9 @@ const FavouritesButton = ({ favourites, selectedSeason, currentSeason, showFavou
   const isDisabled = !hasFavourites || isHistoricalSeason;
   const isActive = showFavourites && !isHistoricalSeason;
   const buttonClass = `
-    px-4 py-2 rounded-lg flex items-center justify-center gap-2 text-white h-10.5
+    px-4 py-2 rounded-lg flex items-center justify-center gap-1.5 h-10.5
     whitespace-nowrap
-    ${isActive ? 'bg-yellow-500' : 'bg-gray-700 hover:bg-gray-600'} 
+    ${isActive ? 'bg-yellow-500 text-yellow-950' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'}
     ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
   `;
 
@@ -418,8 +428,15 @@ const FavouritesButton = ({ favourites, selectedSeason, currentSeason, showFavou
 
   // The button is not truly disabled, allowing the onClick to fire and show a toast.
   return (
-    <button onClick={handleClick} className={buttonClass} aria-label="Toggle Favourites">
+    <button
+      onClick={handleClick}
+      className={buttonClass}
+      aria-label={`Toggle Favourites${hasFavourites ? `, ${favourites.length} saved` : ''}`}
+    >
       <Star className={`w-5 h-5 ${isActive ? 'fill-current' : ''}`} />
+      {hasFavourites && (
+        <span className="text-sm font-semibold">{favourites.length}</span>
+      )}
     </button>
   );
 };
@@ -440,6 +457,21 @@ export const GlobalView = ({
   const [isCurrentSeason, setIsCurrentSeason] = useState(currentSeason === selectedSeason);
   const { isModalOpen } = useModal();
   const searchInputRef = useRef(null);
+
+  const [crossSeason, setCrossSeason] = useState(() => getStoredGlobalViewSettings().crossSeasonSearch);
+  const toggleCrossSeason = () => {
+    const next = !crossSeason;
+    setCrossSeason(next);
+    setStoredGlobalViewSettings({ crossSeasonSearch: next });
+    // Turning it on: focus the search bar so suggestions appear straight away
+    if (next) searchInputRef.current?.focus();
+  };
+  const enableCrossSeason = () => {
+    setCrossSeason(true);
+    setStoredGlobalViewSettings({ crossSeasonSearch: true });
+    searchInputRef.current?.focus();
+  };
+  const autofillActive = crossSeason && !showFavourites;
   const viewContainerRef = useRef(null);
   const { 
     favourites, 
@@ -602,24 +634,37 @@ export const GlobalView = ({
   return (
     <div ref={viewContainerRef}>
       <div className="flex flex-col sm:flex-row gap-2 mb-4 items-stretch sm:items-center">
-        <div className="flex-1">
-          <SearchBar 
-            value={searchQuery} 
-            onChange={setSearchQuery} 
+        <div className="flex-1 relative">
+          <SearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
             searchInputRef={searchInputRef}
+            scopeActive={autofillActive}
+            onScopeToggle={showFavourites ? undefined : toggleCrossSeason}
+            scopeTitleOn="Cross-season search is on: suggestions from every season appear as you type. Click to turn off."
+            scopeTitleOff="Cross-season search is off: only this list is filtered. Click to also search every season."
+            scopeLabel="Toggle cross-season search"
           />
+          {autofillActive && (
+            <IdentityAutofill
+              query={searchQuery}
+              inputRef={searchInputRef}
+              onSelect={onPlayerSearch}
+              currentSeasonData={globalLeaderboard}
+            />
+          )}
         </div>
-        <FavouritesButton 
-          favourites={favourites}
-          selectedSeason={selectedSeason}
-          currentSeason={currentSeason}
-          showFavourites={showFavourites}
-          setShowFavourites={setShowFavourites}
-          showToast={showToast}
-          isMobile={isMobile}
-        />
         <div className="flex items-center gap-2">
-          <div className="relative w-full sm:w-48 shrink-0">
+          <FavouritesButton
+            favourites={favourites}
+            selectedSeason={selectedSeason}
+            currentSeason={currentSeason}
+            showFavourites={showFavourites}
+            setShowFavourites={setShowFavourites}
+            showToast={showToast}
+            isMobile={isMobile}
+          />
+          <div className="relative flex-1 sm:flex-none sm:w-48">
             <select
               value={selectedSeason}
               onChange={handleSeasonChange}
@@ -647,13 +692,15 @@ export const GlobalView = ({
       {isMobile ? (
         <div>
           {currentItems.length === 0 ? (
-            <NoResultsMessage 
-              selectedSeason={selectedSeason} 
+            <NoResultsMessage
+              selectedSeason={selectedSeason}
               onSeasonChange={handleSeasonChange}
+              inFavourites={isCurrentSeason && showFavourites}
+              onExitFavourites={() => setShowFavourites(false)}
             />
           ) : (
             currentItems.map((player, index) => (
-              <PlayerRow 
+              <PlayerRow
                 key={`${player.rank}-${player.name}-${index}`}
                 player={player}
                 onSearchClick={onPlayerSearch}
@@ -721,9 +768,11 @@ export const GlobalView = ({
                 {currentItems.length === 0 ? (
                   <tr>
                     <td colSpan="6">
-                      <NoResultsMessage 
-                        selectedSeason={selectedSeason} 
+                      <NoResultsMessage
+                        selectedSeason={selectedSeason}
                         onSeasonChange={handleSeasonChange}
+                        inFavourites={isCurrentSeason && showFavourites}
+                        onExitFavourites={() => setShowFavourites(false)}
                       />
                     </td>
                   </tr>
@@ -753,6 +802,17 @@ export const GlobalView = ({
         Page {currentPage}/{totalPages}
       </div>
       </div>
+      {searchQuery.trim().length >= 2 && !crossSeason && !showFavourites && (
+        <div className="flex justify-center my-3">
+          <button
+            onClick={enableCrossSeason}
+            className="flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-colors text-center"
+          >
+            <Search className="w-4 h-4 text-blue-400 shrink-0" />
+            <span>Looking for someone not in this list? <span className="text-gray-300">Search every tracked player</span></span>
+          </button>
+        </div>
+      )}
       <Pagination
         currentPage={currentPage}
         totalPages={totalPages}

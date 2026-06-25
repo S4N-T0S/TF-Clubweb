@@ -12,7 +12,7 @@ SyntaxHighlighter.registerLanguage('http', http);
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useModal } from '../../context/ModalProvider';
 import { LoadingDisplay } from '../LoadingDisplay';
-import { X, ExternalLink, ChevronRight } from 'lucide-react';
+import { X, Info, ExternalLink, ChevronRight } from 'lucide-react';
 import { useSwipe } from '../../hooks/useSwipe';
 
 // Fetches and parses the markdown content file from the public folder.
@@ -231,8 +231,11 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
           ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
         `}
       >
-        <header className="shrink-0 bg-gray-800 p-4 border-b border-gray-700 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-white">Information</h2>
+        <header className="shrink-0 bg-gray-800 p-3 sm:p-4 border-b border-gray-700 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Info className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />
+            <h2 className="text-lg sm:text-xl font-bold text-white">Information</h2>
+          </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full">
             <X className="w-5 h-5" />
           </button>

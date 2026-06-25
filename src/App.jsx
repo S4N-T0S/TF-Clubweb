@@ -429,6 +429,7 @@ const App = () => {
                 onSearch={handleSearchSubmit}
                 isMobile={isMobile}
                 onClubClick={handleClubClick}
+                onGraphOpen={(embarkId, seasonKey) => handleGraphModalOpen(embarkId, [], seasonKey)}
                 isLeaderboardLoading={loading}
               />
             </Suspense>

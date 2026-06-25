@@ -11,6 +11,7 @@ const MAX_HEARTBEAT_AGE = 25 * 60;
 
 const RETRY_DELAY_MS = 2 * 60 * 1000; // 2 minutes
 const GRAPH_CACHE_PREFIX = 'graph_cache_';
+const IDENTITY_CACHE_PREFIX = 'identity_cache_';
 
 const getDataAge = (timestamp) => {
   if (!timestamp) return Infinity;
@@ -138,9 +139,14 @@ export const useLeaderboard = (autoRefresh) => {
       // Check if this is a fresh update (timestamp is newer than what we have). (skips clearing on new load)
       if (lastTimestampRef.current && rawData.timestamp > lastTimestampRef.current) {
          try {
-             await clearCacheStartingWith(GRAPH_CACHE_PREFIX);
+             // Identity profiles include the live current-season slice, so they
+             // are invalidated on the same refresh as the graph cache.
+             await Promise.all([
+               clearCacheStartingWith(GRAPH_CACHE_PREFIX),
+               clearCacheStartingWith(IDENTITY_CACHE_PREFIX),
+             ]);
          } catch (clearErr) {
-             console.warn("Failed to clear graph cache:", clearErr);
+             console.warn("Failed to clear graph/identity cache:", clearErr);
          }
       }
       lastTimestampRef.current = rawData.timestamp;

@@ -42,8 +42,8 @@ export const UpdateModal = ({ isVisible }) => {
   if (!isVisible) return null;
 
   const modalContent = (
-    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4 animate-fade-in-fast">
-      <div className="bg-gray-800 rounded-2xl p-6 max-w-sm w-full border border-blue-500/50 shadow-2xl flex flex-col items-center text-center">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/75 p-4 animate-fade-in-fast">
+      <div className="bg-gray-800 rounded-2xl p-6 max-w-sm w-full border border-gray-700 shadow-2xl flex flex-col items-center text-center">
         <div className="p-4 bg-blue-900/30 rounded-full mb-4">
           <RefreshCcw className="w-8 h-8 text-blue-400 animate-spin" style={{ animationDuration: '4s' }} />
         </div>

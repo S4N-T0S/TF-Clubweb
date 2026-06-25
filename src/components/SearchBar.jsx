@@ -1,11 +1,16 @@
-import { Search, X } from 'lucide-react';
+import { Search, Telescope, X } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 
-export const SearchBar = ({ 
-  value, 
-  onChange, 
-  placeholder = "Search by Embark, Steam, PSN, Xbox, or club tag! e.g: [OG] ttvscruy",
-  searchInputRef
+export const SearchBar = ({
+  value,
+  onChange,
+  placeholder = "Search by Embark, Steam, PSN, Xbox, or club tag!",
+  searchInputRef,
+  scopeActive = false,
+  onScopeToggle,
+  scopeTitleOn = 'Search scope on. Click to turn off.',
+  scopeTitleOff = 'Click to widen the search scope.',
+  scopeLabel = 'Toggle search scope',
 }) => {
   const [localValue, setLocalValue] = useState(value || '');
   const isFocused = useRef(false);
@@ -33,9 +38,28 @@ export const SearchBar = ({
 
   return (
     <div className="relative">
-      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-        <Search className="h-5 w-5 text-gray-400" />
-      </div>
+      {onScopeToggle ? (
+        <button
+          type="button"
+          onClick={onScopeToggle}
+          aria-pressed={scopeActive}
+          aria-label={scopeLabel}
+          title={scopeActive ? scopeTitleOn : scopeTitleOff}
+          className="absolute inset-y-0 left-0 pl-2 flex items-center z-10"
+        >
+          <span className={`flex items-center justify-center rounded-md p-1 transition-colors ${
+            scopeActive ? 'bg-blue-500/15 text-blue-400' : 'text-gray-400 hover:text-gray-200'
+          }`}>
+            {scopeActive
+              ? <Telescope className="h-5 w-5" />
+              : <Search className="h-5 w-5" />}
+          </span>
+        </button>
+      ) : (
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-gray-400" />
+        </div>
+      )}
       <input
         ref={searchInputRef}
         type="text"
