@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Outlet, useLocation, useSearchParams } from 'react-router-dom';
-import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { useLeaderboard } from './hooks/useLeaderboard';
 import { useVersionCheck } from './hooks/useVersionCheck';
@@ -22,11 +22,14 @@ import { ModalProvider } from './context/ModalProvider';
 import { SEASONS, currentSeasonKey } from './services/historicalDataService';
 import { cleanupExpiredCacheItems } from './services/idbCache';
 import { SEOHead } from './components/SEOHead';
+import { LazyBoundary } from './components/LazyBoundary';
 
-// Lazy load
-const GraphModal = lazy(() => import('./components/modals/GraphModal')); //big
-const InfoModal = lazy(() => import('./components/modals/InfoModal')); //unused and bigish
-const SprayPatternsView = lazy(() => import('./components/views/SprayPatternsView').then(m => ({ default: m.SprayPatternsView })));
+// Shared loading overlay shown while a lazy modal chunk downloads.
+const MODAL_FALLBACK = (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <LoadingDisplay variant="component" />
+  </div>
+);
 
 const ModalPortal = ({ children }) => {
   return createPortal(children, document.body);
@@ -346,9 +349,13 @@ const App = () => {
                 <HubView />
               )}
               {view === 'spray' && (
-                <Suspense fallback={<LoadingDisplay variant="component" />}>
-                  <SprayPatternsView />
-                </Suspense>
+                <LazyBoundary
+                  loader={() => import('./components/views/SprayPatternsView').then(m => ({ default: m.SprayPatternsView }))}
+                  fallback={<LoadingDisplay variant="component" />}
+                  variant="inline"
+                >
+                  {(SprayPatternsView) => <SprayPatternsView />}
+                </LazyBoundary>
               )}
               {view === 'clubs' && (
                 <ClubsView
@@ -381,14 +388,21 @@ const App = () => {
         {/* Modals: Rendered OUTSIDE the loading conditional */}
         <ModalPortal>
           {isInfoOpen && (
-            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><LoadingDisplay variant="component" /></div>}>
-              <InfoModal
-                key={`info-${modalKeys.info}`}
-                isOpen={isInfoOpen}
-                onClose={closeModal}
-                isMobile={isMobile}
-              />
-            </Suspense>
+            <LazyBoundary
+              loader={() => import('./components/modals/InfoModal')}
+              fallback={MODAL_FALLBACK}
+              variant="modal"
+              onClose={closeModal}
+            >
+              {(InfoModal) => (
+                <InfoModal
+                  key={`info-${modalKeys.info}`}
+                  isOpen={isInfoOpen}
+                  onClose={closeModal}
+                  isMobile={isMobile}
+                />
+              )}
+            </LazyBoundary>
           )}
 
           {isMembersOpen && (
@@ -441,21 +455,28 @@ const App = () => {
           )}
 
           {isGraphOpen && (
-            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><LoadingDisplay variant="component" /></div>}>
-              <GraphModal
-                key={`graph-${modalKeys.graph}`}
-                isOpen={isGraphOpen}
-                onClose={closeModal}
-                embarkId={graphEmbarkId}
-                compareIds={graphCompareIds}
-                seasonId={graphSeasonId}
-                globalLeaderboard={globalLeaderboard}
-                currentRubyCutoff={currentRubyCutoff}
-                isMobile={isMobile}
-                lastLeaderboardUpdate={lastUpdated}
-                showToast={showToast}
-              />
-            </Suspense>
+            <LazyBoundary
+              loader={() => import('./components/modals/GraphModal')}
+              fallback={MODAL_FALLBACK}
+              variant="modal"
+              onClose={closeModal}
+            >
+              {(GraphModal) => (
+                <GraphModal
+                  key={`graph-${modalKeys.graph}`}
+                  isOpen={isGraphOpen}
+                  onClose={closeModal}
+                  embarkId={graphEmbarkId}
+                  compareIds={graphCompareIds}
+                  seasonId={graphSeasonId}
+                  globalLeaderboard={globalLeaderboard}
+                  currentRubyCutoff={currentRubyCutoff}
+                  isMobile={isMobile}
+                  lastLeaderboardUpdate={lastUpdated}
+                  showToast={showToast}
+                />
+              )}
+            </LazyBoundary>
           )}
         </ModalPortal>
 
