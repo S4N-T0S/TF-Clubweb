@@ -184,9 +184,8 @@ const isQueryInEvent = (event, query) => {
 };
 
 
-export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubClick, onGraphOpen, showToast }) => {
-  // `useModal` now also returns `isActive`, which handles animation state internally based on the modal stack.
-  const { modalRef, isTopModal, isActive } = useModal(isOpen, onClose);
+export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubClick, onGraphOpen, showToast, isCovered }) => {
+  const { modalRef, isTopModal, isActive, requestClose } = useModal(isOpen, onClose);
   const isVisible = useVisibility();
   const searchInputRef = useRef(null);
   const scrollContainerRef = useRef(null); // Ref for the scrollable content area
@@ -535,12 +534,11 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   if (!isOpen) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4`}>
-      <div 
-        ref={modalRef} 
-        className={`bg-gray-900 rounded-lg border border-white/10 w-full flex flex-col shadow-2xl overflow-hidden relative transition-transform duration-75 ease-out
+    <div className={`modal-overlay ${isActive ? 'is-active' : ''} fixed inset-0 bg-black/75 items-center justify-center z-50 p-4 ${isCovered ? 'hidden' : 'flex'}`}>
+      <div
+        ref={modalRef}
+        className={`modal-box bg-gray-900 rounded-lg border border-white/10 w-full flex flex-col shadow-2xl overflow-hidden relative
           ${isMobile ? 'max-w-[95dvw] h-[90dvh]' : 'max-w-[60dvw] h-[85dvh]'}
-          ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
           ${!isTopModal ? 'pointer-events-none' : ''}
           `}
       >
@@ -591,7 +589,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
                         <ChevronsUpDown className="w-4 h-4" />
                     </div>
                 </div>
-                <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full">
+                <button onClick={requestClose} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full">
                     <X className="w-5 h-5" />
                 </button>
             </div>

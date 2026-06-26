@@ -327,8 +327,8 @@ const IdentityHero = ({ hero, onClubClick }) => (
   </div>
 );
 
-const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClubClick, onGraphOpen, isLeaderboardLoading }) => {
-  const { modalRef, isActive } = useModal(isOpen, onClose);
+const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClubClick, onGraphOpen, isLeaderboardLoading, isCovered }) => {
+  const { modalRef, isActive, requestClose } = useModal(isOpen, onClose);
   const [searchState, setSearchState] = useState({
     query: '',
     loadedQuery: '', // the query whose profile is currently shown (suppresses autofill)
@@ -339,7 +339,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
     isOffline: false, // the shown profile came from the bundled-only "offline" resolve
   });
   const [hideSuperseded, setHideSuperseded] = useState(() => getStoredSearchSettings().hideSupersededMatches);
-  const [expandedIndex, setExpandedIndex] = useState(null);
+  const [expandedIndices, setExpandedIndices] = useState(() => new Set());
   const inputRef = useRef(null);
 
   // Result-card suggestions shown IN the modal body (not a dropdown) while the
@@ -354,8 +354,8 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
 
   const toggleSuperseded = () => {
     // Filtering superseded rows in/out changes displayRows' length, which would
-    // shift the positional expandedIndex onto the wrong node; close any panel.
-    setExpandedIndex(null);
+    // shift the positional expanded indices onto the wrong nodes; close all panels.
+    setExpandedIndices(new Set());
     setHideSuperseded((prev) => {
       const next = !prev;
       setStoredSearchSettings({ hideSupersededMatches: next });
@@ -378,7 +378,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
     // Mark this query as the loaded one up-front so the autofill suppresses itself
     // for it immediately (no dropdown flash while the profile loads or after a pick).
     setSearchState((prev) => ({ ...prev, isSearching: true, error: '', loadedQuery: query }));
-    setExpandedIndex(null);
+    setExpandedIndices(new Set());
 
     try {
       // Resolve the full cross-season identity. A single /identity call can be
@@ -418,7 +418,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
       return;
     }
     setSearchState((prev) => ({ ...prev, isSearching: true, error: '', loadedQuery: query }));
-    setExpandedIndex(null);
+    setExpandedIndices(new Set());
     try {
       const { profile, results, offline } = await resolveIdentity(query, currentSeasonData, { offline: true });
       setSearchState((prev) => ({ ...prev, results, profile, isSearching: false, query, isOffline: offline }));
@@ -588,12 +588,11 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
   const isBusy = searchState.isSearching || (isLeaderboardLoading && initialSearch && !hasProfile);
 
   return (
-    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4">
+    <div className={`modal-overlay ${isActive ? 'is-active' : ''} fixed inset-0 bg-black/75 items-center justify-center z-50 p-4 ${isCovered ? 'hidden' : 'flex'}`}>
       <div
         ref={modalRef}
-        className={`bg-gray-900 rounded-lg border border-white/10 w-full flex flex-col shadow-2xl overflow-hidden relative transition-transform duration-75 ease-out
-          ${isMobile ? 'max-w-[95dvw] h-[90dvh]' : 'max-w-[60dvw] h-[85dvh]'}
-          ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}`}
+        className={`modal-box bg-gray-900 rounded-lg border border-white/10 w-full flex flex-col shadow-2xl overflow-hidden relative
+          ${isMobile ? 'max-w-[95dvw] h-[90dvh]' : 'max-w-[60dvw] h-[85dvh]'}`}
       >
         {/* Header band */}
         <header className="shrink-0 bg-gray-800 p-3 sm:p-4 border-b border-gray-700 flex items-center justify-between">
@@ -602,7 +601,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
             <h2 className="text-lg sm:text-xl font-bold text-white">Player history</h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             title="Close search"
             aria-label="Close search"
             className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full"
@@ -708,8 +707,13 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
                       onClubClick={onClubClick}
                       onGraphOpen={onGraphOpen}
                       profileSeason={profileSeasonsById.get(SEASONS[row.seasonKey]?.id)}
-                      expanded={expandedIndex === i}
-                      onToggleExpand={() => setExpandedIndex((p) => (p === i ? null : i))}
+                      expanded={expandedIndices.has(i)}
+                      onToggleExpand={() => setExpandedIndices((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(i)) next.delete(i);
+                        else next.add(i);
+                        return next;
+                      })}
                     />
                   ))}
                 </div>

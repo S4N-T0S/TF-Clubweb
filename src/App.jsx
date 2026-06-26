@@ -78,7 +78,7 @@ const App = () => {
     isMembersOpen: location.pathname.startsWith('/members') || (isOverlayModalPath && background.startsWith('/members')),
     isEventsOpen: location.pathname.startsWith('/events') || (isOverlayModalPath && background.startsWith('/events')),
     isGraphOpen: !!graph && !!graphEmbarkId,
-    isSearchOpen: location.pathname.startsWith('/history'),
+    isSearchOpen: location.pathname.startsWith('/history') || (isOverlayModalPath && background.startsWith('/history')),
     isInfoOpen: location.pathname.startsWith('/info')
   }), [location.pathname, isOverlayModalPath, background, graph, graphEmbarkId]);
 
@@ -189,20 +189,19 @@ const App = () => {
   }, [setToastMessage]);
 
   const openModal = useCallback((newPath) => {
-    // Push a browser history entry so Back/Forward work. Remember the
-    // current location (path + search) as the background, so stacked overlays
-    // (e.g. a graph opened from the events modal) keep what's underneath, and
-    // closing restores ?page=N etc.
+    // Push a browser history entry so Back/Forward work. Remember the current
+    // location (path + search) as the background, so stacked overlays (e.g. a graph
+    // opened from the events modal) keep what's underneath, and closing returns there
+    // (restoring ?page=N etc.). Forward then reopens the modal.
     navigate(newPath, { state: { background: location.pathname + location.search } });
   }, [location.pathname, location.search, navigate]);
 
   const closeModal = useCallback(() => {
-    // If this overlay was opened on top of a background view within this session,
-    // that background is the previous history entry — go back to it so the URL,
-    // scroll and state restore naturally (and browser Back does the same thing).
-    // Without a background (deep link, or a manual URL edit that reloaded the page)
-    // there may be unrelated/stale modal entries behind us, so jump straight home
-    // instead of walking back through them one by one.
+    // Go back to the background, which is the previous history entry — so the URL,
+    // scroll and state restore naturally and the modal lands in Forward (browser Back
+    // and a Forward-reopen both behave as users expect). Without a background (deep
+    // link, or a manual URL edit that reloaded the page) there may be unrelated/stale
+    // entries behind us, so jump straight home instead of walking back through them.
     if (location.state?.background) navigate(-1);
     else navigate('/', { replace: true });
   }, [navigate, location.state]);
@@ -269,8 +268,11 @@ const App = () => {
   }, [openModal, location.pathname, history, refreshKey]);
 
   const handleSearchSubmit = useCallback((query) => {
-    navigate(`/history/${query}`, { replace: true });
-  }, [navigate]);
+    // Replace (not push) so re-searching inside the modal doesn't spam history, but
+    // keep the existing state so `background` survives — otherwise closing after a
+    // re-search would drop you on the home page instead of the view you came from.
+    navigate(`/history/${query}`, { replace: true, state: location.state });
+  }, [navigate, location.state]);
 
   const handleGraphModalOpen = useCallback((embarkId, compareIds = [], seasonKey = null) => {
     // If no seasonKey is provided, default to the current season.
@@ -399,6 +401,7 @@ const App = () => {
                 onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
                 onPlayerSearch={(name) => handleSearchModalOpen(name)}
                 isMobile={isMobile}
+                isCovered={isSearchOpen || isGraphOpen}
               />
             </Suspense>
           )}
@@ -414,6 +417,7 @@ const App = () => {
                 onClubClick={handleClubClick}
                 onGraphOpen={(embarkId, seasonKey) => handleGraphModalOpen(embarkId, [], seasonKey)}
                 showToast={showToast}
+                isCovered={isSearchOpen || isGraphOpen}
               />
             </Suspense>
           )}
@@ -431,6 +435,7 @@ const App = () => {
                 onClubClick={handleClubClick}
                 onGraphOpen={(embarkId, seasonKey) => handleGraphModalOpen(embarkId, [], seasonKey)}
                 isLeaderboardLoading={loading}
+                isCovered={isGraphOpen}
               />
             </Suspense>
           )}

@@ -695,7 +695,7 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
 const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, globalLeaderboard = [], currentRubyCutoff, isMobile, lastLeaderboardUpdate, showToast }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { modalRef, isActive } = useModal(isOpen, onClose);
+  const { modalRef, isActive, requestClose } = useModal(isOpen, onClose);
   const chartRef = useRef(null);
   const hasSetInitialTimeRangeRef = useRef(false);
   // Keep the latest history state available without rebinding handleUrlChange.
@@ -1040,14 +1040,12 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
   if (!isOpen || !embarkId) return null;
 
   return (
-    <div className={`fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 ${isMobile ? 'p-0' : 'p-4'}`}>
+    <div className={`modal-overlay ${isActive ? 'is-active' : ''} fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 ${isMobile ? 'p-0' : 'p-4'}`}>
       <div
         ref={modalRef}
-        className={`
+        className={`modal-box
           bg-gray-800 rounded-lg border border-white/10 w-full overflow-hidden grid grid-rows-[auto_1fr]
-          transition-transform duration-75 ease-out
           ${isMobile ? 'w-full h-full max-w-none rounded-none p-2 gap-2' : 'max-w-[80dvw] h-[85dvh] p-6 gap-4'}
-          ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
         `}
       >
         {showCompareModal && !isLeaderboardLoading && (
@@ -1123,7 +1121,7 @@ const GraphModal = ({ isOpen, onClose, embarkId, compareIds = [], seasonId, glob
                 </div>
                 {isMobile && (
                   <button
-                    onClick={onClose}
+                    onClick={requestClose}
                     aria-label="Close modal"
                     className="p-2 hover:bg-gray-700 rounded-lg shrink-0"
                   >

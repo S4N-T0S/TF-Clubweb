@@ -125,8 +125,8 @@ const MemberRow = ({ member, onGraphOpen, onSearch }) => {
   );
 };
 
-export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, onPlayerSearch, isMobile }) => {
-  const { modalRef, isActive } = useModal(isOpen, onClose);
+export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, onPlayerSearch, isMobile, isCovered }) => {
+  const { modalRef, isActive, requestClose } = useModal(isOpen, onClose);
   const scrollContainerRef = useRef(null);
   const scrollPositionRef = useRef(0);
   
@@ -210,12 +210,11 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4">
-      <div 
-        ref={modalRef} 
-        className={`bg-gray-900 rounded-lg border border-white/10 w-full flex flex-col shadow-2xl overflow-hidden relative transition-transform duration-75 ease-out
+    <div className={`modal-overlay ${isActive ? 'is-active' : ''} fixed inset-0 bg-black/75 items-center justify-center z-50 p-4 ${isCovered ? 'hidden' : 'flex'}`}>
+      <div
+        ref={modalRef}
+        className={`modal-box bg-gray-900 rounded-lg border border-white/10 w-full flex flex-col shadow-2xl overflow-hidden relative
           ${isMobile ? 'max-w-[95dvw] h-[90dvh]' : 'max-w-4xl h-[85dvh]'}
-          ${isActive ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
         `}
       >
         <header className="shrink-0 bg-gray-800 p-3 sm:p-4 border-b border-gray-700 flex items-center justify-between">
@@ -223,7 +222,7 @@ export const MembersModal = ({ isOpen, onClose, globalLeaderboard, onGraphOpen, 
                 <Users className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />
                 <h2 className="text-lg sm:text-xl font-bold text-white">OG Club Membership</h2>
            </div>
-           <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full">
+           <button onClick={requestClose} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full">
               <X className="w-5 h-5" />
            </button>
         </header>

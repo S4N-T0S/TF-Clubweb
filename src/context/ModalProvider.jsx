@@ -60,26 +60,7 @@ export const ModalProvider = ({ children }) => {
     return modalStack[modalStack.length - 1].ref === ref;
   }, [modalStack]);
   
-  const isEffectivelyTopModal = useCallback((ref) => {
-    if (modalStack.length === 0) return false;
-    
-    const modalIndex = modalStack.findIndex(m => m.ref === ref);
-    if (modalIndex === -1) return false; // Not in stack
-
-    // It's effectively top if it's the top modal itself.
-    if (modalIndex === modalStack.length - 1) return true;
-
-    // Or if all modals stacked on top of it are of type 'nested'.
-    for (let i = modalIndex + 1; i < modalStack.length; i++) {
-      if (modalStack[i].type !== 'nested') {
-        return false; // Found a 'main' modal on top.
-      }
-    }
-    
-    return true; // All modals on top are nested.
-  }, [modalStack]);
-
-  const value = { registerModal, unregisterModal, isTopModal, isEffectivelyTopModal };
+  const value = { registerModal, unregisterModal, isTopModal };
 
   return (
     <ModalContext.Provider value={value}>
@@ -95,35 +76,51 @@ export const useModal = (isOpen, onClose, options) => {
         throw new Error('useModal must be used within a ModalProvider');
     }
     
-    const { registerModal, unregisterModal, isTopModal, isEffectivelyTopModal } = context;
+    const { registerModal, unregisterModal, isTopModal } = context;
     const modalRef = useRef(null);
     const [isActive, setIsActive] = useState(false);
 
-    // We calculate these on every render, as the modal stack could have changed.
+    // We calculate this on every render, as the modal stack could have changed.
     const isCurrentlyTop = isTopModal(modalRef);
-    const isEffectivelyTop = isEffectivelyTopModal(modalRef);
+
+    // Keep the latest onClose in a ref so requestClose stays referentially stable.
+    const onCloseRef = useRef(onClose);
+    useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+    // Exit is instant: no fade-out. The modal unmounts (via its router-driven
+    // onClose) the instant it's dismissed, so whatever is underneath — a stacked
+    // modal or the page itself — is revealed with zero downtime. The guard makes a
+    // double trigger (e.g. an outside-click racing the X button) a no-op, so we
+    // never fire onClose — and therefore never navigate — twice.
+    const closingRef = useRef(false);
+    const requestClose = useCallback(() => {
+        if (closingRef.current) return;
+        closingRef.current = true;
+        onCloseRef.current?.();
+    }, []);
 
     useEffect(() => {
         if (isOpen) {
-            // Pass options to registerModal.
-            registerModal(onClose, modalRef, options);
+            // Reset the close guard on (re)open, then register requestClose (not the
+            // raw onClose) so the provider's outside-click handler shares the same
+            // single-fire close path.
+            closingRef.current = false;
+            registerModal(requestClose, modalRef, options);
             return () => {
                 unregisterModal();
             };
         }
-    }, [isOpen, onClose, modalRef, options, registerModal, unregisterModal]);
+    }, [isOpen, requestClose, modalRef, options, registerModal, unregisterModal]);
 
-    // This effect manages the 'active' state for animations.
-    // It becomes active if it's "effectively" the top modal.
+    // Entrance only. Fade in once, shortly after mount, then stay active for the
+    // modal's whole life — even while covered by a modal above it — so being
+    // re-revealed when the modal above closes is instant, with no second fade-in.
+    // (Closing unmounts the modal, so isActive resets naturally on the next open.)
     useEffect(() => {
-        // Use a short timeout to allow the modal to be rendered before applying the animation classes.
-        if (isEffectivelyTop) {
-            const timer = setTimeout(() => setIsActive(true), 10);
-            return () => clearTimeout(timer);
-        } else {
-            setIsActive(false);
-        }
-    }, [isEffectivelyTop]);
+        if (isActive) return;
+        const timer = setTimeout(() => setIsActive(true), 10);
+        return () => clearTimeout(timer);
+    }, [isActive]);
 
-    return { modalRef, isTopModal: isCurrentlyTop, isActive };
+    return { modalRef, isTopModal: isCurrentlyTop, isActive, requestClose };
 };
