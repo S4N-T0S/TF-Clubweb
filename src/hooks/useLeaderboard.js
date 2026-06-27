@@ -86,7 +86,7 @@ const getToastConfig = (source, timestamp, lastCheck, ttl) => {
   };
 };
 
-export const useLeaderboard = (autoRefresh) => {
+export const useLeaderboard = (autoRefresh, pushToast, dismissToast) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const isVisible = useVisibility();
@@ -96,7 +96,6 @@ export const useLeaderboard = (autoRefresh) => {
     currentRubyCutoff: false,
     lastUpdated: null
   });
-  const [toastMessage, setToastMessage] = useState(null);
   const [cacheExpiresAt, setCacheExpiresAt] = useState(0);
   
   // Refs
@@ -118,12 +117,12 @@ export const useLeaderboard = (autoRefresh) => {
     if (!isMounted.current) return;
 
     // Only show "loading" toast on manual/auto refreshes, not the initial page load.
-    if (!isInitialLoad) { 
-      setToastMessage({
+    if (!isInitialLoad) {
+      pushToast({
+        key: 'leaderboard',
         title: 'Refreshing',
         message: 'Refreshing leaderboard data...',
         type: 'loading',
-        timestamp: Date.now(),
         duration: Infinity,
         showCloseButton: false
       });
@@ -179,14 +178,17 @@ export const useLeaderboard = (autoRefresh) => {
       }
 
       if (shouldShowToast) {
-        setToastMessage(getToastConfig(
-          rawData.source, 
-          rawData.timestamp, 
-          rawData.lastCheck, 
-          rawData.remainingTtl
-        ));
+        pushToast({
+          key: 'leaderboard',
+          ...getToastConfig(
+            rawData.source,
+            rawData.timestamp,
+            rawData.lastCheck,
+            rawData.remainingTtl
+          )
+        });
       } else {
-        setToastMessage(null);
+        dismissToast('leaderboard');
       }
       
     } catch (err) {
@@ -194,10 +196,10 @@ export const useLeaderboard = (autoRefresh) => {
       
       console.error('Error in refreshData:', err);
       setError('Failed to load leaderboard data. Will retry automatically.');
-      setToastMessage({
+      pushToast({
+        key: 'leaderboard',
         message: 'Failed to connect. Will retry automatically.',
         type: 'error',
-        timestamp: Date.now(),
         showMeta: true,
         ttl: RETRY_DELAY_MS / 1000
       });
@@ -212,7 +214,7 @@ export const useLeaderboard = (autoRefresh) => {
         }
       }
     }
-  }, []);
+  }, [pushToast, dismissToast]);
 
   // Initial load
   useEffect(() => {
@@ -260,7 +262,5 @@ export const useLeaderboard = (autoRefresh) => {
     loading,
     error,
     refreshData,
-    toastMessage,
-    setToastMessage,
   };
 };

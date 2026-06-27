@@ -135,9 +135,15 @@ export const setStoredSearchSettings = (value) => setStoredJsonItem(SEARCH_MODAL
 const GLOBAL_VIEW_SETTINGS_KEY = 'globalViewSettings';
 const areValidGlobalViewSettings = (value) =>
   typeof value === 'object' && value !== null && typeof value.crossSeasonSearch === 'boolean';
-const defaultGlobalViewSettings = { crossSeasonSearch: false };
-export const getStoredGlobalViewSettings = () => getStoredJsonItem(GLOBAL_VIEW_SETTINGS_KEY, defaultGlobalViewSettings, areValidGlobalViewSettings);
-export const setStoredGlobalViewSettings = (value) => setStoredJsonItem(GLOBAL_VIEW_SETTINGS_KEY, value);
+const defaultGlobalViewSettings = {
+  crossSeasonSearch: false,
+  lastFavReconcileCycleTs: null,
+};
+export const getStoredGlobalViewSettings = () => ({
+  ...defaultGlobalViewSettings,
+  ...getStoredJsonItem(GLOBAL_VIEW_SETTINGS_KEY, defaultGlobalViewSettings, areValidGlobalViewSettings),
+});
+export const setStoredGlobalViewSettings = (value) => setStoredJsonItem(GLOBAL_VIEW_SETTINGS_KEY, { ...getStoredGlobalViewSettings(), ...value });
 
 // Spray Patterns Settings
 const SPRAY_SETTINGS_KEY = 'spraySettings';

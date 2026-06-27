@@ -16,7 +16,8 @@ import SearchModal from './components/modals/SearchModal';
 import EventsModal from './components/modals/EventsModal';
 import MembersModal from './components/modals/MembersModal';
 import { UpdateModal } from './components/modals/UpdateModal';
-import Toast from './components/Toast';
+import { ToastStack } from './components/ToastStack';
+import { useToasts } from './hooks/useToasts';
 import { getStoredTab, setStoredTab, cleanupDeprecatedCache } from './services/localStorageManager';
 import { ModalProvider } from './context/ModalProvider';
 import { SEASONS, currentSeasonKey } from './services/historicalDataService';
@@ -128,6 +129,9 @@ const App = () => {
     }, { replace: true });
   }, [setSearchParams, currentSeason]);
 
+  // Toast store. Stacks by default; useLeaderboard claims the keyed 'leaderboard' slot.
+  const { toasts, pushToast, dismissToast } = useToasts();
+
   const {
     topClubs,
     globalLeaderboard,
@@ -135,10 +139,8 @@ const App = () => {
     loading,
     error,
     refreshData,
-    toastMessage,
-    setToastMessage,
     lastUpdated
-  } = useLeaderboard(autoRefresh);
+  } = useLeaderboard(autoRefresh, pushToast, dismissToast);
 
   // --> Effects
 
@@ -185,11 +187,8 @@ const App = () => {
   // --> Handlers
 
   const showToast = useCallback((toastOptions) => {
-    setToastMessage({
-      timestamp: Date.now(),
-      ...toastOptions
-    });
-  }, [setToastMessage]);
+    pushToast(toastOptions);
+  }, [pushToast]);
 
   const openModal = useCallback((newPath) => {
     // Push a browser history entry so Back/Forward work. Remember the current
@@ -322,13 +321,7 @@ const App = () => {
           infoModalOpen={isInfoOpen}
         />
 
-        {toastMessage && (
-          <Toast
-            {...toastMessage}
-            onClose={toastMessage.onClose}
-            isMobile={isMobile}
-          />
-        )}
+        <ToastStack toasts={toasts} onDismiss={dismissToast} isMobile={isMobile} />
 
         {/* Main Content: Conditionally rendered based on loading state*/}
         {loading ? (
@@ -374,6 +367,7 @@ const App = () => {
                   onPlayerSearch={(name) => handleSearchModalOpen(name)}
                   onGraphOpen={(embarkId, seasonKey) => handleGraphModalOpen(embarkId, [], seasonKey)}
                   isMobile={isMobile}
+                  lastLeaderboardUpdate={lastUpdated}
                   showFavourites={showFavourites}
                   setShowFavourites={setShowFavourites}
                   showToast={showToast}

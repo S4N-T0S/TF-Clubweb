@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { AlertCircle, CheckCircle2, Clock, X, Loader2, Info } from 'lucide-react';
 import { formatTimeAgo } from '../utils/timeUtils';
 
@@ -21,7 +21,7 @@ const formatTtl = (ttl, type) => {
   // We convert ttl from seconds to milliseconds for the function.
   const minutes = Math.ceil(ttl / 60);
   const minuteText = minutes === 1 ? '1 minute' : `${minutes} minutes`;
-  
+
   if (type === 'success') {
     return `Will check for update in ${minuteText}`;
   }
@@ -69,7 +69,18 @@ const TOAST_TYPE_CONFIG = {
   }
 };
 
-const Toast = ({ 
+const textSizeClasses = {
+  small: 'text-xs',
+  normal: 'text-sm',
+  large: 'text-base',
+  xlarge: 'text-lg'
+};
+
+// A single toast card. Presentational: positioning + stacking are owned by ToastStack.
+// It plays its own enter/leave animation and, when its timer elapses (or it is closed),
+// asks the parent to remove it via onDismiss(id) so the stack re-flows.
+const Toast = ({
+  id,
   message,
   type = 'info',
   timestamp,
@@ -78,73 +89,56 @@ const Toast = ({
   title,
   icon: CustomIcon,
   textSize = 'normal',
-  position = 'top-right',
   duration = 2500,
   showCloseButton,
   isMobile,
-  onClose
+  onClose,
+  onDismiss
 }) => {
   const [isVisible, setIsVisible] = useState(false);
+  const closingRef = useRef(false);
   const effectiveShowClose = showCloseButton ?? isMobile;
-  const [currentMessage, setCurrentMessage] = useState(message);
-  
-  // Text size mapping
-  const textSizeClasses = {
-    small: 'text-xs',
-    normal: 'text-sm',
-    large: 'text-base',
-    xlarge: 'text-lg'
-  };
-  
-  // Position mapping
-  const positionClasses = {
-    'top-right': 'top-2 right-2 sm:top-4 sm:right-4',
-    'top-left': 'top-2 left-2 sm:top-4 sm:left-4',
-    'bottom-right': 'bottom-2 right-2 sm:bottom-4 sm:right-4',
-    'bottom-left': 'bottom-2 left-2 sm:bottom-4 sm:left-4',
-    'top-center': 'top-2 left-1/2 -translate-x-1/2',
-    'bottom-center': 'bottom-2 left-1/2 -translate-x-1/2'
-  };
 
-  // Show toast whenever new message arrives
+  // Enter animation on mount, and re-arm whenever a keyed slot is REPLACED in place
+  // (same React key, new `id`): reset the closing latch and re-show, so a replacement
+  // that lands during the previous content's leave animation can't get stuck invisible.
   useEffect(() => {
-    if (message) {
-      setCurrentMessage(message);
-      setIsVisible(true);
-      
-      // Auto-hide after specified duration
-      if (duration !== Infinity) {
-        const timer = setTimeout(() => {
-          setIsVisible(false);
-          if (onClose) onClose();
-        }, duration);
-  
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [message, timestamp, duration, onClose]);
+    closingRef.current = false;
+    const raf = requestAnimationFrame(() => setIsVisible(true));
+    return () => cancelAnimationFrame(raf);
+  }, [id]);
+
+  // Play the leave animation, then remove from the stack after the transition.
+  const close = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setIsVisible(false);
+    if (onClose) onClose();
+    setTimeout(() => onDismiss && onDismiss(id), 300);
+  }, [id, onClose, onDismiss]);
+
+  // Auto-dismiss after the duration (Infinity keeps it until replaced/closed).
+  useEffect(() => {
+    if (duration === Infinity) return;
+    const timer = setTimeout(close, duration);
+    return () => clearTimeout(timer);
+  }, [duration, close]);
 
   // Get toast configuration based on type
   const toastConfig = TOAST_TYPE_CONFIG[type] || TOAST_TYPE_CONFIG.default;
-  
+
   // Allow override of default icon with custom icon
   const IconComponent = CustomIcon || toastConfig.icon;
 
-  const handleClose = () => {
-    setIsVisible(false);
-    if (onClose) onClose();
-  };
-
-  if (!currentMessage || !isVisible) return null;
+  if (!message && !title) return null;
 
   // Get CSS classes based on configuration
   const textSizeClass = textSizeClasses[textSize] || textSizeClasses.normal;
-  const positionClass = positionClasses[position] || positionClasses['top-right'];
 
   return (
-    <div 
+    <div
       data-toast-container="true"
-      className={`fixed ${positionClass} z-60 transition-all duration-300 ease-out ${
+      className={`pointer-events-auto transition-all duration-300 ease-out ${
         isVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-95'
       } max-w-[90vw] sm:max-w-sm w-auto`}
     >
@@ -161,7 +155,7 @@ const Toast = ({
               <p className={`font-semibold text-gray-100 ${textSizeClass} mb-0.5`}>{title}</p>
             )}
             <p className={`${!title ? 'font-medium' : ''} text-gray-200 ${textSizeClass} wrap-break-word`}>
-              {currentMessage}
+              {message}
             </p>
             {showMeta && (timestamp || typeof ttl === 'number') ? (
               <div className="mt-1.5 space-y-0.5">
@@ -177,7 +171,7 @@ const Toast = ({
 
           {effectiveShowClose && (
             <button
-              onClick={handleClose}
+              onClick={close}
               className="text-gray-400 hover:text-white rounded-lg hover:bg-white/10 shrink-0 p-1 self-center flex items-center transition-colors"
               aria-label="Close"
             >
@@ -192,52 +186,45 @@ const Toast = ({
 
 export default Toast;
 
-/* Complete example of setToastMessage with all available options
-
-  // The main content of the toast notification
-  // This can be a simple string or include newlines for multi-line messages
-  message: "Your changes have been saved successfully!",
-  
-  // Type of notification that determines the color scheme and default icon
-  // Options: 'success', 'error', 'warning', 'info', 'loading', 'default'
-  type: "success",
-
-  // Timestamp is required for unique toast but also used for "Last updated" display
-  timestamp: Date.now(),
-
-  // Optional: showMeta is used when providing information and we want to display ttl and timestamp. Defaults to false.
-  showMeta: true or false,
-  
-  // Optional: Add a bold title above the message
-  // Useful for emphasizing the purpose or category of the notification
-  title: "Changes Saved",
-  
-  // Optional: Custom icon to override the default icon for the selected type
-  // Import and use any icon from lucide-react or other compatible icon libraries
-  icon: SaveIcon,
-  
-  // Optional: Control the text size of the notification message and title
-  // Options: 'small', 'normal', 'large', 'xlarge'
-  textSize: "normal",
-  
-  // Optional: Position of the toast on the screen
-  // Options: 'top-right', 'top-left', 'bottom-right', 'bottom-left', 'top-center', 'bottom-center'
-  position: "top-right",
-  
-  // Optional: Time in milliseconds before the toast auto-dismisses
-  // Set to Infinity to keep the toast visible until manually closed
-  duration: 5000,
-  
-  // Optional: Control whether the close button is displayed
-  // Set to false to remove the close button (useful for brief notifications)
-  showCloseButton: true or false,
-  
-  // Optional: Function to call when the toast is closed (either by timeout or manually)
-  // Useful for cleanup actions or triggering follow-up processes
-  onClose: () => console.log("Toast notification closed"),
-  
-  // Optional: Time-to-live in seconds for the cached data
-  // Used to show when next update should be available from API
-  ttl: 600 // 10 minutes
-});
-*/
+/* How to show a toast
+ * -------------------
+ * Toasts now STACK. Trigger one with the `showToast` callback that App threads to the
+ * views/modals, or with `pushToast` from the useToasts store directly. Pass a plain
+ * options object — every field below is optional except `message` (or `title`):
+ *
+ *   showToast({
+ *     // --- content ---
+ *     message: "Your changes have been saved successfully!", // main body text (required unless `title` is set)
+ *     title: "Changes Saved",      // optional bold line above the message
+ *     type: "success",             // 'success' | 'error' | 'warning' | 'info' | 'loading' | 'default'
+ *                                  //   -> sets the colour scheme + default icon. Defaults to 'info'.
+ *     icon: SaveIcon,              // optional lucide-react icon, overrides the type's default icon
+ *
+ *     // --- layout / lifetime ---
+ *     position: "top-right",       // which screen corner this toast stacks in (ToastStack owns positioning):
+ *                                  //   'top-right' (default) | 'top-left' | 'bottom-right' |
+ *                                  //   'bottom-left' | 'top-center' | 'bottom-center'
+ *     duration: 5000,              // ms before auto-dismiss. Use Infinity to keep it until replaced/closed.
+ *                                  //   Defaults to 2500.
+ *     textSize: "normal",          // 'small' | 'normal' | 'large' | 'xlarge'
+ *     showCloseButton: true,       // force the X button. Defaults to true on mobile, false on desktop.
+ *
+ *     // --- "meta" footer (used by the leaderboard status toasts) ---
+ *     showMeta: true,              // when true, shows the "Last updated ..." / TTL footer below the message
+ *     timestamp: Date.now(),       // drives the "Last updated X ago" line. Auto-stamped by pushToast if omitted.
+ *     ttl: 600,                    // seconds; renders a "Will check again in N minutes" countdown line
+ *
+ *     // --- stacking control ---
+ *     key: "leaderboard",          // optional SLOT key. Toasts WITHOUT a key stack as separate cards.
+ *                                  //   Toasts that share a key REPLACE each other in place (one slot) —
+ *                                  //   e.g. the leaderboard "Refreshing -> up to date" flow. Dismiss a
+ *                                  //   keyed slot with dismissToast("leaderboard").
+ *
+ *     // --- callback ---
+ *     onClose: () => {},           // fired once when the toast closes (timeout or manual)
+ *   });
+ *
+ * Note: `id`, `slotKey` and `onDismiss` are injected by the toast store / ToastStack —
+ * callers never pass those. `pushToast` returns the toast's id (or its `key` for keyed
+ * slots) so it can be dismissed early with dismissToast(idOrKey).
+ */

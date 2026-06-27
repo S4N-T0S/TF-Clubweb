@@ -1,4 +1,4 @@
-import { ChevronUp, ChevronDown, UserSearch, LineChart, Star, StarOff, X, Search } from 'lucide-react';
+import { ChevronUp, ChevronDown, UserSearch, LineChart, Star, StarOff, X, Search, Gavel, UserPen } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { usePagination } from '../../hooks/usePagination';
 import { SearchBar } from '../SearchBar';
@@ -15,8 +15,61 @@ import { useModal } from '../../context/ModalProvider';
 import { useOnHold } from '../../hooks/useOnHold';
 import { SEASONS, getSeasonLeaderboard, getAllSeasonsLeaderboard } from '../../services/historicalDataService';
 import { useFavouritesManager } from '../../hooks/useFavouritesManager';
+import { fetchIdentity } from '../../services/id-api';
 import { buildHistoryHref, buildGraphHref, buildClubSearchHref } from '../../utils/modalHrefs';
 import { getStoredGlobalViewSettings, setStoredGlobalViewSettings } from '../../services/localStorageManager';
+
+// Favourites self-repair pacing
+const MAX_PER_PASS = 8;
+const IDENTITY_GAP_MS = 750;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Newest season (highest seasonId) in an /identity profile.
+const newestSeason = (profile) => {
+  if (!profile?.seasons?.length) return null;
+  return profile.seasons.reduce((a, b) => (b.seasonId > (a?.seasonId ?? -Infinity) ? b : a), null);
+};
+
+// Turn an /identity lookup (for a stale favourite, queried by its stored Embark ID)
+// into a repair decision. We trust identity's canonical data, never a colliding
+// leaderboard row, so this is collision-safe for the yellow case too.
+//   'offline' -> connection failure: do nothing, retry next cycle.
+//   null      -> 404 (not in S5-live backend): count as a failed attempt, no rewrite.
+//   canonical === stored name -> no rename; flag a latest-season suspected ban if any.
+//   canonical !== stored name -> rename to canonical + that profile's newest links.
+const interpretIdentity = (profile, fav) => {
+  if (profile === 'offline') return { attempted: false };
+  if (!profile) return { attempted: true, rename: null, suspectedBan: false };
+
+  const canonical = profile.embarkId;
+  const newest = newestSeason(profile);
+  const bannedLatest = (newest?.eventCounts?.SUSPECTED_BAN || 0) > 0;
+
+  if (!canonical || canonical.toLowerCase() === (fav.name || '').toLowerCase()) {
+    return { attempted: true, rename: null, suspectedBan: bannedLatest, banSeasonId: newest?.seasonId };
+  }
+
+  return {
+    attempted: true,
+    rename: {
+      name: canonical,
+      // Newest-season handles are authoritative. If the profile somehow carries no
+      // season data, keep the favourite's existing links rather than wiping them.
+      links: newest
+        ? {
+            steamName: newest.platformNames?.steam || '',
+            psnName: newest.platformNames?.psn || '',
+            xboxName: newest.platformNames?.xbox || '',
+          }
+        : {
+            steamName: fav.steamName || '',
+            psnName: fav.psnName || '',
+            xboxName: fav.xboxName || '',
+          },
+    },
+    suspectedBan: false,
+  };
+};
 
 const NoResultsMessage = ({ selectedSeason, onSeasonChange, inFavourites, onExitFavourites }) => (
   <div className="p-6 text-center text-gray-400">
@@ -106,12 +159,22 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
 
   const getBackgroundClass = () => {
     if (!isCurrentSeason) return '';
+    if (player.suspectedBan) return 'bg-red-950/70!';
     if (player.notFound) return 'bg-red-900/50!';
     if (player.foundViaFallback) return 'bg-amber-800/30!';
     if (isFav) return 'bg-yellow-600/20!';
     return '';
   };
-  
+
+  const banBadge = player.suspectedBan ? (
+    <span
+      title={`Suspected ban${player.suspectedBanSeasonId ? ` · last seen S${player.suspectedBanSeasonId}` : ''}. They left the leaderboard with ban-shaped activity. Remove this favourite, or wait — it clears if they reappear (a rename or an unban).`}
+      className="inline-flex shrink-0"
+    >
+      <Gavel className="w-4 h-4 text-red-400" />
+    </span>
+  ) : null;
+
   // Desktop Favourite button handler
   const handleFavouriteClick = () => {
     if (isFav || player.foundViaFallback) {
@@ -200,6 +263,7 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
                     />
                   );
                 })()}
+                {banBadge}
               </div>
             </div>
             {(player.steamName || player.psnName || player.xboxName) && (
@@ -321,6 +385,7 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
                 />
               );
             })()}
+            {banBadge}
           </div>
           {(player.steamName || player.psnName || player.xboxName) && (
             <div className="text-xs text-gray-400 mt-1 flex items-center gap-3">
@@ -450,6 +515,7 @@ export const GlobalView = ({
   onPlayerSearch,
   onGraphOpen,
   isMobile,
+  lastLeaderboardUpdate,
   showFavourites,
   setShowFavourites,
   showToast
@@ -473,12 +539,16 @@ export const GlobalView = ({
   };
   const autofillActive = crossSeason && !showFavourites;
   const viewContainerRef = useRef(null);
-  const { 
-    favourites, 
-    addFavourite, 
-    removeFavourite, 
-    isFavourite, 
-    getFavouritesWithFallback 
+  const {
+    favourites,
+    addFavourite,
+    removeFavourite,
+    isFavourite,
+    getFavouritesWithFallback,
+    computeFreeReconcile,
+    applyReconcilePatches,
+    selectStaleCandidates,
+    commitIdentityResult,
   } = useFavouritesManager();
   
   const { slideDirection, showIndicator } = useSwipe(
@@ -597,6 +667,104 @@ export const GlobalView = ({
       resetPage();
     }
   }, [showFavourites, resetPage]);
+
+  // Favourites self-repair
+  // Both effects are lazy: current season only, while the Favourites tab is open, and
+  // only with a loaded leaderboard.
+
+  // 1. Free reconcile (sync, no API): heal drifted platform links for favourites still
+  //    present under their exact Embark ID, and clear ban/throttle bookkeeping when one
+  //    reappears. Idempotent -> converges in <=2 passes, no loop.
+  useEffect(() => {
+    if (!isCurrentSeason || !showFavourites) return;
+    if (!globalLeaderboard?.length) return;
+    const patches = computeFreeReconcile(globalLeaderboard);
+    if (!patches.length) return;
+    applyReconcilePatches(patches);
+    for (const p of patches) {
+      if (p.banJustCleared) {
+        showToast({
+          title: 'Back on the board',
+          message: `${p.name} is back on the leaderboard.`,
+          type: 'success',
+          icon: Star,
+          duration: 4000,
+        });
+      }
+    }
+  }, [isCurrentSeason, showFavourites, globalLeaderboard, favourites, computeFreeReconcile, applyReconcilePatches, showToast]);
+
+  // 2. Identity reconcile for stale (yellow/red) favourites: at most ONE pass per
+  //    leaderboard cycle (kills toggle-spam; persisted so a reload can't re-trigger it),
+  //    sequential and client-paced to respect the nginx identity rate limit. The effect
+  //    keys on the cycle TIMESTAMP (a primitive), not the leaderboard array/object: a
+  //    same-cycle no-op refresh yields new refs but the same timestamp, and re-running
+  //    would needlessly abort an in-flight pass.
+  useEffect(() => {
+    if (!isCurrentSeason || !showFavourites) return;
+    if (!globalLeaderboard?.length) return;
+    const cycleTs = lastLeaderboardUpdate?.timestamp;
+    if (!cycleTs) return;
+    if (getStoredGlobalViewSettings().lastFavReconcileCycleTs === cycleTs) return;
+
+    const candidates = selectStaleCandidates(globalLeaderboard, Date.now()).slice(0, MAX_PER_PASS);
+    if (!candidates.length) return;
+
+    // Claim this cycle up-front (persisted) so a tab toggle / reload can't start a 2nd pass.
+    setStoredGlobalViewSettings({ lastFavReconcileCycleTs: cycleTs });
+
+    let cancelled = false;
+    (async () => {
+      for (let i = 0; i < candidates.length; i++) {
+        if (cancelled) return;
+        const fav = candidates[i];
+        if (i > 0) await sleep(IDENTITY_GAP_MS); // pace under the nginx identity limit
+        if (cancelled) return; // bail if the view unmounted during the pacing wait
+
+        let profile;
+        try { profile = await fetchIdentity(fav.name); }
+        catch { profile = 'offline'; }
+        if (cancelled) return;
+
+        const result = interpretIdentity(profile, fav);
+        if (result.attempted === false) continue; // offline: leave for next cycle
+        const wasBan = !!fav.suspectedBan;
+        commitIdentityResult(fav, result);
+
+        if (result.rename) {
+          showToast({
+            title: 'Favourite renamed',
+            message: `${fav.name} is now ${result.rename.name}`,
+            type: 'info',
+            icon: UserPen,
+            duration: 5000,
+          });
+        } else if (result.suspectedBan && !wasBan) {
+          showToast({
+            title: 'Suspected ban',
+            message: `${fav.name} left the leaderboard with ban-shaped activity.`,
+            type: 'warning',
+            icon: Gavel,
+            duration: 6000,
+          });
+        } else if (!result.suspectedBan && wasBan) {
+          showToast({
+            title: 'No longer flagged',
+            message: `${fav.name} is no longer flagged as a suspected ban.`,
+            type: 'success',
+            icon: Star,
+            duration: 4000,
+          });
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+    // Depend on the cycle TIMESTAMP, not globalLeaderboard/lastLeaderboardUpdate (whose
+    // refs churn within a cycle and would abort the pass). selectStaleCandidates +
+    // favourites are omitted too: the per-cycle gate is the re-run guard, and reacting to
+    // favourites (which each commit mutates) would cancel the in-flight pass.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCurrentSeason, showFavourites, lastLeaderboardUpdate?.timestamp, commitIdentityResult, showToast]);
 
   const handleLocalClubClick = (clubTag) => {
     // Writes ?search=[TAG] to the URL via usePagination's url-synced setter.
