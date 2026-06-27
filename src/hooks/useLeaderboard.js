@@ -13,6 +13,10 @@ const RETRY_DELAY_MS = 2 * 60 * 1000; // 2 minutes
 const GRAPH_CACHE_PREFIX = 'graph_cache_';
 const IDENTITY_CACHE_PREFIX = 'identity_cache_';
 
+// Watchdog (safety net)
+const WATCHDOG_THRESHOLD_MS = 45 * 60 * 1000; // 45 minutes of zero refresh activity
+const WATCHDOG_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes watchdog check interval
+
 const getDataAge = (timestamp) => {
   if (!timestamp) return Infinity;
   return Math.floor((Date.now() - timestamp) / 1000);
@@ -97,11 +101,16 @@ export const useLeaderboard = (autoRefresh, pushToast, dismissToast) => {
     lastUpdated: null
   });
   const [cacheExpiresAt, setCacheExpiresAt] = useState(0);
-  
+  const [refreshNonce, setRefreshNonce] = useState(0);
+
   // Refs
   const initialLoadTriggered = useRef(false);
   const initialLoadDone = useRef(false);
   const lastTimestampRef = useRef(null);
+  // Timestamp of the last COMPLETED refresh attempt (success or failure)
+  const lastActivityRef = useRef(Date.now());
+  // True while a refresh is in flight, so the watchdog never stacks a second one
+  const isRefreshingRef = useRef(false);
   
   // Track mount status to prevent setting state on unmounted components
   const isMounted = useRef(true);
@@ -127,7 +136,10 @@ export const useLeaderboard = (autoRefresh, pushToast, dismissToast) => {
         showCloseButton: false
       });
     }
-    
+
+    // Set immediately before the try so the finally always clears it (no stuck flag)
+    isRefreshingRef.current = true; // Guards the watchdog against overlapping refreshes.
+
     try {
       const rawData = await fetchLeaderboardData(forceRefresh);
       if (!isMounted.current) return;
@@ -207,11 +219,18 @@ export const useLeaderboard = (autoRefresh, pushToast, dismissToast) => {
       // The auto-refresh useEffect will pick this up and call refreshData again.
       setCacheExpiresAt(Date.now() + RETRY_DELAY_MS);
     } finally {
+      // These run on EVERY outcome so the loop can never be left without a pending
+      // reschedule, and so the watchdog always sees fresh activity.
+      isRefreshingRef.current = false;
+      lastActivityRef.current = Date.now();
       if (isMounted.current) {
         setLoading(false);
         if (isInitialLoad) {
           initialLoadDone.current = true;
         }
+        // Always re-arm the auto-refresh effect, even if setCacheExpiresAt above was a
+        // no-op (identical value). This is what keeps the self-rescheduling loop alive.
+        setRefreshNonce((n) => n + 1);
       }
     }
   }, [pushToast, dismissToast]);
@@ -255,7 +274,38 @@ export const useLeaderboard = (autoRefresh, pushToast, dismissToast) => {
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [autoRefresh, cacheExpiresAt, refreshData, error, isVisible]);
+    // refreshNonce is included so this effect re-runs (and reschedules) after every
+    // refresh, even when cacheExpiresAt happens to be unchanged.
+  }, [autoRefresh, cacheExpiresAt, refreshData, error, isVisible, refreshNonce]);
+
+  // Watchdog: a last-resort safety net that forces a refresh if the loop above ever
+  // goes completely silent. It measures LIVENESS (time since the last refresh attempt),
+  // not data freshness, so:
+  //  - An ongoing outage does NOT keep tripping it: each failed attempt updates
+  //    lastActivityRef and the error path already reschedules a 2-min retry, so the
+  //    normal loop (not the watchdog) drives retries and the watchdog stays dormant.
+  //  - It fires at most once per stall, then goes quiet once activity resumes.
+  // It only runs while visible (the loop is intentionally paused when hidden)
+  useEffect(() => {
+    if (!autoRefresh || !isVisible) return;
+
+    // Becoming visible starts a fresh window; time spent hidden (loop paused) must not
+    // count against the watchdog.
+    lastActivityRef.current = Date.now();
+
+    const intervalId = setInterval(() => {
+      if (!isMounted.current || isRefreshingRef.current) return;
+      const idleMs = Date.now() - lastActivityRef.current;
+      if (idleMs > WATCHDOG_THRESHOLD_MS) {
+        console.warn(
+          `[Leaderboard] Watchdog: no refresh activity for ${Math.round(idleMs / 60000)} min, forcing one.`
+        );
+        refreshData(false, true);
+      }
+    }, WATCHDOG_CHECK_INTERVAL_MS);
+
+    return () => clearInterval(intervalId);
+  }, [autoRefresh, isVisible, refreshData]);
 
   return {
     ...data,
