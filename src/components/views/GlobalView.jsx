@@ -38,25 +38,36 @@ const newestSeason = (profile) => {
 //   canonical === stored name -> no rename; flag a latest-season suspected ban if any.
 //   canonical !== stored name -> rename to canonical + that profile's newest links.
 // Resolve a stale favourite (one not in the live leaderboard) against /identity. Identity
-// is the source of truth for the Embark ID and ban state ONLY — never for platform
-// handles (those are repaired from the leaderboard via the free reconcile).
+// supplies the canonical Embark ID, ban state, and the current platform handles for
+// DISPLAY only — handles are never used to MATCH a favourite (matching is Embark-ID-only,
+// so collisions can't happen). For an on-board player the free reconcile later overrides
+// the handles with the authoritative live-leaderboard row.
 //   'offline' -> connection failure: do nothing, retry next cycle.
 //   null      -> 404 (not in S5-live backend): count as a failed attempt, no rewrite.
 //   canonical === stored name -> no rename; flag a latest-season suspected ban if any.
 //   canonical !== stored name -> rename to the canonical Embark ID.
 const interpretIdentity = (profile, fav) => {
   if (profile === 'offline') return { attempted: false };
-  if (!profile) return { attempted: true, rename: null, suspectedBan: false };
+  if (!profile) return { attempted: true, rename: null, suspectedBan: false, links: null };
 
   const canonical = profile.embarkId;
   const newest = newestSeason(profile);
   const bannedLatest = (newest?.eventCounts?.SUSPECTED_BAN || 0) > 0;
+  // Display handles from the newest season. null => the profile had no season data, so the
+  // caller preserves the existing handles rather than wiping them.
+  const links = newest
+    ? {
+        steamName: newest.platformNames?.steam || '',
+        psnName: newest.platformNames?.psn || '',
+        xboxName: newest.platformNames?.xbox || '',
+      }
+    : null;
 
   if (!canonical || canonical.toLowerCase() === (fav.name || '').toLowerCase()) {
-    return { attempted: true, rename: null, suspectedBan: bannedLatest, banSeasonId: newest?.seasonId };
+    return { attempted: true, rename: null, suspectedBan: bannedLatest, banSeasonId: newest?.seasonId, links };
   }
 
-  return { attempted: true, rename: { name: canonical }, suspectedBan: false };
+  return { attempted: true, rename: { name: canonical }, suspectedBan: false, links };
 };
 
 const NoResultsMessage = ({ selectedSeason, onSeasonChange, inFavourites, onExitFavourites }) => (

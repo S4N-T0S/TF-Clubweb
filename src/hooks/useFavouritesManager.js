@@ -84,13 +84,14 @@ export const useFavouritesManager = () => {
   // Self-repair
   // Driven from GlobalView effects in two halves:
   //   1. FREE (sync, no API): a favourite still present under its exact Embark ID whose
-  //      stored platform handles drifted -> overwrite the handles from the live row. Also
-  //      clears stale red/ban bookkeeping when a player reappears. This is the ONLY place
-  //      platform handles are repaired.
+  //      stored platform handles drifted -> overwrite the handles from the live row (the
+  //      authoritative source while on-board). Also clears stale red/ban bookkeeping when
+  //      a player reappears.
   //   2. IDENTITY (async): a favourite NOT in the live leaderboard (renamed / banned /
   //      dropped off) -> ask /identity who they are now (via the helpers below +
   //      interpretIdentity in GlobalView). Throttled per-record + once per leaderboard
-  //      cycle. Only the Embark ID + ban state come from identity, never the handles.
+  //      cycle. Identity supplies the Embark ID, ban state, and display handles; the
+  //      Embark ID is the ONLY thing ever used to MATCH (handles are display-only).
 
   // Pure. Returns links-only / clear patches for favourites present under their exact
   // Embark ID. Only emits a patch when a value genuinely differs, so re-running after
@@ -178,11 +179,20 @@ export const useFavouritesManager = () => {
       if (idx === -1) return prev;
       const f = prev[idx];
       const now = Date.now();
+      // Refresh the DISPLAY handles from identity (matching stays Embark-ID-only, so this
+      // only affects the values shown on the row). For an on-board player the free
+      // reconcile overrides these with the live leaderboard row; for an off-board one
+      // identity is the only available source. null => no season data, so keep as-is.
+      const syncLinks = (target) => {
+        if (result.links) {
+          target.steamName = result.links.steamName;
+          target.psnName = result.links.psnName;
+          target.xboxName = result.links.xboxName;
+        }
+      };
 
-      // Rename: rewrite the Embark ID from the authoritative identity and drop throttle/
-      // ban state. Platform handles are left untouched — they're repaired only from the
-      // live leaderboard, which happens via the free reconcile once the new name appears
-      // there. Dedupe by Embark ID against any other favourite that now resolves to the
+      // Rename: rewrite the Embark ID (+ refresh display handles) and drop throttle/ban
+      // state. Dedupe by Embark ID against any other favourite that now resolves to the
       // same player.
       if (result.rename) {
         const merged = {
@@ -192,6 +202,7 @@ export const useFavouritesManager = () => {
           previousNames: [...(f.previousNames || []), f.name].slice(-5),
           lastRenamedAt: now,
         };
+        syncLinks(merged);
         delete merged.identityCheckCount;
         delete merged.lastIdentityCheckAt;
         delete merged.suspectedBan;
@@ -202,13 +213,14 @@ export const useFavouritesManager = () => {
         return deduped.map(o => (favKey(o) === key ? merged : o));
       }
 
-      // No rename: stamp the throttle and apply the suspected-ban transition. Handles are
-      // untouched (they're synced from the leaderboard, never from identity).
+      // No rename: refresh display handles, stamp the throttle, and apply the
+      // suspected-ban transition.
       const merged = {
         ...f,
         lastIdentityCheckAt: now,
         identityCheckCount: Math.min((f.identityCheckCount || 0) + 1, MAX_CHECK_COUNT),
       };
+      syncLinks(merged);
       if (result.suspectedBan && !f.suspectedBan) {
         merged.suspectedBan = true;
         merged.suspectedBanSeasonId = result.banSeasonId;
