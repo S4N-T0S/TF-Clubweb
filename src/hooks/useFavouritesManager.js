@@ -1,14 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { getStoredFavourites, setStoredFavourites } from '../services/localStorageManager';
 
-// Helper function to find a player by platform username
-const findPlayerByPlatform = (leaderboardPlayer, favouritePlayer) => {
-  if (favouritePlayer.xboxName && leaderboardPlayer.xboxName === favouritePlayer.xboxName) return true;
-  if (favouritePlayer.psnName && leaderboardPlayer.psnName === favouritePlayer.psnName) return true;
-  if (favouritePlayer.steamName && leaderboardPlayer.steamName === favouritePlayer.steamName) return true;
-  return false;
-};
-
 // Stable identity for a favourite record. `addedAt` never changes across renames
 const favKey = (f) => (f && f.addedAt != null ? `t:${f.addedAt}` : `n:${f?.name}`);
 
@@ -41,9 +33,8 @@ export const useFavouritesManager = () => {
 
   const addFavourite = useCallback((player) => {
     setFavourites(prev => {
-      // Dedupe by Embark ID OR a shared platform handle, so the same player can't be
-      // added twice (and a later reconcile won't have to merge a near-duplicate).
-      const exists = prev.some(p => p.name === player.name || findPlayerByPlatform(player, p));
+      // Dedupe by Embark ID
+      const exists = prev.some(p => p.name === player.name);
       if (exists) return prev;
       return [...prev, {
         name: player.name,
@@ -56,42 +47,22 @@ export const useFavouritesManager = () => {
   }, []);
 
   const removeFavourite = useCallback((playerObject) => {
-    setFavourites(prev => prev.filter(favourite => {
-      const nameMatch = favourite.name === playerObject.name;
-      const platformMatch = findPlayerByPlatform(playerObject, favourite);
-      return !nameMatch && !platformMatch;
-    }));
+    setFavourites(prev => prev.filter(favourite => favourite.name !== playerObject.name));
   }, []);
 
   const isFavourite = useCallback((playerObject) => {
-    return favourites.some(p =>
-      p.name === playerObject.name ||
-      findPlayerByPlatform(playerObject, p)
-    );
+    return favourites.some(p => p.name === playerObject.name);
   }, [favourites]);
 
   const getFavouriteWithFallback = useCallback((favourite, leaderboard) => {
-    let player = leaderboard.find(p => p.name === favourite.name);
-
+    // Match by Embark ID only. If the exact ID isn't in the live leaderboard the player
+    // has renamed, been banned, or dropped off — the identity pass resolves which. We
+    // never fall back to platform-handle matching (handles aren't unique).
+    const player = leaderboard.find(p => p.name === favourite.name);
     if (player) return player;
 
-    if (favourite.xboxName) {
-      player = leaderboard.find(p => p.xboxName === favourite.xboxName);
-      if (player) return { ...player, foundViaFallback: true };
-    }
-
-    if (favourite.psnName) {
-      player = leaderboard.find(p => p.psnName === favourite.psnName);
-      if (player) return { ...player, foundViaFallback: true };
-    }
-
-    if (favourite.steamName) {
-      player = leaderboard.find(p => p.steamName === favourite.steamName);
-      if (player) return { ...player, foundViaFallback: true };
-    }
-
-    // Spreads ...favourite, so any suspectedBan flag stored on the record flows into
-    // the red stub for the row to style.
+    // Red stub. Spreads ...favourite, so any suspectedBan flag stored on the record flows
+    // through for the row to style.
     return {
       ...favourite,
       clubTag: null,
@@ -113,11 +84,13 @@ export const useFavouritesManager = () => {
   // Self-repair
   // Driven from GlobalView effects in two halves:
   //   1. FREE (sync, no API): a favourite still present under its exact Embark ID whose
-  //      stored platform links drifted -> overwrite the links from the live row. Also
-  //      clears stale red/ban bookkeeping when a player reappears.
-  //   2. IDENTITY (async): a favourite that is NOT an exact match (yellow/red) -> ask
-  //      /identity who they are now (via the helpers below + interpretIdentity in
-  //      GlobalView). Throttled per-record + once per leaderboard cycle.
+  //      stored platform handles drifted -> overwrite the handles from the live row. Also
+  //      clears stale red/ban bookkeeping when a player reappears. This is the ONLY place
+  //      platform handles are repaired.
+  //   2. IDENTITY (async): a favourite NOT in the live leaderboard (renamed / banned /
+  //      dropped off) -> ask /identity who they are now (via the helpers below +
+  //      interpretIdentity in GlobalView). Throttled per-record + once per leaderboard
+  //      cycle. Only the Embark ID + ban state come from identity, never the handles.
 
   // Pure. Returns links-only / clear patches for favourites present under their exact
   // Embark ID. Only emits a patch when a value genuinely differs, so re-running after
@@ -126,7 +99,7 @@ export const useFavouritesManager = () => {
     const patches = [];
     for (const fav of favourites) {
       const row = leaderboard.find(p => p.name === fav.name);
-      if (!row) continue; // yellow/red -> handled by the identity path
+      if (!row) continue; // not in LB -> handled by the identity path
 
       const patch = {};
       if (!strEq(fav.steamName, row.steamName)) patch.steamName = row.steamName || '';
@@ -179,7 +152,7 @@ export const useFavouritesManager = () => {
   }, []);
 
   // Pure. Favourites that warrant an /identity call right now: not an exact-name match
-  // in the live leaderboard (i.e. yellow or red) AND due per the backoff schedule.
+  // in the live leaderboard (renamed / banned / dropped off) AND due per the backoff.
   const selectStaleCandidates = useCallback((leaderboard, now) => {
     const isDue = (fav) => {
       const n = fav.identityCheckCount || 0;
@@ -205,18 +178,12 @@ export const useFavouritesManager = () => {
       if (idx === -1) return prev;
       const f = prev[idx];
       const now = Date.now();
-      // Identity owns the player's current handles, so sync them on every outcome.
-      // result.links === null means the profile had no season data -> keep what we have.
-      const syncLinks = (target) => {
-        if (result.links) {
-          target.steamName = result.links.steamName;
-          target.psnName = result.links.psnName;
-          target.xboxName = result.links.xboxName;
-        }
-      };
 
-      // Rename: rewrite name (+ links) from the authoritative identity, drop throttle/ban,
-      // and dedupe against any other favourite that is now the same player.
+      // Rename: rewrite the Embark ID from the authoritative identity and drop throttle/
+      // ban state. Platform handles are left untouched — they're repaired only from the
+      // live leaderboard, which happens via the free reconcile once the new name appears
+      // there. Dedupe by Embark ID against any other favourite that now resolves to the
+      // same player.
       if (result.rename) {
         const merged = {
           ...f,
@@ -225,29 +192,23 @@ export const useFavouritesManager = () => {
           previousNames: [...(f.previousNames || []), f.name].slice(-5),
           lastRenamedAt: now,
         };
-        syncLinks(merged);
         delete merged.identityCheckCount;
         delete merged.lastIdentityCheckAt;
         delete merged.suspectedBan;
         delete merged.suspectedBanSeasonId;
         delete merged.suspectedBanAt;
 
-        const deduped = prev.filter((o, i) => {
-          if (i === idx) return true;
-          const samePlayer = o.name === merged.name || findPlayerByPlatform(merged, o);
-          return !samePlayer;
-        });
+        const deduped = prev.filter((o, i) => i === idx || o.name !== merged.name);
         return deduped.map(o => (favKey(o) === key ? merged : o));
       }
 
-      // No rename: sync handles (they may have drifted / be stale), stamp the throttle,
-      // and apply the suspected-ban transition.
+      // No rename: stamp the throttle and apply the suspected-ban transition. Handles are
+      // untouched (they're synced from the leaderboard, never from identity).
       const merged = {
         ...f,
         lastIdentityCheckAt: now,
         identityCheckCount: Math.min((f.identityCheckCount || 0) + 1, MAX_CHECK_COUNT),
       };
-      syncLinks(merged);
       if (result.suspectedBan && !f.suspectedBan) {
         merged.suspectedBan = true;
         merged.suspectedBanSeasonId = result.banSeasonId;

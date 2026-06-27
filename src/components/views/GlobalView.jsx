@@ -37,30 +37,26 @@ const newestSeason = (profile) => {
 //   null      -> 404 (not in S5-live backend): count as a failed attempt, no rewrite.
 //   canonical === stored name -> no rename; flag a latest-season suspected ban if any.
 //   canonical !== stored name -> rename to canonical + that profile's newest links.
+// Resolve a stale favourite (one not in the live leaderboard) against /identity. Identity
+// is the source of truth for the Embark ID and ban state ONLY — never for platform
+// handles (those are repaired from the leaderboard via the free reconcile).
+//   'offline' -> connection failure: do nothing, retry next cycle.
+//   null      -> 404 (not in S5-live backend): count as a failed attempt, no rewrite.
+//   canonical === stored name -> no rename; flag a latest-season suspected ban if any.
+//   canonical !== stored name -> rename to the canonical Embark ID.
 const interpretIdentity = (profile, fav) => {
   if (profile === 'offline') return { attempted: false };
-  if (!profile) return { attempted: true, rename: null, suspectedBan: false, links: null };
+  if (!profile) return { attempted: true, rename: null, suspectedBan: false };
 
   const canonical = profile.embarkId;
   const newest = newestSeason(profile);
   const bannedLatest = (newest?.eventCounts?.SUSPECTED_BAN || 0) > 0;
-  // Identity is authoritative for the player's current platform handles, so we sync them
-  // on EVERY check (rename or not). Otherwise a stale/foreign handle can keep matching a
-  // different live player — hiding a rename or a ban. null => the profile carried no
-  // season data, so the caller preserves the existing links rather than wiping them.
-  const links = newest
-    ? {
-        steamName: newest.platformNames?.steam || '',
-        psnName: newest.platformNames?.psn || '',
-        xboxName: newest.platformNames?.xbox || '',
-      }
-    : null;
 
   if (!canonical || canonical.toLowerCase() === (fav.name || '').toLowerCase()) {
-    return { attempted: true, rename: null, suspectedBan: bannedLatest, banSeasonId: newest?.seasonId, links };
+    return { attempted: true, rename: null, suspectedBan: bannedLatest, banSeasonId: newest?.seasonId };
   }
 
-  return { attempted: true, rename: { name: canonical }, suspectedBan: false, links };
+  return { attempted: true, rename: { name: canonical }, suspectedBan: false };
 };
 
 const NoResultsMessage = ({ selectedSeason, onSeasonChange, inFavourites, onExitFavourites }) => (
@@ -128,7 +124,7 @@ const RubyCutoffIndicator = ({ cutoff, onCutoffClick }) => {
 const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile, selectedSeason, isFavourite, addFavourite, removeFavourite }) => {
   const [username, discriminator] = player.name.split('#');
   const { isHolding, holdProps, ref } = useOnHold(() => {
-    if (isFavourite(player) || player.foundViaFallback) {
+    if (isFavourite(player)) {
       removeFavourite(player);
     } else {
       addFavourite(player);
@@ -144,7 +140,7 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
 
   const isFav = isFavourite(player);
   const animationClasses = isCurrentSeason && isMobile && isHolding
-    ? isFav || player.foundViaFallback 
+    ? isFav
       ? 'animate-unfavourite-fill'
       : 'animate-favourite-fill'
     : '';
@@ -153,7 +149,6 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
     if (!isCurrentSeason) return '';
     if (player.suspectedBan) return 'bg-red-950/70!';
     if (player.notFound) return 'bg-red-900/50!';
-    if (player.foundViaFallback) return 'bg-amber-800/30!';
     if (isFav) return 'bg-yellow-600/20!';
     return '';
   };
@@ -169,7 +164,7 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
 
   // Desktop Favourite button handler
   const handleFavouriteClick = () => {
-    if (isFav || player.foundViaFallback) {
+    if (isFav) {
       removeFavourite(player);
     } else {
       addFavourite(player);
@@ -322,7 +317,7 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
             onClick={handleFavouriteClick}
             className="hover:scale-110 transition-transform flex items-center justify-center"
           >
-            {isFav || player.foundViaFallback ? (
+            {isFav ? (
               <span title="Remove player from favourites">
                 <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
               </span>
