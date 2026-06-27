@@ -39,36 +39,28 @@ const newestSeason = (profile) => {
 //   canonical !== stored name -> rename to canonical + that profile's newest links.
 const interpretIdentity = (profile, fav) => {
   if (profile === 'offline') return { attempted: false };
-  if (!profile) return { attempted: true, rename: null, suspectedBan: false };
+  if (!profile) return { attempted: true, rename: null, suspectedBan: false, links: null };
 
   const canonical = profile.embarkId;
   const newest = newestSeason(profile);
   const bannedLatest = (newest?.eventCounts?.SUSPECTED_BAN || 0) > 0;
+  // Identity is authoritative for the player's current platform handles, so we sync them
+  // on EVERY check (rename or not). Otherwise a stale/foreign handle can keep matching a
+  // different live player — hiding a rename or a ban. null => the profile carried no
+  // season data, so the caller preserves the existing links rather than wiping them.
+  const links = newest
+    ? {
+        steamName: newest.platformNames?.steam || '',
+        psnName: newest.platformNames?.psn || '',
+        xboxName: newest.platformNames?.xbox || '',
+      }
+    : null;
 
   if (!canonical || canonical.toLowerCase() === (fav.name || '').toLowerCase()) {
-    return { attempted: true, rename: null, suspectedBan: bannedLatest, banSeasonId: newest?.seasonId };
+    return { attempted: true, rename: null, suspectedBan: bannedLatest, banSeasonId: newest?.seasonId, links };
   }
 
-  return {
-    attempted: true,
-    rename: {
-      name: canonical,
-      // Newest-season handles are authoritative. If the profile somehow carries no
-      // season data, keep the favourite's existing links rather than wiping them.
-      links: newest
-        ? {
-            steamName: newest.platformNames?.steam || '',
-            psnName: newest.platformNames?.psn || '',
-            xboxName: newest.platformNames?.xbox || '',
-          }
-        : {
-            steamName: fav.steamName || '',
-            psnName: fav.psnName || '',
-            xboxName: fav.xboxName || '',
-          },
-    },
-    suspectedBan: false,
-  };
+  return { attempted: true, rename: { name: canonical }, suspectedBan: false, links };
 };
 
 const NoResultsMessage = ({ selectedSeason, onSeasonChange, inFavourites, onExitFavourites }) => (

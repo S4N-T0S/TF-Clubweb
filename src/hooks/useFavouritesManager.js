@@ -205,21 +205,27 @@ export const useFavouritesManager = () => {
       if (idx === -1) return prev;
       const f = prev[idx];
       const now = Date.now();
+      // Identity owns the player's current handles, so sync them on every outcome.
+      // result.links === null means the profile had no season data -> keep what we have.
+      const syncLinks = (target) => {
+        if (result.links) {
+          target.steamName = result.links.steamName;
+          target.psnName = result.links.psnName;
+          target.xboxName = result.links.xboxName;
+        }
+      };
 
-      // Rename: rewrite name + links from the authoritative identity, drop throttle/ban,
+      // Rename: rewrite name (+ links) from the authoritative identity, drop throttle/ban,
       // and dedupe against any other favourite that is now the same player.
       if (result.rename) {
-        const links = result.rename.links || {};
         const merged = {
           ...f,
           name: result.rename.name,
-          steamName: links.steamName || '',
-          psnName: links.psnName || '',
-          xboxName: links.xboxName || '',
           renamedFrom: f.name,
           previousNames: [...(f.previousNames || []), f.name].slice(-5),
           lastRenamedAt: now,
         };
+        syncLinks(merged);
         delete merged.identityCheckCount;
         delete merged.lastIdentityCheckAt;
         delete merged.suspectedBan;
@@ -234,12 +240,14 @@ export const useFavouritesManager = () => {
         return deduped.map(o => (favKey(o) === key ? merged : o));
       }
 
-      // No rename: stamp the throttle and apply the suspected-ban transition.
+      // No rename: sync handles (they may have drifted / be stale), stamp the throttle,
+      // and apply the suspected-ban transition.
       const merged = {
         ...f,
         lastIdentityCheckAt: now,
         identityCheckCount: Math.min((f.identityCheckCount || 0) + 1, MAX_CHECK_COUNT),
       };
+      syncLinks(merged);
       if (result.suspectedBan && !f.suspectedBan) {
         merged.suspectedBan = true;
         merged.suspectedBanSeasonId = result.banSeasonId;
