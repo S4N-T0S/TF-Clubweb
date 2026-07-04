@@ -9,6 +9,8 @@
 const URL_HASH_REPLACEMENT = '+';
 const COMPARE_SEPARATOR = '&';
 const BASE_URL = 'https://ogclub.s4nt0s.eu';
+// src/components/SEOHead.jsx and the static tags in index.html.
+const OG_IMAGE_BASE = 'https://api.ogclub.s4nt0s.eu';
 
 // Current/latest season
 const CURRENT_SEASON_NUM = 10;
@@ -66,6 +68,14 @@ function isValidEmbarkId(id) {
 }
 
 /**
+ * Encodes an Embark ID for use inside an /og/ image path (mirrors id-api.js):
+ * percent-encode, then swap the '#' back to the URL-safe '+'.
+ */
+function encodeForPath(s) {
+  return encodeURIComponent(s).replace(/%23/g, URL_HASH_REPLACEMENT);
+}
+
+/**
  * Parses a single username, converting the URL-safe format back to the standard format.
  * Includes format validation to prevent rendering invalid or malicious strings.
  */
@@ -110,7 +120,9 @@ function generateMetadata(url) {
     title: 'THE FINALS Tracker Dashboard',
     description: 'The Finals OG Club Dashboard. Track The Finals players in real time. View graphs, clubs, historical seasons, name changes and ban events.',
     keywords: 'THE FINALS OG CLUB, PLAYER STATS, TOP CLUBS, TOP PLAYERS, LEADERBOARDS, GRAPHS, CHARTS, TRACKING, THE FINALS',
-    url: '' // Computed at the end
+    url: '', // Computed at the end
+    image: '', // Dynamic per-page card, defaulted at the end
+    imageAlt: ''
   };
 
   const parts = path.split('/').filter(Boolean);
@@ -143,6 +155,14 @@ function generateMetadata(url) {
       meta.keywords = `${name}, ${name} stats, rank graph, the finals tracker, rank charts, the finals`;
     }
 
+    // Dynamic rank-score card render
+    if (parsed.main) {
+      const ogSeason = seasonId && /^\d{1,2}$/.test(seasonId) ? seasonId : FALLBACK_SEASON_ID;
+      const namesPath = [parsed.main, ...parsed.compare].map(encodeForPath).join(COMPARE_SEPARATOR);
+      meta.image = `${OG_IMAGE_BASE}/og/graph/${ogSeason}/${namesPath}.png`;
+      meta.imageAlt = `Rank score graph for ${[parsed.main, ...parsed.compare].join(' vs ')} in THE FINALS`;
+    }
+
     // SEO Fix: Mirroring SEOHead.jsx legacy graph route to new graph route
     if (seasonId && !canonicalPath.includes(`/${seasonId}/`)) {
        const urlSafeId = canonicalPath.split('/').pop();
@@ -153,6 +173,12 @@ function generateMetadata(url) {
     meta.title = `${name} History | THE FINALS Tracker`;
     meta.description = `View ${name}'s complete leaderboard history across all seasons of The Finals. Track rank progression, league placement, linked platform accounts, and club affiliations.`;
     meta.keywords = `${name}, ${name} history, ${name} stats, embark id, player search, the finals tracker, rank history, leaderboard history`;
+
+    // Dynamic cross-season card render
+    if (name !== 'Player') {
+      meta.image = `${OG_IMAGE_BASE}/og/history/${encodeForPath(name)}.png`;
+      meta.imageAlt = `${name}'s cross-season rank history in THE FINALS`;
+    }
   } else if (baseRoute === 'members') {
     meta.title = 'Club Members | THE FINALS Tracker';
     meta.description = 'View the list of verified OG Club members, their current ranks, and status.';
@@ -308,11 +334,17 @@ function generateMetadata(url) {
   }
 
   // Construct final canonical URL matching SEOHead.jsx
-  const cleanPath = canonicalPath.endsWith('/') && canonicalPath.length > 1 
-    ? canonicalPath.slice(0, -1) 
+  const cleanPath = canonicalPath.endsWith('/') && canonicalPath.length > 1
+    ? canonicalPath.slice(0, -1)
     : canonicalPath;
-    
+
   meta.url = `${BASE_URL}${cleanPath}${canonicalSearch}`;
+
+  // Every page carries a card; routes without a bespoke one use the site card.
+  if (!meta.image) {
+    meta.image = `${OG_IMAGE_BASE}/og/home.png`;
+    meta.imageAlt = meta.title;
+  }
 
   return meta;
 }
@@ -325,7 +357,6 @@ class HeadHandler {
   element(element) {
     element.append(`<meta property="og:url" content="${escapeHTML(this.meta.url)}" />\n`, { html: true });
     element.append(`<link rel="canonical" href="${escapeHTML(this.meta.url)}" />\n`, { html: true });
-    element.append(`<meta name="twitter:card" content="summary" />\n`, { html: true });
     element.append(`<meta name="twitter:title" content="${escapeHTML(this.meta.title)}" />\n`, { html: true });
     element.append(`<meta name="twitter:description" content="${escapeHTML(this.meta.description)}" />\n`, { html: true });
   }
@@ -353,6 +384,10 @@ class MetaHandler {
       element.setAttribute('content', this.meta.title);
     } else if (name === 'keywords') {
       element.setAttribute('content', this.meta.keywords);
+    } else if (['og:image', 'twitter:image'].includes(name)) {
+      element.setAttribute('content', this.meta.image);
+    } else if (name === 'og:image:alt') {
+      element.setAttribute('content', this.meta.imageAlt);
     }
   }
 }

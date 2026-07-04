@@ -1,7 +1,14 @@
 import { Helmet } from 'react-helmet-async';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { SEASONS, currentSeasonKey } from '../services/historicalDataService';
+import { isValidEmbarkId } from '../utils/urlHandler';
 import { SITE_URL } from '../constants';
+
+// Encode an Embark ID for an /og/ image path (mirrors id-api.js encodeForPath).
+const encodeForPath = (s) => encodeURIComponent(s).replace(/%23/g, '+');
+
+// functions/[[path]].js and the static tags in index.html.
+const OG_IMAGE_BASE = 'https://api.ogclub.s4nt0s.eu';
 
 // Slug -> display name for spray-pattern weapon pages. Kept in sync with
 // functions/[[path]].js (edge SEO) and src/data/recoil/weapons.json.
@@ -30,6 +37,9 @@ export const SEOHead = ({
   let keywords = 'THE FINALS OG CLUB, PLAYER STATS, TOP CLUBS, TOP PLAYERS, LEADERBOARDS, GRAPHS, CHARTS, TRACKING, THE FINALS';
   let canonicalPath = location.pathname;
   let canonicalSearch = '';
+  // Dynamic social card, rendered at the edge by functions/og/[[path]].js
+  let ogImage = null;
+  let ogImageAlt = null;
 
   // 1. Priority: Graph Modal
   if (graphModalState && graphModalState.isOpen) {
@@ -53,13 +63,25 @@ export const SEOHead = ({
        const urlSafeId = canonicalPath.split('/').pop();
        canonicalPath = `/graph/${graphModalState.seasonId}/${urlSafeId}`;
     }
-  } 
+
+    if (isValidEmbarkId(graphModalState.embarkId)) {
+      const names = [graphModalState.embarkId, ...(graphModalState.compareIds || []).filter(isValidEmbarkId)];
+      const ogSeason = graphModalState.seasonId ?? currentSeasonKey.substring(1);
+      ogImage = `${OG_IMAGE_BASE}/og/graph/${ogSeason}/${names.map(encodeForPath).join('&')}.png`;
+      ogImageAlt = `Rank score graph for ${names.join(' vs ')} in THE FINALS`;
+    }
+  }
   // 2. Priority: History/Search Modal
   else if (searchModalState && searchModalState.isOpen && searchModalState.initialSearch) {
     const name = searchModalState.initialSearch;
     title = `${name} History | THE FINALS Tracker`;
     description = `View ${name}'s complete leaderboard history across all seasons of The Finals. Track rank progression, league placement, linked platform accounts, and club affiliations.`;
     keywords = `${name}, ${name} history, ${name} stats, embark id, player search, the finals tracker, rank history, leaderboard history`;
+
+    if (isValidEmbarkId(name)) {
+      ogImage = `${OG_IMAGE_BASE}/og/history/${encodeForPath(name)}.png`;
+      ogImageAlt = `${name}'s cross-season rank history in THE FINALS`;
+    }
   }
   // 3. Priority: Members Modal
   else if (membersModalOpen) {
@@ -229,6 +251,11 @@ export const SEOHead = ({
     
   const canonicalUrl = `${SITE_URL}${cleanPath}${canonicalSearch}`;
 
+  if (!ogImage) {
+    ogImage = `${OG_IMAGE_BASE}/og/home.png`;
+    ogImageAlt = title;
+  }
+
   return (
     <Helmet>
       {/* Standard Metadata */}
@@ -244,10 +271,13 @@ export const SEOHead = ({
       <meta property="og:description" content={description} />
       {/* Updates og:url to ensure Discord unfurls the exact page */}
       <meta property="og:url" content={canonicalUrl} />
-      
+      <meta property="og:image" content={ogImage} />
+      <meta property="og:image:alt" content={ogImageAlt} />
+
       {/* Twitter */}
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
+      <meta name="twitter:image" content={ogImage} />
     </Helmet>
   );
 };
