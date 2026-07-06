@@ -3,7 +3,14 @@ export const geoAsset = (p) => `${import.meta.env.BASE_URL || '/'}geo/${p}`;
 
 let geoJsonPromise = null;
 export function loadWorldGeo() {
-  if (!geoJsonPromise) geoJsonPromise = fetch(geoAsset('world.geo.json')).then((r) => r.json());
+  if (!geoJsonPromise) {
+    geoJsonPromise = fetch(geoAsset('world.geo.json'))
+      .then((r) => r.json())
+      .catch((e) => {
+        geoJsonPromise = null; // allow a retry on a later mount
+        throw e;
+      });
+  }
   return geoJsonPromise;
 }
 

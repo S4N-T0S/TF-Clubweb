@@ -10,14 +10,20 @@ import { geoAsset } from './worldgeo';
 if (typeof globalThis.Buffer === 'undefined') globalThis.Buffer = Buffer;
 
 let readerPromise = null;
-// Lazily fetch + parse the ~8 MB country DB once, then cache.
+// Lazily fetch + parse the country DB once, then cache. Shipped gzip since clownflare does not compress oclet stream
 export function loadGeoReader() {
   if (!readerPromise) {
     readerPromise = (async () => {
       const { Reader } = await import('mmdb-lib');
-      const res = await fetch(geoAsset('dbip-country-lite.mmdb'));
+      const res = await fetch(geoAsset('dbip-country-lite.mmdb.gz'));
       if (!res.ok) throw new Error(`geo db ${res.status}`);
-      return new Reader(Buffer.from(await res.arrayBuffer()));
+      let bytes = await res.arrayBuffer();
+      // Magic-byte check: skip inflation if a proxy/server already content-decoded it.
+      const head = new Uint8Array(bytes, 0, Math.min(2, bytes.byteLength));
+      if (head[0] === 0x1f && head[1] === 0x8b) {
+        bytes = await new Response(new Response(bytes).body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+      }
+      return new Reader(Buffer.from(bytes));
     })().catch((e) => {
       readerPromise = null; // allow a retry on a later mount
       throw e;

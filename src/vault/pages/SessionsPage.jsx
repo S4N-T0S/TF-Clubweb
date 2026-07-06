@@ -4,7 +4,7 @@ import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, StatCard, Badge, Note, EmptyState, PageJump } from '../components/ui';
 import { Pagination } from '../../components/Pagination';
 import { WorldMap } from '../components/WorldMap';
-import { isoToFlag } from '../lib/worldgeo';
+import { isoToFlag, loadWorldGeo } from '../lib/worldgeo';
 import { num, date, dateTime, duration } from '../lib/format';
 
 const PER_PAGE = 15;
@@ -20,6 +20,7 @@ function useGeoCountries(ips) {
       return undefined;
     }
     setState({ status: 'loading', countries: [] });
+    loadWorldGeo().catch(() => {}); // warm the map geometry in parallel — WorldMap only mounts after the (much larger) geo DB resolves
     import('../lib/geoip')
       .then(async (geo) => {
         const reader = await geo.loadGeoReader();
