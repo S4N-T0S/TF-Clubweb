@@ -140,6 +140,12 @@ export const SprayPatternsView = () => {
     if (selected) lastWeaponKeyRef.current = selected.key;
   }, [selected]);
 
+  // Preload every weapon icon once the list is known
+  useEffect(() => {
+    if (!weapons) return;
+    weapons.forEach((w) => { new Image().src = weaponIconSrc(w); });
+  }, [weapons]);
+
   const selectedPillRef = useRef(null);
   useEffect(() => {
     const pill = selectedPillRef.current;
@@ -231,7 +237,7 @@ export const SprayPatternsView = () => {
           <div className="w-full flex items-center justify-between mb-3">
             <h3 className={`text-xl font-bold ${accent.text} flex items-center gap-2`}>
               <span className="w-10 h-10 rounded-lg overflow-hidden bg-linear-to-b from-gray-300 to-gray-400 ring-1 ring-black/25 shrink-0">
-                <img src={iconSrc} alt={`${selected.name} weapon render`} className="w-full h-full object-cover" />
+                <img key={selected.key} src={iconSrc} alt={`${selected.name} weapon render`} className="w-full h-full object-cover" />
               </span>
               {selected.name}
               <FireModeBadge mode={selected.fireMode} />
