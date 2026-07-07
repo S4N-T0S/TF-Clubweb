@@ -31,10 +31,9 @@ const FEATURES = [
     to: '/spray-patterns',
     icon: Crosshair,
     title: 'Spray Patterns',
-    desc: 'Interactive recoil patterns and control guides for every weapon.',
+    desc: 'Interactive spray patterns, recoil guides and a practice trainer for the game\'s guns.',
     color: 'text-red-400',
     ring: 'hover:border-red-500/60',
-    badge: 'New',
   },
   {
     to: '/gdpr-vault',

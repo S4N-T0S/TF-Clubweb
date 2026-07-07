@@ -229,12 +229,32 @@ function generateMetadata(url) {
       meta.title = `${weaponName} Spray Pattern & Recoil | THE FINALS Tracker`;
       meta.description = `Interactive ${weaponName} spray pattern and recoil control guide for The Finals. See the true-to-scale recoil pattern and practice countering it shot by shot.`;
       meta.keywords = `${weaponName} recoil, ${weaponName} spray pattern, ${weaponName} the finals, recoil control, the finals weapons`;
+      meta.jsonLd = {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'OG Club Dashboard', item: `${BASE_URL}/hub` },
+          { '@type': 'ListItem', position: 2, name: 'Spray Patterns & Recoil Guide', item: `${BASE_URL}/spray-patterns` },
+          { '@type': 'ListItem', position: 3, name: `${weaponName} Spray Pattern & Recoil`, item: `${BASE_URL}/spray-patterns/${slug}` },
+        ],
+      };
     } else {
       meta.title = 'Spray Patterns & Recoil Guide | THE FINALS Tracker';
-      meta.description = 'Interactive THE FINALS spray patterns and recoil control guides for every weapon. Compare true-to-scale recoil and practice the patterns shot by shot.';
+      meta.description = 'Interactive THE FINALS spray patterns and recoil control guides, from pistols and SMGs to rifles and LMGs. Compare true-to-scale recoil and practice shot by shot.';
       meta.keywords = 'the finals spray patterns, the finals recoil, recoil control, spray pattern, weapon guide, the finals weapons';
       // Mirror the client redirect: unknown weapon slugs canonicalise to the base page.
       if (slug) canonicalPath = '/spray-patterns';
+      meta.jsonLd = {
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        name: 'THE FINALS Spray Patterns & Recoil Guides',
+        itemListElement: Object.entries(WEAPON_NAMES).map(([weaponSlug, name], i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          name: `${name} Spray Pattern & Recoil`,
+          url: `${BASE_URL}/spray-patterns/${weaponSlug}`,
+        })),
+      };
     }
   } else if (baseRoute === 'leaderboard') {
     const rawSeason = url.searchParams.get('season');
@@ -359,6 +379,11 @@ class HeadHandler {
     element.append(`<link rel="canonical" href="${escapeHTML(this.meta.url)}" />\n`, { html: true });
     element.append(`<meta name="twitter:title" content="${escapeHTML(this.meta.title)}" />\n`, { html: true });
     element.append(`<meta name="twitter:description" content="${escapeHTML(this.meta.description)}" />\n`, { html: true });
+    if (this.meta.jsonLd) {
+      // <-escape so no `</script>` sequence can appear inside the JSON.
+      const json = JSON.stringify(this.meta.jsonLd).replace(/</g, '\\u003c');
+      element.append(`<script type="application/ld+json">${json}</script>\n`, { html: true });
+    }
   }
 }
 

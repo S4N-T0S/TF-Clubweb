@@ -239,6 +239,8 @@ export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef,
     : '';
 
   const fireRate = (weapon.rpm / 60).toFixed(1);
+  // Real (1x) seconds into the recorded spray, regardless of playback speed.
+  const elapsed = ((playhead * weapon.trajectory.length) / weapon.fps).toFixed(1);
 
   return (
     <div className="flex flex-col items-center w-full">
@@ -247,7 +249,7 @@ export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef,
         <figure className="m-0">
           <div className="flex items-center justify-center gap-2 mb-1">
             <figcaption className="text-xs text-gray-400">Spray Pattern</figcaption>
-            <button onClick={() => onUpdateSettings({ showVisual: !showVisual })} title="Toggle visual (camera) recoil overlay"
+            <button onClick={() => onUpdateSettings({ showVisual: !showVisual })} aria-pressed={showVisual} title="Toggle visual (camera) recoil overlay"
               className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${
                 showVisual ? 'bg-gray-600 text-white border-gray-400' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'
               }`}>
@@ -265,6 +267,16 @@ export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef,
             ))}
             {activeDot && <circle cx={activeDot.cx} cy={activeDot.cy} r={dotR + 2.5} fill="none" stroke={activeDot.color} strokeWidth="1.5" />}
           </svg>
+          {dots.length > 1 && (
+            <div className="flex items-center gap-2 mt-1.5 px-0.5 text-[10px] text-gray-400 tabular-nums">
+              <span>shot 1</span>
+              <span
+                className="flex-1 h-1.5 rounded-full"
+                style={{ background: `linear-gradient(90deg, ${shotColor(0)}, ${shotColor(0.5)}, ${shotColor(1)})` }}
+              />
+              <span>shot {dots.length}</span>
+            </div>
+          )}
         </figure>
 
         {/* Recoil Control Guide (only when the weapon actually has recoil) */}
@@ -283,14 +295,17 @@ export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef,
 
       {!recoil && (
         <p className="text-xs text-gray-500 mt-2 text-center max-w-sm">
-          This {weapon.fireMode === 'semi' ? 'single-shot' : ''} weapon has no meaningful recoil pattern, so there&apos;s no control guide or practice.
+          This weapon has no meaningful recoil pattern, so there&apos;s no control guide or practice drill.
         </p>
       )}
 
       {/* Readout */}
       <div className="text-sm text-gray-300 mt-3 tabular-nums">
         <span className="font-semibold text-white">{shownDots.length}</span> / {dots.length} shots
-        <span className="text-gray-500"> · </span>{fireRate}/s
+        <span className="text-gray-500"> · </span>
+        <span title="Fire rate">{fireRate}/s</span>
+        <span className="text-gray-500"> · </span>
+        <span className={accent.text} title="Time into the spray at 1x speed">{elapsed}s</span>
       </div>
 
       {/* Controls */}
@@ -301,38 +316,39 @@ export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef,
             <Crosshair className="w-4 h-4" /> Practice
           </button>
         )}
-        <button onClick={handlePlayPause} title={playing ? 'Pause' : 'Play'}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-700 text-gray-200 hover:bg-gray-600 text-sm font-medium">
-          {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-          {playing ? 'Pause' : 'Play'}
-        </button>
-        <button onClick={() => onUpdateSettings({ loop: !loop })} title="Loop"
-          className={`flex items-center justify-center w-9 h-9 rounded-lg border ${
-            loop ? 'bg-blue-600/20 text-blue-300 border-blue-500/40' : 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600'
-          }`}>
-          <Repeat className="w-4 h-4" />
-        </button>
-        <div className="flex items-center bg-gray-700 rounded-lg overflow-hidden">
+        <div className="flex items-stretch rounded-lg border border-gray-600 bg-gray-700 divide-x divide-gray-600 overflow-hidden">
+          <button onClick={handlePlayPause} aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause' : 'Play'}
+            className="px-3 py-2 flex items-center text-gray-200 hover:bg-gray-600">
+            {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+          </button>
+          <button onClick={() => onUpdateSettings({ loop: !loop })} aria-pressed={loop} aria-label="Loop" title="Loop"
+            className={`px-3 py-2 flex items-center ${loop ? 'bg-blue-600/20 text-blue-300' : 'text-gray-300 hover:bg-gray-600'}`}>
+            <Repeat className="w-4 h-4" />
+          </button>
           {SPEEDS.map((s) => (
-            <button key={s} onClick={() => setSpeed(s)}
-              className={`px-2.5 py-2 text-xs font-medium ${speed === s ? 'bg-gray-500 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>
+            <button key={s} onClick={() => setSpeed(s)} aria-pressed={speed === s} title={`${s}x speed`}
+              className={`px-2.5 py-2 flex items-center text-xs font-medium ${
+                speed === s ? 'bg-blue-600/20 text-blue-300' : 'text-gray-300 hover:bg-gray-600'
+              }`}>
               {s}x
             </button>
           ))}
+          {canSync && (
+            <button onClick={onToggleSync} disabled={!videoReady && !sync} aria-pressed={sync} title={videoReady ? 'Play the gameplay clip and spray animation together, kept in sync' : 'Loading gameplay clip...'}
+              className={`px-3 py-2 flex items-center gap-1.5 text-sm font-medium ${
+                sync ? 'bg-blue-600/20 text-blue-300' : 'text-gray-300 enabled:hover:bg-gray-600'
+              } ${!videoReady && !sync ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              <Film className="w-4 h-4" /> Sync
+            </button>
+          )}
         </div>
-        {canSync && (
-          <button onClick={onToggleSync} disabled={!videoReady && !sync} title={videoReady ? 'Play the gameplay clip and spray animation together, kept in sync' : 'Loading gameplay clip...'}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border ${
-              sync ? 'bg-blue-600/20 text-blue-300 border-blue-500/40' : 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600'
-            } ${!videoReady && !sync ? 'opacity-50 cursor-not-allowed' : ''}`}>
-            <Film className="w-4 h-4" /> Sync video
-          </button>
-        )}
       </div>
 
       <input type="range" min="0" max="1" step="0.001" value={playhead}
         onChange={(e) => handleScrub(parseFloat(e.target.value))}
-        className="w-full max-w-155 mt-3 cursor-pointer" aria-label="Spray progress" />
+        className="spray-scrub w-full max-w-155 mt-3 cursor-pointer"
+        style={{ '--p': `${(playhead * 100).toFixed(2)}%`, '--fill': accent.stroke }}
+        aria-label="Spray progress" />
 
       {practiceOpen && recoil && <RecoilPracticeModal weapon={weapon} globalBounds={patternBounds} onClose={() => setPracticeOpen(false)} />}
     </div>

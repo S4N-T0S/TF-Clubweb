@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { Crosshair, Scaling, PlayCircle } from 'lucide-react';
-import { loadWeapons, getGlobalBounds, getGlobalPatternBounds, WEAPON_CLASSES, CLASS_ACCENT, FIRE_MODE_META, weaponVideoSrc, hasRecoil } from '../../data/recoil';
+import { loadWeapons, getGlobalBounds, getGlobalPatternBounds, WEAPON_CLASSES, CLASS_ACCENT, FIRE_MODE_META, weaponVideoSrc, weaponIconSrc, hasRecoil } from '../../data/recoil';
 import { LoadingDisplay } from '../LoadingDisplay';
 import { RecoilViewer } from '../recoil/RecoilViewer';
 import { getStoredSpraySettings, setStoredSpraySettings } from '../../services/localStorageManager';
@@ -33,7 +33,7 @@ const WeaponVideo = ({ weapon, videoRef, sync, onReady }) => {
 
   return (
     <div className="bg-gray-800/60 rounded-2xl border border-gray-700 p-3">
-      <h4 className="text-white font-semibold text-sm mb-2 px-1">{weapon.name} — in-game</h4>
+      <h4 className="text-white font-semibold text-sm mb-2 px-1">{weapon.name} in-game clip</h4>
       {error ? (
         <div className="w-full aspect-video rounded-xl bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-500 text-xs text-center px-4">
           No gameplay clip available yet for {weapon.name}.
@@ -140,6 +140,15 @@ export const SprayPatternsView = () => {
     if (selected) lastWeaponKeyRef.current = selected.key;
   }, [selected]);
 
+  const selectedPillRef = useRef(null);
+  useEffect(() => {
+    const pill = selectedPillRef.current;
+    const rail = pill?.parentElement;
+    if (!pill || !rail || rail.scrollWidth <= rail.clientWidth) return;
+    const offset = pill.getBoundingClientRect().left - rail.getBoundingClientRect().left;
+    rail.scrollLeft += offset - (rail.clientWidth - pill.offsetWidth) / 2;
+  }, [selected]);
+
   // Keep the URL canonical: drop unknown weapon slugs.
   useEffect(() => {
     if (weapons && weaponSlug && !weapons.some((w) => w.key === weaponSlug)) {
@@ -161,6 +170,7 @@ export const SprayPatternsView = () => {
   }
 
   const accent = CLASS_ACCENT[selected.class];
+  const iconSrc = weaponIconSrc(selected);
   const grouped = WEAPON_CLASSES.map((cls) => ({
     cls,
     list: weapons.filter((w) => w.class === cls),
@@ -177,9 +187,10 @@ export const SprayPatternsView = () => {
           <Crosshair className="w-6 h-6 text-blue-400" />
           THE FINALS Spray Patterns &amp; Recoil Guide
         </h2>
-        <p className="text-sm text-gray-400 mt-1 max-w-3xl">
-          Real spray patterns captured from in-game footage for every weapon in THE FINALS.
-          See where each bullet lands and the recoil control guide you need to counter it.
+        <p className="text-sm text-gray-400 mt-1 max-w-3xl text-pretty">
+          Real spray patterns captured from in-game footage for {weapons.length} of THE FINALS&apos; guns,
+          from pistols and SMGs to rifles and LMGs. See where each bullet lands, then follow the control
+          guide to learn the exact counter-pull.
           Hit <span className="text-gray-200 font-medium">Practice</span> to trace the pattern in real time and score yourself.
         </p>
       </div>
@@ -191,14 +202,17 @@ export const SprayPatternsView = () => {
             <span className={`text-xs font-bold uppercase tracking-wider w-16 shrink-0 ${CLASS_ACCENT[cls].text}`}>
               {cls}
             </span>
-            <div className="flex flex-wrap gap-2">
+            {/* Phones: one scrollable rail per class */}
+            <div className="flex gap-2 sm:flex-wrap max-sm:overflow-x-auto max-sm:scrollbar-none max-sm:mask-[linear-gradient(90deg,#000_92%,transparent)]">
               {list.map((w) => (
                 <Link
                   key={w.key}
+                  ref={w.key === selected.key ? selectedPillRef : undefined}
                   to={`/spray-patterns/${w.key}`}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border flex items-center gap-1.5 ${
+                  aria-current={w.key === selected.key ? 'true' : undefined}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border flex items-center gap-1.5 shrink-0 ${
                     w.key === selected.key
-                      ? 'bg-gray-600 text-white border-gray-400'
+                      ? CLASS_ACCENT[cls].pill
                       : 'bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700'
                   }`}
                 >
@@ -212,18 +226,22 @@ export const SprayPatternsView = () => {
       </div>
 
       {/* Viewer + stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6 lg:items-start">
         <div className="bg-gray-800/60 rounded-2xl border border-gray-700 p-4 flex flex-col items-center">
           <div className="w-full flex items-center justify-between mb-3">
             <h3 className={`text-xl font-bold ${accent.text} flex items-center gap-2`}>
+              <span className="w-10 h-10 rounded-lg overflow-hidden bg-linear-to-b from-gray-300 to-gray-400 ring-1 ring-black/25 shrink-0">
+                <img src={iconSrc} alt={`${selected.name} weapon render`} className="w-full h-full object-cover" />
+              </span>
               {selected.name}
               <FireModeBadge mode={selected.fireMode} />
             </h3>
             <button
               onClick={() => updateSpraySetting({ uniform: !uniform, hasToggledUniform: true })}
+              aria-pressed={uniform}
               title={uniform
-                ? 'Proportional scale: weapons share one scale so recoil is comparable'
-                : 'Fit scale: this weapon is scaled to fill the view'}
+                ? 'All weapons share one scale for true size comparison. Click to fit this weapon to the view.'
+                : 'This weapon is zoomed to fill the view. Click to compare all weapons on one shared scale.'}
               className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all duration-300 ${
                 uniform
                   ? 'bg-blue-600/20 text-blue-300 border-blue-500/40'
@@ -234,7 +252,7 @@ export const SprayPatternsView = () => {
             >
               {!hasToggledUniform && (
                 <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="motion-safe:animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
                 </span>
               )}
@@ -262,37 +280,39 @@ export const SprayPatternsView = () => {
 
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4 gap-3">
-            <StatBox label="Class" value={selected.class} />
             <StatBox label="Fire mode" value={FIRE_MODE_META[selected.fireMode]?.label || 'Auto'} />
             <StatBox label="Fire rate" value={`${selected.rpm} RPM`} />
-            <StatBox label="Shots" value={selected.shots} />
+            <StatBox label="Mag" value={selected.shots} />
+            <StatBox label="Time to empty" value={timeToEmpty ? `${timeToEmpty.toFixed(1)}s` : 'N/A'} />
           </div>
 
           <div className="bg-gray-800/60 rounded-2xl border border-gray-700 p-5 text-sm text-gray-300 leading-relaxed">
             <h4 className="text-white font-semibold mb-2">Reading the {selected.name}</h4>
             {recoil ? (
               <p>
-                The left panel shows where each bullet actually lands, coloured from
+                The <span className="text-gray-100 font-medium">Spray Pattern</span> panel shows where each bullet
+                actually lands, coloured from
                 <span className="text-cyan-300 font-medium"> first shot</span> to
                 <span className="text-rose-300 font-medium"> last</span>
                 {ownMaxY > 5 ? `, climbing roughly ${Math.round(ownMaxY)} pixels` : ''}
-                {timeToEmpty ? ` over about ${timeToEmpty.toFixed(1)}s` : ''}. The right panel is the
-                recoil control guide &mdash; pull your mouse along that path to counter the climb and keep every
-                shot on target. Hit <span className="text-gray-200 font-medium">Practice</span> to trace it and get scored.
+                {timeToEmpty ? ` over about ${timeToEmpty.toFixed(1)}s` : ''}. The
+                <span className="text-gray-100 font-medium"> Recoil Control Guide</span> is its mirror image:
+                pull your mouse along that path while firing to cancel the climb and keep every shot on target.
+                Hit <span className="text-gray-200 font-medium">Practice</span> to trace it and get scored.
               </p>
             ) : (
               <p>
-                The {selected.name} is a {FIRE_MODE_META[selected.fireMode]?.label.toLowerCase() || 'single-shot'} weapon
-                with no meaningful recoil pattern &mdash; shots land on your crosshair, so there is no control guide to
-                follow. Use the <span className="text-gray-200 font-medium">Visual recoil</span> toggle to inspect the
-                small camera kick if you like.
+                The {selected.name} fires single, accurate shots with no meaningful spray pattern. Each shot lands
+                where you aim, so there is no climb to counter and no drill to practise.
+                Toggle <span className="text-gray-200 font-medium">Visual recoil</span> to see the small camera
+                kick it does have.
               </p>
             )}
             <p className="mt-2 text-gray-400">
-              Toggle <span className="text-gray-200 font-medium">Visual recoil</span> to overlay the raw camera kick,
-              or <span className="text-gray-200 font-medium">Fit</span> /
-              <span className="text-gray-200 font-medium"> Proportional</span> to zoom this weapon or compare true
-              recoil size across all weapons.
+              <span className="text-gray-200 font-medium">Visual recoil</span> overlays the raw camera kick.
+              <span className="text-gray-200 font-medium"> Fit</span> zooms this weapon to fill the view, while
+              <span className="text-gray-200 font-medium"> Proportional</span> puts every weapon on one shared
+              scale so you can compare true recoil size.
             </p>
           </div>
 

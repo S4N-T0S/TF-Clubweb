@@ -41,10 +41,26 @@ export function weaponVideoSrc(weapon) {
 // Accent colour per weapon class, reused by the selector and the viewer.
 // Class strings are written out in full so Tailwind's JIT keeps them.
 export const CLASS_ACCENT = {
-  Light: { text: 'text-sky-400', btn: 'bg-sky-600 hover:bg-sky-500', stroke: '#38bdf8', dot: '#7dd3fc' },
-  Medium: { text: 'text-emerald-400', btn: 'bg-emerald-600 hover:bg-emerald-500', stroke: '#34d399', dot: '#6ee7b7' },
-  Heavy: { text: 'text-rose-400', btn: 'bg-rose-600 hover:bg-rose-500', stroke: '#fb7185', dot: '#fda4af' },
+  Light: {
+    text: 'text-sky-400', btn: 'bg-sky-600 hover:bg-sky-500', stroke: '#38bdf8', dot: '#7dd3fc',
+    pill: 'bg-sky-400/15 text-sky-200 border-sky-400/60 shadow-[0_0_10px_rgba(56,189,248,0.12)]',
+  },
+  Medium: {
+    text: 'text-emerald-400', btn: 'bg-emerald-600 hover:bg-emerald-500', stroke: '#34d399', dot: '#6ee7b7',
+    pill: 'bg-emerald-400/15 text-emerald-200 border-emerald-400/60 shadow-[0_0_10px_rgba(52,211,153,0.12)]',
+  },
+  Heavy: {
+    text: 'text-rose-400', btn: 'bg-rose-600 hover:bg-rose-500', stroke: '#fb7185', dot: '#fda4af',
+    pill: 'bg-rose-400/15 text-rose-200 border-rose-400/60 shadow-[0_0_10px_rgba(251,113,133,0.12)]',
+  },
 };
+
+// Vault weapon render reused as an identity thumb next to the weapon title.
+// Recoil keys match the vault slugs (public/vault/weapons/<slug>.webp) except H+ Infuser
+export function weaponIconSrc(weapon) {
+  const slug = weapon.key === 'h-plus-infuser' ? 'h-infuser' : weapon.key;
+  return `/vault/weapons/${slug}.webp`;
+}
 
 let cache = null;
 export async function loadWeapons() {

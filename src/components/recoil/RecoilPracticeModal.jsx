@@ -351,7 +351,7 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
         {canPractice && showSettings ? (
           <div>
             <p className="text-xs text-gray-400 mb-3">
-              Enter your in-game sensitivity so the drill matches the exact mouse motion you&apos;d make — a true
+              Enter your in-game sensitivity so the drill matches the exact mouse motion you&apos;d make, a true
               1:1 spray. You can reopen this anytime with the <Settings2 className="inline w-3.5 h-3.5 -mt-0.5" /> button.
             </p>
             <AimSettingsPanel aim={aim} setAim={setAim} />
@@ -365,7 +365,7 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
         {canPractice ? (
           <p className="text-xs text-gray-400 mb-3">
             Click <span className="text-gray-200 font-medium">Start</span> to lock your mouse, then
-            <span className="text-gray-200 font-medium"> click to fire</span> — the gun kicks instantly, so pull
+            <span className="text-gray-200 font-medium"> click to fire</span>. The gun kicks instantly, so pull
             down to follow the guide, exactly the motion you&apos;d make in game.
           </p>
         ) : (
@@ -373,7 +373,7 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
             <MousePointer2 className="w-4 h-4 mt-0.5 shrink-0 text-blue-300" />
             <span>
               The interactive drill needs a <span className="text-gray-100 font-medium">mouse</span>, so it&apos;s
-              desktop-only. Here&apos;s the recoil-compensation path you&apos;d trace — open this on a computer to
+              desktop-only. Here&apos;s the recoil-compensation path you&apos;d trace. Open this on a computer to
               practise it and get scored.
             </span>
           </div>

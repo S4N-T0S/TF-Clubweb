@@ -144,7 +144,7 @@ export const SEOHead = ({
           keywords = `${weaponName} recoil, ${weaponName} spray pattern, ${weaponName} the finals, recoil control, the finals weapons`;
         } else {
           title = 'Spray Patterns & Recoil Guide | THE FINALS Tracker';
-          description = 'Interactive THE FINALS spray patterns and recoil control guides for every weapon. Compare true-to-scale recoil and practice the patterns shot by shot.';
+          description = 'Interactive THE FINALS spray patterns and recoil control guides, from pistols and SMGs to rifles and LMGs. Compare true-to-scale recoil and practice shot by shot.';
           keywords = 'the finals spray patterns, the finals recoil, recoil control, spray pattern, weapon guide, the finals weapons';
         }
         break;

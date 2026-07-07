@@ -120,6 +120,57 @@ body {
   @apply overflow-x-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800;
 }
 
+/*
+  Spray-progress scrubber (RecoilViewer). --p is the played fraction and
+  --fill the weapon-class accent, both set inline. WebKit has no native
+  progress segment, so the track is a two-stop gradient split at --p;
+  Firefox gets the same via ::-moz-range-progress.
+*/
+.spray-scrub {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 20px;
+  background: transparent;
+}
+.spray-scrub::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--fill) var(--p), var(--color-gray-700) var(--p));
+}
+.spray-scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -4px;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--fill) 30%, transparent);
+}
+.spray-scrub::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--color-gray-700);
+}
+.spray-scrub::-moz-range-progress {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--fill);
+}
+.spray-scrub::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--fill) 30%, transparent);
+}
+.spray-scrub:focus-visible {
+  outline: 2px solid var(--fill);
+  outline-offset: 2px;
+  border-radius: 9999px;
+}
+
 /* CSS for useSwipe */
 .page-transition-container {
   position: relative;

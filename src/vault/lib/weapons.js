@@ -77,13 +77,14 @@ export const WEAPONS = {
 
 // Slugs that have a bundled icon under public/vault/weapons/<slug>.webp.
 // Sourced from thefinals.wiki (in-game Rank-1 weapon/gadget/spec renders),
-// resized to 128px webp. Snowball has no wiki icon -> falls back to a text chip.
+// converted with `magick <src> -resize 128x128 -quality 82 <slug>.webp`.
+// Snowball has no wiki icon -> falls back to a text chip.
 // To add one later: drop <slug>.webp in that folder and add the slug here.
 const ICON_SLUGS = new Set([
   '50-akimbo', '93r', 'akm', 'aps-turret', 'arn-220', 'bfr-titan', 'blast-off-rpg-7', 'breach-charge',
   'c4', 'cb-01-repeater', 'cerberus-12ga', 'charge-n-slam', 'chimera-xb', 'cl-40', 'dagger', 'defibrillator',
   'dual-blades', 'explosive-mine', 'famas', 'fcar', 'flamethrower', 'frag-grenade', 'gas-grenade', 'gas-mine',
-  'gateway', 'jump-pad', 'ks-23', 'lewis-gun', 'lh1', 'lockbolt', 'm11', 'm134-minigun', 'm26-matter', 'm60',
+  'gateway', 'h-infuser', 'jump-pad', 'ks-23', 'lewis-gun', 'lh1', 'lockbolt', 'm11', 'm134-minigun', 'm26-matter', 'm60',
   'mgl32', 'model-1887', 'p90', 'pike-556', 'pyro-grenade', 'pyro-mine', 'r-357', 'recurve-bow', 'riot-shield',
   'rpg-7', 'sa1216', 'sh1900', 'shak-50', 'sledgehammer', 'spear', 'sr-84', 'sword', 'thermal-bore',
   'throwing-knives', 'tracking-dart', 'v9s', 'winch-claw', 'xp-54',
