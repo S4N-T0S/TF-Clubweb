@@ -11,6 +11,18 @@ export default defineConfig({
     },
   },
   plugins: [
+    {
+      // Bundle large imported JSON as JSON.parse("...") to increase parsing speed.
+      // >10kB only (Vite's old 'auto' threshold): small JSONs keep named exports.
+      name: 'json-stringify-large',
+      apply: 'build',
+      enforce: 'pre',
+      transform(code, id) {
+        if (!id.endsWith('.json') || code.length < 10240) return null;
+        const text = JSON.stringify(JSON.stringify(JSON.parse(code)));
+        return { code: `export default JSON.parse(${text});`, moduleType: 'js', map: null };
+      },
+    },
     react(),
     mapTunerPlugin(),
     {
