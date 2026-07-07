@@ -7,7 +7,7 @@ export const Footer = ({ isMobile }) => {
   return (
     <footer
       className={`border-t border-gray-700/50 pt-5 text-sm text-gray-500 ${
-        isMobile ? 'pb-24' : 'pb-2'
+        isMobile ? 'pb-[calc(4.5rem+env(safe-area-inset-bottom))]' : 'pb-2'
       }`}
     >
       <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-3">

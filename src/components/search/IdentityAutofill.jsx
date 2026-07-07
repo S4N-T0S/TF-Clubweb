@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Users } from 'lucide-react';
 import { searchAllPlayers } from '../../services/historicalDataService';
 import { parseSearchQuery } from '../../utils/searchUtils';
-import { MATCH_VIA_LABELS, seasonPill, rankToken, renderHighlighted } from './suggestionHelpers';
+import { MATCH_VIA_LABELS, seasonPill, rankToken, renderHighlighted, tierForSuggestion } from './suggestionHelpers';
+import { Hexagon } from '../icons/Hexagon';
 
 /**
  * The shared cross-season autofill dropdown. Owns the debounced searchIdentities
@@ -141,30 +142,40 @@ export const IdentityAutofill = ({
         <Users className="w-3.5 h-3.5" />
         {groupLabel}
       </div>
-      {suggestions.map((s, index) => (
-        <button
-          key={`${s.name}-${index}`}
-          // preventDefault on mousedown keeps the input focused (so the dropdown
-          // doesn't blur-close before the click lands); onClick does the select,
-          // which also works for keyboard activation.
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => select(s)}
-          className={`w-full px-4 py-2 text-left hover:bg-gray-600 flex justify-between items-center gap-2
-            ${index === selectedIndex ? 'bg-gray-600' : ''}`}
-        >
-          <span className="min-w-0">
-            <span className="text-white truncate block">{renderHighlighted(s.name, matchTerm)}</span>
-            {s.matchedVia && s.matchedVia !== 'embark' && s.matchedValue && (
-              <span className="text-xs text-gray-400 truncate block">
-                {MATCH_VIA_LABELS[s.matchedVia] || s.matchedVia}: {renderHighlighted(s.matchedValue, matchTerm)}
-              </span>
-            )}
-          </span>
-          <span className="text-gray-400 text-sm whitespace-nowrap">
-            {seasonPill(s.latestSeasonId)}{rankToken(s)}
-          </span>
-        </button>
-      ))}
+      {suggestions.map((s, index) => {
+        const tier = tierForSuggestion(s);
+        return (
+          <button
+            key={`${s.name}-${index}`}
+            // preventDefault on mousedown keeps the input focused (so the dropdown
+            // doesn't blur-close before the click lands); onClick does the select,
+            // which also works for keyboard activation.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => select(s)}
+            className={`w-full px-4 py-2 text-left hover:bg-gray-600 flex justify-between items-center gap-2
+              ${index === selectedIndex ? 'bg-gray-600' : ''}`}
+          >
+            <span className="min-w-0">
+              <span className="text-white truncate block">{renderHighlighted(s.name, matchTerm)}</span>
+              {s.matchedVia && s.matchedVia !== 'embark' && s.matchedValue && (
+                <span className="text-xs text-gray-400 truncate block">
+                  {MATCH_VIA_LABELS[s.matchedVia] || s.matchedVia}: {renderHighlighted(s.matchedValue, matchTerm)}
+                </span>
+              )}
+            </span>
+            <span className="flex items-center gap-1 text-gray-400 text-sm whitespace-nowrap">
+              {seasonPill(s.latestSeasonId)}
+              {tier && (
+                <span title={tier.name} className="inline-flex">
+                  <Hexagon className={`w-3.5 h-3.5 ${tier.textColor}`} />
+                  <span className="sr-only">{tier.name}</span>
+                </span>
+              )}
+              {rankToken(s)}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 };

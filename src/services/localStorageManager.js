@@ -37,7 +37,7 @@ const setStoredJsonItem = (key, value) => {
 
 // View Tab (stores a simple string, not JSON)
 const LAST_TAB_KEY = 'dashboard_tab';
-const VALID_TABS = ['clubs', 'global', 'hub'];
+const VALID_TABS = ['clubs', 'global', 'hub', 'events'];
 export const getStoredTab = () => {
   try {
     const storedTab = localStorage.getItem(LAST_TAB_KEY);
@@ -118,6 +118,11 @@ const defaultEventSettings = {
 };
 export const getStoredEventsSettings = () => getStoredJsonItem(EVENTS_MODAL_SETTINGS_KEY, defaultEventSettings, areValidEventSettings);
 export const setStoredEventsSettings = (value) => setStoredJsonItem(EVENTS_MODAL_SETTINGS_KEY, value);
+
+// Events "last seen" timestamp (ms), driving the nav's new-events dot.
+const EVENTS_LAST_SEEN_KEY = 'eventsLastSeenTs';
+export const getStoredEventsLastSeenTs = () => getStoredJsonItem(EVENTS_LAST_SEEN_KEY, 0, (v) => typeof v === 'number');
+export const setStoredEventsLastSeenTs = (ts) => setStoredJsonItem(EVENTS_LAST_SEEN_KEY, ts);
 
 // Search Modal Settings
 const SEARCH_MODAL_SETTINGS_KEY = 'searchModalSettings';

@@ -60,7 +60,7 @@ export const ModalProvider = ({ children }) => {
     return modalStack[modalStack.length - 1].ref === ref;
   }, [modalStack]);
   
-  const value = { registerModal, unregisterModal, isTopModal };
+  const value = { registerModal, unregisterModal, isTopModal, isModalOpen };
 
   return (
     <ModalContext.Provider value={value}>
@@ -76,7 +76,7 @@ export const useModal = (isOpen, onClose, options) => {
         throw new Error('useModal must be used within a ModalProvider');
     }
     
-    const { registerModal, unregisterModal, isTopModal } = context;
+    const { registerModal, unregisterModal, isTopModal, isModalOpen } = context;
     const modalRef = useRef(null);
     const [isActive, setIsActive] = useState(false);
 
@@ -122,5 +122,5 @@ export const useModal = (isOpen, onClose, options) => {
         return () => clearTimeout(timer);
     }, [isActive]);
 
-    return { modalRef, isTopModal: isCurrentlyTop, isActive, requestClose };
+    return { modalRef, isTopModal: isCurrentlyTop, isActive, requestClose, isModalOpen };
 };

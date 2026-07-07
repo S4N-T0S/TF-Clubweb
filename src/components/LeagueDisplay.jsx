@@ -7,7 +7,7 @@ export const LeagueDisplay = ({ league, score, leagueNumber, isMobile }) => {
   
   const content = (
     <div className="flex items-center justify-center gap-2">
-      <Hexagon className={style} />
+      <Hexagon className={`w-5 h-5 ${style}`} />
       <div className="flex flex-col text-center">
         <span className="text-sm font-medium text-gray-200">{displayLeague}</span>
         {score !== undefined && score !== null && score !== 0 && (

@@ -8,17 +8,18 @@ import { GlobalView } from './components/views/GlobalView';
 import { HubView } from './components/views/HubView';
 import { ErrorDisplay } from './components/ErrorDisplay';
 import { LoadingDisplay } from './components/LoadingDisplay';
-import { DashboardHeader } from './components/DashboardHeader';
+import { AppNavBar } from './components/navigation/AppNavBar';
+import { MobileTabBar } from './components/navigation/MobileTabBar';
 import { Footer } from './components/Footer';
 import { safeParseUsernameFromUrl, formatUsernameForUrl, parseMultipleUsernamesFromUrl, formatMultipleUsernamesForUrl } from './utils/urlHandler';
 import { useMobileDetect } from './hooks/useMobileDetect';
 import SearchModal from './components/modals/SearchModal';
-import EventsModal from './components/modals/EventsModal';
 import MembersModal from './components/modals/MembersModal';
 import { UpdateModal } from './components/modals/UpdateModal';
 import { ToastStack } from './components/ToastStack';
 import { useToasts } from './hooks/useToasts';
-import { getStoredTab, setStoredTab, cleanupDeprecatedCache } from './services/localStorageManager';
+import { getStoredTab, setStoredTab, getStoredEventsLastSeenTs, setStoredEventsLastSeenTs, cleanupDeprecatedCache } from './services/localStorageManager';
+import { fetchRecentEvents } from './services/ev-api';
 import { ModalProvider } from './context/ModalProvider';
 import { SEASONS, currentSeasonKey } from './services/historicalDataService';
 import { cleanupExpiredCacheItems } from './services/idbCache';
@@ -52,6 +53,7 @@ const App = () => {
     if (path.startsWith('/clubs')) return 'clubs';
     if (path.startsWith('/hub')) return 'hub';
     if (path.startsWith('/spray-patterns')) return 'spray';
+    if (path.startsWith('/events')) return 'events';
     return getStoredTab();
   });
 
@@ -80,13 +82,12 @@ const App = () => {
   // Memoize these states to prevent unnecessary re-calculations
   const modalStates = useMemo(() => ({
     isMembersOpen: location.pathname.startsWith('/members') || (isOverlayModalPath && background.startsWith('/members')),
-    isEventsOpen: location.pathname.startsWith('/events') || (isOverlayModalPath && background.startsWith('/events')),
     isGraphOpen: !!graph && !!graphEmbarkId,
     isSearchOpen: location.pathname.startsWith('/history') || (isOverlayModalPath && background.startsWith('/history')),
     isInfoOpen: location.pathname.startsWith('/info')
   }), [location.pathname, isOverlayModalPath, background, graph, graphEmbarkId]);
 
-  const { isMembersOpen, isEventsOpen, isGraphOpen, isSearchOpen, isInfoOpen } = modalStates;
+  const { isMembersOpen, isGraphOpen, isSearchOpen, isInfoOpen } = modalStates;
 
   // --> Modal Keys
   // - New Key = Hard Reset
@@ -95,7 +96,6 @@ const App = () => {
     graph: 0,
     search: 0,
     members: 0,
-    events: 0,
     info: 0
   });
 
@@ -142,6 +142,11 @@ const App = () => {
     lastUpdated
   } = useLeaderboard(autoRefresh, pushToast, dismissToast);
 
+  // "New events" dot on the nav's Events tab. True when the freshness probe
+  // found events newer than the stored last-seen timestamp.
+  const [hasNewEvents, setHasNewEvents] = useState(false);
+  const landedOnEventsRef = useRef(location.pathname.startsWith('/events'));
+
   // --> Effects
 
   // Run cache cleanup on initial application load
@@ -156,7 +161,7 @@ const App = () => {
     // If at root '/', instantly redirect to the stored preference URL
     if (path === '/') {
       const stored = getStoredTab();
-      const routeMap = { 'hub': '/hub', 'global': '/leaderboard', 'clubs': '/clubs' };
+      const routeMap = { 'hub': '/hub', 'global': '/leaderboard', 'clubs': '/clubs', 'events': '/events' };
       // Default to /hub if something goes wrong
       navigate(routeMap[stored] || '/hub', { replace: true });
       return;
@@ -166,12 +171,13 @@ const App = () => {
     else if (path.startsWith('/leaderboard')) setView('global');
     else if (path.startsWith('/clubs')) setView('clubs');
     else if (path.startsWith('/spray-patterns')) setView('spray');
+    else if (path.startsWith('/events')) setView('events');
     // Note: Modals (like /graph) do not change the background view
   }, [location.pathname, navigate]);
 
   // Update localstorage whenever view changes
   useEffect(() => {
-    if (['hub', 'clubs', 'global'].includes(view)) {
+    if (['hub', 'clubs', 'global', 'events'].includes(view)) {
       setStoredTab(view);
     }
   }, [view]);
@@ -183,6 +189,32 @@ const App = () => {
       setShowFavourites(false);
     }
   }, [view]);
+
+  // One-shot events freshness probe, deferred so it never competes with the
+  // initial leaderboard fetch. Reuses ev-api's IndexedDB cache, so it costs at
+  // most one request per session; skipped entirely when the session lands on
+  // /events (the view's own fetch covers it and the visit marks it seen).
+  useEffect(() => {
+    if (loading || landedOnEventsRef.current) return;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetchRecentEvents(false, currentSeasonKey);
+        const maxTs = res.data.reduce((max, e) => Math.max(max, (e.endTimestamp || e.startTimestamp)?.getTime() || 0), 0);
+        // Read the stored timestamp AFTER the fetch so a mark-seen that landed
+        // while the probe was in flight wins the race.
+        if (maxTs > getStoredEventsLastSeenTs()) setHasNewEvents(true);
+      } catch { /* offline or API down: just no dot */ }
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  // Visiting the events view marks everything currently known as seen.
+  useEffect(() => {
+    if (view === 'events' && !loading) {
+      setStoredEventsLastSeenTs(Date.now());
+      setHasNewEvents(false);
+    }
+  }, [view, loading]);
 
   // --> Handlers
 
@@ -241,11 +273,6 @@ const App = () => {
   const refreshKey = useCallback((modalName) => {
     setModalKeys(prev => ({ ...prev, [modalName]: Date.now() }));
   }, []);
-
-  const handleEventsModalOpen = useCallback(() => {
-    refreshKey('events');
-    openModal('/events');
-  }, [openModal, refreshKey]);
 
   const handleInfoModalOpen = useCallback(() => {
     refreshKey('info');
@@ -317,7 +344,6 @@ const App = () => {
           searchModalState={{ isOpen: isSearchOpen, initialSearch: initialSearchQuery }}
           graphModalState={{ isOpen: isGraphOpen, embarkId: graphEmbarkId, compareIds: graphCompareIds, seasonId: graphSeasonId }}
           membersModalOpen={isMembersOpen}
-          eventsModalOpen={isEventsOpen}
           infoModalOpen={isInfoOpen}
         />
 
@@ -327,17 +353,25 @@ const App = () => {
         {loading ? (
           <LoadingDisplay />
         ) : (
-          <div className="max-w-7xl mx-auto p-4">
-            <div className="bg-gray-800 rounded-lg shadow-xl p-6 mb-6">
-              <DashboardHeader
-                view={view}
-                onOpenEvents={handleEventsModalOpen}
-                onOpenSearch={() => handleSearchModalOpen()}
-                onOpenInfo={handleInfoModalOpen}
+          <>
+            <AppNavBar
+              activeTab={view}
+              isMobile={isMobile}
+              onOpenSearch={() => handleSearchModalOpen()}
+              onOpenMembers={handleMembersModalOpen}
+              onOpenInfo={handleInfoModalOpen}
+              hasNewEvents={hasNewEvents}
+            />
+            {isMobile && (
+              <MobileTabBar
+                activeTab={view}
                 onOpenMembers={handleMembersModalOpen}
-                isMobile={isMobile}
+                onOpenInfo={handleInfoModalOpen}
+                hasNewEvents={hasNewEvents}
               />
-
+            )}
+            <div className="max-w-7xl mx-auto p-4">
+            <div className="bg-gray-800 rounded-lg shadow-xl p-6 mb-6">
               {view === 'hub' && (
                 <HubView />
               )}
@@ -348,6 +382,23 @@ const App = () => {
                   variant="inline"
                 >
                   {(SprayPatternsView) => <SprayPatternsView />}
+                </LazyBoundary>
+              )}
+              {view === 'events' && (
+                <LazyBoundary
+                  loader={() => import('./components/views/EventsView')}
+                  fallback={<LoadingDisplay variant="component" />}
+                  variant="inline"
+                >
+                  {(EventsView) => (
+                    <EventsView
+                      isMobile={isMobile}
+                      onPlayerSearch={handleSearchModalOpen}
+                      onClubClick={handleClubClick}
+                      onGraphOpen={(embarkId, seasonKey) => handleGraphModalOpen(embarkId, [], seasonKey)}
+                      showToast={showToast}
+                    />
+                  )}
                 </LazyBoundary>
               )}
               {view === 'clubs' && (
@@ -376,7 +427,8 @@ const App = () => {
             </div>
 
             <Footer isMobile={isMobile} />
-          </div>
+            </div>
+          </>
         )}
 
         {/* Modals: Rendered OUTSIDE the loading conditional */}
@@ -409,22 +461,6 @@ const App = () => {
                 onGraphOpen={(embarkId) => handleGraphModalOpen(embarkId)}
                 onPlayerSearch={(name) => handleSearchModalOpen(name)}
                 isMobile={isMobile}
-                isCovered={isSearchOpen || isGraphOpen}
-              />
-            </Suspense>
-          )}
-
-          {isEventsOpen && (
-            <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><LoadingDisplay variant="component" /></div>}>
-              <EventsModal
-                key={`events-${modalKeys.events}`}
-                isOpen={isEventsOpen}
-                onClose={closeModal}
-                isMobile={isMobile}
-                onPlayerSearch={handleSearchModalOpen}
-                onClubClick={handleClubClick}
-                onGraphOpen={(embarkId, seasonKey) => handleGraphModalOpen(embarkId, [], seasonKey)}
-                showToast={showToast}
                 isCovered={isSearchOpen || isGraphOpen}
               />
             </Suspense>

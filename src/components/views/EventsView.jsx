@@ -61,7 +61,7 @@ const EventInfoPopup = ({ onClose }) => {
   const { modalRef: infoModalRef } = useModal(true, onClose, modalOptions); 
 
   return (
-    <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div 
         ref={infoModalRef} 
         className="bg-gray-800 rounded-lg w-full max-w-xl lg:max-w-3xl border border-gray-600 shadow-xl animate-fade-in-fast flex flex-col max-h-[90dvh]"
@@ -184,12 +184,11 @@ const isQueryInEvent = (event, query) => {
 };
 
 
-export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubClick, onGraphOpen, showToast, isCovered }) => {
-  const { modalRef, isTopModal, isActive, requestClose } = useModal(isOpen, onClose);
+export const EventsView = ({ isMobile, onPlayerSearch, onClubClick, onGraphOpen, showToast }) => {
+  const { isModalOpen } = useModal();
   const isVisible = useVisibility();
   const searchInputRef = useRef(null);
-  const scrollContainerRef = useRef(null); // Ref for the scrollable content area
-  const scrollPositionRef = useRef(0); // Ref to store the scroll position
+  const viewContainerRef = useRef(null); // Swipe target: the view's root element
   const [events, setEvents] = useState([]);
   const eventsRef = useRef(events); // Create a ref to hold the current events
   useEffect(() => {
@@ -362,47 +361,30 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     }
   }, [loadEvents, selectedSeason]);
 
-  // Restoring scroll position when the modal becomes active again.
-  useEffect(() => {
-    const scrollContainer = scrollContainerRef.current;
-    if (!scrollContainer) return;
-
-    if (isActive) {
-      const timer = setTimeout(() => {
-        scrollContainer.scrollTo({ top: scrollPositionRef.current, behavior: 'auto' });
-      }, 50);
-      return () => clearTimeout(timer);
-    } else {
-      scrollPositionRef.current = scrollContainer.scrollTop;
-    }
-  }, [isActive]);
-
   // Initial Auto-Focus
   useEffect(() => {
-    // Auto-focus the search input on desktop when the modal opens.
-    if (isOpen && searchInputRef.current && !isMobile) {
+    // Auto-focus the search input on desktop when the view mounts.
+    if (searchInputRef.current && !isMobile) {
       setTimeout(() => {
         if (searchInputRef.current) {
           searchInputRef.current.focus();
         }
       }, 100);
     }
-  }, [isOpen, isMobile]);
+  }, [isMobile]);
 
   useEffect(() => {
-    if (isOpen) {
-      setEvents([]); // Clear old events
-      handlePageChange(1); // Go to page 1
-      loadEvents(false, selectedSeason);
-    }
+    setEvents([]); // Clear old events
+    handlePageChange(1); // Go to page 1
+    loadEvents(false, selectedSeason);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSeason, isOpen]);
+  }, [selectedSeason]);
 
-  // Auto-refresh timer: sets when modal opens, clears when it closes.
+  // Auto-refresh timer: paused while a modal is stacked over the view.
   useEffect(() => {
-    // Refresh if: Open, Top Modal, Auto-Refresh ON, Has Expiry, AND (Current Season OR All Seasons), AND Visible.
-    if (!isOpen || !isTopModal || !autoRefresh || !cacheExpiresAt || !canAutoRefresh || !isVisible) {
-      return; // Do nothing if modal is closed, not on top, auto-refresh is off, no expiry time, not current season, or hidden.
+    // Refresh if: No Modal Above, Auto-Refresh ON, Has Expiry, AND (Current Season OR All Seasons), AND Visible.
+    if (isModalOpen || !autoRefresh || !cacheExpiresAt || !canAutoRefresh || !isVisible) {
+      return; // Do nothing if covered by a modal, auto-refresh is off, no expiry time, not current season, or hidden.
     }
 
     const now = Date.now();
@@ -418,7 +400,7 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     
     const timer = setTimeout(() => {
       // Double check in case state changed
-      if (isOpen && isTopModal && autoRefresh && canAutoRefresh) {
+      if (!isModalOpen && autoRefresh && canAutoRefresh) {
         // Pass false here, ensuring fetchAllSeasonsEvents uses cached data for valid (historical) seasons
         // and only hits the network for expired (current/failed) seasons.
         // If we are in an error state, pass true to force the refresh to bypass browser cache.
@@ -428,11 +410,11 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     }, delay);
 
     // This cleanup function is crucial. It runs when the component unmounts
-    // or when any of its dependencies (like `isOpen` or `isTopModal`) change.
+    // or when any of its dependencies (like `isModalOpen`) change.
     return () => {
       clearTimeout(timer);
     };
-  }, [isOpen, isTopModal, autoRefresh, cacheExpiresAt, forceLoadWithAnimation, canAutoRefresh, error, isVisible]);
+  }, [isModalOpen, autoRefresh, cacheExpiresAt, forceLoadWithAnimation, canAutoRefresh, error, isVisible]);
 
   const toggleAutoRefresh = () => {
     const nextState = !autoRefresh;
@@ -502,10 +484,8 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
     // On filter change, we want to go back to the first page of results.
     handlePageChange(1);
 
-    // We also want to scroll the modal content back to the top.
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({ top: 0, behavior: 'auto' });
-    }
+    // We also want to scroll the page back to the top.
+    window.scrollTo({ top: 0, behavior: 'auto' });
     
     // This effect should only run when a filter is changed by the user.
     // handlePageChange is not included as a dependency because it can change
@@ -525,24 +505,15 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
   const { slideDirection, showIndicator } = useSwipe(
     () => currentPage < totalPages && handlePageChange(currentPage + 1),
     () => currentPage > 1 && handlePageChange(currentPage - 1),
-    { 
-      isSwipeActive: isTopModal, // Only allow swipe on the top-most modal
-      targetRef: scrollContainerRef,
+    {
+      isSwipeActive: !isModalOpen, // Disable swipe while a modal is stacked above
+      targetRef: viewContainerRef,
     }
   );
 
-  if (!isOpen) return null;
-
   return (
-    <div className={`modal-overlay ${isActive ? 'is-active' : ''} fixed inset-0 bg-black/75 items-center justify-center z-50 p-4 ${isCovered ? 'hidden' : 'flex'}`}>
-      <div
-        ref={modalRef}
-        className={`modal-box bg-gray-900 rounded-lg border border-white/10 w-full flex flex-col shadow-2xl overflow-hidden relative
-          ${isMobile ? 'max-w-[95dvw] h-[90dvh]' : 'max-w-[60dvw] h-[85dvh]'}
-          ${!isTopModal ? 'pointer-events-none' : ''}
-          `}
-      >
-        <header className="shrink-0 bg-gray-800 p-3 sm:p-4 border-b border-gray-700 flex items-center justify-between sm:relative">
+    <div ref={viewContainerRef}>
+        <header className="flex items-center justify-between sm:relative mb-4">
             {/* Left side controls */}
             <div className="flex items-center gap-2">
                 <button
@@ -589,13 +560,10 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
                         <ChevronsUpDown className="w-4 h-4" />
                     </div>
                 </div>
-                <button onClick={requestClose} className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full">
-                    <X className="w-5 h-5" />
-                </button>
             </div>
         </header>
 
-        <div ref={scrollContainerRef} className="grow overflow-y-auto p-3 sm:p-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+        <div>
           <div className="shrink-0 mb-4">
             <fieldset className="bg-gray-800 p-4 rounded-lg border border-gray-700">
               <div className={`flex gap-2 items-center ${isFilterSectionExpanded ? 'mb-4' : ''}`}>
@@ -672,26 +640,21 @@ export const EventsModal = ({ isOpen, onClose, isMobile, onPlayerSearch, onClubC
             }
         </div>
 
-        {filteredItems.length > 0 && 
-            <footer className="shrink-0 p-2 border-t border-gray-700 bg-gray-800">
-                <Pagination 
-                  currentPage={currentPage} 
-                  totalPages={totalPages} 
-                  startIndex={startIndex} 
-                  endIndex={endIndex} 
-                  totalItems={filteredItems.length} 
-                  onPageChange={handlePageChange} 
-                  scrollRef={scrollContainerRef}
-                  variant="component"
-                />
-            </footer>
+        {filteredItems.length > 0 &&
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              totalItems={filteredItems.length}
+              onPageChange={handlePageChange}
+            />
         }
-      </div>
-      
-      {/* The info popup is now a sibling to the main modal container, preventing pointer-events issues */}
+
+      {/* The info popup is fixed so it covers the viewport; the view has no positioned wrapper. */}
       {showInfo && <EventInfoPopup onClose={handleCloseInfo} />}
     </div>
   );
 };
 
-export default memo(EventsModal);
+export default memo(EventsView);

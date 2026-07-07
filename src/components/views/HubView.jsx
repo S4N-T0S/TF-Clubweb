@@ -70,9 +70,9 @@ const FeatureTile = ({ to, icon: Icon, title, desc, color, ring, badge, badgeTon
 export const HubView = () => {
   return (
     <div className="animate-fade-in-up">
-      <div className="text-center bg-gray-700/50 p-6 rounded-2xl mb-8 shadow-xl border border-gray-600">
+      <div className="text-center bg-gray-700/50 px-6 py-4 rounded-2xl mb-8 shadow-xl border border-gray-600">
         <Crown className="w-14 h-14 text-yellow-400 mx-auto mb-3" />
-        <h2 className="text-3xl font-bold text-white mb-2">Welcome to OG Club</h2>
+        <h2 className="text-3xl font-bold text-white mb-2">OG Club Dashboard</h2>
         <p className="text-gray-400 max-w-md mx-auto">
           The central hub for THE FINALS leaderboard statistics, history tracking,
           weapon guides and club management.

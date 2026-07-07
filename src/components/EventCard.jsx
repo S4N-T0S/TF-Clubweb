@@ -351,7 +351,7 @@ export const EventCard = ({ event, onPlayerSearch, onClubClick, onGraphOpen, isM
   };
   
   return (
-    <div className="relative bg-gray-800 rounded-lg p-4 flex items-start gap-4 border-b border-gray-700">
+    <div className="relative bg-gray-800 rounded-lg p-4 flex items-start gap-4 border border-gray-700">
       {/* Top-left Event Icon */}
       <div className="shrink-0 mt-1">
         <Icon className={`w-6 h-6 ${colorClass}`} />

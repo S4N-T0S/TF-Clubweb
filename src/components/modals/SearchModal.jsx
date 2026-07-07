@@ -12,7 +12,7 @@ import { useModal } from '../../context/ModalProvider';
 import { LoadingDisplay } from '../LoadingDisplay';
 import { buildClubSearchHref, buildGraphHref } from '../../utils/modalHrefs';
 import { getStoredSearchSettings, setStoredSearchSettings } from '../../services/localStorageManager';
-import { renderHighlighted, rankToken, seasonPill, MATCH_VIA_LABELS } from '../search/suggestionHelpers';
+import { renderHighlighted, rankToken, seasonPill, MATCH_VIA_LABELS, tierForSuggestion } from '../search/suggestionHelpers';
 
 // Per-season event tallies surfaced by the identity API, mapped to the same icon +
 // colour vocabulary the graph/events use. NAME_CHANGE is intentionally absent:
@@ -110,7 +110,7 @@ const SeasonNode = ({ row, isFirst, isLast, onClubClick, onGraphOpen, profileSea
     <div className={`grid grid-cols-[2.75rem_1fr] gap-1 rounded-lg ${weakRing ? `${weakRing} px-2 py-1` : ''}`}>
       <div className="relative flex justify-center pt-1">
         <span className={`absolute w-0.5 bg-gray-600 left-1/2 -translate-x-1/2 ${lineCls}`} />
-        <Hexagon className={`relative z-10 ${row.supersededByDirectMatch ? 'text-gray-600' : style}`} />
+        <Hexagon className={`w-5 h-5 relative z-10 ${row.supersededByDirectMatch ? 'text-gray-600' : style}`} />
       </div>
 
       <div className="pb-3 min-w-0">
@@ -289,7 +289,7 @@ const IdentityHero = ({ hero, onClubClick }) => (
         <div className="text-xs text-gray-400">Peak league</div>
         <div className="text-base sm:text-lg font-medium text-white truncate flex items-center gap-1.5">
           {hero.peakLeague
-            ? <><Hexagon className={getLeagueInfo(hero.peakLeague.leagueNumber).style} /><span className="truncate">{hero.peakLeague.name}</span></>
+            ? <><Hexagon className={`w-5 h-5 ${getLeagueInfo(hero.peakLeague.leagueNumber).style}`} /><span className="truncate">{hero.peakLeague.name}</span></>
             : <span className="text-gray-500 text-sm">Unranked</span>}
         </div>
         {hero.peakLeague?.seasonLabel && <div className="text-[11px] text-gray-500 truncate">{hero.peakLeague.seasonLabel}</div>}
@@ -727,25 +727,35 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
           ) : showCards ? (
             suggestions.length > 0 ? (
               <div className="flex flex-col gap-2">
-                {suggestions.map((s, i) => (
-                  <button
-                    key={`${s.name}-${i}`}
-                    onClick={() => handleSelectSuggestion(s.name)}
-                    className="w-full text-left bg-gray-800 hover:bg-gray-700 rounded-lg p-3 flex items-center justify-between gap-3 border border-gray-700/60 transition-colors"
-                  >
-                    <span className="min-w-0">
-                      <span className="text-white font-medium truncate block">{renderHighlighted(s.name, cardMatchTerm)}</span>
-                      {s.matchedVia && s.matchedVia !== 'embark' && s.matchedValue && (
-                        <span className="text-xs text-gray-400 truncate block">
-                          {MATCH_VIA_LABELS[s.matchedVia] || s.matchedVia}: {renderHighlighted(s.matchedValue, cardMatchTerm)}
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-gray-400 text-sm whitespace-nowrap shrink-0">
-                      {seasonPill(s.latestSeasonId)}{rankToken(s)}
-                    </span>
-                  </button>
-                ))}
+                {suggestions.map((s, i) => {
+                  const tier = tierForSuggestion(s);
+                  return (
+                    <button
+                      key={`${s.name}-${i}`}
+                      onClick={() => handleSelectSuggestion(s.name)}
+                      className="w-full text-left bg-gray-800 hover:bg-gray-700 rounded-lg p-3 flex items-center justify-between gap-3 border border-gray-700/60 transition-colors"
+                    >
+                      <span className="min-w-0">
+                        <span className="text-white font-medium truncate block">{renderHighlighted(s.name, cardMatchTerm)}</span>
+                        {s.matchedVia && s.matchedVia !== 'embark' && s.matchedValue && (
+                          <span className="text-xs text-gray-400 truncate block">
+                            {MATCH_VIA_LABELS[s.matchedVia] || s.matchedVia}: {renderHighlighted(s.matchedValue, cardMatchTerm)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="flex items-center gap-1 text-gray-400 text-sm whitespace-nowrap shrink-0">
+                        {seasonPill(s.latestSeasonId)}
+                        {tier && (
+                          <span title={tier.name} className="inline-flex">
+                            <Hexagon className={`w-3.5 h-3.5 ${tier.textColor}`} />
+                            <span className="sr-only">{tier.name}</span>
+                          </span>
+                        )}
+                        {rankToken(s)}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             ) : suggestLoading ? (
               <div className="h-full min-h-37.5 flex items-center justify-center">

@@ -25,7 +25,6 @@ export const SEOHead = ({
   searchModalState,
   graphModalState,
   membersModalOpen,
-  eventsModalOpen,
   infoModalOpen
 }) => {
   const location = useLocation();
@@ -89,21 +88,21 @@ export const SEOHead = ({
     description = 'View the list of verified OG Club members, their current ranks, and status.';
     keywords = 'OG members, club roster, verified players, the finals clan';
   }
-  // 4. Priority: Events Modal
-  else if (eventsModalOpen) {
-    title = 'Live Events | THE FINALS Tracker';
-    description = 'Track recent bans, name changes, club changes, and significant rank movements in The Finals.';
-    keywords = 'ban waves, name changes, the finals bans, live events, rank updates, the finals name change';
-  }
-  // 5. Priority: Info Modal
+  // 4. Priority: Info Modal
   else if (infoModalOpen) {
     title = 'Information | THE FINALS Tracker';
     description = 'Learn more about the OG Club Dashboard, methodology, and features.';
     keywords = 'about og club, faq, methodology, features, api details';
   }
-  // 6. Priority: Main Views (Background)
+  // 5. Priority: Main Views (Background)
   else {
     switch (view) {
+      case 'events': {
+        title = 'Live Events | THE FINALS Tracker';
+        description = 'Track recent bans, name changes, club changes, and significant rank movements in The Finals.';
+        keywords = 'ban waves, name changes, the finals bans, live events, rank updates, the finals name change';
+        break;
+      }
       case 'clubs': {
         const rawSeason = searchParams.get('season');
         const rawPage = searchParams.get('page');
