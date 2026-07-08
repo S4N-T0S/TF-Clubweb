@@ -625,7 +625,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
       <div
         ref={modalRef}
         className={`modal-box bg-gray-900 rounded-lg border border-white/10 w-full flex flex-col shadow-2xl overflow-hidden relative
-          ${isMobile ? 'max-w-[95dvw] h-[90dvh]' : 'max-w-2xl max-h-[80dvh]'}`}
+          ${isMobile ? 'max-w-[95dvw] h-[90dvh]' : 'max-w-3xl max-h-[80dvh]'}`}
       >
         {/* Header band */}
         <div className="shrink-0 p-2.5 sm:p-3 bg-gray-800 border-b border-gray-700">

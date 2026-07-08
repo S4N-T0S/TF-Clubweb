@@ -118,7 +118,7 @@ const filterPlayers = (players, searchQuery, searchType, ambiguousXbox) => {
   });
 };
 
-const processResult = (result, seasonConfig, originalEmbarkId, seasonKey, isWeakLink) => ({
+const processResult = (result, seasonConfig, seasonKey, isWeakLink) => ({
   season: seasonConfig.label,
   seasonKey: seasonKey,
   rank: result.rank,
@@ -130,7 +130,9 @@ const processResult = (result, seasonConfig, originalEmbarkId, seasonKey, isWeak
   steamName: result.steamName || '',
   psnName: result.psnName || '',
   xboxName: result.xboxName || '',
-  foundViaSteamName: isWeakLink && (!result.name || result.name.toLowerCase() !== originalEmbarkId.toLowerCase()),
+  // Weakness — including the "row bears a known identity" healing — is fully
+  // decided at the call site, which holds the anchorNames set.
+  foundViaSteamName: isWeakLink,
   isTop500: (result.rank <= 500) && !seasonConfig.hasRuby
 });
 
@@ -144,9 +146,29 @@ const getSeasonData = (season, currentSeasonData) => {
   return season.data?.data || [];
 };
 
-export const searchPlayerHistory = async (initialEmbarkId, currentSeasonData = null) => {
+export const searchPlayerHistory = async (initialEmbarkId, currentSeasonData = null, knownAliases = null, confirmedSeasonIds = null) => {
   const allResults = new Map();
-  
+
+  // Every Embark name known to belong to this player: the searched id plus the
+  // API-attributed aliases resolveIdentity passes in (per-season names from
+  // /identity). A row bearing one of these names IS the player — it heals weak
+  // Steam chains and anchors the supersession pass — so the API's authority
+  // extends into the seasons it cannot cover itself (OB-S4). Without this, a
+  // BFS seeded with the player's OLDEST alias anchors only that alias's
+  // seasons, and a shared junk Steam name (e.g. the blank "᲼") can attribute a
+  // stranger's pre-S5 history to the player.
+  //
+  // confirmedSeasonIds: season ids the API attributes to the player in the
+  // query's OWN cluster. They extend the supersession range even when the
+  // player has NO snapshot row there (fell off the top-10k before season end,
+  // so nothing exists for anchorNames to anchor). A player identified on both
+  // sides of a season cannot be someone else in between: an Embark ID cannot
+  // be dropped and later re-rolled with the same discriminator.
+  const anchorNames = new Set([initialEmbarkId.toLowerCase()]);
+  for (const alias of knownAliases || []) {
+    if (alias) anchorNames.add(alias.toLowerCase());
+  }
+
   // Track visited identifiers to prevent infinite loops and re-searches.
   const visited = {
     embarkId: new Set(),
@@ -194,23 +216,26 @@ export const searchPlayerHistory = async (initialEmbarkId, currentSeasonData = n
       const matches = filterPlayers(currentSeasonPlayers, value, type, ambiguousXboxBySeason.get(seasonKey));
       
       for (const player of matches) {
-        const resultKey = `${seasonConfig.label}-${player.name}-${player.steamName}-${player.psnName}-${player.xboxName}`;
+        // NUL delimiter: no display name can contain it, so keys can't
+        // collide the way a '-' join could for names containing hyphens.
+        const resultKey = [seasonConfig.label, player.name, player.steamName, player.psnName, player.xboxName].map((v) => v ?? '').join('\u0000');
         
         // Logic to determine if this specific finding is "Weak" (needs warning).
         // 1. System arrived here via a previous weak link (isWeakChain = true)
         // 2. OR system arrived here specifically via Steam (the current step is the weak link)
-        // 3. AND the Embark ID does not match the original search (which would "heal" the chain)
-        
+        // 3. AND the Embark ID is not a known identity of the searched player
+        //    (the searched id or an API-attributed alias — which "heals" the chain)
+
         const isSteamStep = type === 'steam';
-        const isOriginalIdentity = player.name && player.name.toLowerCase() === initialEmbarkId.toLowerCase();
-        
-        const isResultWeak = (isWeakChain || isSteamStep) && !isOriginalIdentity;
+        const isKnownIdentity = !!player.name && anchorNames.has(player.name.toLowerCase());
+
+        const isResultWeak = (isWeakChain || isSteamStep) && !isKnownIdentity;
 
         // If result exists, we only overwrite if the new finding is 'Stronger' (not weak) than the old one.
         const existing = allResults.get(resultKey);
-        
+
         if (!existing || (existing.foundViaSteamName && !isResultWeak)) {
-          allResults.set(resultKey, processResult(player, seasonConfig, initialEmbarkId, seasonKey, isResultWeak));
+          allResults.set(resultKey, processResult(player, seasonConfig, seasonKey, isResultWeak));
 
           if (player.name) {
              const nextVal = player.name;
@@ -250,28 +275,28 @@ export const searchPlayerHistory = async (initialEmbarkId, currentSeasonData = n
   //   A. Anchors. Build anchor rows in three layers of decreasing
   //      reliability — each layer can pull in extra known identifiers for
   //      the next:
-  //        1. Embark name == searched ID (Embark IDs are unique)
+  //        1. Embark name is a known identity of the player: the searched ID
+  //           or any API-attributed alias (Embark IDs are unique)
   //        2. PSN name matches one collected from layer 1 (PSN unique)
   //        3. Xbox name matches one collected from layers 1-2 (ambiguous
   //           Xbox names were already filtered out of the BFS).
-  //   B. Initial supersession. Inside the [min..max] anchor range, any
-  //      non-anchor row is noise — the user IS identified in surrounding
-  //      seasons, so a row here that can't be tied back is a different
-  //      player. Also flag rows sharing an ambiguous Xbox with the user
-  //      as a safety net.
+  //   B. Initial supersession. Inside the [min..max] range spanned by the
+  //      anchors AND the API-confirmed season ids, any non-anchor row is
+  //      noise — the user IS identified in surrounding seasons, so a row
+  //      here that can't be tied back is a different player. Also flag rows
+  //      sharing an ambiguous Xbox with the user as a safety net.
   //   C. Propagation. A flagged row's unique identifiers (Embark name,
   //      PSN, non-ambiguous Xbox) belong to a known-different player, so
   //      any other row carrying those is that same player — even outside
   //      the anchor range. Walk the graph until stable.
-  const initialIdLower = initialEmbarkId.toLowerCase();
   const anchors = new Set();
   const knownPsn = new Set();
   const knownXbox = new Set();
 
-  // Layer 1: Embark name
+  // Layer 1: Embark name (any known identity of the player)
   for (let i = 0; i < results.length; i++) {
     const r = results[i];
-    if (r.name && r.name.toLowerCase() === initialIdLower) {
+    if (r.name && anchorNames.has(r.name.toLowerCase())) {
       anchors.add(i);
       if (r.psnName) knownPsn.add(r.psnName);
       if (r.xboxName) knownXbox.add(r.xboxName);
@@ -303,6 +328,16 @@ export const searchPlayerHistory = async (initialEmbarkId, currentSeasonData = n
   for (const i of anchors) {
     const id = SEASONS[results[i].seasonKey]?.id;
     if (id === undefined) continue;
+    if (id < minConfirmedId) minConfirmedId = id;
+    if (id > maxConfirmedId) maxConfirmedId = id;
+  }
+  // ...extended by the API-confirmed seasons, which need no snapshot row. This
+  // closes the "ghost season" hole: a player tracked by the API in S5 and S7
+  // but absent from every S5+ final snapshot got a range built from pre-S5
+  // anchors only, so a stranger sharing a Steam name in S6 sat outside it and
+  // survived as a plausible yellow match.
+  for (const id of confirmedSeasonIds || []) {
+    if (typeof id !== 'number') continue;
     if (id < minConfirmedId) minConfirmedId = id;
     if (id > maxConfirmedId) maxConfirmedId = id;
   }
@@ -349,7 +384,10 @@ export const searchPlayerHistory = async (initialEmbarkId, currentSeasonData = n
   const byXbox = new Map();
   for (let i = 0; i < results.length; i++) {
     const r = results[i];
-    if (r.name) {
+    // 'Unknown#0000' is the placeholder for nameless platform-only rows, NOT a
+    // real identifier — bucketing it would chain every nameless row (different
+    // players) together and let one flagged row supersede them all.
+    if (r.name && r.name !== 'Unknown#0000') {
       const k = r.name.toLowerCase();
       let arr = byEmbark.get(k);
       if (!arr) { arr = []; byEmbark.set(k, arr); }
@@ -407,17 +445,17 @@ const SEASON_ID_TO_KEY = Object.fromEntries(
     .map(([k, v]) => [v.id, k])
 );
 
-// Picks the client-BFS row that best represents the searched player for a
-// season: a non-superseded row whose embark name matches, else any
-// non-superseded row, else the first row.
+// Picks the client-BFS row that represents the player for an API season: the
+// row bearing the API's OWN embark name for that season, or nothing. Embark
+// names are unique within a season, so a row under any other name is a
+// DIFFERENT player — there is no "close enough" fallback. (The old "any
+// non-superseded row, else rows[0]" fallbacks stamped a stranger's final
+// rank/league/club onto the player's card whenever the player fell off the
+// board and a Steam-name twin was in that season's snapshot.)
 const pickPrimaryClientRow = (rows, embarkId) => {
-  if (!rows || rows.length === 0) return null;
-  const lower = embarkId?.toLowerCase();
-  return (
-    rows.find((r) => !r.supersededByDirectMatch && r.name && r.name.toLowerCase() === lower) ||
-    rows.find((r) => !r.supersededByDirectMatch) ||
-    rows[0]
-  );
+  if (!rows || rows.length === 0 || !embarkId) return null;
+  const lower = embarkId.toLowerCase();
+  return rows.find((r) => r.name && r.name.toLowerCase() === lower) || null;
 };
 
 // Direct lookup of an embark name in a closed season's final JSON snapshot — used
@@ -556,32 +594,43 @@ export const mergeIdentityWithHistory = (apiProfile, clientResults, currentSeaso
   return merged;
 };
 
-// Combine several /identity profiles for the SAME player into one
+// Combine several /identity profiles for the SAME player into one.
+// A cluster that was chased via a Steam-weak alias (p.weakBridge, set by
+// resolveIdentity) may belong to a complete stranger who merely shares a Steam
+// name, so it is DISPLAY-ONLY: its seasons still merge in (bridged, warnings
+// kept) but it must not define the player's identity — the hero embarkId,
+// oldestAlias and platform aliases come from strongly-linked clusters only.
+// With no strongly-linked cluster at all there is no trustworthy profile:
+// return null and let the caller degrade to the pure client BFS.
 export const combineProfiles = (profiles) => {
   const valid = profiles.filter((p) => p && Array.isArray(p.seasons) && p.seasons.length);
-  if (valid.length === 0) return null;
+  const primary = valid.filter((p) => !p.weakBridge);
+  if (primary.length === 0) return null;
   if (valid.length === 1) return valid[0];
 
+  // Strongly-linked clusters claim their seasons first, so a weak cluster can
+  // never steal an overlapping season from the player's own history.
   const seasonById = new Map();
-  for (const p of valid) {
+  for (const p of [...primary, ...valid.filter((x) => x.weakBridge)]) {
     for (const s of p.seasons) {
-      if (!seasonById.has(s.seasonId)) seasonById.set(s.seasonId, s); // first profile wins
+      if (!seasonById.has(s.seasonId)) seasonById.set(s.seasonId, { ...s, weakBridged: !!p.weakBridge });
     }
   }
-  // Seasons present in the FIRST profile are the query's own cluster (trusted);
-  // any season only contributed by a later, bridge-pulled cluster is `bridged` so
-  // the merge can keep a weak-link warning on it.
-  const primarySeasonIds = new Set((valid[0].seasons || []).map((s) => s.seasonId));
+  // Seasons present in the first strongly-linked profile are the query's own
+  // cluster (trusted); any season only contributed by a later, bridge-pulled
+  // cluster is `bridged` so the merge can keep a weak-link warning on it.
+  const primarySeasonIds = new Set((primary[0].seasons || []).map((s) => s.seasonId));
   const seasons = [...seasonById.values()]
     .map((s) => ({ ...s, bridged: !primarySeasonIds.has(s.seasonId) }))
     .sort((a, b) => b.seasonId - a.seasonId); // descending
-  const newestSeason = seasons[0];
-  const oldestSeason = seasons[seasons.length - 1];
+  const identitySeasons = seasons.filter((s) => !s.weakBridged);
+  const newestSeason = identitySeasons[0];
+  const oldestSeason = identitySeasons[identitySeasons.length - 1];
 
-  // Union platform aliases across every profile.
+  // Union platform aliases across the strongly-linked profiles.
   const platformAliases = { steam: [], psn: [], xbox: [] };
   const seenAlias = { steam: new Set(), psn: new Set(), xbox: new Set() };
-  for (const p of valid) {
+  for (const p of primary) {
     for (const plat of ['steam', 'psn', 'xbox']) {
       for (const name of (p.platformAliases?.[plat] || [])) {
         if (name && !seenAlias[plat].has(name)) { seenAlias[plat].add(name); platformAliases[plat].push(name); }
@@ -610,6 +659,32 @@ export const combineProfiles = (profiles) => {
   };
 };
 
+// Every Embark name a profile attributes to the player: the per-season final
+// names plus the within-season nameHistory entries. Handed to the client BFS so
+// its weak-link healing and supersession anchors follow the API's authoritative
+// identity instead of just the single seed alias.
+const profileKnownAliases = (profile) => {
+  const out = [];
+  for (const s of profile?.seasons || []) {
+    // Never treat a weak-bridged (Steam-chased, possibly-stranger) season's
+    // names as the player's own: they would heal chains and anchor rows for
+    // someone who may not be the player at all.
+    if (s.weakBridged) continue;
+    if (s.embarkId) out.push(s.embarkId);
+    for (const h of s.nameHistory || []) {
+      if (h?.name) out.push(h.name);
+    }
+  }
+  return out;
+};
+
+// Season ids the API attributes to the player in the query's OWN cluster.
+// Bridged seasons (pulled from another cluster via a heuristic platform link)
+// are excluded: they are not certain enough to supersede other rows with.
+// A raw /identity payload has no bridged marks, so all its seasons qualify.
+const profileConfirmedSeasonIds = (profile) =>
+  (profile?.seasons || []).filter((s) => !s.bridged).map((s) => s.seasonId);
+
 /**
  * Full cross-season identity resolution. A single /identity call can be
  * incomplete when the backend failed to backlink a rename, so we:
@@ -632,14 +707,20 @@ export const resolveIdentity = async (query, currentSeasonData = null, { offline
   // profiles stays empty, combineProfiles returns null, and the merge falls through
   // to the client BFS results.
   let sawConnectionError = false; // a live fetch failed because the backend was unreachable
-  const fetchProfile = async (alias) => {
+  // viaWeakLink: the alias was discovered through a Steam-only BFS row, so the
+  // pulled cluster may be a stranger's — tag it so combineProfiles treats it as
+  // display-only (bridged rows, warnings kept) and never as the player's identity.
+  const fetchProfile = async (alias, viaWeakLink = false) => {
     if (offline || !alias) return;
     const key = alias.toLowerCase();
     if (queried.has(key)) return;
     queried.add(key);
     let p = null;
     try { p = await fetchIdentity(alias); } catch { sawConnectionError = true; p = null; }
-    if (p && Array.isArray(p.seasons) && p.seasons.length) profiles.push(p);
+    if (p && Array.isArray(p.seasons) && p.seasons.length) {
+      if (viaWeakLink) p.weakBridge = true;
+      profiles.push(p);
+    }
   };
 
   const haveSeason = (id) => profiles.some((p) => p.seasons.some((s) => s.seasonId === id));
@@ -648,17 +729,24 @@ export const resolveIdentity = async (query, currentSeasonData = null, { offline
   await fetchProfile(query);
 
   // 2. Client BFS bridges fragmented clusters via platform names; seed with the
-  //    oldest alias we know so it reaches the furthest-back static snapshot.
+  //    oldest alias we know so it reaches the furthest-back static snapshot, and
+  //    hand it every API-attributed name so rows bearing them anchor as the
+  //    player. The API is authoritative: without this, seeding with the oldest
+  //    alias collapses the anchor range to that alias's seasons, and a shared
+  //    platform name can attribute a stranger's history to the player in the
+  //    seasons the API cannot cover (OB-S4).
   const firstSeed = profiles[0]?.oldestAlias || query;
-  let clientResults = await searchPlayerHistory(firstSeed, currentSeasonData);
+  let clientResults = await searchPlayerHistory(firstSeed, currentSeasonData, profileKnownAliases(profiles[0]), profileConfirmedSeasonIds(profiles[0]));
 
   // 3. The per-season name from the API profiles + the (non-superseded) BFS rows.
+  //    Each entry notes whether it came from a Steam-only (weak) row: such an
+  //    alias may be a stranger's, so the cluster it pulls is display-only.
   const bySeason = new Map();
-  for (const p of profiles) for (const s of p.seasons) if (s.embarkId) bySeason.set(s.seasonId, s.embarkId);
+  for (const p of profiles) for (const s of p.seasons) if (s.embarkId) bySeason.set(s.seasonId, { name: s.embarkId, weak: false });
   for (const r of clientResults) {
     if (r.supersededByDirectMatch) continue; // never chase a known-different player
     const id = SEASONS[r.seasonKey]?.id;
-    if (id !== undefined && r.name && r.name !== 'Unknown#0000') bySeason.set(id, r.name);
+    if (id !== undefined && r.name && r.name !== 'Unknown#0000') bySeason.set(id, { name: r.name, weak: !!r.foundViaSteamName });
   }
 
   // 4. Exactly two targeted extra queries — the NEWEST alias (pulls a forward-
@@ -669,17 +757,17 @@ export const resolveIdentity = async (query, currentSeasonData = null, { offline
   //    on it can only return that exact player's cluster.
   const apiEra = [...bySeason.entries()].filter(([id]) => id >= EARLIEST_API_SEASON).sort((a, b) => a[0] - b[0]);
   if (apiEra.length) {
-    const [newestId, newestAlias] = apiEra[apiEra.length - 1];
-    const [oldestId, oldestAlias] = apiEra[0];
-    if (!haveSeason(newestId)) await fetchProfile(newestAlias); // forward
-    if (!haveSeason(oldestId)) await fetchProfile(oldestAlias); // backward
+    const [newestId, newest] = apiEra[apiEra.length - 1];
+    const [oldestId, oldest] = apiEra[0];
+    if (!haveSeason(newestId)) await fetchProfile(newest.name, newest.weak); // forward
+    if (!haveSeason(oldestId)) await fetchProfile(oldest.name, oldest.weak); // backward
   }
 
   // 5. Combine; re-run the BFS once only if a pulled cluster pushed the oldest alias further back (so the static snapshots before it are reached too)
   const combined = combineProfiles(profiles);
   const finalSeed = combined?.oldestAlias || query;
   if (finalSeed.toLowerCase() !== firstSeed.toLowerCase()) {
-    clientResults = await searchPlayerHistory(finalSeed, currentSeasonData);
+    clientResults = await searchPlayerHistory(finalSeed, currentSeasonData, profileKnownAliases(combined), profileConfirmedSeasonIds(combined));
   }
 
   const results = mergeIdentityWithHistory(combined, clientResults, currentSeasonData);
