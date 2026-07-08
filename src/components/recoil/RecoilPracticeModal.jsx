@@ -140,6 +140,17 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
     [],
   );
 
+  // Players practise by holding RMB+LMB (mirroring the in-game ADS + fire grip),
+  // so releasing right-click would otherwise pop the browser's context menu mid-
+  // spray. Swallow it while the drill screen is up. The settings screen keeps the
+  // native menu so right-click paste still works in the sensitivity inputs.
+  useEffect(() => {
+    if (canPractice && showSettings) return; // settings screen: leave the native menu alone
+    const onContextMenu = (e) => e.preventDefault();
+    document.addEventListener('contextmenu', onContextMenu);
+    return () => document.removeEventListener('contextmenu', onContextMenu);
+  }, [canPractice, showSettings]);
+
   // Compensation guide in *degrees of view rotation* (the inverse of the recoil
   // kick). Built from the captured pattern via the corrected capture geometry,
   // so it is FOV/DPI/sens-independent — a pure weapon property.
