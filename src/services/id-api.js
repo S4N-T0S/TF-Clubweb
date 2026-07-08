@@ -63,8 +63,8 @@ export const fetchIdentity = async (embarkId) => {
  * @returns {Promise<Array<{name:string, latestSeasonId:number|null, latestRankScore:number|null, latestRank:number|null}>>}
  */
 export const searchIdentities = async (q, limit = 10) => {
-  const query = (q || '').replace(/[/\\]/g, '').trim();
-  if (query.length < 2) return [];
+  const query = (q || '').replace(/[/\\]/g, '').replace(/\p{Cc}/gu, ' ').trim();
+  if (query.length < 2 || query.length > 64) return [];
 
   try {
     // The server returns a fixed-size set; we slice to the caller's limit
