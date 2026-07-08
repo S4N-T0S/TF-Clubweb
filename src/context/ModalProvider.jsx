@@ -36,14 +36,26 @@ export const ModalProvider = ({ children }) => {
     }
   }, [modalStack]);
 
+  // Escape closes the top-most modal, mirroring the outside-click contract.
+  // defaultPrevented respects inner widgets (menus, sheets) that already
+  // consumed the key; isComposing ignores IME cancellation.
+  const handleEscapeKey = useCallback((event) => {
+    if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing) return;
+    if (modalStack.length > 0) {
+      modalStack[modalStack.length - 1].onClose?.();
+    }
+  }, [modalStack]);
+
   useEffect(() => {
     if (isModalOpen) {
       document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('keydown', handleEscapeKey);
     }
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleEscapeKey);
     };
-  }, [isModalOpen, handleOutsideClick]);
+  }, [isModalOpen, handleOutsideClick, handleEscapeKey]);
 
   const registerModal = useCallback((onClose, ref, options = {}) => {
     const { type = 'main' } = options; // Default to 'main' modal type

@@ -1,6 +1,6 @@
 import { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, X, ChevronUp, ChevronDown, AlertTriangle, ArrowRight, LineChart, Info, Gavel, Users, ChevronsUpDown, Hash, UserPen, TrendingDown, UserSearch, WifiOff } from 'lucide-react';
+import { Search, X, ChevronUp, ChevronDown, AlertTriangle, ArrowRight, LineChart, Info, Gavel, Users, ChevronsUpDown, Hash, UserPen, TrendingDown, WifiOff, Clock } from 'lucide-react';
 import { resolveIdentity, searchAllPlayers, SEASONS } from '../../services/historicalDataService';
 import { parseSearchQuery } from '../../utils/searchUtils';
 import { Hexagon } from '../icons/Hexagon';
@@ -11,7 +11,7 @@ import { isValidEmbarkId, formatUsernameForUrl } from '../../utils/urlHandler';
 import { useModal } from '../../context/ModalProvider';
 import { LoadingDisplay } from '../LoadingDisplay';
 import { buildClubSearchHref, buildGraphHref } from '../../utils/modalHrefs';
-import { getStoredSearchSettings, setStoredSearchSettings } from '../../services/localStorageManager';
+import { getStoredSearchSettings, setStoredSearchSettings, getStoredRecentSearches, addStoredRecentSearch, clearStoredRecentSearches } from '../../services/localStorageManager';
 import { renderHighlighted, rankToken, seasonPill, MATCH_VIA_LABELS, tierForSuggestion } from '../search/suggestionHelpers';
 
 // Per-season event tallies surfaced by the identity API, mapped to the same icon +
@@ -32,6 +32,22 @@ const EVENT_CONFIG = {
 // Compact "26 Mar" date for within-season rename timestamps (unix seconds).
 const formatShortDate = (unixSeconds) =>
   new Date(unixSeconds * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+
+// The recent-searches entry for a resolved profile: canonical Embark ID plus the
+// newest trusted season's league/rank, so the idle quick list can echo the same
+// pill + hexagon + rank vocabulary as the live suggestion cards.
+const recentEntryFromResults = (profile, results, query) => {
+  const trusted = results.filter((r) => !r.supersededByDirectMatch);
+  const base = trusted.length ? trusted : results;
+  const newest = base[base.length - 1];
+  return {
+    name: profile?.embarkId || query,
+    seasonId: SEASONS[newest.seasonKey]?.id ?? null,
+    leagueNumber: typeof newest.leagueNumber === 'number' && newest.leagueNumber > 0 ? newest.leagueNumber : null,
+    rank: newest.rank || null,
+    score: newest.score || null,
+  };
+};
 
 // The honest rank line. Rank is never the headline — it is always smaller and
 // lower-contrast than the rank score, and it always declares its provenance.
@@ -340,6 +356,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
   });
   const [hideSuperseded, setHideSuperseded] = useState(() => getStoredSearchSettings().hideSupersededMatches);
   const [expandedIndices, setExpandedIndices] = useState(() => new Set());
+  const [recentSearches, setRecentSearches] = useState(() => getStoredRecentSearches());
   const inputRef = useRef(null);
 
   // Result-card suggestions shown IN the modal body (not a dropdown) while the
@@ -351,6 +368,15 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
 
   // Used to prevent re-running search on same prop; key change handles full reset.
   const [hasProcessedInitial, setHasProcessedInitial] = useState(false);
+
+  const clearRecentSearches = () => setRecentSearches(clearStoredRecentSearches());
+
+  // Palette behavior: focus the input on open. Desktop only — on mobile this
+  // would pop the keyboard over the idle content. Waits out the leaderboard
+  // load because the input is disabled until it finishes.
+  useEffect(() => {
+    if (isOpen && !isMobile && !isLeaderboardLoading) inputRef.current?.focus();
+  }, [isOpen, isMobile, isLeaderboardLoading]);
 
   const toggleSuperseded = () => {
     // Filtering superseded rows in/out changes displayRows' length, which would
@@ -392,6 +418,10 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
 
       setSearchState((prev) => ({ ...prev, results, profile, isSearching: false, query, isOffline: offline }));
 
+      if (results.length > 0) {
+        setRecentSearches(addStoredRecentSearch(recentEntryFromResults(profile, results, query)));
+      }
+
       if (!skipUrlUpdate) {
         onSearch(formatUsernameForUrl(query));
       }
@@ -422,6 +452,9 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
     try {
       const { profile, results, offline } = await resolveIdentity(query, currentSeasonData, { offline: true });
       setSearchState((prev) => ({ ...prev, results, profile, isSearching: false, query, isOffline: offline }));
+      if (results.length > 0) {
+        setRecentSearches(addStoredRecentSearch(recentEntryFromResults(profile, results, query)));
+      }
     } catch {
       setSearchState((prev) => ({ ...prev, error: 'Offline search failed', isSearching: false }));
     }
@@ -588,32 +621,21 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
   const isBusy = searchState.isSearching || (isLeaderboardLoading && initialSearch && !hasProfile);
 
   return (
-    <div className={`modal-overlay ${isActive ? 'is-active' : ''} fixed inset-0 bg-black/75 items-center justify-center z-50 p-4 ${isCovered ? 'hidden' : 'flex'}`}>
+    <div className={`modal-overlay ${isActive ? 'is-active' : ''} fixed inset-0 bg-black/75 justify-center z-50 ${isCovered ? 'hidden' : 'flex'} ${isMobile ? 'items-center p-4' : 'items-start px-4 pb-4 pt-[8dvh]'}`}>
       <div
         ref={modalRef}
         className={`modal-box bg-gray-900 rounded-lg border border-white/10 w-full flex flex-col shadow-2xl overflow-hidden relative
-          ${isMobile ? 'max-w-[95dvw] h-[90dvh]' : 'max-w-[60dvw] h-[85dvh]'}`}
+          ${isMobile ? 'max-w-[95dvw] h-[90dvh]' : 'max-w-2xl max-h-[80dvh]'}`}
       >
         {/* Header band */}
-        <header className="shrink-0 bg-gray-800 p-3 sm:p-4 border-b border-gray-700 flex items-center justify-between">
+        <div className="shrink-0 p-2.5 sm:p-3 bg-gray-800 border-b border-gray-700">
+          <h2 className="sr-only">Player history</h2>
           <div className="flex items-center gap-2">
-            <UserSearch className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400" />
-            <h2 className="text-lg sm:text-xl font-bold text-white">Player history</h2>
-          </div>
-          <button
-            onClick={requestClose}
-            title="Close search"
-            aria-label="Close search"
-            className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </header>
-
-        {/* Search band */}
-        <div className="shrink-0 p-3 sm:p-4 bg-gray-800 border-b border-gray-700">
-          <div className="flex gap-2">
             <div className="relative flex-1">
+              <Search
+                aria-hidden="true"
+                className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${searchState.isSearching ? 'animate-spin text-blue-400' : 'text-gray-500'}`}
+              />
               <input
                 ref={inputRef}
                 type="text"
@@ -627,19 +649,22 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
                 }}
                 placeholder="Search any name, club or platform, or enter an Embark ID"
                 autoComplete="off"
-                className={`w-full px-4 py-2 bg-gray-700 border rounded-lg text-white
+                aria-label="Search players"
+                className={`w-full pl-9 pr-3 py-2 bg-gray-700 border rounded-lg text-white
                   ${searchState.error ? 'border-red-500' : 'border-gray-600 focus:border-blue-500'}
                   ${isMobile ? 'text-base' : ''}`}
               />
             </div>
+            {!isMobile && (
+              <kbd className="shrink-0 select-none rounded-sm border border-gray-600 px-1.5 py-1 text-[11px] leading-none text-gray-500">esc</kbd>
+            )}
             <button
-              onClick={() => handleSearch(searchState.query)}
-              disabled={searchState.isSearching || isLeaderboardLoading}
-              title="Search"
-              aria-label="Search"
-              className="px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center"
+              onClick={requestClose}
+              title="Close search"
+              aria-label="Close search"
+              className="shrink-0 p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full"
             >
-              <Search className={`w-5 h-5 ${searchState.isSearching ? 'animate-spin' : ''}`} />
+              <X className="w-5 h-5" />
             </button>
           </div>
 
@@ -767,13 +792,97 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
               </div>
             )
           ) : showHelp ? (
-            <div className="p-4 bg-gray-800 rounded-lg text-gray-300 text-sm">
-              Look up a player&rsquo;s full ranked history across every tracked season. Start typing an Embark ID,
-              Steam, PSN or Xbox name, or a club tag, then pick a result below. Linked accounts and renames are
-              resolved automatically. Records before Season 5 are reconstructed from leaderboard snapshots.
+            <div className="flex flex-col gap-4">
+              {recentSearches.length > 0 ? (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Recent</span>
+                    <button
+                      onClick={clearRecentSearches}
+                      className="text-xs text-gray-500 hover:text-gray-300"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {recentSearches.map((r) => {
+                      const league = r.leagueNumber ? getLeagueInfo(r.leagueNumber) : null;
+                      return (
+                        <button
+                          key={r.name}
+                          onClick={() => handleSelectSuggestion(r.name)}
+                          className="w-full text-left bg-gray-800 hover:bg-gray-700 rounded-lg p-3 flex items-center justify-between gap-3 border border-gray-700/60 transition-colors"
+                        >
+                          <span className="flex items-center gap-2.5 min-w-0">
+                            <Clock className="w-4 h-4 text-gray-500 shrink-0" />
+                            <span className="text-white font-medium truncate">{r.name}</span>
+                          </span>
+                          <span className="flex items-center gap-1 text-gray-400 text-sm whitespace-nowrap shrink-0">
+                            {seasonPill(r.seasonId)}
+                            {league && (
+                              <span title={league.name} className="inline-flex">
+                                <Hexagon className={`w-3.5 h-3.5 ${league.style}`} />
+                                <span className="sr-only">{league.name}</span>
+                              </span>
+                            )}
+                            {r.rank ? `#${r.rank.toLocaleString()}` : r.score ? `${r.score.toLocaleString()} RS` : null}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-gray-200 font-medium">Search any player, past or present</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Full ranked history across every tracked season. Renames and linked accounts resolve automatically.
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Search by</span>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <span
+                    className="inline-flex items-center gap-1.5 bg-gray-800 border border-gray-700 rounded-md px-2.5 py-1.5 text-xs text-gray-400"
+                    title="The full ID with the #numbers jumps straight to that player"
+                  >
+                    <PlatformIcons.Embark className="w-3.5 h-3.5 text-gray-500" />
+                    <span className="font-mono text-blue-300">name#1234</span>
+                    Embark ID
+                  </span>
+                  <span
+                    className="inline-flex items-center gap-1.5 bg-gray-800 border border-gray-700 rounded-md px-2.5 py-1.5 text-xs text-gray-400"
+                    title="Type a Steam, PSN or Xbox name to find the Embark ID behind it"
+                  >
+                    <PlatformIcons.Steam className="w-3.5 h-3.5 text-gray-500" />
+                    <PlatformIcons.PSN className="w-3.5 h-3.5 text-gray-500" />
+                    <PlatformIcons.Xbox className="w-3.5 h-3.5 text-gray-500" />
+                    platform name
+                  </span>
+                  <span
+                    className="inline-flex items-center gap-1.5 bg-gray-800 border border-gray-700 rounded-md px-2.5 py-1.5 text-xs text-gray-400"
+                    title="[OG] exact tag · [OG starts with · OG] ends with"
+                  >
+                    <span className="font-mono text-blue-300">[OG]</span>
+                    club tag
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-500">
+                Records before Season 5 are reconstructed from leaderboard snapshots.
+              </p>
             </div>
           ) : null}
         </div>
+
+        {!isMobile && (showHelp || showCards) && (
+          <div className="shrink-0 border-t border-gray-700 bg-gray-800/60 px-4 py-2 text-[11px] text-gray-500">
+            <kbd className="rounded-sm border border-gray-600 px-1 py-0.5">↵</kbd> opens the top result
+          </div>
+        )}
       </div>
     </div>
   );

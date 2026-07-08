@@ -136,6 +136,27 @@ const defaultSearchSettings = {
 export const getStoredSearchSettings = () => getStoredJsonItem(SEARCH_MODAL_SETTINGS_KEY, defaultSearchSettings, areValidSearchSettings);
 export const setStoredSearchSettings = (value) => setStoredJsonItem(SEARCH_MODAL_SETTINGS_KEY, value);
 
+// Recent player searches (SearchModal's idle-state quick list).
+// Newest first, deduped by name (case-insensitive), capped.
+const RECENT_PLAYER_SEARCHES_KEY = 'recentPlayerSearches';
+const MAX_RECENT_PLAYER_SEARCHES = 5;
+const areValidRecentSearches = (value) =>
+  Array.isArray(value) &&
+  value.every((item) => typeof item === 'object' && item !== null && typeof item.name === 'string');
+export const getStoredRecentSearches = () => getStoredJsonItem(RECENT_PLAYER_SEARCHES_KEY, [], areValidRecentSearches);
+export const addStoredRecentSearch = (entry) => {
+  const next = [
+    entry,
+    ...getStoredRecentSearches().filter((item) => item.name.toLowerCase() !== entry.name.toLowerCase()),
+  ].slice(0, MAX_RECENT_PLAYER_SEARCHES);
+  setStoredJsonItem(RECENT_PLAYER_SEARCHES_KEY, next);
+  return next;
+};
+export const clearStoredRecentSearches = () => {
+  setStoredJsonItem(RECENT_PLAYER_SEARCHES_KEY, []);
+  return [];
+};
+
 // Global (leaderboard) View Settings
 const GLOBAL_VIEW_SETTINGS_KEY = 'globalViewSettings';
 const areValidGlobalViewSettings = (value) =>
