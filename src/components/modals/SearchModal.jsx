@@ -770,7 +770,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
             <div className="p-4 bg-gray-800 rounded-lg text-gray-300 text-sm">
               Look up a player&rsquo;s full ranked history across every tracked season. Start typing an Embark ID,
               Steam, PSN or Xbox name, or a club tag, then pick a result below. Linked accounts and renames are
-              resolved automatically. Records before Season 5 are reconstructed from community leaderboard snapshots.
+              resolved automatically. Records before Season 5 are reconstructed from leaderboard snapshots.
             </div>
           ) : null}
         </div>

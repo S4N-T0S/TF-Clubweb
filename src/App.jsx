@@ -334,7 +334,7 @@ const App = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-900 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
+    <div className="min-h-screen bg-gray-900">
       <ModalProvider>
         <UpdateModal isVisible={updateAvailable} />
 
