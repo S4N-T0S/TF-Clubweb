@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronRight, RefreshCw, LifeBuoy } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, RefreshCw, LifeBuoy, Home } from 'lucide-react';
 
-export const ErrorDisplay = ({ error, onRetry, variant = 'page' }) => {
+export const ErrorDisplay = ({ error, onRetry, variant = 'page', title = 'Connection Issue', onGoHome }) => {
   const [showDetails, setShowDetails] = useState(false);
   const isPage = variant === 'page';
 
@@ -35,18 +35,31 @@ export const ErrorDisplay = ({ error, onRetry, variant = 'page' }) => {
           <div className="p-3 bg-red-900/30 rounded-full mb-4">
             <AlertTriangle className="w-8 h-8 text-red-500" />
           </div>
-          <h3 className="text-xl font-bold text-white mb-2">Connection Issue</h3>
+          <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
           <p className="text-gray-300 text-sm mb-6">
-             {isMessageTruncated ? "We couldn't load the requested data." : errorMessage}
+             {isMessageTruncated
+               ? (title === 'Connection Issue' ? "We couldn't load the requested data." : 'An unexpected error occurred.')
+               : errorMessage}
           </p>
-          
-          <button
-            onClick={onRetry}
-            className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors font-medium active:scale-95 transform duration-150"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Retry
-          </button>
+
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={onRetry}
+              className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors font-medium active:scale-95 transform duration-150"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Retry
+            </button>
+            {onGoHome && (
+              <button
+                onClick={onGoHome}
+                className="flex items-center gap-2 px-6 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg transition-colors font-medium active:scale-95 transform duration-150"
+              >
+                <Home className="w-4 h-4" />
+                Go home
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Footer Section */}
