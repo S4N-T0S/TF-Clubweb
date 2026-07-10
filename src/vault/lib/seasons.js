@@ -17,6 +17,7 @@ export const SEASONS = [
   { n: 8, label: 'S8', startMs: day('2025-09-10') },
   { n: 9, label: 'S9', startMs: day('2025-12-10') },
   { n: 10, label: 'S10', startMs: day('2026-03-26') },
+  { n: 11, label: 'S11', startMs: day('2026-07-09') },
 ];
 
 // Season starts that fall within [minMs, maxMs] — for overlaying on a time axis
