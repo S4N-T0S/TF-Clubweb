@@ -25,10 +25,11 @@ const TIERS = [
 // Coarse league tier for a suggestion, or null when none can be derived honestly.
 // Gated on the season having Ruby (S3+): earlier seasons scored on different
 // scales, and top-500 didn't mean Ruby before the league existed.
-export const tierForSuggestion = (s) => {
+export const tierForSuggestion = (s, rubyReleased = true) => {
   const season = SEASON_BY_ID.get(s.latestSeasonId);
   if (!season?.hasRuby) return null;
-  const index = getLeagueIndexForFilter(s.latestRank ?? null, s.latestRankScore ?? null);
+  const rubyOk = season.isCurrent ? rubyReleased : true;
+  const index = getLeagueIndexForFilter(s.latestRank ?? null, s.latestRankScore ?? null, rubyOk);
   return index === null ? null : TIERS[index];
 };
 

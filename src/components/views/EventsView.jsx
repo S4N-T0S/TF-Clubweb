@@ -184,7 +184,7 @@ const isQueryInEvent = (event, query) => {
 };
 
 
-export const EventsView = ({ isMobile, onPlayerSearch, onClubClick, onGraphOpen, showToast }) => {
+export const EventsView = ({ isMobile, onPlayerSearch, onClubClick, onGraphOpen, showToast, rubyReleased = true }) => {
   const { isModalOpen } = useModal();
   const isVisible = useVisibility();
   const searchInputRef = useRef(null);
@@ -463,7 +463,9 @@ export const EventsView = ({ isMobile, onPlayerSearch, onClubClick, onGraphOpen,
       const { rank, score } = getRankInfoFromEvent(event);
       // For some events (like old Club Changes or Club Renames), rank/score might not be available.
       // If null, leagueIndex will also be null.
-      const leagueIndex = getLeagueIndexForFilter(rank, score);
+      // Current-season events only count as Ruby once Embark has actually released it
+      const isCurrentSeasonEvent = (event.seasonKey || (selectedSeason === 'ALL' ? currentSeasonKey : selectedSeason)) === currentSeasonKey;
+      const leagueIndex = getLeagueIndexForFilter(rank, score, isCurrentSeasonEvent ? rubyReleased : true);
       
       // Filter by minimum league. If filter is active (minLeague > 0), hide events
       // that are unranked (leagueIndex is null) or below the minimum league.
@@ -475,7 +477,7 @@ export const EventsView = ({ isMobile, onPlayerSearch, onClubClick, onGraphOpen,
 
       return true;
     });
-  }, [events, filters]);
+  }, [events, filters, selectedSeason, rubyReleased]);
   
   const { currentItems, currentPage, totalPages, startIndex, endIndex, handlePageChange, filteredItems } = usePagination(filteredEvents, isMobile ? 10 : 15, isMobile);
 

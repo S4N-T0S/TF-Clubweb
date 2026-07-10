@@ -397,6 +397,7 @@ const App = () => {
                       onClubClick={handleClubClick}
                       onGraphOpen={(embarkId, seasonKey) => handleGraphModalOpen(embarkId, [], seasonKey)}
                       showToast={showToast}
+                      rubyReleased={currentRubyCutoff !== false}
                     />
                   )}
                 </LazyBoundary>
@@ -480,6 +481,7 @@ const App = () => {
                 onGraphOpen={(embarkId, seasonKey) => handleGraphModalOpen(embarkId, [], seasonKey)}
                 isLeaderboardLoading={loading}
                 isCovered={isGraphOpen}
+                rubyReleased={currentRubyCutoff !== false}
               />
             </Suspense>
           )}

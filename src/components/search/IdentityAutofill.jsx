@@ -31,6 +31,7 @@ export const IdentityAutofill = ({
   currentSeasonData = null,
   groupLabel = 'Matching players',
   suppressQuery = '',
+  rubyReleased = true,
 }) => {
   const [suggestions, setSuggestions] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -143,7 +144,7 @@ export const IdentityAutofill = ({
         {groupLabel}
       </div>
       {suggestions.map((s, index) => {
-        const tier = tierForSuggestion(s);
+        const tier = tierForSuggestion(s, rubyReleased);
         return (
           <button
             key={`${s.name}-${index}`}

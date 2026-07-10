@@ -817,6 +817,7 @@ export const GlobalView = ({
               inputRef={searchInputRef}
               onSelect={onPlayerSearch}
               currentSeasonData={globalLeaderboard}
+              rubyReleased={currentRubyCutoff !== false}
             />
           )}
         </div>

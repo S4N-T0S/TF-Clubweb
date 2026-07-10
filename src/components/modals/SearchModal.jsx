@@ -343,7 +343,7 @@ const IdentityHero = ({ hero, onClubClick }) => (
   </div>
 );
 
-const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClubClick, onGraphOpen, isLeaderboardLoading, isCovered }) => {
+const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSearch, isMobile, onClubClick, onGraphOpen, isLeaderboardLoading, isCovered, rubyReleased = true }) => {
   const { modalRef, isActive, requestClose } = useModal(isOpen, onClose);
   const [searchState, setSearchState] = useState({
     query: '',
@@ -753,7 +753,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
             suggestions.length > 0 ? (
               <div className="flex flex-col gap-2">
                 {suggestions.map((s, i) => {
-                  const tier = tierForSuggestion(s);
+                  const tier = tierForSuggestion(s, rubyReleased);
                   return (
                     <button
                       key={`${s.name}-${i}`}

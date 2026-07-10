@@ -38,12 +38,17 @@ export const getLeagueInfo = (leagueNumber) => {
  * Converts a player's rank and score into a numerical league index for filtering.
  * @param {number | null} rank - The player's numerical rank.
  * @param {number | null} score - The player's rank score.
+ * @param {boolean} [rubyReleased=true] - Whether Ruby is in effect for the row's
+ *   season. Embark only ships Ruby ~a week into a new season, so current-season
+ *   callers should pass `currentRubyCutoff !== false` (false = the live board
+ *   has no league-21 players yet). Closed seasons ended with Ruby in effect and
+ *   can keep the default.
  * @returns {number | null} A numerical index (0-5) or null if unrankable.
  * 0: Bronze, 1: Silver, 2: Gold, 3: Platinum, 4: Diamond, 5: Ruby
  */
-export const getLeagueIndexForFilter = (rank, score) => {
-  // Ruby is top 500, which overrides any score.
-  if (rank !== null && rank > 0 && rank <= 500) {
+export const getLeagueIndexForFilter = (rank, score, rubyReleased = true) => {
+  // Ruby is top 500, which overrides any score — but only once it exists.
+  if (rubyReleased && rank !== null && rank > 0 && rank <= 500) {
     return 5; // 5 = Ruby
   }
 
