@@ -12,6 +12,7 @@ import { VaultLayout } from './VaultLayout';
 import { BetaBanner } from './components/BetaBanner';
 import { CareerPage } from './pages/CareerPage';
 import { RatingsPage } from './pages/RatingsPage';
+import { TrendsPage } from './pages/TrendsPage';
 import { MatchesPage } from './pages/MatchesPage';
 import { WeaponsPage } from './pages/WeaponsPage';
 import { BreakdownPage } from './pages/BreakdownPage';
@@ -19,6 +20,7 @@ import { LoadoutsPage } from './pages/LoadoutsPage';
 import { PurchasesPage } from './pages/PurchasesPage';
 import { SessionsPage } from './pages/SessionsPage';
 import { EmailsPage } from './pages/EmailsPage';
+import { SupportPage } from './pages/SupportPage';
 import { AccountPage } from './pages/AccountPage';
 import { preloadVaultImages } from './lib/preload';
 import { VAULT_BASE } from '../constants';
@@ -36,6 +38,7 @@ const VaultInner = () => {
       <Routes>
         <Route index element={<CareerPage />} />
         <Route path="ratings" element={<RatingsPage />} />
+        <Route path="trends" element={<TrendsPage />} />
         <Route path="matches" element={<MatchesPage />} />
         <Route path="weapons" element={<WeaponsPage />} />
         <Route path="breakdown" element={<BreakdownPage />} />
@@ -43,6 +46,7 @@ const VaultInner = () => {
         <Route path="purchases" element={<PurchasesPage />} />
         <Route path="sessions" element={<SessionsPage />} />
         <Route path="emails" element={<EmailsPage />} />
+        <Route path="support" element={<SupportPage />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="*" element={<Navigate to={VAULT_BASE} replace />} />
       </Routes>

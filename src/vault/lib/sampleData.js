@@ -468,6 +468,7 @@ function buildPersistence() {
     BucketObject: buildRatingBuckets(),
     RoundStatSummary: buildSummary(rounds),
     RoundStat: rounds,
+    UserLogin: buildUserLogins(rounds),
     RankBucket: [{ XP: 184500, Rank: 'Diamond' }, { XP: 92000, Rank: 'Platinum' }],
     TransactionLog: buildTransactions(),
     HardCurrencyLog: buildLedger(),
@@ -477,6 +478,25 @@ function buildPersistence() {
   const counts = Object.fromEntries(Object.entries(byType).map(([k, v]) => [k, v.length]));
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return { byType, counts, total, badLines: 0 };
+}
+
+// Backend sign-ins (persistence `UserLogin`) — the account system's token
+// grants. Interactive `authorization_code` logins are sparse; `client_credentials`
+// re-auths cluster around play days. IPs stay in the London example block so the
+// offline GeoIP resolves everything to GB (the account country) and the
+// Countries stat stays green.
+function buildUserLogins(rounds) {
+  const out = [];
+  for (let t = ACCOUNT_CREATED; t <= SPAN_END; t += ri(11, 18) * DAY) {
+    out.push({ CreatedAt: iso(t + ri(0, 12) * 3_600_000), GrantType: 'authorization_code', IPAddress: IPS[ri(0, IPS.length - 1)] });
+  }
+  rounds.forEach((r, i) => {
+    if (i % 5 !== 0) return;
+    const ms = Date.parse(r.CreatedAt);
+    if (!Number.isFinite(ms)) return;
+    out.push({ CreatedAt: iso(ms - ri(5, 40) * 60_000), GrantType: 'client_credentials', IPAddress: IPS[ri(0, IPS.length - 1)] });
+  });
+  return out.sort((a, b) => a.CreatedAt.localeCompare(b.CreatedAt));
 }
 
 // --- anti-cheat / sessions ------------------------------------------------
@@ -673,10 +693,95 @@ function buildAudit() {
     { logtime: iso(SPAN_END), created_msts: ACCOUNT_CREATED, display_name: 'SAMPLE_PLAYER', display_name_discriminator: '0000', is_spender: true, email_verified_msts: ACCOUNT_CREATED + DAY, email: EMAIL },
   ];
   const { ses, legacy } = buildSesEvents(EMAIL);
-  const byType = { ClientUserLoginDetails: login, AccountNameAudit2: names, PlayerReport: reports, ProfileUpdated3: profileUpdated, AwsSesEvent: ses, EmailStatus: legacy };
+  const byType = { ClientUserLoginDetails: login, AccountNameAudit2: names, PlayerReport: reports, ProfileUpdated3: profileUpdated, AwsSesEvent: ses, EmailStatus: legacy, ChatMessageSent: buildChatMessages() };
   const counts = Object.fromEntries(Object.entries(byType).map(([k, v]) => [k, v.length]));
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return { byType, counts, total, badLines: 0 };
+}
+
+// In-game chat (audit `ChatMessageSent`) — only the player's OWN sent messages,
+// and only from the last ~90 days before the export (matches the observed
+// retention). One row is profanity-filtered to demo the "filtered in game" badge.
+function buildChatMessages() {
+  const row = (isoTime, room_type, message, purified_message = message) => ({
+    logtime: isoTime,
+    tenancy: 'discovery-live',
+    room_type,
+    room_id: room_type === 'party' ? '5ample-9a7e-4c3b-8d2f-000000000001-party' : 'MPTU-pl',
+    purified: message !== purified_message,
+    message,
+    purified_message,
+  });
+  return [
+    row('2026-05-28T19:02:11.204Z', 'party', 'ready when you are'),
+    row('2026-05-28T19:02:44.881Z', 'party', 'lets run ranked'),
+    row('2026-05-28T19:41:03.550Z', 'party', 'that final was so close'),
+    row('2026-06-02T20:15:37.118Z', 'pl', 'gg everyone'),
+    row('2026-06-02T20:16:02.930Z', 'pl', 'nice winch play'),
+    row('2026-06-09T18:30:19.401Z', 'pl', 'anyone else lagging?'),
+    row('2026-06-09T18:31:05.777Z', 'pl', 'ok its just me lol'),
+    row('2026-06-12T21:08:56.023Z', 'party', 'one more then im done', 'one more then im done'),
+    row('2026-06-12T21:44:12.309Z', 'party', 'that damn turret again', 'that **** turret again'),
+    row('2026-06-12T22:01:40.665Z', 'party', 'gn o7'),
+  ];
+}
+
+// Support tickets in the FINAL parsed shape (`raw.customerSupportParsed`), so
+// the sample never loads pdfjs — the Support page prefers pre-parsed data.
+function buildSampleSupport() {
+  const T = (s) => Date.parse(s);
+  return {
+    chat: [],
+    creationDateMs: T('2026-06-18T00:00:00Z'),
+    tickets: [
+      {
+        queue: 'General',
+        tags: ['tf_general', 'tf_tier1', 'tf_technical'],
+        intent: 'Technical Issues',
+        resolvedAtMs: T('2026-05-30T09:12:00Z'),
+        approxStartMs: T('2026-05-26T00:00:00Z'),
+        attachmentCount: 1,
+        attachments: ['crash_report.zip'],
+        messages: [
+          { who: 'bot', name: 'Greeting Message', text: 'Hi! Thank you for reaching out. Please let us know how we can help you by choosing the category below.', dayOffset: 23, approxMs: T('2026-05-26T00:00:00Z'), sentMs: null },
+          { who: 'you', name: null, text: 'I am having another technical issue', dayOffset: 23, approxMs: T('2026-05-26T00:00:00Z'), sentMs: null },
+          { who: 'system', name: null, text: 'Issue Created', dayOffset: 23, approxMs: null, sentMs: null },
+          { who: 'bot', name: 'THE FINALS - Resolution Bot V10', text: 'We are really sorry to hear that technical issues prevented you from being able to play. Could you please tell us a little bit more about what happened?', dayOffset: 23, approxMs: T('2026-05-26T00:00:00Z'), sentMs: null },
+          { who: 'you', name: null, text: 'Please describe the issue\nThe game crashes on launch since the last patch. Verified files and reinstalled already.\n\nWhich platform do you play on?\nSteam', dayOffset: 23, approxMs: T('2026-05-26T00:00:00Z'), sentMs: null },
+          { who: 'system', name: null, text: 'Attachment sent · crash_report.zip', dayOffset: 23, approxMs: null, sentMs: null, attachment: true },
+          { who: 'agent', name: 'Blade', text: 'Hello,\n\nThank you for the crash report. This is a known issue with the latest driver version — please update your GPU driver and the crash should stop.\n\nKind regards,\nBlade', dayOffset: 19, approxMs: T('2026-05-30T00:00:00Z'), sentMs: null },
+          { who: 'system', name: null, text: 'Resolved', dayOffset: 19, approxMs: null, sentMs: null },
+        ],
+      },
+      {
+        queue: 'Cheater Reports',
+        tags: ['tf_general', 'tf_tier1'],
+        intent: 'Report a Cheater',
+        resolvedAtMs: T('2026-04-14T16:40:00Z'),
+        approxStartMs: T('2026-04-11T00:00:00Z'),
+        attachmentCount: 1,
+        attachments: ['clip.mp4'],
+        messages: [
+          { who: 'you', name: null, text: 'Reporting a player who was clearly seeing us through walls all tournament. Video attached.', dayOffset: 68, approxMs: T('2026-04-11T00:00:00Z'), sentMs: null },
+          { who: 'system', name: null, text: 'Attachment sent · clip.mp4', dayOffset: 68, approxMs: null, sentMs: null, attachment: true },
+          { who: 'agent', name: null, text: 'Thank you for the report and the evidence. We can’t share the outcome of investigations, but our anti-cheat team will review this player.', dayOffset: 65, approxMs: T('2026-04-14T00:00:00Z'), sentMs: T('2026-04-14T16:38:12Z'), readMs: T('2026-04-15T09:02:44Z') },
+          { who: 'system', name: null, text: 'Resolved', dayOffset: 65, approxMs: null, sentMs: null },
+        ],
+      },
+      {
+        queue: 'General',
+        tags: ['tf_general'],
+        intent: null,
+        resolvedAtMs: T('2025-11-03T10:00:00Z'),
+        approxStartMs: null,
+        attachmentCount: 0,
+        attachments: [],
+        parseFallback: true,
+        rawText: 'This older transcript used a layout the parser doesn’t recognise, so it is shown raw.\n\nHi! Thanks for reaching out …\n(unstructured transcript text)',
+        messages: [],
+      },
+    ],
+  };
 }
 
 /**
@@ -693,5 +798,8 @@ export function buildSampleRaw() {
     // Request "worked on" a few days after the last session — demonstrates the
     // "data as of your request" freshness banner (request date > last activity).
     readme: { requestedAtMs: Date.parse('2026-06-18T00:00:00Z'), requestId: '0000', label: '18 June 2026' },
+    // Pre-parsed CS data (chat comes from the audit rows; tickets in the parsed
+    // shape) — the sample must never need pdfjs.
+    customerSupportParsed: buildSampleSupport(),
   };
 }

@@ -65,6 +65,7 @@ function classify(flat) {
     anybrain: { os: null, screens: null, sessions: null },
     denuvo: [],
     readme: null, // { requestedAtMs, requestId, label } parsed from the README pdf name
+    customerSupport: null, // CS_extracted_data.pdf raw bytes (chat log + support tickets)
     unknown: [],
     all: flat,
   };
@@ -75,6 +76,10 @@ function classify(flat) {
     if (base.startsWith('readme') && base.endsWith('.pdf')) {
       // Capture the request date/ticket from the filename; ignore the PDF bytes.
       fileset.readme = parseReadmeName(rawBasename(entry.path)) || fileset.readme;
+    } else if (base.endsWith('.pdf') && (base.startsWith('cs_') || base.includes('extracted_data'))) {
+      // Customer-Service export: in-game chat log + Helpshift support tickets.
+      // Bytes are kept raw here; the Support page lazy-parses them (pdfjs).
+      if (!fileset.customerSupport || entry.bytes.length > fileset.customerSupport.bytes.length) fileset.customerSupport = entry;
     } else if (/persistence\.(jsonl|json|txt)$/.test(base) || (base.includes('persistence') && /\.(jsonl|txt)$/.test(base))) {
       // Prefer the largest persistence file if several appear.
       if (!fileset.persistence || entry.bytes.length > fileset.persistence.bytes.length) fileset.persistence = entry;
@@ -133,6 +138,13 @@ export function summarizeFileset(fileset) {
       found: !!fileset.readme, powers: 'the “data as of” date',
     },
   ];
+
+  if (fileset.customerSupport) {
+    components.push({
+      key: 'support', label: 'Customer support & chat', file: 'CS_extracted_data.pdf', required: false,
+      found: true, powers: 'your in-game chat log and support tickets',
+    });
+  }
 
   const missing = components.filter((c) => !c.required && !c.found);
   return {

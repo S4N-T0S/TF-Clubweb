@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Radar, Cpu, Wifi, Loader2 } from 'lucide-react';
+import { Radar, Cpu, Wifi, Loader2, KeyRound } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, StatCard, Badge, Note, EmptyState, PageJump } from '../components/ui';
 import { Pagination } from '../../components/Pagination';
@@ -8,7 +8,14 @@ import { isoToFlag, loadWorldGeo } from '../lib/worldgeo';
 import { num, date, dateTime, duration } from '../lib/format';
 
 const PER_PAGE = 15;
-const sourceTone = { EOS: 'blue', Anybrain: 'purple', Denuvo: 'yellow' };
+const sourceTone = { EOS: 'blue', Anybrain: 'purple', Denuvo: 'yellow', Logins: 'emerald' };
+
+// Friendly names for the backend OAuth grant types on `UserLogin` rows.
+const GRANT_LABELS = {
+  authorization_code: 'Interactive sign-ins',
+  client_credentials: 'Game-client tokens',
+  refresh_token: 'Session refreshes',
+};
 
 // Resolve each unique IP to a country, offline. The mmdb reader (mmdb-lib + buffer) is dynamically imported so it stays out of the main vault chunk.
 function useGeoCountries(ips) {
@@ -79,7 +86,7 @@ const IpTable = ({ ips }) => (
         <tr className="text-gray-400 border-b border-gray-700">
           <th className="text-left py-2 px-3 font-medium">IP address</th>
           <th className="text-left py-2 px-3 font-medium">Type</th>
-          <th className="text-right py-2 px-3 font-medium">Sessions</th>
+          <th className="text-right py-2 px-3 font-medium">Records</th>
           <th className="text-left py-2 px-3 font-medium">First seen</th>
           <th className="text-left py-2 px-3 font-medium">Last seen</th>
           <th className="text-left py-2 px-3 font-medium">Sources</th>
@@ -139,7 +146,7 @@ export const SessionsPage = () => {
               <div key={s.name} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-gray-700/40 last:border-0 pb-3 last:pb-0">
                 <div className="flex items-center gap-2">
                   <Badge tone={sourceTone[s.name]}>{s.name}</Badge>
-                  <span className="text-white text-sm">{num(s.count)} sessions</span>
+                  <span className="text-white text-sm">{num(s.count)} {s.unit || 'sessions'}</span>
                   <span className="text-gray-500 text-xs">{date(s.firstMs)} → {date(s.lastMs)}</span>
                 </div>
                 <span className="text-xs text-gray-500">{s.note}</span>
@@ -150,12 +157,38 @@ export const SessionsPage = () => {
         <Note>EOS records frequent short sessions (it re-checks roughly every ~15–20 min), so its session count reflects heartbeats/reconnects rather than whole play sessions.</Note>
       </Panel>
 
+      {/* Backend account sign-ins (persistence UserLogin) — the longest-lived IP trail */}
+      {antiCheat.logins?.count > 0 && (
+        <Panel title="Account sign-ins">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            <span className="inline-flex items-center gap-1.5 text-white">
+              <KeyRound className="w-4 h-4 text-emerald-400" />
+              {num(antiCheat.logins.count)} sign-ins
+            </span>
+            <span className="text-gray-500 text-xs">{date(antiCheat.logins.firstMs)} → {date(antiCheat.logins.lastMs)}</span>
+            <span className="text-gray-500 text-xs">{num(antiCheat.logins.distinctIps)} distinct IP{antiCheat.logins.distinctIps === 1 ? '' : 's'}</span>
+            <span className="flex-1" />
+            {antiCheat.logins.grantTypes.map((g) => (
+              <span key={g.type} className="inline-flex items-center gap-1.5 text-xs text-gray-300" title={g.type}>
+                <Badge tone="gray">{num(g.count)}</Badge>
+                {GRANT_LABELS[g.type] || g.type}
+              </span>
+            ))}
+          </div>
+          <Note>
+            These are the account system’s token grants, not play sessions: interactive sign-ins are you logging in for example on the website,
+            game-client tokens are the game authenticating you in the background when you open it. Their IPs feed the locations below and
+            cover your whole account lifetime, unlike the windowed anti-cheat sources above.
+          </Note>
+        </Panel>
+      )}
+
       {/* Locations / geolocation map */}
       <Panel title="Locations">
         {ips.length === 0 ? (
           <EmptyState icon={Wifi} title="No usable IP addresses in this export">
             {antiCheat.redactedIpCount > 0
-              ? `${num(antiCheat.redactedIpCount)} sessions carried a redacted placeholder (e.g. "[REDACTED]") instead of an IP — a real, un-edited export keeps the actual addresses.`
+              ? `${num(antiCheat.redactedIpCount)} records carried a redacted placeholder (e.g. "[REDACTED]") instead of an IP — a real, un-edited export keeps the actual addresses.`
               : 'This export did not include client IPs.'}
           </EmptyState>
         ) : geo.status === 'loading' ? (
@@ -175,13 +208,13 @@ export const SessionsPage = () => {
                     <span className="text-base">{isoToFlag(c.iso)}</span>
                     <span className="text-white">{c.name}</span>
                   </span>
-                  <span className="text-gray-400 text-xs">{num(c.ips)} IP{c.ips === 1 ? '' : 's'} · {num(c.sessions)} sessions</span>
+                  <span className="text-gray-400 text-xs">{num(c.ips)} IP{c.ips === 1 ? '' : 's'} · {num(c.sessions)} records</span>
                 </div>
               ))}
             </div>
             <div className="mt-4"><IpTable ips={ips} /></div>
             {antiCheat.redactedIpCount > 0 && (
-              <p className="text-xs text-gray-500 mt-2">{num(antiCheat.redactedIpCount)} sessions had a redacted/placeholder IP and are excluded.</p>
+              <p className="text-xs text-gray-500 mt-2">{num(antiCheat.redactedIpCount)} records had a redacted/placeholder IP and are excluded.</p>
             )}
           </>
         )}

@@ -4,7 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import {
   ShieldCheck, Upload, FolderOpen, WifiOff, Lock, AlertTriangle, Loader2, ChevronLeft, ChevronDown,
   Mail, ExternalLink, Copy, Check, ArrowRight, HelpCircle, Info,
-  User, Gauge, Swords, Crosshair, BarChart3, Layers, Wallet, Radar, ShieldAlert,
+  User, Gauge, LineChart, Swords, Crosshair, BarChart3, Layers, Wallet, Radar, MessagesSquare, ShieldAlert,
 } from 'lucide-react';
 import { useVaultData } from './context/VaultDataContext';
 import { SITE_URL, VAULT_BASE } from '../constants';
@@ -57,6 +57,7 @@ Thank you,
 const SHOWCASE = [
   { icon: User, label: 'Career', sub: VAULT_BASE, desc: 'Lifetime hours, K/D, total cash-outs, kills & revives.' },
   { icon: Gauge, label: 'Skill rating', sub: `${VAULT_BASE}/ratings`, desc: 'Hidden MMR per playlist and your ranked rank every season.' },
+  { icon: LineChart, label: 'Trends', sub: `${VAULT_BASE}/trends`, desc: 'Have you improved? K/D, win rate and damage over time, per mode.' },
   { icon: Swords, label: 'Match history', sub: `${VAULT_BASE}/matches`, desc: 'Every match since launch — ranked tournaments round-by-round.' },
   { icon: Crosshair, label: 'Weapons', sub: `${VAULT_BASE}/weapons`, desc: 'Eliminations per weapon across every class.' },
   { icon: BarChart3, label: 'Breakdown', sub: `${VAULT_BASE}/breakdown`, desc: 'Real K/D and win rate per map, mode and class.' },
@@ -64,6 +65,7 @@ const SHOWCASE = [
   { icon: Wallet, label: 'Purchases', sub: `${VAULT_BASE}/purchases`, desc: 'Real money spent, Multibucks ledger and owned DLC.' },
   { icon: Radar, label: 'Sessions', sub: `${VAULT_BASE}/sessions`, desc: 'Every login, IP and country on an offline world map.' },
   { icon: Mail, label: 'Email tracking', sub: `${VAULT_BASE}/emails`, desc: 'Which emails Embark sent, opened and click-tracked.' },
+  { icon: MessagesSquare, label: 'Support & chat', sub: `${VAULT_BASE}/support`, desc: 'Your in-game chat log and Embark support-ticket threads.' },
   { icon: ShieldAlert, label: 'Account & bans', sub: `${VAULT_BASE}/account`, desc: 'Email, DOB, country, linked accounts and ban status.' },
 ];
 

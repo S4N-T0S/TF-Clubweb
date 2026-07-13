@@ -24,6 +24,7 @@ export const WEAPONS = {
   '432758549': { name: 'Breach Charge', archetype: 'Light', type: 'Gadget' },
   '981999322': { name: 'Tracking Dart', archetype: 'Light', type: 'Gadget' },
   '-578452692': { name: 'Thermal Bore', archetype: 'Light', type: 'Gadget' },
+  '988268619': { name: 'H+ Infuser', archetype: 'Light', type: 'Gadget' },
 
   // Medium
   '473278792': { name: 'AKM', archetype: 'Medium', type: 'Weapon' },

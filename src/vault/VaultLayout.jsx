@@ -1,6 +1,6 @@
 import { NavLink, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { User, Gauge, Swords, Crosshair, Layers, BarChart3, Wallet, Radar, Mail, ShieldAlert, WifiOff, LogOut, RotateCcw, FlaskConical } from 'lucide-react';
+import { User, Gauge, LineChart, Swords, Crosshair, Layers, BarChart3, Wallet, Radar, Mail, MessagesSquare, ShieldAlert, WifiOff, LogOut, RotateCcw, FlaskConical } from 'lucide-react';
 import { useVaultData } from './context/VaultDataContext';
 import { VAULT_BASE } from '../constants';
 import { ImportSummaryBanner } from './components/ImportSummaryBanner';
@@ -14,6 +14,7 @@ import { useMobileDetect } from '../hooks/useMobileDetect';
 const NAV = [
   { to: VAULT_BASE, end: true, icon: User, label: 'Career' },
   { to: `${VAULT_BASE}/ratings`, icon: Gauge, label: 'Skill Rating' },
+  { to: `${VAULT_BASE}/trends`, icon: LineChart, label: 'Trends' },
   { to: `${VAULT_BASE}/matches`, icon: Swords, label: 'Matches' },
   { to: `${VAULT_BASE}/weapons`, icon: Crosshair, label: 'Weapons' },
   { to: `${VAULT_BASE}/breakdown`, icon: BarChart3, label: 'Breakdown' },
@@ -21,6 +22,7 @@ const NAV = [
   { to: `${VAULT_BASE}/purchases`, icon: Wallet, label: 'Purchases' },
   { to: `${VAULT_BASE}/sessions`, icon: Radar, label: 'Sessions' },
   { to: `${VAULT_BASE}/emails`, icon: Mail, label: 'Emails' },
+  { to: `${VAULT_BASE}/support`, icon: MessagesSquare, label: 'Support & Chat' },
   { to: `${VAULT_BASE}/account`, icon: ShieldAlert, label: 'Account & Bans' },
 ];
 

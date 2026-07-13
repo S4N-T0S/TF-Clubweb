@@ -104,5 +104,11 @@ export async function parseFileset(fileset, onProgress = () => {}) {
   // Request metadata parsed from the README pdf filename (date/ticket), if present
   const readme = fileset.readme || null;
 
-  return { persistence, audit, eos, anybrain, denuvo, readme };
+  // Customer-Service PDF: passed through as raw bytes — parsing it needs pdfjs,
+  // which stays out of the import path (the Support page lazy-parses on demand).
+  const customerSupport = fileset.customerSupport
+    ? { name: fileset.customerSupport.path, bytes: fileset.customerSupport.bytes, size: fileset.customerSupport.bytes.length }
+    : null;
+
+  return { persistence, audit, eos, anybrain, denuvo, readme, customerSupport };
 }

@@ -1149,6 +1149,7 @@ const RETENTION = {
   EOS: 'EOS keeps a windowed snapshot of recent sessions.',
   Anybrain: 'Anybrain logs begin at the integration go-live (2025-07-24).',
   Denuvo: 'Denuvo keeps a rolling ~6-month window ending at the ban (active platform).',
+  Logins: 'Backend account sign-ins (token grants) — kept for the whole account lifetime.',
 };
 
 // Flatten every anti-cheat source into one comparable session list.
@@ -1247,6 +1248,54 @@ function buildAntiCheat(raw) {
       rec.lastMs = Math.max(rec.lastMs, s.start);
     }
   }
+  // Backend account logins (persistence `UserLogin`: {CreatedAt, GrantType,
+  // IPAddress}) — point events, not sessions, so they enrich the IP/location
+  // data and get their own source row but stay OUT of the session list and the
+  // activity strip (no double counting). Donor exports carry these redacted;
+  // a real export has actual addresses covering the whole account lifetime.
+  const loginRows = raw.persistence?.byType?.UserLogin || [];
+  const grantTally = new Map();
+  const loginIpSet = new Set();
+  let loginFirst = Infinity;
+  let loginLast = -Infinity;
+  for (const l of loginRows) {
+    const t = toMs(l.CreatedAt);
+    if (t != null) {
+      if (t < loginFirst) loginFirst = t;
+      if (t > loginLast) loginLast = t;
+    }
+    const g = typeof l.GrantType === 'string' && l.GrantType ? l.GrantType : 'unknown';
+    grantTally.set(g, (grantTally.get(g) || 0) + 1);
+    const ip = l.IPAddress;
+    if (!ip) continue;
+    if (!isRealIp(ip)) {
+      redactedIpCount++;
+      continue;
+    }
+    loginIpSet.add(ip);
+    let rec = ipMap.get(ip);
+    if (!rec) {
+      rec = { ip, version: ipVersion(ip), count: 0, firstMs: Infinity, lastMs: -Infinity, sources: new Set() };
+      ipMap.set(ip, rec);
+    }
+    rec.count++;
+    rec.sources.add('Logins');
+    if (t != null) {
+      rec.firstMs = Math.min(rec.firstMs, t);
+      rec.lastMs = Math.max(rec.lastMs, t);
+    }
+  }
+  const logins = {
+    count: loginRows.length,
+    firstMs: Number.isFinite(loginFirst) ? loginFirst : null,
+    lastMs: Number.isFinite(loginLast) ? loginLast : null,
+    grantTypes: [...grantTally.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
+    distinctIps: loginIpSet.size,
+  };
+  if (logins.count > 0) {
+    sources.push({ name: 'Logins', count: logins.count, firstMs: logins.firstMs, lastMs: logins.lastMs, unit: 'logins', note: RETENTION.Logins });
+  }
+
   const ips = [...ipMap.values()]
     .map((r) => ({ ...r, sources: [...r.sources], firstMs: Number.isFinite(r.firstMs) ? r.firstMs : null, lastMs: Number.isFinite(r.lastMs) ? r.lastMs : null }))
     .sort((a, b) => b.count - a.count);
@@ -1300,6 +1349,7 @@ function buildAntiCheat(raw) {
     sources,
     activity: buildActivity(sessions),
     ips,
+    logins,
     redactedIpCount,
     operatingSystems: [...new Set([...eosOses, ...anybrainOses])],
     resolutions,
@@ -1316,6 +1366,44 @@ function buildAntiCheat(raw) {
 // reported (target origin_uuid is blank), but keeps the reason and the free-text
 // note. This is NOT an action against the subject's own account — the ban
 // history covers that.
+// --- support: in-game chat + customer-service PDF ---------------------------
+// Chat lives in audit `ChatMessageSent` (raw + profanity-filtered text; a type
+// newer exports carry). The CS_extracted_data.pdf duplicates the chat (censored
+// only) and is the ONLY source for Helpshift support tickets — it stays raw
+// bytes here and the Support page lazy-parses it via lib/cs.js (pdfjs).
+const CHAT_CHANNELS = { pl: 'Lobby', party: 'Party' };
+export const chatChannelLabel = (ch) => CHAT_CHANNELS[ch] || ch || 'Chat';
+
+function buildSupport(raw) {
+  const rows = raw.audit?.byType?.ChatMessageSent || [];
+  const chat = rows
+    .map((c) => {
+      const text = c.message ?? c.purified_message ?? '';
+      const censored = c.purified_message ?? text;
+      return {
+        ms: toMs(c.logtime),
+        iso: c.logtime ?? null,
+        channel: c.room_type || '?',
+        roomId: c.room_id || null,
+        text,
+        censored,
+        wasCensored: c.purified === true || text !== censored,
+        source: 'audit',
+      };
+    })
+    .filter((c) => c.ms != null)
+    .sort((a, b) => a.ms - b.ms);
+  const pdf = raw.customerSupport || null;
+  const preParsed = raw.customerSupportParsed || null; // sample data injects the parsed shape directly
+  return {
+    hasAny: chat.length > 0 || !!pdf || !!preParsed,
+    chat,
+    pdf,
+    preParsed,
+    anchorFallbackMs: toMs(raw.readme?.requestedAtMs ?? null),
+  };
+}
+
 function buildReports(raw) {
   const rows = raw.audit?.byType?.PlayerReport || [];
   const reports = rows
@@ -1538,6 +1626,7 @@ export function buildModel(raw) {
     career: buildCareer(byType),
     ratings: buildRatings(byType),
     matches,
+    rounds, // chronological normalized rounds (already retained via matches[].rounds)
     modeBreakdown: buildModeBreakdown(matches),
     careerModes: buildCareerModes(matches),
     breakdowns: buildBreakdowns(rounds),
@@ -1547,6 +1636,7 @@ export function buildModel(raw) {
     economy: buildEconomy(byType),
     antiCheat: buildAntiCheat(raw),
     reports: buildReports(raw),
+    support: buildSupport(raw),
     emailTracking: buildEmailTracking(raw.audit?.byType),
     meta: {
       roundCount,
