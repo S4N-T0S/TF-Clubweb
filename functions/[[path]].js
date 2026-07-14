@@ -348,6 +348,8 @@ function generateMetadata(url) {
     meta.description = 'Load the GDPR / Subject Access Request data export Embark emailed you and explore it as a private, readable dashboard — match history, weapons, loadouts, career and account status. Fully offline: everything is parsed in your browser and nothing is ever uploaded.';
     meta.keywords = 'the finals gdpr, the finals data request, sar export, embark data export, the finals match history, the finals data vault, offline, privacy, the finals tracker';
     canonicalPath = '/gdpr-vault';
+    meta.image = `${OG_IMAGE_BASE}/og/vault.png`;
+    meta.imageAlt = 'Your Data Vault — turn your THE FINALS GDPR export into a private, offline dashboard';
   } else {
     // Resolves root to /hub mirroring SEOHead.jsx
     if (canonicalPath === '/') canonicalPath = '/hub';

@@ -23,7 +23,7 @@ import { EmailsPage } from './pages/EmailsPage';
 import { SupportPage } from './pages/SupportPage';
 import { AccountPage } from './pages/AccountPage';
 import { preloadVaultImages } from './lib/preload';
-import { VAULT_BASE } from '../constants';
+import { VAULT_BASE, VAULT_OG_IMAGE, VAULT_OG_IMAGE_ALT } from '../constants';
 
 // Gate: until an export is parsed, every vault path shows the upload landing
 const VaultInner = () => {
@@ -65,6 +65,10 @@ const VaultRoot = () => {
     <VaultDataProvider>
       <Helmet>
         <title>Your Data Vault — OG Club</title>
+        <meta property="og:image" content={VAULT_OG_IMAGE} />
+        <meta property="og:image:alt" content={VAULT_OG_IMAGE_ALT} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content={VAULT_OG_IMAGE} />
       </Helmet>
       <VaultInner />
       <BetaBanner />

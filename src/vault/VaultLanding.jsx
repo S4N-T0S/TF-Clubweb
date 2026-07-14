@@ -178,7 +178,6 @@ export const VaultLanding = () => {
         <meta property="og:title" content={SEO.title} />
         <meta property="og:description" content={SEO.description} />
         <meta property="og:url" content={SEO.url} />
-        <meta name="twitter:card" content="summary" />
         <meta name="twitter:title" content={SEO.title} />
         <meta name="twitter:description" content={SEO.description} />
       </Helmet>
