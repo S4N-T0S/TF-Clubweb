@@ -62,15 +62,15 @@ export const Note = ({ children }) => (
   <p className="text-xs text-gray-500 italic mt-3 border-l-2 border-gray-700 pl-3">{children}</p>
 );
 
-// Lightweight hover/focus tooltip (CSS only — no portal needed for short labels in non-clipping spots like a page header). Opens below by default so it never collides with the banner above the content
-export const Tooltip = ({ label, children, className = '', side = 'bottom' }) => (
+// Lightweight hover/focus tooltip (CSS only — no portal needed for short labels in non-clipping spots like a page header). Opens below by default so it never collides with the banner above the content.
+export const Tooltip = ({ label, children, className = '', side = 'bottom', align = 'center' }) => (
   <span className={`relative inline-flex group ${className}`} tabIndex={0}>
     {children}
     <span
       role="tooltip"
-      className={`pointer-events-none absolute left-1/2 -translate-x-1/2 z-50 w-max max-w-[16rem] rounded-lg bg-gray-900 border border-gray-700 px-3 py-2 text-xs font-normal normal-case tracking-normal leading-relaxed text-gray-200 shadow-xl opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity ${
+      className={`pointer-events-none absolute z-50 w-max max-w-[16rem] rounded-lg bg-gray-900 border border-gray-700 px-3 py-2 text-xs font-normal normal-case tracking-normal leading-relaxed text-gray-200 shadow-xl opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity ${
         side === 'bottom' ? 'top-full mt-2' : 'bottom-full mb-2'
-      }`}
+      } ${align === 'end' ? 'right-0' : 'left-1/2 -translate-x-1/2'}`}
     >
       {label}
     </span>

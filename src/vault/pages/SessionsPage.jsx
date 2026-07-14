@@ -261,6 +261,7 @@ export const SessionsPage = () => {
               endIndex={startIndex + PER_PAGE}
               totalItems={sessions.length}
               onPageChange={(p) => setPage(p)}
+              edgeScroll={false}
               variant="compact"
             />
           </div>

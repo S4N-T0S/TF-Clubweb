@@ -85,6 +85,9 @@ export const isBaseCurrency = (code) => !code || BASE_CURRENCIES.has(code);
 // Steam app ids
 export const STEAM_BASE_GAME_ID = 2073850;
 export const DLC_NAMES = {
+  4835420: 'FUNKOMATIC 2000 Set',
+  4835410: 'Season 11 Starter Pack',
+  4835400: 'Season 11 Ultimate Battle Pass Bundle',
   4652630: 'Data Crusader Set',
   4599390: 'Crown That Remains Set',
   4406660: 'Morrígan\'s Call Set',
@@ -143,6 +146,8 @@ export const DLC_NAMES = {
   3080260: 'Metro Drifter Set',
   3025990: 'Season 3 Starter Pack',
   2897810: 'Bank Rabbit Set',
+  // Not a THE FINALS DLC: owning Embark's other game logs a row here too.
+  1808500: 'ARC Raiders',
 };
 export const steamAppUrl = (id) => `https://store.steampowered.com/app/${id}/`;
 export const resolveDlc = (id) => ({

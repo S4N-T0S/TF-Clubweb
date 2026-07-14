@@ -28,15 +28,16 @@ const PageControl = ({ disabled, href, onClick, children }) => {
   );
 };
 
-export const Pagination = ({ 
-  currentPage, 
-  totalPages, 
-  startIndex, 
-  endIndex, 
-  totalItems, 
+export const Pagination = ({
+  currentPage,
+  totalPages,
+  startIndex,
+  endIndex,
+  totalItems,
   onPageChange,
   buildPageHref,
   scrollRef,
+  edgeScroll = true,
   variant = 'page'
 }) => {
   const handleScrollToTop = () => {
@@ -76,7 +77,7 @@ export const Pagination = ({
         <PageControl
           disabled={currentPage === 1}
           href={buildPageHref ? buildPageHref(1) : null}
-          onClick={onPageClick(1, handleScrollToTop)}
+          onClick={onPageClick(1, edgeScroll ? handleScrollToTop : null)}
         >
           First
         </PageControl>
@@ -97,7 +98,7 @@ export const Pagination = ({
         <PageControl
           disabled={currentPage === totalPages}
           href={buildPageHref ? buildPageHref(totalPages) : null}
-          onClick={onPageClick(totalPages, handleScrollToBottom)}
+          onClick={onPageClick(totalPages, edgeScroll ? handleScrollToBottom : null)}
         >
           Last
         </PageControl>

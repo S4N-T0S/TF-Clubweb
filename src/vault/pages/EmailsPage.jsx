@@ -302,6 +302,7 @@ export const EmailsPage = () => {
             endIndex={startIndex + PER_PAGE}
             totalItems={filtered.length}
             onPageChange={setPage}
+            edgeScroll={false}
           />
         )}
 

@@ -376,6 +376,7 @@ export const PurchasesPage = () => {
                       endIndex={lgStart + PER_PAGE}
                       totalItems={ledger.length}
                       onPageChange={setLedgerPage}
+                      edgeScroll={false}
                       variant="compact"
                     />
                   </div>
@@ -457,6 +458,7 @@ export const PurchasesPage = () => {
                   endIndex={txStart + PER_PAGE}
                   totalItems={filteredTx.length}
                   onPageChange={setTxPage}
+                  edgeScroll={false}
                   variant="compact"
                 />
               </div>
@@ -532,6 +534,7 @@ export const PurchasesPage = () => {
                     endIndex={ofStart + PER_PAGE}
                     totalItems={offers.length}
                     onPageChange={setOffersPage}
+                    edgeScroll={false}
                     variant="compact"
                   />
                 </div>

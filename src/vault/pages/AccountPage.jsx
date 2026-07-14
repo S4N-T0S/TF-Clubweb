@@ -41,28 +41,58 @@ const EmailVerifiedMark = ({ at }) =>
 
 // Renders one name's history: a dated timeline when it changed, else a single
 // "since <date>" line. `span` = { spans[], changed, current, firstMs? }.
-const NameTimeline = ({ span }) =>
-  span.changed ? (
-    <ol className="space-y-1">
-      {[...span.spans].reverse().map((s, i) => (
-        <li key={i} className="flex items-baseline justify-between gap-3 text-sm">
-          <span className={`truncate ${i === 0 ? 'text-white font-medium' : 'text-gray-400'}`}>
-            {s.name}
-            {i === 0 && <span className="ml-2 text-[10px] uppercase tracking-wider text-emerald-400">current</span>}
-          </span>
-          <span className="text-xs text-gray-500 whitespace-nowrap">
-            {date(s.firstMs)}
-            {s.lastMs && s.lastMs !== s.firstMs ? ` – ${date(s.lastMs)}` : ''}
-          </span>
-        </li>
-      ))}
-    </ol>
-  ) : (
-    <div className="flex items-baseline justify-between gap-3 text-sm">
-      <span className="text-white font-medium truncate">{span.current?.name ?? '—'}</span>
-      <span className="text-xs text-gray-500 whitespace-nowrap">since {date(span.firstMs ?? span.current?.firstMs)}</span>
-    </div>
+const NAMES_PER_PAGE = 12;
+const NameTimeline = ({ span }) => {
+  const [page, setPage] = useState(1);
+  if (!span.changed) {
+    return (
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <span className="text-white font-medium truncate">{span.current?.name ?? '—'}</span>
+        <span className="text-xs text-gray-500 whitespace-nowrap">since {date(span.firstMs ?? span.current?.firstMs)}</span>
+      </div>
+    );
+  }
+  const items = [...span.spans].reverse();
+  const totalPages = Math.max(1, Math.ceil(items.length / NAMES_PER_PAGE));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * NAMES_PER_PAGE;
+  const slice = items.slice(start, start + NAMES_PER_PAGE);
+  return (
+    <>
+      <ol className="space-y-1">
+        {slice.map((s, i) => {
+          const idx = start + i;
+          return (
+            <li key={idx} className="flex items-baseline justify-between gap-3 text-sm">
+              <span className={`truncate ${idx === 0 ? 'text-white font-medium' : 'text-gray-400'}`}>
+                {s.name}
+                {idx === 0 && <span className="ml-2 text-[10px] uppercase tracking-wider text-emerald-400">current</span>}
+              </span>
+              <span className="text-xs text-gray-500 whitespace-nowrap">
+                {date(s.firstMs)}
+                {s.lastMs && s.lastMs !== s.firstMs ? ` – ${date(s.lastMs)}` : ''}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      {totalPages > 1 && (
+        <div className="mt-3">
+          <Pagination
+            currentPage={safePage}
+            totalPages={totalPages}
+            startIndex={start}
+            endIndex={start + NAMES_PER_PAGE}
+            totalItems={items.length}
+            onPageChange={setPage}
+            edgeScroll={false}
+            variant="compact"
+          />
+        </div>
+      )}
+    </>
   );
+};
 
 // Visual treatment per restriction state — drives the card chrome and icon.
 const CHROME = {
@@ -179,6 +209,7 @@ const ReportsPanel = ({ data }) => {
                 endIndex={start + REPORTS_PER_PAGE}
                 totalItems={reports.length}
                 onPageChange={setPage}
+                edgeScroll={false}
                 variant="compact"
               />
             </div>

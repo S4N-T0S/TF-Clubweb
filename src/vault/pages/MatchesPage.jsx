@@ -633,6 +633,7 @@ export const MatchesPage = () => {
                 endIndex={startIndex + PER_PAGE}
                 totalItems={filtered.length}
                 onPageChange={(p) => setPage(p)}
+                edgeScroll={false}
                 variant="compact"
               />
             </div>

@@ -221,13 +221,13 @@ export const TrendsPage = () => {
     <div className="animate-fade-in-up">
       <PageHeader icon={LineChart} title="Trends" subtitle="How your game has changed over time, per mode" />
 
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <div className="flex gap-2 overflow-x-auto pb-1 flex-1 min-w-0">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 mb-4">
+        <div className="flex flex-wrap gap-2 flex-1 min-w-0">
           {MODE_TABS.map((t) => (
             <button
               key={t}
               onClick={() => setModePick(t)}
-              className={`shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 mode === t ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
               }`}
             >

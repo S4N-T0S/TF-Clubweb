@@ -196,7 +196,7 @@ export const RatingsPage = () => {
                   <th className="text-right py-2 px-3 font-medium">RankPoints</th>
                   <th className="text-right py-2 px-3 font-medium">Matches</th>
                   <th className="text-right py-2 pl-3 font-medium">
-                    <Tooltip label="Which rating engine logged this season. S2–S3 ran on OpenSkill; S4 onwards on IVK, so RankPoints aren't directly comparable across that change.">
+                    <Tooltip align="end" label="Which rating engine logged this season. S2–S3 ran on OpenSkill; S4 onwards on IVK, so RankPoints aren't directly comparable across that change.">
                       <span className="border-b border-dotted border-gray-500 cursor-help">Engine</span>
                     </Tooltip>
                   </th>
