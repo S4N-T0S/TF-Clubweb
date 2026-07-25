@@ -90,6 +90,7 @@ function transformLeaderboardData(entries, minimalMode) {
     if (isValidString(entry[8])) player.xboxName = entry[8];
     if (isValidString(entry[12])) player.clubTag = entry[12];
     //if (isValidString(entry[13])) player.clubUUId = entry[13];
+    if (isValidString(entry.officialClubName)) player.officialClubName = entry.officialClubName;
 
     result[i] = player;
   }
@@ -107,7 +108,7 @@ async function main() {
     
     // Pass the 'isStandardSeason' flag to determine if we should minimise the data
     const leaderboardData = await fetchEmbarkData(seasonId, isStandardSeason);
-    
+
     // Create the final JSON structure
     const finalData = {
       meta: {
@@ -118,12 +119,12 @@ async function main() {
       count: leaderboardData.length,
       data: leaderboardData
     };
-    
+
     const fileName = `${seasonId}.json`;
-    
+
     // Writing with no indentation to ensure smallest possible file size
     await fs.writeFile(fileName, JSON.stringify(finalData));
-    
+
     console.log(`Successfully saved ${leaderboardData.length} entries to ${fileName}`);
     
   } catch (error) {

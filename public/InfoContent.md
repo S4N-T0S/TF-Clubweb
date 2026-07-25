@@ -74,6 +74,25 @@ The search bars in this dashboard support a powerful syntax to help you find exa
     If you search without any brackets, the query will match text found in a player's Embark ID, their linked platform names (Steam, PSN, Xbox), or their club tag.
     *   Example: `bali` will find the player `Balise#2431`, a player with the Steam name `Balius`, or even a player in a club like `[BALI]`.
 
++++Official Clubs Explained+++
+
+Some club tags on the leaderboard are highlighted in teal, like this: `official:[TS] TEAM SECRET` — hover over one to see the organisation's full name.
+
+These are **official clubs**: esports organisations and other partners that Embark has manually verified inside the game (Team Secret, TSM, Fnatic, Spacestation, DRG, and so on). The highlight comes straight from Embark's own leaderboard data, so a regular club cannot fake it by renaming itself.
+
+### Why do two different clubs sometimes share one tag?
+
+Club tags are normally unique — first come, first served. But when the official club programme launched, some desirable tags were already owned by regular player clubs. Take TS as an example:
+
+*   The **original club** `club:[TS]` is a regular, player-made club. It claimed the tag first and still owns it. Its tag renders plainly.
+*   When the esports organisation **Team Secret** entered the game officially, Embark created a brand-new club for them and applied a manual **display override**, letting it *show* as [TS] as well — even though, technically, it does not own that tag. Its members wear the highlighted version: `official:[TS] TEAM SECRET`
+
+So when you see both a plain [TS] and a teal [TS] on the leaderboard, that is not a bug: they are two entirely separate clubs that Embark permits to display the same tag. The highlight and its hover tooltip are what tell them apart. The same applies to a handful of other tags, such as [TSM] and [KCP].
+
+Because they really are separate clubs, the Clubs view ranks an official club on its own row — an organisation's score is never pooled with the unrelated club that shares its displayed tag. Club events (joins, leaves, renames) show the same teal highlight whenever the club involved is official.
+
+One nuance for historical seasons: clubs are shown with the tag they actually wore **at the time**. Team Secret's club, for example, spent Season 9 as `official:[TSORG] TEAM SECRET` — its [TS] display override did not exist yet (in leaderboards) — so that is exactly what the Season 9 views show, teal highlight included. The hover tooltip still names the organisation, which is how you can tell it is the same club that displays as [TS] today.
+
 ## [API] - API Documentation
 
 This dashboard is powered by a public API. Below are the details for developers who wish to interact with the data programmatically.
@@ -83,7 +102,7 @@ https://API.ogclub.s4nt0s.eu
 
 #### Core Concepts
 
-*   **Seasons:** The API's data is partitioned by "seasons". Each season has a unique `id` and `name`. The frontend will need to allow users to select a season, especially for viewing player graphs. The current season is `10`. (as this is written)
+*   **Seasons:** The API's data is partitioned by "seasons". Each season has a unique `id` and `name`. The frontend will need to allow users to select a season, especially for viewing player graphs. The current season is `11`. (as this is written)
 *   **Player Identity:** A player is identified by an "Embark ID" (e.g., `Username#1234`). Players can change their Embark ID. The backend tracks these changes using a permanent, internal ID. API responses will always provide the player's *current* Embark ID, along with their name change history where relevant.
 *   **Public Authentication:** The `/graph` endpoint is a POST request and requires a public auth token to be sent in the request body. (This endpoint still has token in case of floods in future)
 
@@ -124,6 +143,12 @@ https://API.ogclub.s4nt0s.eu
       xboxName?: string | null;
       clubTag?: string | null;
       clubUUId?: string | null;
+      // Present ONLY when the player's club is an Embark-designated official
+      // club; the value is the org's display name (e.g. "Fnatic").
+      // Absent for everyone else. Note club tags are NOT unique: an official
+      // org and an unrelated player club can share a tag (Embark gives orgs a
+      // manual override tag in-game)
+      officialClubName?: string;
     }
     ```
 
@@ -218,6 +243,12 @@ https://API.ogclub.s4nt0s.eu
       current_embark_id: string | null; // The player's current name. Null for Club Renames.
       details: NameChangeDetails | SuspectedBanDetails | RsAdjustmentDetails | ClubChangeDetails | ClubRenameDetails;
     }
+
+    // OFFICIAL CLUB DECORATION: the `*_official_name` fields on the payloads
+    // below are added at serve time when the club behind the matching UUID is
+    // an Embark-designated official club (see `officialClubName` on the
+    // Leaderboard endpoint). They are simply absent otherwise, and reflect the
+    // club's CURRENT official status applied to historical events.
     ```
 *   **Event `details` Payloads:**
 
@@ -235,6 +266,9 @@ https://API.ogclub.s4nt0s.eu
           old_club_uuid?: string; 
           new_club_uuid?: string;
           club_uuid?: string;
+          old_club_official_name?: string;
+          new_club_official_name?: string;
+          club_official_name?: string;
         }
         ```
 
@@ -246,6 +280,7 @@ https://API.ogclub.s4nt0s.eu
           last_known_rank_score: number;
           last_known_club_tag: string | null;
           club_uuid: string | null;
+          club_official_name?: string;
           // The following fields are ONLY present if the event is resolved (i.e., end_timestamp on the parent EventEntry is not null).
           reappeared_at_rank?: number;
           reappeared_at_rank_score?: number;
@@ -277,6 +312,7 @@ https://API.ogclub.s4nt0s.eu
           new_rank: number;
           club_tag: string | null;
           club_uuid: string | null;
+          club_official_name?: string;
         }
         
         // --- CASE 2: Player falls OFF the leaderboard ---
@@ -292,6 +328,7 @@ https://API.ogclub.s4nt0s.eu
           minimum_loss: number;
           club_tag: string | null;
           club_uuid: string | null;
+          club_official_name?: string;
         }
         ```
 
@@ -305,6 +342,8 @@ https://API.ogclub.s4nt0s.eu
           rank_score: number; // The player's rank score at the time of the change.
           old_club_uuid: string | null;
           new_club_uuid: string | null;
+          old_club_official_name?: string;
+          new_club_official_name?: string;
           is_mass_change?: boolean; // [DEPRECATED] No longer used in Season 9+ | Previously used to flag a clubwide rename.
         }
         ```
@@ -315,6 +354,7 @@ https://API.ogclub.s4nt0s.eu
           old_club_tag: string;
           new_club_tag: string;
           club_uuid: string;
+          club_official_name?: string;
         }
         ```
 

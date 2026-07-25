@@ -8,7 +8,7 @@ const DB_VERSION = 2; // Bump version due to data structure change.
 
 // IMPROVEMENT: Add a version for the data structure itself.
 // Change this if you ever alter the shape of the data being cached (e.g., in lb-api's transformData).
-const CACHE_STRUCTURE_VERSION = '1.0.0';
+const CACHE_STRUCTURE_VERSION = '1.1.0'; // 1.1.0: officialClubName added to leaderboard/identity shapes
 
 let dbPromise = null;
 

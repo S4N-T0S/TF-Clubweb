@@ -10,6 +10,8 @@ import { getLeagueInfo } from '../../utils/leagueUtils';
 import { isValidEmbarkId, formatUsernameForUrl } from '../../utils/urlHandler';
 import { useModal } from '../../context/ModalProvider';
 import { LoadingDisplay } from '../LoadingDisplay';
+import { ClubTag } from '../ClubTag';
+import { Tooltip } from '../Tooltip';
 import { buildClubSearchHref, buildGraphHref } from '../../utils/modalHrefs';
 import { getStoredSearchSettings, setStoredSearchSettings, getStoredRecentSearches, addStoredRecentSearch, clearStoredRecentSearches } from '../../services/localStorageManager';
 import { renderHighlighted, rankToken, seasonPill, MATCH_VIA_LABELS, tierForSuggestion } from '../search/suggestionHelpers';
@@ -136,13 +138,14 @@ const SeasonNode = ({ row, isFirst, isLast, onClubClick, onGraphOpen, profileSea
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-blue-400 text-sm font-medium">{seasonPill}</span>
               {row.clubTag && (
-                <Link
-                  to={buildClubSearchHref(row.clubTag, row.seasonKey)}
+                <ClubTag
+                  tag={row.clubTag}
+                  officialClubName={row.officialClubName}
+                  href={buildClubSearchHref(row.clubTag, row.seasonKey)}
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClubClick(row.clubTag, row.seasonKey); }}
-                  className="bg-gray-600 px-1.5 py-0.5 rounded-sm text-blue-400 hover:text-blue-300 text-xs shrink-0"
-                >
-                  [{row.clubTag}]
-                </Link>
+                  className="text-xs shrink-0"
+                  unofficialClassName="bg-gray-600 px-1.5 py-0.5 rounded-sm text-blue-400 hover:text-blue-300"
+                />
               )}
               {row.name && row.name !== 'Unknown#0000' && (
                 <span className="inline-flex items-center gap-1.5 text-white font-medium min-w-0" title="Embark ID used this season">
@@ -289,13 +292,26 @@ const IdentityHero = ({ hero, onClubClick }) => (
   <div className="mb-4">
     <div className="flex items-center gap-2 flex-wrap">
       {hero.latestClub && (
-        <Link
-          to={buildClubSearchHref(hero.latestClub.tag, hero.latestClub.seasonKey)}
-          onClick={(e) => { e.preventDefault(); onClubClick(hero.latestClub.tag, hero.latestClub.seasonKey); }}
-          className="bg-gray-700 px-2 py-0.5 rounded-sm text-blue-400 hover:text-blue-300 text-base shrink-0"
-        >
-          [{hero.latestClub.tag}]
-        </Link>
+        hero.latestClub.officialClubName ? (
+          <Tooltip label={`Official club — ${hero.latestClub.officialClubName}`} className="shrink-0" align="start">
+            <ClubTag
+              tag={hero.latestClub.tag}
+              officialClubName={hero.latestClub.officialClubName}
+              withNativeTitle={false}
+              href={buildClubSearchHref(hero.latestClub.tag, hero.latestClub.seasonKey)}
+              onClick={(e) => { e.preventDefault(); onClubClick(hero.latestClub.tag, hero.latestClub.seasonKey); }}
+              className="text-base"
+            />
+          </Tooltip>
+        ) : (
+          <Link
+            to={buildClubSearchHref(hero.latestClub.tag, hero.latestClub.seasonKey)}
+            onClick={(e) => { e.preventDefault(); onClubClick(hero.latestClub.tag, hero.latestClub.seasonKey); }}
+            className="bg-gray-700 px-2 py-0.5 rounded-sm text-blue-400 hover:text-blue-300 text-base shrink-0"
+          >
+            [{hero.latestClub.tag}]
+          </Link>
+        )
       )}
       <h1 className="text-2xl font-bold text-white wrap-break-word leading-tight min-w-0">{hero.embarkId}</h1>
     </div>
@@ -515,7 +531,9 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
     }
     const seasonsPlayed = new Set(base.map((r) => r.seasonKey)).size;
     const latestClubRow = [...base].reverse().find((r) => r.clubTag);
-    const latestClub = latestClubRow ? { tag: latestClubRow.clubTag, seasonKey: latestClubRow.seasonKey } : null;
+    const latestClub = latestClubRow
+      ? { tag: latestClubRow.clubTag, seasonKey: latestClubRow.seasonKey, officialClubName: latestClubRow.officialClubName || null }
+      : null;
 
     // The newest season's platform names are the player's CURRENT handles; any
     // other alias is a previous one (dimmed in the hero so it's clear which is live).

@@ -10,9 +10,9 @@ import S4Data from '../data/S4/S4-crossplay.json';
 import S5Data from '../data/S5/S5-crossplay.json';
 import S6Data from '../data/S6/S6-crossplay.json';
 import S7Data from '../data/S7/S7-crossplay.json';
-import S8Data from '../data/S8/S8-crossplay.json';
-import S9Data from '../data/S9/S9-crossplay.json';
-import S10Data from '../data/S10/S10-crossplay.json';
+import S8Data from '../data/S8/S8-official-merged.json';
+import S9Data from '../data/S9/S9-official-merged.json';
+import S10Data from '../data/S10/S10-official-merged.json';
 
 export const SEASONS = {
   ALL: { label: 'All Seasons', isAggregate: true },
@@ -60,6 +60,8 @@ export const getSeasonLeaderboard = (seasonKey) => {
       psnName: player.psnName || null,
       xboxName: player.xboxName || null,
       clubTag: player.clubTag || null,
+      // Only present in snapshots re-downloaded after Embark added the field (s8+).
+      officialClubName: player.officialClubName || null,
       leagueNumber: player.leagueNumber !== undefined ? player.leagueNumber : 0,
       league: getLeagueInfo(player.leagueNumber).name,
       rankScore: player.rankScore || 0
@@ -128,6 +130,7 @@ const processResult = (result, seasonConfig, seasonKey, isWeakLink) => ({
   leagueNumber: result.leagueNumber,
   score: seasonConfig.hasRankScore ? result.rankScore : undefined,
   clubTag: result.clubTag || '',
+  officialClubName: result.officialClubName || null,
   name: result.name || 'Unknown#0000',
   steamName: result.steamName || '',
   psnName: result.psnName || '',
@@ -476,6 +479,7 @@ const findInSeasonSnapshot = (seasonKey, embarkId) => {
     league: getLeagueInfo(p.leagueNumber).name,
     score: SEASONS[seasonKey].hasRankScore ? (p.rankScore || 0) : undefined,
     clubTag: p.clubTag || '',
+    officialClubName: p.officialClubName || null,
     name: p.name,
     steamName: p.steamName || '',
     psnName: p.psnName || '',
@@ -544,6 +548,16 @@ export const mergeIdentityWithHistory = (apiProfile, clientResults, currentSeaso
     const clubTag = isCurrent
       ? (apiS.clubTag || jsonRow?.clubTag || '')
       : (jsonRow?.clubTag || apiS.clubTag || '');
+    // Officialness must come from whichever source supplied the displayed tag —
+    // never cross-applied, since tags aren't unique (org TS vs player-club TS).
+    let officialClubName = null;
+    if (clubTag) {
+      if (apiS.clubTag === clubTag && apiS.officialClubName) {
+        officialClubName = apiS.officialClubName;
+      } else if (jsonRow && jsonRow.clubTag === clubTag && jsonRow.officialClubName) {
+        officialClubName = jsonRow.officialClubName;
+      }
+    }
 
     merged.push({
       season: seasonConfig?.label || apiS.name,
@@ -553,6 +567,7 @@ export const mergeIdentityWithHistory = (apiProfile, clientResults, currentSeaso
       league: getLeagueInfo(leagueNumber).name,
       score: score ?? undefined,
       clubTag,
+      officialClubName,
       name: apiS.embarkId || jsonRow?.name || '',
       // Platforms: API value first (most complete in modern seasons), JSON fills gaps.
       steamName: apiS.platformNames?.steam || jsonRow?.steamName || '',

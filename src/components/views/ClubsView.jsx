@@ -6,7 +6,8 @@ import { useSwipe } from '../../hooks/useSwipe';
 import { SortButton } from '../SortButton';
 import { useRef, useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { Link, useSearchParams, useLocation } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
+import { ClubTag } from '../ClubTag';
 import { useModal } from '../../context/ModalProvider';
 import { buildClubSearchHref } from '../../utils/modalHrefs';
 import { SEASONS, currentSeasonKey, getSeasonClubs } from '../../services/historicalDataService';
@@ -32,13 +33,13 @@ const ClubRow = ({ club, onClubClick, isMobile, selectedSeason }) => {
           <span className="text-gray-300 font-bold">
             #{club.originalRank.toLocaleString()}
           </span>
-          <Link
-            to={buildClubSearchHref(club.tag, selectedSeason)}
+          <ClubTag
+            tag={club.tag}
+            officialClubName={club.officialClubName}
+            href={buildClubSearchHref(club.tag, selectedSeason)}
             onClick={(e) => { e.preventDefault(); onClubClick(club.tag, selectedSeason); }}
-            className={`hover:text-blue-400 cursor-pointer ${club.tag === 'OG' ? 'text-blue-500' : 'text-gray-300'}`}
-          >
-            [{club.tag}]
-          </Link>
+            unofficialClassName={`hover:text-blue-400 cursor-pointer ${club.tag === 'OG' ? 'text-blue-500' : 'text-gray-300'}`}
+          />
         </div>
         <div className="flex justify-between items-center">
           <div className="text-gray-400">Members in Top 10k</div>
@@ -65,7 +66,7 @@ const ClubRow = ({ club, onClubClick, isMobile, selectedSeason }) => {
   // Desktop row rendering
   return (
     <tr
-      key={club.tag}
+      key={club.tag + (club.officialClubName ? '-official' : '')}
       className={`border-t border-gray-700 ${
         club.tag === 'OG' ? 'bg-blue-900/20' : 'hover:bg-gray-700'
       }`}
@@ -74,13 +75,13 @@ const ClubRow = ({ club, onClubClick, isMobile, selectedSeason }) => {
         #{club.originalRank.toLocaleString()}
       </td>
       <td className="px-4 py-2">
-        <Link
-          to={buildClubSearchHref(club.tag, selectedSeason)}
+        <ClubTag
+          tag={club.tag}
+          officialClubName={club.officialClubName}
+          href={buildClubSearchHref(club.tag, selectedSeason)}
           onClick={(e) => { e.preventDefault(); onClubClick(club.tag, selectedSeason); }}
-          className={`hover:text-blue-400 cursor-pointer ${club.tag === 'OG' ? 'text-blue-500' : 'text-gray-300'}`}
-        >
-          [{club.tag}]
-        </Link>
+          unofficialClassName={`hover:text-blue-400 cursor-pointer ${club.tag === 'OG' ? 'text-blue-500' : 'text-gray-300'}`}
+        />
       </td>
       <td className="px-4 py-2 text-gray-300">
         {club.memberCount.toLocaleString()}
@@ -209,7 +210,7 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
             ) : (
               currentItems.map((club) => (
                 <ClubRow
-                  key={club.tag}
+                  key={club.tag + (club.officialClubName ? '-official' : '')}
                   club={club}
                   onClubClick={onClubClick}
                   isMobile={true}
@@ -285,7 +286,7 @@ export const ClubsView = ({ topClubs, onClubClick, isMobile }) => {
                 ) : (
                   currentItems.map((club) => (
                     <ClubRow
-                      key={club.tag}
+                      key={club.tag + (club.officialClubName ? '-official' : '')}
                       club={club}
                       onClubClick={onClubClick}
                       isMobile={false}

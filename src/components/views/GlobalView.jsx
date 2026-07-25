@@ -10,6 +10,7 @@ import { useSwipe } from '../../hooks/useSwipe';
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { PlatformLink } from "../icons/PlatformLink";
 import { SortButton } from '../SortButton';
+import { ClubTag } from '../ClubTag';
 import { Hexagon } from '../icons/Hexagon';
 import { useModal } from '../../context/ModalProvider';
 import { useOnHold } from '../../hooks/useOnHold';
@@ -230,13 +231,14 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
           <div className="flex flex-col min-w-0 flex-1 mr-3">
             <div className="flex flex-col">
               {player.clubTag && (
-                <Link
-                  to={buildClubSearchHref(player.clubTag, selectedSeason)}
+                <ClubTag
+                  tag={player.clubTag}
+                  officialClubName={player.officialClubName}
+                  href={buildClubSearchHref(player.clubTag, selectedSeason)}
                   onClick={(e) => { e.preventDefault(); onClubClick(player.clubTag); }}
-                  className="self-start bg-gray-700 px-1.5 py-0.5 rounded-sm text-blue-400 hover:text-blue-300 cursor-pointer mb-1"
-                >
-                  [{player.clubTag}]
-                </Link>
+                  className="self-start mb-1"
+                  unofficialClassName="bg-gray-700 px-1.5 py-0.5 rounded-sm text-blue-400 hover:text-blue-300 cursor-pointer"
+                />
               )}
               <div className="flex items-center gap-2 min-w-0">
                 <span className="text-gray-300 truncate">
@@ -349,13 +351,13 @@ const PlayerRow = ({ player, onSearchClick, onClubClick, onGraphClick, isMobile,
           <div className="flex items-center gap-2">
             {player.clubTag ? (
               <span className="text-gray-300">
-                <Link
-                  to={buildClubSearchHref(player.clubTag, selectedSeason)}
+                <ClubTag
+                  tag={player.clubTag}
+                  officialClubName={player.officialClubName}
+                  href={buildClubSearchHref(player.clubTag, selectedSeason)}
                   onClick={(e) => { e.preventDefault(); onClubClick(player.clubTag); }}
-                  className="bg-gray-700 px-1 py-0.5 rounded-sm text-blue-400 hover:text-blue-300 cursor-pointer"
-                >
-                  [{player.clubTag}]
-                </Link>
+                  unofficialClassName="bg-gray-700 px-1 py-0.5 rounded-sm text-blue-400 hover:text-blue-300 cursor-pointer"
+                />
                 {` ${username}`}
                 {discriminator && <span className="text-gray-500">#{discriminator}</span>}
               </span>

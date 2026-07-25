@@ -1,6 +1,13 @@
 /*
 This tool was made to compare 2 historical leaderboard json files locally,
-it reports differences in ranks, third party IDs (steam,psn,xbox) and players added/removed.
+it reports differences in ranks, rank scores, leagues, club tags, third party
+IDs (steam,psn,xbox) and players added/removed.
+
+When re-downloading a frozen season archive (e.g. to pick up officialClubName),
+every section except "Official Club Names" should be empty — any hit means the
+archived content itself changed, not just the new field. officialClubName
+differences are reported separately as an informational summary because they
+are the EXPECTED outcome of re-downloading with the updated historical-tool.
 
 Usage: node historical-compare.js <old_file_path> <new_file_path> [optional_player_name_to_debug]
 
@@ -81,6 +88,11 @@ function compareLeaderboards(oldData, newData) {
     const report = {
         idChanges: [],
         rankChanges: [],
+        scoreChanges: [],
+        leagueChanges: [],
+        clubChanges: [],
+        overrideRedecorations: [],
+        officialChanges: [],
         removed: [],
         added: []
     };
@@ -116,6 +128,56 @@ function compareLeaderboards(oldData, newData) {
                     name: name || 'Unknown',
                     oldRank: oldPlayer.rank,
                     newRank: newPlayer.rank
+                });
+            }
+
+            // Check rank score
+            if (oldPlayer.rankScore !== newPlayer.rankScore) {
+                report.scoreChanges.push({
+                    name: name || 'Unknown',
+                    oldScore: oldPlayer.rankScore,
+                    newScore: newPlayer.rankScore
+                });
+            }
+
+            // Check league
+            if (oldPlayer.leagueNumber !== newPlayer.leagueNumber) {
+                report.leagueChanges.push({
+                    name: name || 'Unknown',
+                    oldLeague: oldPlayer.leagueNumber,
+                    newLeague: newPlayer.leagueNumber
+                });
+            }
+
+            // Check club tag. A tag change on an entry that is an OFFICIAL club
+            // in the new file is Embark re-decorating the frozen row with the
+            // club's CURRENT override tag (e.g. TSORG -> TS) — expected on a raw
+            // re-download and reported separately: the merge-official tool exists
+            // precisely to keep the period-correct tag from the old file.
+            if (clean(oldPlayer.clubTag) !== clean(newPlayer.clubTag)) {
+                if (clean(newPlayer.officialClubName)) {
+                    report.overrideRedecorations.push({
+                        name: name || 'Unknown',
+                        oldClub: clean(oldPlayer.clubTag) || '(none)',
+                        newClub: clean(newPlayer.clubTag) || '(none)',
+                        official: clean(newPlayer.officialClubName)
+                    });
+                } else {
+                    report.clubChanges.push({
+                        name: name || 'Unknown',
+                        oldClub: clean(oldPlayer.clubTag) || '(none)',
+                        newClub: clean(newPlayer.clubTag) || '(none)'
+                    });
+                }
+            }
+
+            // Check official club name (expected additions on a re-download)
+            if (clean(oldPlayer.officialClubName) !== clean(newPlayer.officialClubName)) {
+                report.officialChanges.push({
+                    name: name || 'Unknown',
+                    clubTag: clean(newPlayer.clubTag) || clean(oldPlayer.clubTag) || '(none)',
+                    oldOfficial: clean(oldPlayer.officialClubName) || null,
+                    newOfficial: clean(newPlayer.officialClubName) || null
                 });
             }
 
@@ -189,10 +251,88 @@ function printReport(report) {
     }
     console.log('');
 
+    // 5. Rank Score Changes
+    console.log(`--- Rank Score Changes (${report.scoreChanges.length}) ---`);
+    if (report.scoreChanges.length === 0) {
+        console.log('No rank score changes detected.');
+    } else {
+        hasChanges = true;
+        report.scoreChanges.forEach(item => {
+            console.log(`${item.name}: ${item.oldScore} -> ${item.newScore}`);
+        });
+    }
+    console.log('');
+
+    // 6. League Changes
+    console.log(`--- League Changes (${report.leagueChanges.length}) ---`);
+    if (report.leagueChanges.length === 0) {
+        console.log('No league changes detected.');
+    } else {
+        hasChanges = true;
+        report.leagueChanges.forEach(item => {
+            console.log(`${item.name}: League ${item.oldLeague} -> ${item.newLeague}`);
+        });
+    }
+    console.log('');
+
+    // 7. Club Tag Changes
+    console.log(`--- Club Tag Changes (${report.clubChanges.length}) ---`);
+    if (report.clubChanges.length === 0) {
+        console.log('No club tag changes detected.');
+    } else {
+        hasChanges = true;
+        report.clubChanges.forEach(item => {
+            console.log(`${item.name}: ${item.oldClub} -> ${item.newClub}`);
+        });
+    }
+    console.log('');
+
+    // 8. Override Tag Re-decorations (informational — EXPECTED on a raw
+    // re-download; Embark stamps the club's CURRENT override tag onto frozen
+    // rows; grouped rather than listed per player)
+    console.log(`--- Override Tag Re-decorations (${report.overrideRedecorations.length} players affected) ---`);
+    if (report.overrideRedecorations.length === 0) {
+        console.log('No override re-decorations.');
+    } else {
+        const groupedRedec = new Map();
+        report.overrideRedecorations.forEach(item => {
+            const key = `${item.oldClub} -> ${item.newClub} (${item.official})`;
+            groupedRedec.set(key, (groupedRedec.get(key) || 0) + 1);
+        });
+        for (const [desc, count] of groupedRedec) {
+            console.log(`${desc} (${count} players)`);
+        }
+        console.log('Note: expected on a raw re-download. Use merge-official.js to keep the period-correct tags.');
+    }
+    console.log('');
+
+    // 9. Official Club Names (informational — EXPECTED when re-downloading to
+    // pick up the officialClubName field; grouped rather than listed per player)
+    console.log(`--- Official Club Names (${report.officialChanges.length} players affected) ---`);
+    if (report.officialChanges.length === 0) {
+        console.log('No official club name differences.');
+    } else {
+        const grouped = new Map();
+        report.officialChanges.forEach(item => {
+            const key = `[${item.clubTag}] ${item.oldOfficial || '(none)'} -> ${item.newOfficial || '(none)'}`;
+            grouped.set(key, (grouped.get(key) || 0) + 1);
+        });
+        for (const [desc, count] of grouped) {
+            console.log(`${desc} (${count} players)`);
+        }
+        console.log('Note: gaining officialClubName is expected on a re-download; it does not count as a data change.');
+    }
+    console.log('');
+
     if (!hasChanges) {
-        console.log('ALERT: No changes were found.');
-        console.log('This usually means the two files on your disk contain identical data.');
-        console.log('Use: node historical-compare.js <file1> <file2> "PlayerName" to verify.');
+        if (report.officialChanges.length > 0 || report.overrideRedecorations.length > 0) {
+            console.log('RESULT: Only officialClubName / override re-decoration differences were found — the archive content is otherwise identical.');
+            console.log('This is the expected outcome of re-downloading a frozen season with the updated historical-tool.');
+        } else {
+            console.log('ALERT: No changes were found.');
+            console.log('This usually means the two files on your disk contain identical data.');
+            console.log('Use: node historical-compare.js <file1> <file2> "PlayerName" to verify.');
+        }
     }
 }
 

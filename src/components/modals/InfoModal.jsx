@@ -124,9 +124,11 @@ const CollapsibleMarkdownSection = ({ content }) => {
 // Define components outside the main render function to avoid recreation
 const markdownComponents = {
   a: LinkRenderer,
-  code({ inline, className, children, ...props }) {
+  code({ className, children, ...props }) {
     const match = /language-(\w+)/.exec(className || '');
-    if (!inline && match) {
+    const text = String(children);
+
+    if (match) {
       return (
         <SyntaxHighlighter
           style={transparentBgTheme}
@@ -134,17 +136,39 @@ const markdownComponents = {
           PreTag="div"
           {...props}
         >
-          {String(children).replace(/\n$/, '')}
+          {text.replace(/\n$/, '')}
         </SyntaxHighlighter>
       );
     }
-    if (inline) {
+
+    // react-markdown v9+ no longer passes an `inline` prop, so detect it
+    // ourselves: no language class and no newlines = inline code.
+    if (!text.includes('\n')) {
+      // Club-tag chips for the official-clubs explainer (TIPS tab):
+      // `official:[TAG] Full Name` -> teal official chip, name in the tooltip.
+      // `club:[TAG]` -> regular club chip. Anything else is normal inline code.
+      const chipMatch = /^(official|club):\[(.+?)\](?: (.+))?$/.exec(text);
+      if (chipMatch) {
+        const [, kind, tag, name] = chipMatch;
+        if (kind === 'official') {
+          return (
+            <span
+              className="bg-teal-500/15 border border-teal-500/40 text-teal-300 px-1.5 py-0.5 rounded-sm font-medium"
+              title={name ? `Official club: ${name}` : undefined}
+            >
+              [{tag}]
+            </span>
+          );
+        }
+        return <span className="bg-gray-700 px-1.5 py-0.5 rounded-sm text-blue-400">[{tag}]</span>;
+      }
       return (
         <code className="bg-gray-700/60 text-pink-400 rounded-xs px-1.5 py-1 font-mono text-[0.9em]" {...props}>
           {children}
         </code>
       );
     }
+
     return (
       <code className={className} {...props}>
         {children}
@@ -267,8 +291,7 @@ export const InfoModal = ({ isOpen, onClose, isMobile }) => {
              error ? <p className="text-red-400">{error}</p> :
              activeTab && (
                 <article className={`prose prose-sm sm:prose-base prose-invert max-w-none prose-h2:text-xl prose-h2:mb-4 prose-h4:text-base prose-pre:bg-gray-800 prose-a:text-blue-400 transition-all duration-300 ease-in-out ${slideDirection}`}>
-                    {/* Use the updated helper component to render the content */}
-                    <CollapsibleMarkdownSection content={activeTab.content} />
+                    <CollapsibleMarkdownSection key={activeTab.key} content={activeTab.content} />
                 </article>
              )
             }

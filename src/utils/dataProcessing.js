@@ -1,21 +1,28 @@
 // Aggregate a list of players into ranked clubs by summing each club's member
 // rankScores. Shared by the live leaderboard (processLeaderboardData) and the
 // historical season views (historicalDataService.getSeasonClubs).
+// Tags aren't unique: an official org's override tag can collide with an
+// unrelated player club's (TS, TSM...). Official entries carry officialClubName,
+// so they get their own row (keyed tag+name); same-tag player clubs stay merged.
 export const aggregateClubs = (players) => {
   const clubScores = new Map();
   players.forEach(player => {
     if (player?.clubTag) {
-      const existing = clubScores.get(player.clubTag) || { score: 0, members: 0 };
-      clubScores.set(player.clubTag, {
+      const officialClubName = player.officialClubName || null;
+      const key = officialClubName ? `${player.clubTag}::${officialClubName}` : player.clubTag;
+      const existing = clubScores.get(key) || { tag: player.clubTag, officialClubName, score: 0, members: 0 };
+      clubScores.set(key, {
+        ...existing,
         score: existing.score + (player.rankScore || 0),
         members: existing.members + 1
       });
     }
   });
 
-  return Array.from(clubScores.entries())
-    .map(([tag, data]) => ({
-      tag,
+  return Array.from(clubScores.values())
+    .map((data) => ({
+      tag: data.tag,
+      officialClubName: data.officialClubName,
       totalScore: data.score,
       memberCount: data.members,
       averageScore: data.members > 0 ? data.score / data.members : 0

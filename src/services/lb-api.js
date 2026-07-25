@@ -14,6 +14,7 @@ const transformData = (rawData) => {
       psnName: entry.psnName || null,
       xboxName: entry.xboxName || null,
       clubTag: entry.clubTag || null,
+      officialClubName: entry.officialClubName || null,
       leagueNumber: entry.leagueNumber,
       league: getLeagueInfo(entry.leagueNumber).name,
       rankScore: entry.rankScore
