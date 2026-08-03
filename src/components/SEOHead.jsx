@@ -146,6 +146,8 @@ export const SEOHead = ({
           description = 'Interactive THE FINALS spray patterns and recoil control guides, from pistols and SMGs to rifles and LMGs. Compare true-to-scale recoil and practice shot by shot.';
           keywords = 'the finals spray patterns, the finals recoil, recoil control, spray pattern, weapon guide, the finals weapons';
         }
+        ogImage = `${OG_IMAGE_BASE}/og/spray.png`;
+        ogImageAlt = 'THE FINALS spray patterns and recoil control guide — see where each bullet lands, learn the counter-pull';
         break;
       }
       case 'global': { // Leaderboard

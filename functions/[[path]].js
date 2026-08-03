@@ -256,6 +256,8 @@ function generateMetadata(url) {
         })),
       };
     }
+    meta.image = `${OG_IMAGE_BASE}/og/spray.png`;
+    meta.imageAlt = 'THE FINALS spray patterns and recoil control guide — see where each bullet lands, learn the counter-pull';
   } else if (baseRoute === 'leaderboard') {
     const rawSeason = url.searchParams.get('season');
     const rawPage = url.searchParams.get('page');
