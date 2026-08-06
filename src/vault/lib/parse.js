@@ -92,10 +92,12 @@ export async function parseFileset(fileset, onProgress = () => {}) {
     linkedAccounts: fileset.eos.linkedAccounts.map((e) => safeJson(entryText(e))).filter(Boolean),
   };
 
+  const anybrainCsv = (entries) => entries.flatMap((e) => parseCsv(entryText(e)));
   const anybrain = {
-    os: parseCsv(entryText(fileset.anybrain.os)),
-    screens: parseCsv(entryText(fileset.anybrain.screens)),
-    sessions: parseCsv(entryText(fileset.anybrain.sessions)),
+    os: anybrainCsv(fileset.anybrain.os),
+    screens: anybrainCsv(fileset.anybrain.screens),
+    sessions: anybrainCsv(fileset.anybrain.sessions),
+    peripherals: anybrainCsv(fileset.anybrain.peripherals),
   };
 
   // Denuvo files are single-object JSON (despite .jsonl)

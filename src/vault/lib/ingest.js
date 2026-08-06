@@ -21,20 +21,27 @@ const isZip = (name) => /\.zip$/i.test(name);
 const rawBasename = (p) => p.split(/[\\/]/).pop();
 const basename = (p) => rawBasename(p).toLowerCase();
 
-// The SAR README is named `README_<DD Month_YYYY>(<id>).pdf`
+// The SAR README is usually named `README_<DD Month_YYYY>(<id>).pdf`, but some
+// exports mangle it to `README <DD Month YYYY> <id>.pdf` (bare id, no parens).
+// The `(id)` must sit directly against the year: a separator before parens means
+// a duplicate-download suffix (`README … 1259 (1).pdf`), not the request id.
 const MONTHS = {
   january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
   july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
 };
 function parseReadmeName(name) {
-  const m = name.match(/readme[_ ]+(\d{1,2})\s+([a-z]+)[_ ]+(\d{4}).*?\((\d+)\)/i);
+  const m = name.match(/readme[_ ]+(\d{1,2})[_ ]+([a-z]+)[_ ]+(\d{4})(?:\((\d+)\)|[_ ]+(\d+))?/i);
   if (!m) return null;
   const month = MONTHS[m[2].toLowerCase()];
   if (month == null) return null;
   const day = Number(m[1]);
   const year = Number(m[3]);
   const monthName = m[2][0].toUpperCase() + m[2].slice(1).toLowerCase();
-  return { requestedAtMs: Date.UTC(year, month, day), requestId: m[4], label: `${day} ${monthName} ${year}` };
+  return {
+    requestedAtMs: Date.UTC(year, month, day),
+    requestId: m[4] ?? m[5] ?? null,
+    label: `${day} ${monthName} ${year}`,
+  };
 }
 
 // Recursively expand an entry, unzipping nested archives, into a flat list.
@@ -62,7 +69,7 @@ function classify(flat) {
     persistence: null,
     audit: null,
     eos: { anticheat: [], linkedAccounts: [] },
-    anybrain: { os: null, screens: null, sessions: null },
+    anybrain: { os: [], screens: [], sessions: [], peripherals: [] }, // arrays: exports can split across anybrain_clean_N.zip
     denuvo: [],
     readme: null, // { requestedAtMs, requestId, label } parsed from the README pdf name
     customerSupport: null, // CS_extracted_data.pdf raw bytes (chat log + support tickets)
@@ -75,7 +82,10 @@ function classify(flat) {
 
     if (base.startsWith('readme') && base.endsWith('.pdf')) {
       // Capture the request date/ticket from the filename; ignore the PDF bytes.
-      fileset.readme = parseReadmeName(rawBasename(entry.path)) || fileset.readme;
+      // With several readme-ish pdfs (duplicate downloads), prefer a parse that
+      // carries a request id over a date-only one, regardless of file order.
+      const parsed = parseReadmeName(rawBasename(entry.path));
+      if (parsed && (!fileset.readme || (parsed.requestId && !fileset.readme.requestId))) fileset.readme = parsed;
     } else if (base.endsWith('.pdf') && (base.startsWith('cs_') || base.includes('extracted_data'))) {
       // Customer-Service export: in-game chat log + Helpshift support tickets.
       // Bytes are kept raw here; the Support page lazy-parses them (pdfjs).
@@ -90,11 +100,13 @@ function classify(flat) {
     } else if (base === 'linkedaccounts.json') {
       fileset.eos.linkedAccounts.push(entry);
     } else if (base === 'os.csv') {
-      fileset.anybrain.os = entry;
+      fileset.anybrain.os.push(entry);
     } else if (base === 'screens.csv') {
-      fileset.anybrain.screens = entry;
+      fileset.anybrain.screens.push(entry);
     } else if (base === 'sessions.csv') {
-      fileset.anybrain.sessions = entry;
+      fileset.anybrain.sessions.push(entry);
+    } else if (base === 'peripherals.csv') {
+      fileset.anybrain.peripherals.push(entry);
     } else if (base.includes('denuvo') && /\.(jsonl|json)$/.test(base)) {
       fileset.denuvo.push(entry);
     } else {
@@ -110,7 +122,9 @@ export const entryText = (entry) => (entry ? strFromU8(entry.bytes) : '');
 // Inspect a classified fileset and report which expected SAR components were found.
 export function summarizeFileset(fileset) {
   const eosFound = fileset.eos.anticheat.length > 0 || fileset.eos.linkedAccounts.length > 0;
-  const anybrainFound = !!(fileset.anybrain.os || fileset.anybrain.screens || fileset.anybrain.sessions);
+  const anybrainFound =
+    fileset.anybrain.os.length > 0 || fileset.anybrain.screens.length > 0 ||
+    fileset.anybrain.sessions.length > 0 || fileset.anybrain.peripherals.length > 0;
 
   const components = [
     {
@@ -127,7 +141,7 @@ export function summarizeFileset(fileset) {
     },
     {
       key: 'anybrain', label: 'Anybrain anti-cheat', file: 'anybrain_clean.zip', required: false,
-      found: anybrainFound, powers: 'extra play-session records on the Sessions page',
+      found: anybrainFound, powers: 'extra play-session and peripheral records on the Sessions page',
     },
     {
       key: 'denuvo', label: 'Denuvo anti-cheat', file: 'denuvo_clean.jsonl', required: false,

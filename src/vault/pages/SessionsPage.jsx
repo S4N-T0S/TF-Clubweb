@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Radar, Cpu, Wifi, Loader2, KeyRound } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Radar, Cpu, Wifi, Loader2, KeyRound, Keyboard } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, StatCard, Badge, Note, EmptyState, PageJump } from '../components/ui';
 import { Pagination } from '../../components/Pagination';
@@ -16,6 +16,31 @@ const GRANT_LABELS = {
   client_credentials: 'Game-client tokens',
   refresh_token: 'Session refreshes',
 };
+
+// Resolve peripheral VID/PIDs to vendor/product names from the bundled usb.ids
+// snapshot (~3.4k vendors). Same lazy pattern as the geo DB: lib/usbids.js is
+// dynamically imported and fetches the pre-gzipped asset once, only when an
+// export has peripherals; until it loads (or if it can't) devices show raw ids.
+function usePeripheralNames(peripherals) {
+  const [db, setDb] = useState(null);
+  useEffect(() => {
+    if (!peripherals.length) return undefined;
+    let alive = true;
+    import('../lib/usbids')
+      .then((m) => m.loadUsbDb())
+      .then((d) => alive && setDb(d))
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [peripherals]);
+  return useMemo(() => {
+    const resolved = peripherals.map((p) => {
+      const [vendor, products] = (db && db[p.vid.toLowerCase()]) || [];
+      return { ...p, vendor: vendor || null, product: (products && products[p.pid.toLowerCase()]) || null };
+    });
+    // Known vendors first (alphabetical), unregistered ids last.
+    return resolved.sort((a, b) => Number(!a.vendor) - Number(!b.vendor) || (a.vendor || '').localeCompare(b.vendor || '') || a.id.localeCompare(b.id));
+  }, [db, peripherals]);
+}
 
 // Resolve each unique IP to a country, offline. The mmdb reader (mmdb-lib + buffer) is dynamically imported so it stays out of the main vault chunk.
 function useGeoCountries(ips) {
@@ -114,6 +139,7 @@ export const SessionsPage = () => {
   const { sessions, sources, ips, activity } = antiCheat;
   const [page, setPage] = useState(1);
   const geo = useGeoCountries(ips);
+  const peripherals = usePeripheralNames(antiCheat.peripherals || []);
 
   const countryCount = geo.countries.filter((c) => c.iso).length;
   const countriesValue = geo.status === 'loading' ? '…' : geo.status === 'none' ? '—' : num(countryCount);
@@ -156,6 +182,33 @@ export const SessionsPage = () => {
         )}
         <Note>EOS records frequent short sessions (it re-checks roughly every ~15–20 min), so its session count reflects heartbeats/reconnects rather than whole play sessions.</Note>
       </Panel>
+
+      {/* Anybrain input-device fingerprint (peripherals.csv, newer exports only) */}
+      {peripherals.length > 0 && (
+        <Panel title="Peripherals">
+          <div className="grid sm:grid-cols-2 gap-2">
+            {peripherals.map((d) => (
+              <div key={d.id} className="flex items-center justify-between gap-3 bg-gray-900/50 rounded-lg px-3 py-2 text-sm">
+                <span className="flex items-center gap-2 min-w-0">
+                  <Keyboard className="w-4 h-4 text-purple-400 shrink-0" />
+                  <span className="min-w-0">
+                    <span className="text-white block truncate">{d.vendor || 'Unregistered vendor'}</span>
+                    {d.product && <span className="text-gray-400 text-xs block truncate">{d.product}</span>}
+                  </span>
+                </span>
+                <span className="text-gray-400 text-xs font-mono whitespace-nowrap">VID {d.vid} · PID {d.pid}</span>
+              </div>
+            ))}
+          </div>
+          <Note>
+            Anybrain also records the USB ids of input devices (keyboards, mice, controllers) connected while the game ran —
+            a hardware fingerprint. Each entry is one device, grouped from its per-interface records. Names are looked up
+            offline in the public{' '}
+            <a href="http://www.linux-usb.org/usb.ids" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-300">usb.ids</a>{' '}
+            database; a device whose vendor never registered there shows only its raw id.
+          </Note>
+        </Panel>
+      )}
 
       {/* Backend account sign-ins (persistence UserLogin) — the longest-lived IP trail */}
       {antiCheat.logins?.count > 0 && (

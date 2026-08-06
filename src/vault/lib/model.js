@@ -1304,6 +1304,24 @@ function buildAntiCheat(raw) {
   const anybrainOses = [...new Set((raw.anybrain.os || []).map((r) => r.name).filter(Boolean))];
   const resolutions = [...new Set((raw.anybrain.screens || []).map((r) => (r.width && r.height ? `${r.width}×${r.height}` : null)).filter(Boolean))];
 
+  // Anybrain input-device fingerprint (peripherals.csv): each row
+  // is a Windows device-instance ID like `HID\VID_046D&PID_C08B&MI_01&COL02`.
+  // One physical device yields several rows (one per USB interface / HID
+  // collection), so group by vendor:product id. Vendor/product NAMES are not
+  // resolved here — the Sessions page lazy-loads /vault/usb-ids.json.gz for that
+  const periMap = new Map(); // 'VID:PID' -> device
+  for (const r of raw.anybrain.peripherals || []) {
+    const m = /^(?:HID|USB)\\VID_([0-9A-F]{4})&PID_([0-9A-F]{4})/i.exec(r.peripheral || '');
+    if (!m) continue;
+    const vid = m[1].toUpperCase();
+    const pid = m[2].toUpperCase();
+    const key = `${vid}:${pid}`;
+    let d = periMap.get(key);
+    if (!d) periMap.set(key, (d = { id: key, vid, pid, interfaces: 0 }));
+    d.interfaces += 1;
+  }
+  const peripherals = [...periMap.values()].sort((a, b) => a.id.localeCompare(b.id));
+
   // Device fingerprints. The audit's `tamper_id` is namespaced by the SOURCE of
   // the fingerprint — `Tpm:` (TPM module), `Fmw:` (firmware/UEFI), `Usn:` (disk
   // volume serial); older clients logged a bare GUID. ONE physical machine can
@@ -1353,6 +1371,7 @@ function buildAntiCheat(raw) {
     redactedIpCount,
     operatingSystems: [...new Set([...eosOses, ...anybrainOses])],
     resolutions,
+    peripherals,
     // Device-fingerprint summary (see comment above). `machineEstimate` replaces
     // the old "distinct TPM ids" count, which conflated fingerprint methods.
     machineEstimate,

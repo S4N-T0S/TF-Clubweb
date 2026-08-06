@@ -519,7 +519,16 @@ function buildAnybrain() {
     const start = lerp(ANYBRAIN_GOLIVE, SPAN_END, (i + rf() * 0.6) / 24);
     sessions.push({ sessionStart: Math.round(start), sessionEnd: Math.round(start + ri(20, 90) * 60_000), ipAddress: pick(IPS) });
   }
-  return { os: [{ name: 'Windows 11' }], screens: [{ width: '2560', height: '1440' }, { width: '1920', height: '1080' }], sessions };
+  // Input-device fingerprint rows (peripherals.csv, newer exports): a Logitech
+  // mouse, a Keychron keyboard and an 8BitDo pad, with per-interface duplicates.
+  const peripherals = [
+    { peripheral: 'USB\\VID_046D&PID_C08B&MI_00' },
+    { peripheral: 'HID\\VID_046D&PID_C08B&MI_01&COL01' },
+    { peripheral: 'USB\\VID_3434&PID_0A51&MI_00' },
+    { peripheral: 'HID\\VID_3434&PID_0A51&MI_02&COL01' },
+    { peripheral: 'HID\\VID_2DC8&PID_310A&MI_01&COL01' },
+  ];
+  return { os: [{ name: 'Windows 11' }], screens: [{ width: '2560', height: '1440' }, { width: '1920', height: '1080' }], sessions, peripherals };
 }
 function buildDenuvo() {
   const steam = [];
