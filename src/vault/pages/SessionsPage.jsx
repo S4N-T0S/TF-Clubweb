@@ -104,34 +104,59 @@ const ActivityStrip = ({ activity }) => {
   );
 };
 
-const IpTable = ({ ips }) => (
-  <div className="table-container">
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="text-gray-400 border-b border-gray-700">
-          <th className="text-left py-2 px-3 font-medium">IP address</th>
-          <th className="text-left py-2 px-3 font-medium">Type</th>
-          <th className="text-right py-2 px-3 font-medium">Records</th>
-          <th className="text-left py-2 px-3 font-medium">First seen</th>
-          <th className="text-left py-2 px-3 font-medium">Last seen</th>
-          <th className="text-left py-2 px-3 font-medium">Sources</th>
-        </tr>
-      </thead>
-      <tbody>
-        {ips.map((r) => (
-          <tr key={r.ip} className="border-b border-gray-700/40 last:border-0">
-            <td className="py-2 px-3 font-mono text-white">{r.ip}</td>
-            <td className="py-2 px-3"><Badge tone={r.version === 6 ? 'purple' : 'blue'}>IPv{r.version}</Badge></td>
-            <td className="py-2 px-3 text-right tabular-nums text-white">{num(r.count)}</td>
-            <td className="py-2 px-3 text-gray-400">{date(r.firstMs)}</td>
-            <td className="py-2 px-3 text-gray-400">{date(r.lastMs)}</td>
-            <td className="py-2 px-3 text-gray-400">{r.sources.join(', ')}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
+const IpTable = ({ ips }) => {
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(ips.length / PER_PAGE));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * PER_PAGE;
+  const slice = ips.slice(start, start + PER_PAGE);
+
+  return (
+    <>
+      <div className="table-container" style={totalPages > 1 ? { minHeight: PER_PAGE * 38 } : undefined}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-gray-400 border-b border-gray-700">
+              <th className="text-left py-2 px-3 font-medium">IP address</th>
+              <th className="text-left py-2 px-3 font-medium">Type</th>
+              <th className="text-right py-2 px-3 font-medium">Records</th>
+              <th className="text-left py-2 px-3 font-medium">First seen</th>
+              <th className="text-left py-2 px-3 font-medium">Last seen</th>
+              <th className="text-left py-2 px-3 font-medium">Sources</th>
+            </tr>
+          </thead>
+          <tbody>
+            {slice.map((r) => (
+              <tr key={r.ip} className="border-b border-gray-700/40 last:border-0">
+                <td className="py-2 px-3 font-mono text-white">{r.ip}</td>
+                <td className="py-2 px-3"><Badge tone={r.version === 6 ? 'purple' : 'blue'}>IPv{r.version}</Badge></td>
+                <td className="py-2 px-3 text-right tabular-nums text-white">{num(r.count)}</td>
+                <td className="py-2 px-3 text-gray-400">{date(r.firstMs)}</td>
+                <td className="py-2 px-3 text-gray-400">{date(r.lastMs)}</td>
+                <td className="py-2 px-3 text-gray-400">{r.sources.join(', ')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <PageJump totalPages={totalPages} onJump={setPage} />
+        <div className="flex-1">
+          <Pagination
+            currentPage={safePage}
+            totalPages={totalPages}
+            startIndex={start}
+            endIndex={start + PER_PAGE}
+            totalItems={ips.length}
+            onPageChange={setPage}
+            edgeScroll={false}
+            variant="compact"
+          />
+        </div>
+      </div>
+    </>
+  );
+};
 
 export const SessionsPage = () => {
   const { model } = useVaultData();
