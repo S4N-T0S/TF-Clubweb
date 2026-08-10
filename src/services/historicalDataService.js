@@ -184,7 +184,29 @@ export const searchPlayerHistory = async (initialEmbarkId, currentSeasonData = n
 
   // Queue for Breadth-First Search (BFS).
   // 'isWeakChain' tracks if we are currently traversing a path dependent on a Steam link.
-  const searchQueue = [{ type: 'embarkId', value: initialEmbarkId, isWeakChain: false }];
+  //
+  // Seeded with EVERY name the API attributes to the player, not just initialEmbarkId.
+  // A seed can only start the walk if it is literally a row in one of the snapshots (or
+  // the live board): an intra-season alias the player renamed away from before the final
+  // snapshot matches nothing, so a BFS seeded solely on it dies on step one and never
+  // reaches the platform names that bridge the player's other clusters. That is how
+  // searching a gap-renamer's CURRENT name returned less history than searching their
+  // OLD one. Extra seeds are near-free — `visited` dedupes, and a seed that matches
+  // nothing costs one scan.
+  //
+  // Recycled generic Player#NNNN names are excluded: the same string belongs to
+  // different humans across seasons, so seeding one would chain a stranger's history in
+  // through their platform names.
+  const GENERIC_EMBARK_NAME = /^player#[0-9]{4}$/i;
+  const searchQueue = [];
+  const seededAliases = new Set();
+  for (const seed of [initialEmbarkId, ...(knownAliases || [])]) {
+    if (!seed || GENERIC_EMBARK_NAME.test(seed)) continue;
+    const normalizedSeed = seed.toLowerCase();
+    if (seededAliases.has(normalizedSeed)) continue;
+    seededAliases.add(normalizedSeed);
+    searchQueue.push({ type: 'embarkId', value: seed, isWeakChain: false });
+  }
 
   // Per-season set of Xbox names with 2+ bearers in the full leaderboard.
   // Precomputed once so the BFS can cheaply skip ambiguous Xbox links and
