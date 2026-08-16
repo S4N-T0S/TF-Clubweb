@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Gauge, Trophy, TrendingUp, ChevronDown, Info, Crown, Swords, Target } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
-import { PageHeader, Panel, StatCard, Badge, Note, EmptyState, Tooltip } from '../components/ui';
+import { PageHeader, Panel, StatCard, Badge, Note, EmptyState } from '../components/ui';
 import { num, decimal, date } from '../lib/format';
 import { leagueAbbrev, RANK_TIERS } from '../lib/ratings';
 
@@ -41,7 +41,17 @@ const RankedChart = ({ seasons }) => {
   const yBase = H - mb;
   const y = (idx) => yBase - (Math.max(0, Math.min(idx, yMax)) / yMax) * (yBase - yTop);
 
-  const ns = seasons.map((s, i) => s.seasonN ?? i + 1);
+  // One DISTINCT slot per season, reused by BOTH the extent maths below and the
+  // bar loop (they used to fall back differently, i + 1 vs minN + i, so an
+  // unresolved season drew in a slot the extent hadn't reserved). Seasons keep
+  // their real number; anything unresolved, or colliding with a slot already
+  // taken, is pushed past the highest one. Both cases are reachable: an unmapped
+  // id resolves to null, and until seasons.js/RANKED_SEASON_IDS learn about a new
+  // season its id date-resolves onto the newest known one. Without this, two bars
+  // and two axis labels render at identical coordinates.
+  const ns = [];
+  let nextSlot = Math.max(0, ...seasons.map((s) => s.seasonN ?? 0));
+  for (const s of seasons) ns.push(s.seasonN != null && !ns.includes(s.seasonN) ? s.seasonN : ++nextSlot);
   const minN = Math.min(...ns);
   const maxN = Math.max(...ns);
   const slots = Math.max(1, maxN - minN + 1);
@@ -65,15 +75,19 @@ const RankedChart = ({ seasons }) => {
 
         {/* bars + peak wicks */}
         {seasons.map((s, i) => {
-          const n = s.seasonN ?? minN + i;
+          const n = ns[i];
           const x = cx(n);
           const idx = s.rankIndex || 0;
           const peak = s.peakIndex || 0;
-          if (!s.played && idx === 0) {
-            // never played ranked this season
+          if (!s.rankReliable || (!s.played && idx === 0)) {
+            // never played ranked this season, or only the shadow engine survived
             return (
               <g key={s.seasonId}>
-                <circle cx={x} cy={yBase - 3} r="2.5" fill="#4b5563" />
+                {s.rankReliable ? (
+                  <circle cx={x} cy={yBase - 3} r="2.5" fill="#4b5563" />
+                ) : (
+                  <text x={x} y={yBase - 4} textAnchor="middle" style={{ fontSize: '13px', fontWeight: 700 }} fill="#6b7280">?</text>
+                )}
                 <text x={x} y={H - 9} textAnchor="middle" style={{ fontSize: '11px' }} fill="#6b7280">{s.seasonLabel}</text>
               </g>
             );
@@ -103,6 +117,8 @@ const RankedChart = ({ seasons }) => {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[11px] text-gray-500">
         <span className="inline-flex items-center gap-1.5"><span className="w-3 h-2.5 rounded-sm bg-gray-400" /> End-of-season rank</span>
         <span className="inline-flex items-center gap-1.5"><span className="w-3 h-0.5 bg-gray-300" /> Season peak</span>
+        <span className="inline-flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-gray-600" /> Didn’t play</span>
+        <span className="inline-flex items-center gap-1.5"><span className="font-bold text-gray-500">?</span> Rank unknown</span>
       </div>
     </div>
   );
@@ -150,13 +166,32 @@ export const RatingsPage = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Latest ranked rank"
-          value={ranked.latest ? <RankName info={ranked.latest.rank} /> : <span className="text-gray-500">Never ranked</span>}
-          sub={ranked.latest ? `${ranked.latest.seasonLabel}${ranked.latest.rpReliable && ranked.latest.rankPoints > 0 ? ` · ${num(Math.round(ranked.latest.rankPoints))} RP` : ''} · ${num(ranked.latest.matches)} matches` : 'no completed ranked season'}
+          value={
+            ranked.latest ? (
+              <RankName info={ranked.latest.rank} />
+            ) : (
+              // "Never ranked" would contradict the table below when the player
+              // DID play but every season came back withheld. Key off `withheld`,
+              // NOT `played`: a player can play and legitimately never place.
+              <span className="text-gray-500">{ranked.withheld > 0 ? 'Unknown' : 'Never ranked'}</span>
+            )
+          }
+          sub={
+            ranked.latest
+              ? `${ranked.latest.seasonLabel}${ranked.latest.rpReliable && ranked.latest.rankPoints > 0 ? ` · ${num(Math.round(ranked.latest.rankPoints))} RP` : ''} · ${num(ranked.latest.matches)} matches`
+              : ranked.withheld > 0
+                ? 'this export didn’t record a usable rank'
+                : 'no completed ranked season'
+          }
         />
         <StatCard
           label="Peak rank"
-          value={ranked.peak ? <RankName info={ranked.peak.peak} /> : <span className="text-gray-500">—</span>}
-          sub={ranked.peak ? `reached in ${ranked.peak.seasonLabel}` : 'never reached a rank'}
+          // `peak` is null for THREE reasons: every season withheld, no seasons at
+          // all, or the player played and simply never placed. Only the first is
+          // "Unknown" — keying off `played` would call an honest never-placed
+          // career unrecorded, right above a row showing its Unranked result.
+          value={ranked.peak ? <RankName info={ranked.peak.peak} /> : <span className="text-gray-500">{ranked.withheld > 0 ? 'Unknown' : '—'}</span>}
+          sub={ranked.peak ? `reached in ${ranked.peak.seasonLabel}` : ranked.withheld > 0 ? 'this export didn’t record a usable rank' : 'never reached a rank'}
         />
         <StatCard
           label="Casual MMR"
@@ -196,9 +231,15 @@ export const RatingsPage = () => {
                   <th className="text-right py-2 px-3 font-medium">RankPoints</th>
                   <th className="text-right py-2 px-3 font-medium">Matches</th>
                   <th className="text-right py-2 pl-3 font-medium">
-                    <Tooltip align="end" label="Which rating engine logged this season. S2–S3 ran on OpenSkill; S4 onwards on IVK, so RankPoints aren't directly comparable across that change.">
-                      <span className="border-b border-dotted border-gray-500 cursor-help">Engine</span>
-                    </Tooltip>
+                    {/* Native title, not <Tooltip>: this <th> is inside
+                        .table-container too, so on a 1-2 season table the popover
+                        clips and inflates scrollHeight into a phantom scrollbar. */}
+                    <span
+                      className="border-b border-dotted border-gray-500 cursor-help"
+                      title="Which rating engine actually drove the ladder that season. S2 ran on OpenSkill, S3 onwards on IVK. Seasons that logged both engines show the one that was live."
+                    >
+                      Engine
+                    </span>
                   </th>
                 </tr>
               </thead>
@@ -207,15 +248,32 @@ export const RatingsPage = () => {
                   <tr key={s.seasonId} className="border-b border-gray-700/40 last:border-0">
                     <td className="py-2 pr-3 text-gray-200 font-medium whitespace-nowrap">{s.seasonLabel}</td>
                     <td className="py-2 px-3">
-                      {s.played || s.rankIndex > 0 ? <RankName info={s.rank} /> : <span className="text-gray-500">Didn’t play</span>}
+                      {!s.rankReliable ? (
+                        // Native title, not <Tooltip>: .table-container clips
+                        // absolutely-positioned tooltips (see components/Tooltip.jsx),
+                        // and a withheld season is usually the LAST row, where the
+                        // popover would fall entirely outside the scroll box.
+                        <span
+                          className="text-gray-500 border-b border-dotted border-gray-600 cursor-help"
+                          title="This export only kept the background rating for this season, which the game didn't rank you on. Its stored tier is unreliable, so it's withheld rather than shown wrong."
+                        >
+                          Unknown
+                        </span>
+                      ) : s.played || s.rankIndex > 0 ? (
+                        <RankName info={s.rank} />
+                      ) : (
+                        <span className="text-gray-500">Didn’t play</span>
+                      )}
                     </td>
                     <td className="py-2 px-3">
-                      {s.peakIndex > 0 ? <span className={s.peak.text}>{s.peak.name}</span> : <span className="text-gray-600">—</span>}
+                      {s.rankReliable && s.peakIndex > 0 ? <span className={s.peak.text}>{s.peak.name}</span> : <span className="text-gray-600">—</span>}
                     </td>
                     <td className="py-2 px-3 text-right tabular-nums text-gray-300">{s.rpReliable && s.rankPoints > 0 ? num(Math.round(s.rankPoints)) : '—'}</td>
                     <td className="py-2 px-3 text-right tabular-nums text-gray-300">{s.matches > 0 ? num(s.matches) : '—'}</td>
                     <td className="py-2 pl-3 text-right">
-                      <Badge tone={s.engine === 'openskill' ? 'blue' : 'gray'}>{s.engineLabel}</Badge>
+                      {/* The column means "the engine that drove the ladder". A withheld
+                          row's record is the background one, so it can't answer that. */}
+                      {s.rankReliable ? <Badge tone={s.engine === 'openskill' ? 'blue' : 'gray'}>{s.engineLabel}</Badge> : <span className="text-gray-600">—</span>}
                     </td>
                   </tr>
                 ))}
@@ -223,13 +281,16 @@ export const RatingsPage = () => {
             </table>
           </div>
           <Note>
-            Rank shown is where you finished each season, with your peak that season alongside. <strong>RankPoints</strong> is
-            listed from S4 onward, where it’s the in-game ranked score. S2–S3 ran on an older rating system
-            (<Badge tone="blue">OpenSkill</Badge>, and S3 was a one-off Terminal Attack ranked season) whose stored points are
-            an internal value on a different scale, not the figure shown in-game, so they’re left out. The chart tracks the
-            rank ladder instead, which stays comparable throughout. The season ranks themselves come from the recorded
-            <code> leagueRankIndex</code>.
+            Rank shown is where you finished each season, from the recorded <code>leagueRankIndex</code>, with your peak that
+            season alongside. The ranked engine changed hands partway through: S2 ran on OpenSkill, S3 was the first season
+            on IVK, and S4 onwards uses the IVK tournament ladder. Seasons
+            that logged both engines keep only the one that was live, because the other carried on in the background on its own
+            point scale, which can read well above or below the real rank. <strong>RankPoints</strong> is the in-game RankScore from S3
+            onward, but the ladder was rescaled at S4: S3 ran 2,500 points per division up to Platinum 4 and 5,000 per
+            division above it, where S4 onwards is a flat 2,500. So compare it inside a season rather than across S3 to S4. S2’s OpenSkill points were an internal number never shown in-game, so
+            they’re left out. The chart tracks the rank ladder instead, which stays comparable throughout.
             {ranked.seedsDropped > 0 && ' Empty placeholder ratings (and, for multi-account exports, a second account’s untouched ratings) are de-duplicated to your real progression.'}
+            {ranked.withheld > 0 && ' A season marked “Unknown” kept only the background rating, whose stored tier can sit well above or below the real one, so it’s withheld rather than shown wrong.'}
           </Note>
         </Panel>
       )}
@@ -297,9 +358,16 @@ export const RatingsPage = () => {
                       <th className="text-right py-2 px-3 font-medium">Skill (μ)</th>
                       <th className="text-right py-2 px-3 font-medium">Uncertainty (σ)</th>
                       <th className="text-right py-2 px-3 font-medium">
-                        <Tooltip label="OpenSkill's conservative skill estimate (μ − 3σ): the value that ladders typically sort on.">
-                          <span className="border-b border-dotted border-gray-500 cursor-help">Conservative</span>
-                        </Tooltip>
+                        {/* Native title for the same reason as the ranked table's
+                            headers: this <th> sits in a .table-container, which
+                            clips the popover and inflates scrollHeight on a short
+                            table. This was the page's last clipping tooltip. */}
+                        <span
+                          className="border-b border-dotted border-gray-500 cursor-help"
+                          title="OpenSkill's conservative skill estimate (μ − 3σ): the value that ladders typically sort on."
+                        >
+                          Conservative
+                        </span>
                       </th>
                       <th className="text-right py-2 px-3 font-medium">Matches</th>
                       <th className="text-right py-2 pl-3 font-medium">Last updated</th>

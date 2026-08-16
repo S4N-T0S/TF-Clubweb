@@ -552,9 +552,15 @@ function addRound(m, r) {
   // placement; the MAX is the first round played (used to label the stages).
   if (r.rr != null) {
     if (r.rr > m.maxRR) m.maxRR = r.rr;
-    if (r.rr <= m.furthestRR) {
+    if (r.rr < m.furthestRR) {
+      // A deeper round OWNS the headline placement, so reset even when its own
+      // position is unknown. Keeping a shallower round's number would report it
+      // against the deeper stage — a Final that was reached and LOST reading
+      // "1st of 8" off the round before it.
       m.furthestRR = r.rr;
-      if (r.position != null) m.finalPlacement = r.position;
+      m.finalPlacement = r.position ?? null;
+    } else if (r.rr === m.furthestRR && r.position != null) {
+      m.finalPlacement = r.position;
     }
   }
   if (r.tournamentWon) m.tournamentWon = true;
@@ -629,7 +635,12 @@ function buildMatchesAndWeapons(byType) {
       rr: roundsRemaining(d.MatchID), // bracket stage as rounds-remaining
       tournamentWon: !!d.TournamentWon,
       roundWon: !!d.RoundWon,
-      position: typeof d.LeaderboardPosition === 'number' ? d.LeaderboardPosition : null,
+      // 0 means "not populated", not 0th — real placements are 1..12. It lands
+      // mostly on no-result rounds (all 34 in the older donor exports are
+      // RoundWon false / Currency 0), but a newer-generation export also carries
+      // it on a WON final, so read nothing into it beyond "unknown". Normalise to
+      // null so every consumer's `!= null` guard renders "—" instead of "0th".
+      position: typeof d.LeaderboardPosition === 'number' && d.LeaderboardPosition > 0 ? d.LeaderboardPosition : null,
       backfill: !!d.IsBackfill,
       disconnected: !!d.Disconnected,
       squadName: d.SquadName ?? null,
@@ -685,10 +696,17 @@ function buildMatchesAndWeapons(byType) {
     if (m.isTournament) {
       const maxRR = Number.isFinite(m.maxRR) ? m.maxRR : null;
       const furthestRR = Number.isFinite(m.furthestRR) ? m.furthestRR : null;
-      // A real 8-team bracket has qualifying rounds (some round with rr >= 1). A
-      // 2-team single-match tournament — e.g. Terminal Attack, every round
-      // MatchID "0-0" — is NOT a bracket, so it must not get an "of 8" placement.
-      const isBracket = maxRR != null && maxRR >= 1;
+      // An 8-team bracket qualifies through 4-team lobbies, so a mode we KNOW is
+      // 2-team is a single match or a short series and must never get an "of 8"
+      // placement, even when it records two rounds (S3's Ranked Terminal Attack
+      // does, and was rendering as "2nd of 8" off a 1v1). Gate on the confirmed
+      // classification, NOT on m.teams: that is max(observed, declared), so one
+      // stray LeaderboardPosition would re-enable the bracket, and for an
+      // unclassified scenario it collapses to the round's own position — which
+      // reads 1 exactly when the player won every round, i.e. it would silently
+      // demote real brackets on any season id we haven't keyed yet.
+      const knownSeries = m.mode?.confirmed && m.mode.teams != null && m.mode.teams < 3;
+      const isBracket = !knownSeries && maxRR != null && maxRR >= 1;
       m.isBracket = isBracket;
       m.rounds.sort((a, b) => (b.rr ?? -1) - (a.rr ?? -1) || (a.start ?? 0) - (b.start ?? 0));
       if (isBracket) {
@@ -698,7 +716,7 @@ function buildMatchesAndWeapons(byType) {
           r.stageTeams = stageTeams(r.rr);
         }
         m.stageReachedLabel = stageLabel(furthestRR, maxRR);
-        m.placement = tournamentPlacement(furthestRR, m.finalPlacement, hasPrelim);
+        m.placement = tournamentPlacement(furthestRR, m.finalPlacement, hasPrelim, m.tournamentWon);
       } else {
         // Sequential rounds (e.g. attack/defend) + a simple win/loss result.
         m.rounds.forEach((r, i) => {
@@ -707,7 +725,23 @@ function buildMatchesAndWeapons(byType) {
         });
         m.stageReachedLabel = null;
         m.placement = null;
-        m.won = m.tournamentWon || m.finalPlacement === 1;
+        // A win needs the series to have actually FINISHED. In a two-game series
+        // LeaderboardPosition 1 on the first game means "won game 1", not the
+        // match: the corpus has 42 tournaments in exactly that state that go on
+        // to lose, so an abandoned series stopping there must not read as a win.
+        // A SINGLE-round match with no rounds-remaining encoding has no series to
+        // finish, so its own position IS the result. Multi-round must not take
+        // that path: addRound only touches finalPlacement when rr is set, so it
+        // would still be holding round one's number.
+        const finished = furthestRR === 0 || (furthestRR == null && m.rounds.length === 1);
+        // Keep any win addRound already established from RoundWon — this is a
+        // refinement, not a replacement. Overwriting discards direct evidence and
+        // turned an all-rounds-won match into a Loss.
+        m.won = m.won || m.tournamentWon || (finished && m.finalPlacement === 1);
+        // Same reason the win can't be trusted: an abandoned series has a game-1
+        // position, not a match placement. Leaving it set renders the card's own
+        // contradiction, a "Loss" badge beside "1st of 2".
+        if (!finished) m.finalPlacement = null;
       }
     } else {
       m.isBracket = false;

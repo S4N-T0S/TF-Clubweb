@@ -75,12 +75,16 @@ const RANKED_SEASON_IDS = {
   607608768: 8,
   825209376: 9,
   965777394: 10,
+  349883189: 11,
 };
 
 // seasonId → { n, label }. Falls back to "the season live at createdMs" for any
 // future/unknown id (date of the player's real first game that season).
 export function resolveSeason(seasonId, createdMs) {
-  const known = RANKED_SEASON_IDS[seasonId] ?? RANKED_SEASON_IDS[Number(seasonId)];
+  // hasOwn, not a bare lookup: seasonId comes from the export, so a key like
+  // "constructor" would otherwise resolve to an inherited Object property and
+  // put a function into seasonN.
+  const known = Object.hasOwn(RANKED_SEASON_IDS, seasonId) ? RANKED_SEASON_IDS[seasonId] : RANKED_SEASON_IDS[Number(seasonId)];
   if (known != null) {
     const s = SEASONS.find((x) => x.n === known);
     return s ? { n: s.n, label: s.label } : { n: known, label: `S${known}` };
@@ -115,7 +119,9 @@ function parseRatingRecords(byType) {
     } catch {
       continue;
     }
-    if (!v || typeof v !== 'object') continue;
+    // Arrays are objects — without this an array Value synthesises a whole season
+    // row out of the ObjectKey's id suffix.
+    if (!v || typeof v !== 'object' || Array.isArray(v)) continue;
     const ratingId = typeof v.ratingId === 'string' && v.ratingId ? v.ratingId : key.replace(/_\d+$/, '');
     let seasonId = v.seasonId != null && v.seasonId !== '' ? String(v.seasonId) : null;
     if (!seasonId) {
@@ -144,11 +150,30 @@ function parseRatingRecords(byType) {
 }
 
 // --- ranked, per season ----------------------------------------------------
-// The ranked engine changed over time: S2-S3 used OpenSkillRankedRating, S4+ the
-// IVKRankedTournamentRating family (IVKRankedRating was a brief S2-S3 shadow).
-// When more than one engine logged a season, prefer the authoritative one.
-const familyPriority = (ratingId) =>
-  /^IVKRankedTournamentRating/.test(ratingId) ? 3 : /^OpenSkillRankedRating/.test(ratingId) ? 2 : /^IVKRankedRating/.test(ratingId) ? 1 : 0;
+// A season mid-engine-swap logs TWO ranked records; only one was the live ladder:
+//   S2  — OpenSkillRankedRating live; IVKRankedRating is a shadow (few matches,
+//         leagueRankIndex/rankPoints never assigned).
+//   S3  — reversed: IVKRankedRating live, OpenSkillRankedRating the shadow.
+//   S4+ — IVKRankedTournamentRating* only.
+// The S3 shadow kept accumulating on the S2 point scale while S3's tier table
+// sits 30k lower, so reading it lands up to 8 divisions high (measured 0-8 over
+// the 6 exports that log both; the 0 is a player who never placed), saturating at
+// Diamond 1 for the strongest. Verified against src/data/S3: the live IVK
+// record's rankPoints equals the published rankScore.
+const OPENSKILL_LAST_LIVE_SEASON = 2;
+
+// Each family was live in a bounded window, so bound it in BOTH directions: a
+// row outside its own window can only be a stray or a merged second account.
+// Unknown season => only the tournament family can be trusted, since it is the
+// one family that was live in every season it appears in.
+const familyPriority = (ratingId, seasonN) => {
+  if (/^OpenSkillRankedRating/.test(ratingId)) return seasonN != null && seasonN <= OPENSKILL_LAST_LIVE_SEASON ? 3 : 2;
+  if (/^IVKRankedRating/.test(ratingId)) return seasonN === OPENSKILL_LAST_LIVE_SEASON + 1 ? 3 : 2;
+  if (/^IVKRankedTournamentRating/.test(ratingId)) return seasonN == null || seasonN > OPENSKILL_LAST_LIVE_SEASON + 1 ? 4 : 2;
+  return 0;
+};
+// Below this, the record is a parallel shadow rather than the season's ladder.
+const LIVE_ENGINE_PRIORITY = 3;
 
 function buildRanked(records) {
   const ranked = records.filter((r) => r.isRanked && r.seasonId);
@@ -158,22 +183,84 @@ function buildRanked(records) {
     groups.get(r.seasonId).push(r);
   }
 
+  // Resolve every group's season FIRST, because two different seasonIds cannot be
+  // the same season and a hard-mapped id is authoritative. Mapped ids claim their
+  // number up front; only then may an unmapped id be date-guessed, and only into a
+  // number nobody has claimed. Without this, a new season's id (S12 before the
+  // tables are updated) date-falls-back onto the newest known season and produces
+  // two rows with the same label, so the headline card quotes one season's rank
+  // under the other's name. Date-guessing prefers the earliest PLAYED record (the
+  // player's real first game); 0-match rows are a weak hint — roughly half land
+  // before the season opens and merged exports carry a second account's rows
+  // mid-season — so they are used only as a fallback, and the claim check in pass
+  // B below stops a bad guess from duplicating a real season.
+  const earliest = (list) => list.reduce((m, r) => (r.createdMs != null && (m == null || r.createdMs < m) ? r.createdMs : m), null);
+  const resolvedSeason = new Map();
+  const claimed = new Set();
+  // Exact keys first, THEN ones that only match via the Number() coercion in
+  // resolveSeason ("0762104396", " 762104396", "7.62104396e8" all reach S2). Both
+  // form their own group, and claiming is first-come, so without this ordering the
+  // canonical id loses its own season whenever a twin happens to sit above it in
+  // the file.
+  const byExactness = [...groups.keys()].sort(
+    (a, b) => Number(Object.hasOwn(RANKED_SEASON_IDS, b)) - Number(Object.hasOwn(RANKED_SEASON_IDS, a)) || String(a).localeCompare(String(b)),
+  );
+  for (const seasonId of byExactness) {
+    const mapped = resolveSeason(seasonId, null);
+    // Claim-check pass A too: two ids that both map to one number would otherwise
+    // BOTH keep it, which is the duplicate this whole two-pass structure prevents.
+    if (mapped && !claimed.has(mapped.n)) {
+      resolvedSeason.set(seasonId, mapped);
+      claimed.add(mapped.n);
+    }
+  }
+  // Order the guesses by date, not by however the rows happened to sit in the
+  // file: when two unmapped ids want the same free season the earlier one should
+  // win, and the result must not depend on export row order.
+  const pending = [...groups]
+    .filter(([seasonId]) => !resolvedSeason.has(seasonId))
+    .map(([seasonId, recs]) => ({ seasonId, at: earliest(recs.filter((r) => r.matches > 0)) ?? earliest(recs) }))
+    // seasonId is the tie-break so equal (or absent) dates can't fall back to
+    // file order, which is what "must not depend on row order" actually requires.
+    .sort((a, b) => (a.at ?? Infinity) - (b.at ?? Infinity) || String(a.seasonId).localeCompare(String(b.seasonId)));
+  for (const { seasonId, at } of pending) {
+    const guess = resolveSeason(seasonId, at);
+    const free = guess && !claimed.has(guess.n);
+    if (free) claimed.add(guess.n);
+    resolvedSeason.set(seasonId, free ? guess : null);
+  }
+
   let seedsDropped = 0;
   const seasons = [];
   for (const [seasonId, recs] of groups) {
+    const played = recs.filter((r) => r.matches > 0);
+    const season = resolvedSeason.get(seasonId) ?? null;
+    const seasonN = season?.n ?? null;
+
     // Among the engines that actually played, take the highest-priority one;
     // if none played (only seeds), keep the highest-priority seed so the season
     // still shows as "Unranked / didn't play".
-    const played = recs.filter((r) => r.matches > 0);
     const pool = played.length ? played : recs;
-    const maxPrio = Math.max(...pool.map((r) => familyPriority(r.ratingId)));
-    const fam = pool.filter((r) => familyPriority(r.ratingId) === maxPrio);
+    const maxPrio = Math.max(...pool.map((r) => familyPriority(r.ratingId, seasonN)));
+    const fam = pool.filter((r) => familyPriority(r.ratingId, seasonN) === maxPrio);
     fam.sort((a, b) => b.matches - a.matches || (b.updatedMs ?? 0) - (a.updatedMs ?? 0));
     const rep = fam[0];
-    seedsDropped += recs.length - 1; // every non-representative row (migration seed / 2nd account)
+    // Only count genuinely EMPTY dropped rows here — the note this feeds calls
+    // them placeholders, and a dropped shadow has real matches on it.
+    seedsDropped += recs.filter((r) => r !== rep && r.matches === 0).length;
 
-    const season = resolveSeason(seasonId, rep.createdMs);
     const peakIndex = Math.max(rep.peakIndex || 0, rep.rankIndex || 0);
+    // A shadow can't be trusted in EITHER direction: its rank reads high (S3's
+    // runs on the S2 point scale) and its rank 0 would assert "Unranked" for a
+    // season the player did rank in. So trust only the live engine — except when
+    // the record shows no play AND no rank at all, where there is nothing to get
+    // wrong and "Didn't play" beats withholding a season that was never played.
+    const neverPlayed = rep.matches === 0 && peakIndex === 0;
+    // familyPriority already handles an unknown season: it scores both S2/S3-era
+    // families below LIVE_ENGINE_PRIORITY there, since neither can vouch for a
+    // season we can't place, and only the tournament family (live in every season
+    // it appears in) stays trusted.
+    const rankReliable = neverPlayed || familyPriority(rep.ratingId, seasonN) >= LIVE_ENGINE_PRIORITY;
     seasons.push({
       seasonId,
       seasonN: season?.n ?? null,
@@ -181,12 +268,13 @@ function buildRanked(records) {
       engine: rep.engine,
       engineLabel: rep.engine === 'openskill' ? 'OpenSkill' : 'IVK',
       ratingId: rep.ratingId,
-      // RankPoints is only the genuine in-game ranked score for the S4+ IVK
-      // tournament system (rankPoints = mu*10, same scale as the live ladder).
-      // S2-S3 stored an OpenSkill internal score / experimental Terminal-Attack
-      // value on a different scale (e.g. 87k, far above the real ~50k ceiling),
-      // so RP from those seasons is NOT shown.
-      rpReliable: /^IVKRankedTournamentRating/.test(rep.ratingId),
+      // rankPoints = mu*10 = the published rankScore, but only from S3, where IVK
+      // became the live engine. An S2-era IVK row is a shadow on its own scale,
+      // so gate on the season too. The ladder was also rescaled at S4: S3 ran
+      // 2500 points per division to Platinum 4 (30000) then 5000 above it, where
+      // S4+ is a flat 2500 — so RP is not comparable across that boundary.
+      rpReliable: rankReliable && rep.engine === 'ivk' && seasonN != null && seasonN > OPENSKILL_LAST_LIVE_SEASON,
+      rankReliable,
       rankIndex: rep.rankIndex || 0,
       peakIndex,
       rank: leagueInfo(rep.rankIndex || 0),
@@ -202,15 +290,29 @@ function buildRanked(records) {
 
   seasons.sort((a, b) => (a.seasonN ?? 99) - (b.seasonN ?? 99) || (a.createdMs ?? 0) - (b.createdMs ?? 0));
   const playedSeasons = seasons.filter((s) => s.played);
+  // Headline cards quote only seasons with a trusted rank.
+  const trusted = playedSeasons.filter((s) => s.rankReliable);
+  // "Latest" = the highest SEASON NUMBER, which is structural. Only a season we
+  // could not place falls back to a timestamp, and only to decide whether it sits
+  // after the numbered ones — otherwise it would sort to the end (seasonN ?? 99)
+  // and masquerade as the current rank. Do NOT rank the numbered seasons by date:
+  // `updatedMs` is a last-WRITE time, bulk writes stamp up to 24 rows with one
+  // identical value in these exports, and one export wrote its S3 row 12 days
+  // after its S4 row already existed.
+  const playedAt = (s) => s.updatedMs ?? s.createdMs ?? 0;
+  let newest = null;
+  for (const s of trusted) if (s.seasonN != null && (!newest || s.seasonN > newest.seasonN)) newest = s;
+  for (const s of trusted) if (s.seasonN == null && (!newest || playedAt(s) > playedAt(newest))) newest = s;
 
   let peak = null;
-  for (const s of seasons) if (s.peakIndex > 0 && (!peak || s.peakIndex > peak.peakIndex)) peak = s;
+  for (const s of seasons) if (s.rankReliable && s.peakIndex > 0 && (!peak || s.peakIndex > peak.peakIndex)) peak = s;
 
   return {
     seasons,
     played: playedSeasons.length > 0,
     peak, // season object whose peak was the highest ever, or null
-    latest: playedSeasons.length ? playedSeasons[playedSeasons.length - 1] : null,
+    latest: newest,
+    withheld: seasons.filter((s) => !s.rankReliable).length,
     seedsDropped,
   };
 }
@@ -237,7 +339,10 @@ function dedupeByRatingId(records) {
 function buildHiddenMmr(records) {
   const byId = dedupeByRatingId(records.filter((r) => r.engine === 'ivk' && !r.isRanked));
   const list = [...byId.values()].map((r) => {
-    const meta = IVK_META[r.ratingId] || { label: r.ratingId.replace(/^IVK/, '').replace(/Rating$/, ''), desc: 'Hidden matchmaking rating.' };
+    // hasOwn: ratingId comes from the export, so a bare lookup on "constructor"
+    // returns an inherited function and blanks the label (same hazard as the
+    // seasonId lookup in resolveSeason).
+    const meta = (Object.hasOwn(IVK_META, r.ratingId) && IVK_META[r.ratingId]) || { label: r.ratingId.replace(/^IVK/, '').replace(/Rating$/, ''), desc: 'Hidden matchmaking rating.' };
     return { ratingId: r.ratingId, label: meta.label, desc: meta.desc, mu: r.mu, matches: r.matches, updatedMs: r.updatedMs, createdMs: r.createdMs };
   });
   list.sort((a, b) => {
@@ -269,7 +374,7 @@ const OS_ORDER = [
 function buildOpenSkill(records) {
   const byId = dedupeByRatingId(records.filter((r) => r.engine === 'openskill' && !r.isRanked));
   const list = [...byId.values()].map((r) => {
-    const meta = OS_META[r.ratingId] || { label: r.ratingId.replace(/^OpenSkill/, '').replace(/Rating$/, ''), desc: 'OpenSkill skill estimate.' };
+    const meta = (Object.hasOwn(OS_META, r.ratingId) && OS_META[r.ratingId]) || { label: r.ratingId.replace(/^OpenSkill/, '').replace(/Rating$/, ''), desc: 'OpenSkill skill estimate.' };
     return {
       ratingId: r.ratingId,
       label: meta.label,

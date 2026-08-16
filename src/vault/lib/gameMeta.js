@@ -83,8 +83,22 @@ export const SCENARIO_MODES = {
   '157494085': { label: 'Head2Head', category: 'Casual', teams: 2 },
   '184486584': { label: 'Point Break', category: 'Casual', teams: 2 }, // Point Break
   '211556165': { label: 'Point Break', category: 'Casual', teams: 2 }, // Point Break — Arena Debut LTM (Starlight Hollow), S10
-  '686266668': { label: 'Terminal Attack', category: 'Casual', teams: 2 }, // attack/defend
-  '531991356': { label: 'Ranked Terminal Attack', category: 'Ranked', teams: 2 }, // S3's ranked was Terminal Attack — verified: 0 revives, 0 defib kills, single 2-team "0-0" match (no bracket), fills the Jul-Aug 2024 gap in Ranked Cashout
+  '686266668': { label: 'Terminal Attack', category: 'Casual', teams: 2 }, // attack/defend, S2 era
+  // S3's ranked playlist was Terminal Attack, and this is its id (NOT 531991356).
+  // Across 8 exports: 2 teams, 0 revives over 1,182 rounds (Dbnos is 0 in EVERY
+  // mode in every export, so it discriminates nothing — don't cite it), MatchIDs only
+  // {0-0, 1-0} so it never draws a third round and cannot be an 8-team bracket,
+  // and it exists only 2024-06-13..2024-09-25. Decisive: the S3 ranked rating's
+  // lastTournamentPlayed points at one of ITS tournaments in 6 of 6 exports that
+  // have one, and completedMatches (which counts TOURNAMENTS, not rounds —
+  // calibrated on 498553443) tracks its count, never 531991356's.
+  '296178816': { label: 'Ranked Terminal Attack', category: 'Ranked', teams: 2 },
+  // Post-S3 casual Terminal Attack: same 2-team / 0-revive / single-"0-0" shape as
+  // 686266668, which ends 2024-06-12 the day before this starts (S3 launch). Runs
+  // to 2025-08-28, long past S3. Proof it is not ranked: one export played two of
+  // its tournaments inside the S3 window while its S3 ranked rating stayed at
+  // completedMatches 0 with an empty lastTournamentPlayed.
+  '531991356': { label: 'Terminal Attack', category: 'Casual', teams: 2 },
   // Limited-time modes.
   '639859186': { label: 'Blast Off!', category: 'LTM', teams: 2 }, // Bernal "Fog"
   // 152796620 (Heavy Hitters / Heaven or Else) is split by arena in classifyMode — both share this id.
@@ -101,7 +115,6 @@ export const SCENARIO_MODES = {
   '377270267': { label: 'Ranked (S1)', category: 'Ranked', teams: 4 }, // pre-World-Tour ranked
   '106717113': { label: 'Snowball Blitz', category: 'LTM', teams: 2 }, // confirmed — winter event, Monaco + Snowball weapon
   // A few S3–S5 World Tour ids (the rest live in WORLD_TOUR_SCENARIOS below).
-  '296178816': { label: 'World Tour', category: 'World Tour', teams: 4 },
   '211390302': { label: 'World Tour', category: 'World Tour', teams: 4 },
   '970363916': { label: 'World Tour', category: 'World Tour', teams: 4 },
   '425956530': { label: 'World Tour', category: 'World Tour', teams: 4 },
@@ -109,8 +122,9 @@ export const SCENARIO_MODES = {
 };
 
 // World Tour = the seasonal casual TOURNAMENT (4-team bracket). Ranked has used
-// the single persistent ScenarioID 498553443 every season since S3, so EVERY
-// OTHER 4-team 100%-tournament ScenarioID (from the S3 launch, 2024-06-13, on) is
+// the single persistent ScenarioID 498553443 every season since S4, and in S3 it
+// was Terminal Attack on 296178816 (498553443 has a matching Jul-Aug 2024 hole),
+// so EVERY OTHER 4-team 100%-tournament ScenarioID (from the S3 launch on) is
 // a per-season World Tour event. Keyed explicitly here — NOT a heuristic. (The
 // 2-/3-team tournaments and 11-/12-team modes are deliberately excluded; they're
 // the still-unidentified ones.)
@@ -208,13 +222,20 @@ export const stageTeams = (rr) => (rr === 0 ? 2 : 4);
 // + the lobby position there. The two Round-1 lobbies run in parallel and are
 // not cross-ranked, so a Round-1 exit resolves only to a tied range.
 export const TOURNAMENT_SIZE = 8;
-export function tournamentPlacement(furthestRR, posThere, hasPrelim = false) {
-  if (posThere == null || furthestRR == null) return null;
+export function tournamentPlacement(furthestRR, posThere, hasPrelim = false, tournamentWon = false) {
+  if (furthestRR == null) return null;
   // Deeper, non-standard brackets (a round with rr >= 3) aren't an 8-team draw,
   // so don't fabricate an "of 8" placement for them.
   if (hasPrelim || furthestRR > 2) return null;
   const of = TOURNAMENT_SIZE;
-  if (furthestRR === 0) return { label: posThere === 1 ? '1st' : '2nd', of, place: posThere };
+  // The Final is a 1v1, so the RESULT alone fixes the placement — recover it even
+  // when that round logged no LeaderboardPosition (a handful of Finals record the
+  // 0 "not populated" sentinel, and dropping them loses an exact 1st/2nd).
+  if (furthestRR === 0) {
+    const place = posThere ?? (tournamentWon ? 1 : 2);
+    return { label: place === 1 ? '1st' : '2nd', of, place };
+  }
+  if (posThere == null) return null;
   if (furthestRR === 1) {
     // Reached Round 2 but not the Final -> eliminated 3rd/4th (top 2 advanced).
     if (posThere >= 3) return { label: posThere === 3 ? '3rd' : '4th', of, place: posThere };

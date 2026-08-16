@@ -165,7 +165,7 @@ function casualMatch(rounds, mode, startT) {
 }
 
 const RANKED_ID = 498553443;
-const WORLD_TOUR_IDS = [296178816, 465304560, 308426432];
+const WORLD_TOUR_IDS = [211390302, 465304560, 308426432];
 const CASUAL_MODES = [
   { id: 164312917, winChance: 0.4 }, // Quick Cash
   { id: 545190106, winChance: 0.5 }, // Power Shift
@@ -376,11 +376,12 @@ function buildInventoryItems() {
 }
 
 // Hidden matchmaking / skill ratings (persistence `BucketObject`). A believable
-// long-time-Diamond veteran: OpenSkill-era ranked in S2-S3, the IVK ladder S4+
-// with one Ruby-peak season, plus the casual/World-Tour hidden MMR and the raw
-// OpenSkill model. Includes a couple of zero-match "migration seed" rows so the
-// preview also exercises the de-duplication. Uses the real season ids/dates so
-// the season mapping resolves exactly as a real export would.
+// long-time-Diamond veteran: OpenSkill-era ranked in S2, the IVK ladder from S3
+// on with one Ruby-peak season, plus the casual/World-Tour hidden MMR and the raw
+// OpenSkill model. Carries the migration seeds and both parallel shadow ratings a
+// real export has, so the preview exercises de-duplication AND the S2/S3 engine
+// handover. Uses the real season ids/dates so season mapping resolves as it would
+// on a real export.
 function buildRatingBuckets() {
   const rb = (ObjectKey, value, CreatedAt, UpdatedAt) => ({ ObjectKey, Value: JSON.stringify(value), CreatedAt, UpdatedAt });
   const ranked = (ratingId, seasonId, mu, sigma, matches, lri, peak, rp) => ({
@@ -395,8 +396,11 @@ function buildRatingBuckets() {
   const out = [];
   // Per-season ranked: [objectKey base = ratingId, seasonId, created, updated, mu, sigma, matches, finalIndex, peakIndex, RankPoints]
   const R = [
-    ['OpenSkillRankedRating', 762104396, '2024-03-14T11:00:00Z', '2024-06-10T22:00:00Z', 32.4, 1.4, 120, 16, 16, 72000],
-    ['OpenSkillRankedRating', 751146294, '2024-06-13T11:00:00Z', '2024-09-20T22:00:00Z', 33.6, 1.1, 185, 18, 19, 83500],
+    // S2 is the last OpenSkill season; its points run ~5,000 per division from zero.
+    ['OpenSkillRankedRating', 762104396, '2024-03-14T11:00:00Z', '2024-06-10T22:00:00Z', 32.4, 1.4, 120, 16, 16, 77000],
+    // S3 is the first IVK season, and its RankPoints is the real S3 RankScore
+    // (5,000 per division, Platinum 4 starting at 30,000).
+    ['IVKRankedRating', 751146294, '2024-06-13T11:00:00Z', '2024-09-20T22:00:00Z', 5750, 0, 185, 18, 19, 57500],
     ['IVKRankedTournamentRating', 814189767, '2024-09-26T11:00:00Z', '2024-12-10T22:00:00Z', 4050, 0, 150, 17, 17, 40500],
     ['IVKRankedTournamentRating2', 483101830, '2024-12-12T11:00:00Z', '2025-03-15T22:00:00Z', 4320, 0, 210, 18, 19, 43200],
     ['IVKRankedTournamentRating2', 279111264, '2025-03-20T11:00:00Z', '2025-06-08T22:00:00Z', 4600, 0, 240, 19, 20, 46000],
@@ -408,10 +412,13 @@ function buildRatingBuckets() {
   for (const [rid, sid, c, u, mu, sigma, m, lri, peak, rp] of R)
     out.push(rb(`${rid}_${sid}`, ranked(rid, sid, mu, sigma, m, lri, peak, rp), c, u));
 
-  // A backfilled migration seed (0 matches) for S9 + the S2/S3-era IVK shadow rating —
-  // both should be de-duplicated away in favour of the real progression.
+  // Rows that must resolve away in favour of the real progression: a backfilled S9
+  // migration seed (0 matches); the S2-era IVK shadow (a brief run alongside
+  // OpenSkill at the end of S2, never assigned a league); and S3's OpenSkillRankedRating
+  // shadow, still on the S2 point scale and so reading a saturated Diamond 1.
   out.push(rb('IVKRankedTournamentRating3_825209376', ranked('IVKRankedTournamentRating3', 825209376, 1250, 0, 0, 0, 0, 0), '2025-12-08T17:03:44Z', '2025-12-08T17:03:44Z'));
-  out.push(rb('IVKRankedRating_751146294', ranked('IVKRankedRating', 751146294, 1700, 0, 0, 0, 0, 0), '2024-06-20T11:00:00Z', '2024-06-20T11:00:00Z'));
+  out.push(rb('IVKRankedRating_762104396', ranked('IVKRankedRating', 762104396, 1553, 0, 6, 0, 0, 0), '2024-06-01T13:20:07Z', '2024-06-01T14:12:32Z'));
+  out.push(rb('OpenSkillRankedRating_751146294', ranked('OpenSkillRankedRating', 751146294, 33.6, 2.8, 184, 20, 20, 83500), '2024-06-13T19:34:00Z', '2024-09-20T22:00:00Z'));
 
   // Hidden MMR for the non-ranked playlists (no league rank, just a skill number).
   out.push(rb('IVKCasualRating', flat('IVKCasualRating', 905, 0, 3240), '2024-01-20T18:00:00Z', '2026-06-12T22:00:00Z'));
