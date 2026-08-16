@@ -1,13 +1,36 @@
 import { useMemo, useState } from 'react';
-import { Wallet, CreditCard, Store, Coins, Clock, ExternalLink, Info } from 'lucide-react';
+import { Wallet, CreditCard, Store, Coins, Clock, ExternalLink, Info, FlaskConical } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, StatCard, Badge, Note, EmptyState, PageJump } from '../components/ui';
 import { Pagination } from '../../components/Pagination';
 import { num, money, date, dateTime, duration } from '../lib/format';
 import { sourceLabel, sourceTone, storeLabel, typeLabel, logTypeMeta, SOURCE_GROUPS, BASE_CURRENCIES, isBaseCurrency } from '../lib/economy';
+import { REALM } from '../lib/realms';
 import { seasonsInRange } from '../lib/seasons';
 
 const PER_PAGE = 15;
+
+// A row that came from a season-preview playtest or from ARC Raiders rather than
+// the live game (see lib/realms.js). Only rendered when the "include" toggle is on.
+const RealmBadge = ({ row }) => (row.isLive ? null : <Badge tone="purple">{row.realmLabel}</Badge>);
+
+// Switch for including the set-aside rows in a table. The label says "set aside"
+// rather than "playtest" because the same toggle also covers rows from Embark's
+// other game, which is not a playtest of this one.
+const IncludeToggle = ({ on, onChange, count, controls }) => (
+  <button
+    type="button"
+    onClick={() => onChange(!on)}
+    aria-pressed={on}
+    aria-controls={controls}
+    className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border transition-colors ${
+      on ? 'border-purple-500/50 bg-purple-500/15 text-purple-200' : 'border-gray-700 bg-gray-800 text-gray-400 hover:text-gray-200'
+    }`}
+  >
+    <FlaskConical className="w-3.5 h-3.5" />
+    {on ? 'Hide' : 'Show'} {num(count)} set-aside row{count === 1 ? '' : 's'}
+  </button>
+);
 
 // Premium-currency balance over time
 const BalanceChart = ({ series }) => {
@@ -164,20 +187,37 @@ export const PurchasesPage = () => {
   const { model } = useVaultData();
   const { economy, inventory } = model;
   const {
-    transactions, transactionCount, grantedCount, bySource, byStore,
-    fiat, fiatGrantedCount, fiatFailedCount, spendBaseTotal, walletCurrencies,
-    ledger, mb, currentBalance, balanceSeries, dlc, offers,
+    transactions, transactionsAll, transactionCount, grantedCount, bySource, byStore,
+    fiat, fiatGrantedCount, fiatFailedCount, fiatUnpricedCount, spendBaseTotal, walletCurrencies,
+    ledger, ledgerAll, mb, currentBalance, balanceSeries, dlc, offers,
+    realms, testTransactionCount, testLedgerCount, testFiatCount, mbTest,
+    duplicateChargeCount, duplicateChargeTotal,
   } = economy;
 
   const [filter, setFilter] = useState('All');
   const [txPage, setTxPage] = useState(1);
   const [ledgerPage, setLedgerPage] = useState(1);
   const [offersPage, setOffersPage] = useState(1);
+  const [fiatPage, setFiatPage] = useState(1);
+  const [dlcPage, setDlcPage] = useState(1);
+  // Off-live rows are excluded from the currency figures (not from real-money spend,
+  // which is judged per charge), but the export is the user's own data — these let
+  // them see exactly what was set aside.
+  const [showTestTx, setShowTestTx] = useState(false);
+  const [showTestLedger, setShowTestLedger] = useState(false);
 
   const activeGroup = SOURCE_GROUPS.find((g) => g.key === filter) || SOURCE_GROUPS[0];
+  const inGroup = (t) => !activeGroup.match || activeGroup.match.includes(t.source);
+  const txSource = showTestTx ? transactionsAll : transactions;
   const filteredTx = useMemo(
-    () => (activeGroup.match ? transactions.filter((t) => activeGroup.match.includes(t.source)) : transactions),
-    [transactions, activeGroup]
+    () => (activeGroup.match ? txSource.filter((t) => activeGroup.match.includes(t.source)) : txSource),
+    [txSource, activeGroup]
+  );
+  // Count what the toggle would actually add UNDER THE ACTIVE FILTER — a global
+  // count promises rows the filtered table will not show.
+  const testTxInGroup = useMemo(
+    () => transactionsAll.reduce((n, t) => n + (!t.isLive && inGroup(t) ? 1 : 0), 0),
+    [transactionsAll, activeGroup] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // transaction log paging
@@ -187,10 +227,24 @@ export const PurchasesPage = () => {
   const txSlice = filteredTx.slice(txStart, txStart + PER_PAGE);
 
   // ledger paging
-  const lgTotalPages = Math.max(1, Math.ceil(ledger.length / PER_PAGE));
+  const lgRows = showTestLedger ? ledgerAll : ledger;
+  const lgTotalPages = Math.max(1, Math.ceil(lgRows.length / PER_PAGE));
   const lgSafePage = Math.min(ledgerPage, lgTotalPages);
   const lgStart = (lgSafePage - 1) * PER_PAGE;
-  const lgSlice = ledger.slice(lgStart, lgStart + PER_PAGE);
+  const lgSlice = lgRows.slice(lgStart, lgStart + PER_PAGE);
+
+  // real-money paging (a long-lived account can have hundreds of charges, and the
+  // table now lists every fiat row rather than the live-only subset)
+  const fiTotalPages = Math.max(1, Math.ceil(fiat.length / PER_PAGE));
+  const fiSafePage = Math.min(fiatPage, fiTotalPages);
+  const fiStart = (fiSafePage - 1) * PER_PAGE;
+  const fiSlice = fiat.slice(fiStart, fiStart + PER_PAGE);
+
+  // DLC paging
+  const dlTotalPages = Math.max(1, Math.ceil(dlc.length / PER_PAGE));
+  const dlSafePage = Math.min(dlcPage, dlTotalPages);
+  const dlStart = (dlSafePage - 1) * PER_PAGE;
+  const dlSlice = dlc.slice(dlStart, dlStart + PER_PAGE);
 
   // offers paging (some accounts have hundreds of impression rows)
   const ofTotalPages = Math.max(1, Math.ceil(offers.length / PER_PAGE));
@@ -206,6 +260,41 @@ export const PurchasesPage = () => {
   const spentValue = fiatGrantedCount ? baseMoney(spendBaseTotal) : '—';
   const mbInflowSegs = MB_SEGMENTS.map((s) => ({ ...s, value: mb[s.key] || 0 })).filter((s) => s.value > 0);
   const mbInflowTotal = mb.inTotal;
+  // The disclosure copy differs for a season preview (a throwaway wallet on a THE
+  // FINALS build) vs another Embark title sharing the account.
+  const offLiveIsPlaytest =
+    (realms?.sessions ?? []).some((s) => s.realm === REALM.PLAYTEST) ||
+    (realms?.windows ?? []).some((w) => w.realm === REALM.PLAYTEST);
+  const anomalies = realms?.anomalies ?? [];
+  const anomalyKinds = new Set(anomalies.map((a) => a.by || a.kind));
+  // Each trigger needs its own sentence: a single grant the store can't sell, an
+  // out-of-reach wallet total, and a jump too big to be an unlogged reward are three
+  // different claims, and asserting the wrong one would be simply untrue.
+  const REASONS = {
+    catalogue: 'a top-up in an amount the store has no pack for',
+    grant: 'a single grant far larger than the game hands out',
+    spend: 'a single spend far larger than anything the game charges',
+    balance: 'a wallet total higher than the live game reaches',
+    unattributed: 'a jump too large to be an unlogged reward',
+  };
+  const reasons = [...anomalyKinds].map((k) => REASONS[k]).filter(Boolean);
+  const anomalyReason = reasons.length
+    ? ` That means ${reasons.length === 1 ? reasons[0] : `${reasons.slice(0, -1).join(', ')} and ${reasons.at(-1)}`}.`
+    : '';
+  // Gaps large enough to be reported as anomalies are shown there instead, so the
+  // same event isn't described twice with two different explanations.
+  const gaps = (realms?.gaps ?? []).filter((g) => !g.promoted);
+  // Server labels that contributed excluded rows but produced no currency session,
+  // so they get no line in the session list. Named separately so nothing excluded
+  // is left unaccounted for.
+  const otherRealmNames = useMemo(() => {
+    const inSessions = new Set((realms?.sessions ?? []).map((s) => s.label));
+    const names = new Set();
+    for (const t of transactionsAll) {
+      if (!t.isLive && t.realmLabel && !inSessions.has(t.realmLabel)) names.add(t.realmLabel);
+    }
+    return [...names];
+  }, [transactionsAll, realms]);
 
   return (
     <div className="animate-fade-in-up space-y-5">
@@ -238,6 +327,102 @@ export const PurchasesPage = () => {
             <StatCard label="Transactions" value={num(transactionCount)} sub={`${num(grantedCount)} granted`} />
           </div>
 
+          {/* A value the live store cannot produce that we could NOT attribute to a
+              server, so it is still counted above. Warn rather than quietly drop it —
+              removing a row is only sound when the balance chain reconnects. */}
+          {anomalies.length > 0 && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-amber-700/40 bg-amber-950/30 px-4 py-3 text-xs text-amber-200/90">
+              <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <p>
+                {num(anomalies.length)} Multibucks figure{anomalies.length === 1 ? '' : 's'} on your live ledger
+                {anomalies.length === 1 ? " doesn't" : " don't"} match anything the live game does
+                (largest {num(Math.max(...anomalies.map((a) => a.amount || 0)))} Multibucks).
+                {anomalyReason}
+                {' '}The likeliest cause is another test server we couldn’t identify from this export — most often
+                one whose wallet was close enough to your real balance that we can’t prove which rows belong to it.
+                The figures above still include {anomalies.length === 1 ? 'it' : 'them'}, so treat the Multibucks
+                totals as an upper bound rather than an exact figure.
+              </p>
+            </div>
+          )}
+
+          {/* What was set aside, and why. Only shown when this export actually
+              contains off-live records. */}
+          {realms?.has && (testLedgerCount > 0 || testTransactionCount > 0) && (
+            <div className="rounded-xl border border-purple-700/40 bg-purple-950/20 p-4">
+              <div className="flex items-start gap-2.5">
+                <FlaskConical className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-purple-200">
+                    {offLiveIsPlaytest ? 'Playtest records were removed from these figures' : 'Records from another server were removed from these figures'}
+                  </p>
+                  <p className="text-xs text-purple-200/80 mt-1">
+                    {offLiveIsPlaytest ? (
+                      <>
+                        Before a season launches, Embark runs a preview build that hands every participant a throwaway wallet
+                        and lets them “buy” from a stubbed store for free.
+                      </>
+                    ) : (
+                      <>
+                        One Embark account covers more than one game and more than one server, and they all report into this
+                        single export.
+                      </>
+                    )}{' '}
+                    All of it is written into the same export as your real account, with nothing marking it apart. It cost you
+                    no Multibucks, so the currency figures here count the live game only. Real-money charges are judged
+                    separately — a card is charged by the store, not by a game server — so the spend total below counts every
+                    genuine charge and drops only the ones re-issued a second time.
+                  </p>
+                  {realms.sessions.length > 0 && (
+                    <ul className="mt-3 space-y-1.5">
+                      {realms.sessions.map((s, i) => (
+                        <li key={`${s.startMs}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                          <Badge tone="purple">{s.label}</Badge>
+                          <span className="text-gray-300">{date(s.startMs)}</span>
+                          <span className="text-gray-400">
+                            {num(s.rows)} currency row{s.rows === 1 ? '' : 's'} · a separate wallet that peaked at{' '}
+                            {num(s.peakBalance)} · your real balance of {num(s.parkedBalance)} was untouched
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {/* Audit-only realms: they contribute transactions but no currency
+                      rows, so they have no session entry above and would otherwise be
+                      an unexplained part of the totals below. */}
+                  {otherRealmNames.length > 0 && (
+                    <p className="text-xs text-purple-200/80 mt-3">
+                      Also excluded: activity on {otherRealmNames.join(', ')}, identified from the server labels in your
+                      audit log.
+                    </p>
+                  )}
+                  <p className="text-xs text-purple-200/70 mt-3">
+                    Set aside in total:{' '}
+                    {testLedgerCount > 0 && (
+                      <>
+                        {num(testLedgerCount)} currency row{testLedgerCount === 1 ? '' : 's'}
+                        {(mbTest?.inTotal > 0 || mbTest?.out > 0) && <> ({num(mbTest.inTotal)} Multibucks in, {num(mbTest.out)} out)</>}
+                        {' '}and{' '}
+                      </>
+                    )}
+                    {num(testTransactionCount)} transaction{testTransactionCount === 1 ? '' : 's'}
+                    {testFiatCount > 0 && (
+                      <>, including {num(testFiatCount)} stubbed store row{testFiatCount === 1 ? '' : 's'} that
+                        never charged anything</>
+                    )}.
+                  </p>
+                  {!realms.auditHadTenancy && (
+                    <p className="text-[11px] text-purple-200/70 mt-2">
+                      Your audit log didn’t include the server labels, so these were identified from the balance chain alone:
+                      the live wallet resumes at exactly the balance it had before each session, which is only possible if the
+                      rows in between belonged to a different wallet.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Real-money spend */}
           <Panel title="Real-money spend">
             {fiat.length === 0 ? (
@@ -254,7 +439,7 @@ export const PurchasesPage = () => {
                     {walletCurrencies.length > 0 && <> · wallet: {walletCurrencies.join(', ')}</>}
                   </p>
                 </div>
-                <div className="table-container">
+                <div className="table-container" style={fiTotalPages > 1 ? { minHeight: PER_PAGE * 38 } : undefined}>
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-gray-400 border-b border-gray-700">
@@ -266,23 +451,68 @@ export const PurchasesPage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {fiat.map((t, i) => (
-                        <tr key={i} className="border-b border-gray-700/40 last:border-0">
+                      {fiSlice.map((t, i) => (
+                        <tr key={fiStart + i} className="border-b border-gray-700/40 last:border-0">
                           <td className="py-2 px-3 text-gray-300 whitespace-nowrap">{dateTime(t.purchasedAt)}</td>
                           <td className="py-2 px-3 text-right"><PriceCell t={t} /></td>
                           <td className="py-2 px-3"><Contents c={t.contents} /></td>
                           <td className="py-2 px-3 text-gray-400">{storeLabel(t.store)}</td>
                           <td className="py-2 px-3">
-                            <Badge tone={t.granted ? 'emerald' : 'red'}>{t.granted ? 'Completed' : t.state}</Badge>
+                            <span className="inline-flex flex-wrap items-center gap-1.5">
+                              {/* No realm badge here. These rows are charges, not grants:
+                                  the date shown is when the purchase was made, while the
+                                  realm describes when the row was WRITTEN, so a genuine
+                                  2024 purchase re-issued during a 2025 preview would read
+                                  as "S9 preview playtest" against a 2024 date. What
+                                  matters for a charge is whether it was already counted,
+                                  which "Repeat grant" says directly. */}
+                              <Badge tone={t.granted ? 'emerald' : 'red'}>{t.granted ? 'Completed' : t.state}</Badge>
+                              {t.duplicateOfEarlierCharge && <Badge tone="gray">Repeat grant</Badge>}
+                              {t.granted && t.pricePoint == null && <Badge tone="gray">No price</Badge>}
+                            </span>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                {fiatFailedCount > 0 && (
+                {fiTotalPages > 1 && (
+                  <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                    <PageJump totalPages={fiTotalPages} onJump={setFiatPage} />
+                    <div className="flex-1">
+                      <Pagination
+                        currentPage={fiSafePage}
+                        totalPages={fiTotalPages}
+                        startIndex={fiStart}
+                        endIndex={fiStart + PER_PAGE}
+                        totalItems={fiat.length}
+                        onPageChange={setFiatPage}
+                        edgeScroll={false}
+                        variant="compact"
+                      />
+                    </div>
+                  </div>
+                )}
+                {/* Every row in the table above is in exactly one of these buckets,
+                    so the counts reconcile against the row count. */}
+                {(fiatFailedCount > 0 || fiatUnpricedCount > 0 || duplicateChargeCount > 0) && (
                   <p className="text-xs text-gray-500 mt-2">
-                    {num(fiatFailedCount)} failed/cancelled attempt{fiatFailedCount === 1 ? '' : 's'} shown above but excluded from the total.
+                    {fiatFailedCount > 0 && (
+                      <>{num(fiatFailedCount)} failed/cancelled attempt{fiatFailedCount === 1 ? '' : 's'} shown above but excluded from the total. </>
+                    )}
+                    {fiatUnpricedCount > 0 && (
+                      <>
+                        {num(fiatUnpricedCount)} completed purchase{fiatUnpricedCount === 1 ? '' : 's'} came through with no
+                        price recorded, so {fiatUnpricedCount === 1 ? 'it is' : 'they are'} listed but can’t be added to the total.{' '}
+                      </>
+                    )}
+                    {duplicateChargeCount > 0 && (
+                      <>
+                        {num(duplicateChargeCount)} row{duplicateChargeCount === 1 ? ' is a' : 's are'} repeat
+                        grant{duplicateChargeCount === 1 ? '' : 's'} of a charge already counted (a server re-issuing something you
+                        already own) — counting {duplicateChargeCount === 1 ? 'it' : 'them'} again would have added {baseMoney(duplicateChargeTotal)}.
+                      </>
+                    )}
                   </p>
                 )}
                 {!walletIsBase && (
@@ -334,8 +564,33 @@ export const PurchasesPage = () => {
               </div>
             )}
 
-            {ledger.length === 0 ? (
-              <p className="text-sm text-gray-500">No premium-currency movements recorded.</p>
+            {/* The toggle sits OUTSIDE the empty-state branch: an account whose only
+                currency rows are set-aside ones has an empty live ledger, and burying
+                the control inside the else-branch would leave the panel saying
+                "no movements" with no way to reach the rows it just said it removed. */}
+            {testLedgerCount > 0 && (
+              <div className="mb-3">
+                <IncludeToggle
+                  on={showTestLedger}
+                  onChange={(v) => { setShowTestLedger(v); setLedgerPage(1); }}
+                  count={testLedgerCount}
+                  controls="mb-ledger-rows"
+                />
+              </div>
+            )}
+            {showTestLedger && lgRows.length > 0 && (
+              <p className="text-xs text-purple-200/80 mb-3">
+                Set-aside rows are shown below. They belong to a separate wallet, so read “Balance after” within a
+                realm, not down the whole column — it steps between your real balance and the test one.
+              </p>
+            )}
+            <div id="mb-ledger-rows">
+            {lgRows.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                {ledgerAll.length === 0
+                  ? 'No premium-currency movements recorded.'
+                  : 'No live-game movements recorded — every currency row in this export came from another server.'}
+              </p>
             ) : (
               <>
                 <div className="table-container" style={lgTotalPages > 1 ? { minHeight: PER_PAGE * 38 } : undefined}>
@@ -357,7 +612,12 @@ export const PurchasesPage = () => {
                         return (
                           <tr key={lgStart + i} className="border-b border-gray-700/40 last:border-0">
                             <td className="py-2 px-3 text-gray-300 whitespace-nowrap">{dateTime(l.createdAt)}</td>
-                            <td className="py-2 px-3"><Badge tone={meta.tone}>{meta.label}</Badge></td>
+                            <td className="py-2 px-3">
+                              <span className="inline-flex flex-wrap items-center gap-1.5">
+                                <Badge tone={meta.tone}>{meta.label}</Badge>
+                                <RealmBadge row={l} />
+                              </span>
+                            </td>
                             <td className={`py-2 px-3 text-right tabular-nums font-medium ${amountClass}`}>{signed}</td>
                             <td className="py-2 px-3 text-right tabular-nums text-gray-400">{num(l.balance)}</td>
                           </tr>
@@ -374,7 +634,7 @@ export const PurchasesPage = () => {
                       totalPages={lgTotalPages}
                       startIndex={lgStart}
                       endIndex={lgStart + PER_PAGE}
-                      totalItems={ledger.length}
+                      totalItems={lgRows.length}
                       onPageChange={setLedgerPage}
                       edgeScroll={false}
                       variant="compact"
@@ -383,13 +643,28 @@ export const PurchasesPage = () => {
                 </div>
               </>
             )}
+            </div>
             <Note>
               Multibucks is the in-game premium currency. <strong>Earned</strong> = Battle Pass, ranks and code redemptions;
               <strong> Bought</strong> = real-money top-ups; <strong>Gifted</strong> = gifts; <strong>Other</strong> =
               uncategorised grants the export tags only as <code>unknown</code> (usually small +75 reward drops, occasionally a
               correction). The ledger records only these broad types, not a finer source (which Battle Pass, which Twitch drop),
-              so that’s all that can be shown. These are actual balance changes, so they reconcile: total in − Spent
-              {mb.startBalance ? <> + a starting balance of {num(mb.startBalance)}</> : null} = your current balance of {num(currentBalance)}.
+              so that’s all that can be shown.
+              {ledger.length > 0 && (
+                <> These are actual balance changes, so they reconcile: total in − Spent
+                  {mb.startBalance ? <> + a starting balance of {num(mb.startBalance)}</> : null} = your current
+                  balance of {num(currentBalance)}.</>
+              )}
+              {gaps.length > 0 && (
+                <>
+                  {' '}Embark didn’t log every movement, though: {num(gaps.length)} balance change
+                  {gaps.length === 1 ? '' : 's'} here {gaps.length === 1 ? 'has' : 'have'} no matching row
+                  ({gaps.map((g, i) => <span key={i}>{i > 0 ? ', ' : ''}{g.unexplained > 0 ? '+' : '−'}{num(Math.abs(g.unexplained))} on {date(g.ms)}</span>)}).
+                  Each is absorbed by the row it lands on, so that row’s Amount differs from its own
+                  <code> Quantity</code> by the missing amount — which is why an occasional row shows a figure,
+                  or even a direction, its type wouldn’t suggest. The running balance stays correct throughout.
+                </>
+              )}
             </Note>
           </Panel>
 
@@ -419,7 +694,18 @@ export const PurchasesPage = () => {
               ))}
             </div>
 
-            <div className="table-container" style={txTotalPages > 1 ? { minHeight: PER_PAGE * 38 } : undefined}>
+            {testTxInGroup > 0 && (
+              <div className="mb-3">
+                <IncludeToggle
+                  on={showTestTx}
+                  onChange={(v) => { setShowTestTx(v); setTxPage(1); }}
+                  count={testTxInGroup}
+                  controls="tx-log-table"
+                />
+              </div>
+            )}
+
+            <div id="tx-log-table" className="table-container" style={txTotalPages > 1 ? { minHeight: PER_PAGE * 38 } : undefined}>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-gray-400 border-b border-gray-700">
@@ -435,7 +721,12 @@ export const PurchasesPage = () => {
                   {txSlice.map((t, i) => (
                     <tr key={txStart + i} className="border-b border-gray-700/40 last:border-0">
                       <td className="py-2 px-3 text-gray-300 whitespace-nowrap">{date(t.purchasedAt, 'd MMM yyyy')}</td>
-                      <td className="py-2 px-3"><Badge tone={sourceTone(t.source)}>{sourceLabel(t.source)}</Badge></td>
+                      <td className="py-2 px-3">
+                        <span className="inline-flex flex-wrap items-center gap-1.5">
+                          <Badge tone={sourceTone(t.source)}>{sourceLabel(t.source)}</Badge>
+                          <RealmBadge row={t} />
+                        </span>
+                      </td>
                       <td className="py-2 px-3 text-gray-400">{typeLabel(t.type)}</td>
                       <td className="py-2 px-3 text-gray-400">{storeLabel(t.store)}</td>
                       <td className="py-2 px-3 text-right tabular-nums text-gray-300">{t.isFiat && t.pricePoint != null ? baseMoney(t.pricePoint) : '—'}</td>
@@ -473,8 +764,8 @@ export const PurchasesPage = () => {
               </EmptyState>
             ) : (
               <>
-                <ul className="space-y-2">
-                  {dlc.map((d) => (
+                <ul className="space-y-2" style={dlTotalPages > 1 ? { minHeight: PER_PAGE * 44 } : undefined}>
+                  {dlSlice.map((d) => (
                     <li key={d.dlcId} className="flex items-center justify-between gap-3 bg-gray-900/50 rounded-lg px-3 py-2 text-sm">
                       <a
                         href={d.url}
@@ -491,6 +782,23 @@ export const PurchasesPage = () => {
                     </li>
                   ))}
                 </ul>
+                {dlTotalPages > 1 && (
+                  <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                    <PageJump totalPages={dlTotalPages} onJump={setDlcPage} />
+                    <div className="flex-1">
+                      <Pagination
+                        currentPage={dlSafePage}
+                        totalPages={dlTotalPages}
+                        startIndex={dlStart}
+                        endIndex={dlStart + PER_PAGE}
+                        totalItems={dlc.length}
+                        onPageChange={setDlcPage}
+                        edgeScroll={false}
+                        variant="compact"
+                      />
+                    </div>
+                  </div>
+                )}
                 <Note>
                   The export stores the Steam App ID of each owned DLC, not its name or price (those are localised on
                   Steam). Links open the matching Steam store page.

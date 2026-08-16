@@ -4,6 +4,7 @@ import { resolveWeapon } from './weapons';
 import { archetypeLabel, classifyMode, careerModeGroup, CAREER_MODE_GROUPS, parseMapVariant, parseCondition, roundsRemaining, stageLabel, stageTeams, tournamentPlacement } from './gameMeta';
 import { resolveMap, resolveLtmBackground, conditionType } from './maps';
 import { resolveDlc, steamAppUrl, STEAM_BASE_GAME_ID } from './economy';
+import { buildRealms, REALM } from './realms';
 import { buildRatings } from './ratings';
 
 // timestamp helpers (export mixes ISO-8601 strings and epoch-ms)
@@ -996,11 +997,11 @@ function orderLedger(rows) {
   return out;
 }
 
-function buildEconomy(byType) {
+function buildEconomy(byType, auditByType) {
   // Full grant/purchase feed (newest first). GameStorePurchasedAt is when the
   // purchase happened; fall back to CreatedAt for non-store grants. createdMs is
   // the backend grant time, used to link fiat purchases to what they granted.
-  const transactions = (byType.TransactionLog || [])
+  const allTransactions = (byType.TransactionLog || [])
     .map((t) => ({
       type: t.TransactionType ?? 'unknown',
       state: t.State ?? 'unknown',
@@ -1009,7 +1010,7 @@ function buildEconomy(byType) {
       ms: toMs(t.GameStorePurchasedAt ?? t.CreatedAt),
       createdMs: toMs(t.CreatedAt),
       purchasedAt: t.GameStorePurchasedAt ?? t.CreatedAt ?? null,
-      pricePoint: typeof t.PricePoint === 'number' ? t.PricePoint : null,
+      pricePoint: Number.isFinite(t.PricePoint) ? t.PricePoint : null,
       currency: t.CurrencyCode ?? null,
       country: t.Country ?? null,
       localizedPrice: t.LocalizedPrice ?? null,
@@ -1019,8 +1020,6 @@ function buildEconomy(byType) {
     }))
     .sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0));
 
-  const grantedCount = transactions.filter((t) => t.granted).length;
-
   // Raw Multibucks ledger rows (for totals, linking, and chronological ordering).
   const rawLedger = (byType.HardCurrencyLog || []).map((h) => ({
     logType: h.LogType ?? 'unknown',
@@ -1029,6 +1028,33 @@ function buildEconomy(byType) {
     ms: toMs(h.CreatedAt ?? h.UpdatedAt),
     createdAt: h.CreatedAt ?? h.UpdatedAt ?? null,
   }));
+
+  // Split live-game records from season-playtest / other-Embark-game records before
+  // anything is totalled — see lib/realms.js.
+  const orderedAsc = orderLedger(rawLedger);
+  const realms = buildRealms(orderedAsc, auditByType);
+  orderedAsc.forEach((r, i) => {
+    const c = realms.ledgerRealms[i];
+    r.realm = c.realm;
+    r.realmLabel = c.label;
+    r.isLive = c.realm === REALM.LIVE;
+  });
+  for (const t of allTransactions) {
+    // Classify on createdMs — when the backend WROTE the row — not on `ms`, which
+    // is GameStorePurchasedAt and points back to the original store purchase. A
+    // playtest re-issues your existing entitlements, so those rows carry a real
+    // purchase date from months earlier while being written during the playtest.
+    const c = realms.realmAt(t.createdMs ?? t.ms);
+    t.realm = c.realm;
+    t.realmLabel = c.label;
+    t.isLive = c.realm === REALM.LIVE;
+  }
+
+  // Everything below counts the live game only; the off-live rows stay in the
+  // feed (this is the user's own data — it is shown and badged, never dropped).
+  const transactions = allTransactions.filter((t) => t.isLive);
+  const testTransactions = allTransactions.filter((t) => !t.isLive);
+  const grantedCount = transactions.filter((t) => t.granted).length;
 
   // Steam DLC ownership — rows are duplicated (≈4× per DLC), so dedup on DLCID
   // and keep the earliest CreatedAt as the "owned since" date.
@@ -1050,13 +1076,41 @@ function buildEconomy(byType) {
   // fiat tx, the Multibucks "bought" ledger row and any Steam DLC row with the
   // SAME CreatedAt (verified exact on real data; DLC packs bundle Multibucks),
   // so match within a small window. Lets us show *what* a charge actually bought.
+  // Two purchases can be granted in the same second — export 00 bought the Season 7
+  // Ultimate Battle Pass Bundle and Starter Pack 28 MICROSECONDS apart. The export is
+  // precise enough to tell them apart (each charge, its `bought` row and its DLC row
+  // share an exact CreatedAt), so match exactly first and only fall back to the window
+  // when nothing lines up. Claimed rows are consumed, so one grant can never be
+  // reported against two charges — that showed both purchases as "1,150 Multibucks +
+  // both DLCs" when one of them actually granted 1,000.
   const boughtEvents = rawLedger.filter((l) => l.logType === 'bought' && l.ms != null);
   const LINK_TOL = 2000; // ms
-  for (const t of transactions) {
-    if (!t.isFiat || t.createdMs == null) continue;
-    const mb = boughtEvents.find((b) => Math.abs(b.ms - t.createdMs) <= LINK_TOL);
-    const dlcs = dlc.filter((d) => d.ownedSinceMs != null && Math.abs(d.ownedSinceMs - t.createdMs) <= LINK_TOL);
-    if (mb || dlcs.length) t.contents = { mb: mb ? mb.quantity : null, dlcs: dlcs.map((d) => ({ dlcId: d.dlcId, name: d.name, url: d.url })) };
+  const usedMb = new Set();
+  const usedDlc = new Set();
+  const claim = (pool, used, at, keyOf) => {
+    const free = pool.filter((x) => !used.has(x) && keyOf(x) != null);
+    return free.find((x) => keyOf(x) === at) ?? free.find((x) => Math.abs(keyOf(x) - at) <= LINK_TOL) ?? null;
+  };
+  // Exact matches first across ALL charges, so a near-miss can't steal a row that is
+  // some other charge's exact partner.
+  for (const pass of ['exact', 'window']) {
+    for (const t of allTransactions) {
+      if (!t.isFiat || t.createdMs == null) continue;
+      if (t.contents && t.contents.mb != null && t.contents.dlcs.length) continue;
+      const mb = t.contents?.mb != null ? null
+        : (pass === 'exact'
+          ? boughtEvents.find((b) => !usedMb.has(b) && b.ms === t.createdMs)
+          : claim(boughtEvents, usedMb, t.createdMs, (b) => b.ms));
+      const dlcs = dlc.filter((d) => !usedDlc.has(d) && d.ownedSinceMs != null &&
+        (pass === 'exact' ? d.ownedSinceMs === t.createdMs : Math.abs(d.ownedSinceMs - t.createdMs) <= LINK_TOL));
+      if (!mb && !dlcs.length) continue;
+      if (mb) usedMb.add(mb);
+      for (const d of dlcs) usedDlc.add(d);
+      t.contents = {
+        mb: mb ? mb.quantity : (t.contents?.mb ?? null),
+        dlcs: [...(t.contents?.dlcs ?? []), ...dlcs.map((d) => ({ dlcId: d.dlcId, name: d.name, url: d.url }))],
+      };
+    }
   }
 
   // Real-money (fiat) spend. IMPORTANT: PricePoint is Valve's *base* price tier
@@ -1065,28 +1119,82 @@ function buildEconomy(byType) {
   // So the only true local amount is LocalizedPrice (when present); the summed
   // PricePoint total is an approximate USD-list estimate, never the real local
   // spend. CurrencyCode is the wallet currency and does NOT scale PricePoint.
-  const fiat = transactions.filter((t) => t.isFiat);
-  const fiatGranted = fiat.filter((t) => t.granted && t.pricePoint != null);
+  // Deliberately NOT realm-filtered: a Steam charge happens on Steam, so the server a
+  // row was written from says nothing about whether money changed hands, and a real
+  // purchase made during a preview would be dropped. What a playtest produces is
+  // RE-GRANTS of things already owned, which the dedupe below removes on their own
+  // evidence. Verified: dedupe alone gives identical totals on all four exports.
+  const fiat = allTransactions.filter((t) => t.isFiat);
+
+  // A re-provisioning server writes a fresh row carrying the ORIGINAL
+  // GameStorePurchasedAt, so one charge gets counted again months later. Identify a
+  // charge by (purchase instant + price) and keep only its first grant.
+  //
+  // The time gap matters: one checkout can legitimately hold two different items at
+  // the same price, and those are granted in the same instant, whereas a re-grant
+  // lands much later.
+  const REGRANT_MIN_GAP = 3600e3; // 1h
+  const firstGrantOf = new Map();
+  const fiatGranted = [];
+  const fiatUnpriced = [];
+  let duplicateChargeCount = 0;
+  let duplicateChargeTotal = 0;
+  for (const t of [...fiat].sort((a, b) => (a.createdMs ?? 0) - (b.createdMs ?? 0))) {
+    if (!t.granted) continue;
+    if (t.pricePoint == null) { fiatUnpriced.push(t); continue; }
+    const key = `${t.purchasedAt ?? t.createdMs}|${t.pricePoint}`;
+    const first = firstGrantOf.get(key);
+    // No CreatedAt means no usable time gap, so the rule can't be applied — keep the
+    // row rather than let a missing timestamp read as "months apart" and delete it.
+    if (first != null && t.createdMs != null && Math.abs(t.createdMs - first) >= REGRANT_MIN_GAP) {
+      t.duplicateOfEarlierCharge = true;
+      duplicateChargeCount++;
+      duplicateChargeTotal += t.pricePoint;
+      continue;
+    }
+    if (first == null && t.createdMs != null) firstGrantOf.set(key, t.createdMs);
+    fiatGranted.push(t);
+  }
   const spendBaseTotal = fiatGranted.reduce((s, t) => s + t.pricePoint, 0);
   const walletCurrencies = [...new Set(fiatGranted.map((t) => t.currency).filter(Boolean))];
   const anyLocalized = fiat.some((t) => t.localizedPrice);
 
-  // Reconstruct true chronological order (+ per-row delta), then present newest
-  // first for the table; the chart uses one point per timestamp (net balance).
-  const orderedAsc = orderLedger(rawLedger);
-  const ledger = [...orderedAsc].reverse();
+  // Stubbed-store rows written off-live. Rows that survived into `fiatGranted` are
+  // EXCLUDED: fiat is no longer realm-filtered, so an off-live row can legitimately be
+  // counted in the spend total, and calling it "set aside" would contradict the money.
+  const counted = new Set(fiatGranted);
+  const testFiat = testTransactions.filter((t) => t.isFiat && !counted.has(t));
+
+  // Present newest first for the table; the chart uses one point per timestamp.
+  const liveAsc = orderedAsc.filter((r) => r.isLive);
+  const ledger = [...liveAsc].reverse();
+  const ledgerAll = [...orderedAsc].reverse();
+
+  // `orderLedger` measured each delta against the previous row in the FILE, which
+  // straddles realm boundaries (a playtest's first row reads as a +49,750 inflow, and
+  // the row resuming live as a −55,275 spend). Re-measure within each wallet.
+  const remeasure = (rows) => {
+    let prev = null;
+    for (const r of rows) {
+      r.delta = prev != null && r.balance != null ? r.balance - prev : ledgerSign(r) * r.quantity;
+      if (r.balance != null) prev = r.balance;
+    }
+  };
+  remeasure(liveAsc);
+  for (const s of realms.sessions) remeasure(orderedAsc.slice(s.firstIndex, s.lastIndex + 1));
+
   let currentBalance = null;
-  for (let i = orderedAsc.length - 1; i >= 0; i--) {
-    if (orderedAsc[i].balance != null) {
-      currentBalance = orderedAsc[i].balance;
+  for (let i = liveAsc.length - 1; i >= 0; i--) {
+    if (liveAsc[i].balance != null) {
+      currentBalance = liveAsc[i].balance;
       break;
     }
   }
   const balanceSeries = [];
-  for (let i = 0; i < orderedAsc.length; i++) {
-    const r = orderedAsc[i];
+  for (let i = 0; i < liveAsc.length; i++) {
+    const r = liveAsc[i];
     if (r.ms == null || r.balance == null) continue;
-    const next = orderedAsc[i + 1];
+    const next = liveAsc[i + 1];
     if (!next || next.ms !== r.ms) balanceSeries.push({ ms: r.ms, balance: r.balance });
   }
 
@@ -1095,14 +1203,19 @@ function buildEconomy(byType) {
   // means the categories RECONCILE (total in − out = current balance − start)
   // and an occasional `unknown` OUTFLOW (a correction) is routed to "out" rather
   // than miscounted as an inflow.
-  const mb = { earned: 0, bought: 0, gifted: 0, other: 0, out: 0 };
-  for (const r of orderedAsc) {
-    const d = r.delta || 0;
-    if (d > 0) mb[r.logType === 'earned' || r.logType === 'bought' || r.logType === 'gifted' ? r.logType : 'other'] += d;
-    else if (d < 0) mb.out += -d;
-  }
-  mb.inTotal = mb.earned + mb.bought + mb.gifted + mb.other;
-  mb.startBalance = orderedAsc[0] && orderedAsc[0].balance != null && orderedAsc[0].delta != null ? orderedAsc[0].balance - orderedAsc[0].delta : 0;
+  const tallyMb = (rows) => {
+    const m = { earned: 0, bought: 0, gifted: 0, other: 0, out: 0 };
+    for (const r of rows) {
+      const d = r.delta || 0;
+      if (d > 0) m[r.logType === 'earned' || r.logType === 'bought' || r.logType === 'gifted' ? r.logType : 'other'] += d;
+      else if (d < 0) m.out += -d;
+    }
+    m.inTotal = m.earned + m.bought + m.gifted + m.other;
+    return m;
+  };
+  const mb = tallyMb(liveAsc);
+  mb.startBalance = liveAsc[0] && liveAsc[0].balance != null && liveAsc[0].delta != null ? liveAsc[0].balance - liveAsc[0].delta : 0;
+  const mbTest = tallyMb(orderedAsc.filter((r) => !r.isLive));
 
   // Limited-time store offer windows shown to the player (impressions, NOT
   // confirmed purchases). Absent from some exports.
@@ -1116,26 +1229,50 @@ function buildEconomy(byType) {
     .sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0));
 
   return {
-    has: transactions.length > 0 || ledger.length > 0 || dlc.length > 0,
+    has: allTransactions.length > 0 || ledgerAll.length > 0 || dlc.length > 0,
     transactions,
+    transactionsAll: allTransactions,
     transactionCount: transactions.length,
     grantedCount,
     bySource: tally(transactions, 'source'),
     byStore: tally(transactions, 'store'),
     fiat,
     fiatGranted,
+    // These four partition the fiat rows shown in the table, so the panel's counts
+    // always add up: granted+priced / granted-but-no-price / not granted / deduped.
     fiatGrantedCount: fiatGranted.length,
-    fiatFailedCount: fiat.length - fiatGranted.length,
+    fiatUnpricedCount: fiatUnpriced.length,
+    fiatFailedCount: fiat.filter((t) => !t.granted).length,
+    duplicateChargeCount,
+    duplicateChargeTotal,
     spendBaseTotal,
     walletCurrencies,
     anyLocalized,
     ledger,
+    ledgerAll,
     mb,
     currentBalance,
     balanceSeries,
     dlc,
     baseGameUrl: steamAppUrl(STEAM_BASE_GAME_ID),
     offers,
+    // `sessions`/`windows` = what was REMOVED from the figures above.
+    // `gaps`/`anomalies` = what is still IN them but couldn't be accounted for.
+    realms: {
+      has: realms.has,
+      sessions: realms.sessions,
+      windows: realms.windows,
+      auditHadTenancy: realms.auditHadTenancy,
+      // Balance changes with no matching row; absorbed by the row they land on.
+      gaps: realms.gaps,
+      // Beyond what the live game can produce — usually a playtest both signals
+      // missed, so the totals are an upper bound rather than a fact.
+      anomalies: realms.anomalies,
+    },
+    testTransactionCount: testTransactions.length,
+    testFiatCount: testFiat.length,
+    testLedgerCount: orderedAsc.length - liveAsc.length,
+    mbTest,
   };
 }
 
@@ -1652,7 +1789,7 @@ export function buildModel(raw) {
     records: buildRecords(rounds, matches),
     weapons,
     weaponsByArchetype,
-    economy: buildEconomy(byType),
+    economy: buildEconomy(byType, raw.audit?.byType),
     antiCheat: buildAntiCheat(raw),
     reports: buildReports(raw),
     support: buildSupport(raw),

@@ -21,11 +21,11 @@ export const sourceLabel = (s) => SOURCE_LABELS[s] || s || 'Unknown';
 
 export const SOURCE_TONES = {
   realmoneytransaction: 'yellow',
-  battlepass: 'purple',
-  'battlepass-historical': 'purple',
+  battlepass: 'indigo',
+  'battlepass-historical': 'indigo',
   collectionevent: 'blue',
   embarkstore: 'emerald',
-  twitchdrop: 'purple',
+  twitchdrop: 'fuchsia',
   giveaway: 'gray',
   thirdpartysubscription: 'blue',
   unknown: 'gray',

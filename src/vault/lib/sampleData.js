@@ -262,12 +262,13 @@ function buildSummary(rounds) {
 }
 
 // --- purchases & economy --------------------------------------------------
+// Standalone Multibucks packs must use REAL store pairs
 const PURCHASES = [
   { iso: '2024-02-10T20:14:00Z', price: 9.99, mb: 1150, localized: '£8.39' },
-  { iso: '2024-06-20T18:42:00Z', price: 19.99, mb: 2800, dlc: 3025990 },
+  { iso: '2024-06-20T18:42:00Z', price: 19.99, mb: 2400, dlc: 3025990 },
   { iso: '2024-12-15T13:05:00Z', price: 4.99, mb: 500 },
   { iso: '2025-03-22T21:30:00Z', price: 9.99, mb: 1150, dlc: 4124770, localized: '£8.39' },
-  { iso: '2025-09-12T19:18:00Z', price: 29.99, mb: 5000, dlc: 3519910, localized: '£25.99' },
+  { iso: '2025-09-12T19:18:00Z', price: 49.99, mb: 6250, dlc: 3519910, localized: '£42.99' },
   { iso: '2026-04-02T17:55:00Z', price: 8.99, mb: 1000, dlc: 4167870 },
 ];
 
