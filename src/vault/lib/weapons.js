@@ -44,6 +44,7 @@ export const WEAPONS = {
   '140643579': { name: 'Chimera-XB', archetype: 'Medium', type: 'Weapon' },
   '-2146518365': { name: 'Defibrillator', archetype: 'Medium', type: 'Gadget' },
   '-1356235903': { name: 'Jump Pad', archetype: 'Medium', type: 'Gadget' },
+  '806000640': { name: 'Breach Drill', archetype: 'Medium', type: 'Gadget' },
 
   // Heavy
   '-816074217': { name: '.50 Akimbo', archetype: 'Heavy', type: 'Weapon' },
@@ -64,6 +65,7 @@ export const WEAPONS = {
   '1088429850': { name: 'MGL32', archetype: 'Heavy', type: 'Weapon' },
   '-1790216799': { name: 'Winch Claw', archetype: 'Heavy', type: 'Spec' },
   '-1823661953': { name: 'Lockbolt', archetype: 'Heavy', type: 'Gadget' },
+  '917919559': { name: 'Anti-Gravity Cube', archetype: 'Heavy', type: 'Gadget' },
 
   // Global / shared gadgets
   '1082327915': { name: 'Frag Grenade', archetype: 'Global', type: 'Gadget' },
@@ -82,7 +84,7 @@ export const WEAPONS = {
 // Snowball has no wiki icon -> falls back to a text chip.
 // To add one later: drop <slug>.webp in that folder and add the slug here.
 const ICON_SLUGS = new Set([
-  '50-akimbo', '93r', 'akm', 'aps-turret', 'arn-220', 'bfr-titan', 'blast-off-rpg-7', 'breach-charge',
+  '50-akimbo', '93r', 'akm', 'anti-gravity-cube', 'aps-turret', 'arn-220', 'bfr-titan', 'blast-off-rpg-7', 'breach-charge', 'breach-drill',
   'c4', 'cb-01-repeater', 'cerberus-12ga', 'charge-n-slam', 'chimera-xb', 'cl-40', 'dagger', 'defibrillator',
   'dual-blades', 'explosive-mine', 'famas', 'fcar', 'flamethrower', 'frag-grenade', 'gas-grenade', 'gas-mine',
   'gateway', 'h-infuser', 'jump-pad', 'ks-23', 'lewis-gun', 'lh1', 'lockbolt', 'm11', 'm134-minigun', 'm26-matter', 'm60',

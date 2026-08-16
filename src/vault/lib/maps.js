@@ -4,7 +4,7 @@
 const MAP_SLUGS = new Set([
   'monaco', 'seoul', 'kyoto', 'vegas', 'vegas-stadium', 'bernal', 'skyway', 'horizon',
   'citadel', 'fangwai', 'peace', 'starlight', 'practice', 'fortune', 'heavyhitters',
-  'heavenorelse', 'cashball',
+  'heavenorelse', 'cashball', 'galaxy',
 ]);
 
 // `focus` is the CSS object-position used to crop the wide photo into the card — tune per map (e.g. '50% 30%' shows higher up) to frame the recognizable part.
@@ -27,6 +27,7 @@ const MAPS = {
   HeavyHitters_02: { key: 'heavenorelse', name: 'Heaven or Else', focus: '50% 16%' },
   Village_01: { key: 'starlight', name: 'Starlight Hollow', focus: '50% 56%' },
   CashBall_01: { key: 'cashball', name: 'Cashball', focus: '50% 37%' },
+  Space_01: { key: 'galaxy', name: 'Galaxy Estates', focus: '50% 62%' },
 };
 
 const lookup = (mv) => {
