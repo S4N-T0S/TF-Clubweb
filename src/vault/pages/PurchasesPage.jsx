@@ -163,6 +163,25 @@ const PriceCell = ({ t }) => (
   </div>
 );
 
+// The date column shows when the purchase was MADE, but a row can be written much later:
+// a preview re-provisions your entitlements and writes a fresh row carrying the original
+// purchase date. Without the second line, five rows read "5 Jun 2024" while carrying four
+// different preview badges (each badge describes when its own row was written).
+const GRANT_LAG_SHOWN = 24 * 3600e3;
+const TxDate = ({ t, fmt }) => {
+  const lagged = t.createdMs != null && t.ms != null && Math.abs(t.createdMs - t.ms) > GRANT_LAG_SHOWN;
+  return (
+    <div className="leading-tight">
+      <span className="whitespace-nowrap">{fmt(t.purchasedAt)}</span>
+      {lagged && (
+        <span className="block text-[11px] text-gray-500 whitespace-nowrap">
+          granted {date(t.createdMs, 'd MMM yyyy')}
+        </span>
+      )}
+    </div>
+  );
+};
+
 // What a real-money charge actually granted — matched by timestamp in the model (Multibucks top-up and/or a Steam DLC; DLC packs bundle both)
 const Contents = ({ c }) => {
   if (!c || (c.mb == null && !c.dlcs.length)) return <span className="text-gray-500">—</span>;
@@ -439,7 +458,7 @@ export const PurchasesPage = () => {
                     <tbody>
                       {fiSlice.map((t, i) => (
                         <tr key={fiStart + i} className="border-b border-gray-700/40 last:border-0">
-                          <td className="py-2 px-3 text-gray-300 whitespace-nowrap">{dateTime(t.purchasedAt)}</td>
+                          <td className="py-2 px-3 text-gray-300"><TxDate t={t} fmt={dateTime} /></td>
                           <td className="py-2 px-3 text-right"><PriceCell t={t} /></td>
                           <td className="py-2 px-3"><Contents c={t.contents} /></td>
                           <td className="py-2 px-3 text-gray-400">{storeLabel(t.store)}</td>
@@ -706,7 +725,7 @@ export const PurchasesPage = () => {
                 <tbody>
                   {txSlice.map((t, i) => (
                     <tr key={txStart + i} className="border-b border-gray-700/40 last:border-0">
-                      <td className="py-2 px-3 text-gray-300 whitespace-nowrap">{date(t.purchasedAt, 'd MMM yyyy')}</td>
+                      <td className="py-2 px-3 text-gray-300"><TxDate t={t} fmt={(v) => date(v, 'd MMM yyyy')} /></td>
                       <td className="py-2 px-3">
                         <span className="inline-flex flex-wrap items-center gap-1.5">
                           <Badge tone={sourceTone(t.source)}>{sourceLabel(t.source)}</Badge>
