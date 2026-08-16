@@ -19,12 +19,14 @@
 //      was parked at. That reconnection is the proof it was a different wallet rather
 //      than missing data. Complete for currency rows, but carries no realm name.
 //
-// So currency rows are classified by (B) and merely *named* by (A). Transaction rows
-// have no chain to check, so they use the union of (A) windows and (B) session spans.
+// Currency rows are off-live if EITHER signal says so, and (A) also names them — but
+// only (A)'s THE FINALS preview windows may classify (see `classifying`). Both are
+// needed: (A) is missing from truncated exports, (B) misses a wallet seeded at zero.
+// Transaction rows have no chain, so they use the union of (A) windows and (B) spans.
 //
-// The cardinal rule: never remove a row without proof. Removing is only sound when the
-// chain reconnects, because that is what proves where the live balance returns to.
-// Everything unproven stays counted and is reported instead (`gaps`, `anomalies`).
+// The cardinal rule: never remove a row without proof. A tenancy label from Embark's own
+// audit is proof; so is a chain that reconnects, since that shows where the live balance
+// returns to. Anything unproven stays counted and is reported (`gaps`, `anomalies`).
 
 // --- tenancy -------------------------------------------------------------
 export const REALM = {
@@ -48,6 +50,7 @@ export function tenancyLabel(tenancy) {
   if (tenancy === 'discovery-live') return 'Live game';
   const season = tenancy.match(/discovery-s(\d+)-/i);
   if (season) return `S${season[1]} preview playtest`;
+  if (tenancy === 'pioneer-live') return 'ARC Raiders';
   if (tenancy === 'pioneer-tt2') return 'ARC Raiders Tech Test 2';
   if (tenancy === 'pioneer-serverslam') return 'ARC Raiders Server Slam';
   if (tenancy.startsWith('pioneer')) return 'ARC Raiders playtest';
@@ -133,6 +136,28 @@ const UNATTRIBUTED_GAP = 2000;
 const ledgerSign = (r) => (r.logType === 'spent' ? -1 : 1);
 const signedQty = (r) => ledgerSign(r) * (r.quantity || 0);
 const chains = (prevBalance, r) => r.balance != null && prevBalance + signedQty(r) === r.balance;
+
+// Unexplained breaks. When a break later returns to the balance it left, the wallet stays
+// PARKED there and the return isn't counted again — one excursion is one gap. Walking
+// naively reports a gap per row instead (78 for one wallet on a real export).
+function walkGaps(rows) {
+  const out = [];
+  let live = null;
+  let i = 0;
+  while (i < rows.length) {
+    const r = rows[i];
+    if (r.balance == null) { i++; continue; }
+    if (live === null || chains(live, r)) { live = r.balance; i++; continue; }
+    let j = -1;
+    for (let k = i + 1; k < rows.length; k++) {
+      if (rows[k].ms != null && r.ms != null && rows[k].ms - r.ms > MAX_SESSION_MS) break;
+      if (chains(live, rows[k])) { j = k; break; }
+    }
+    out.push({ ms: r.ms, unexplained: r.balance - (live + signedQty(r)) });
+    if (j >= 0) { i = j; } else { live = r.balance; i++; }
+  }
+  return out;
+}
 
 // `rows` must be in true chronological order with same-timestamp ties resolved
 // (model.js `orderLedger`). Returns realms[i] for each row. A break that never
@@ -252,29 +277,71 @@ const inWindow = (ms, w) => ms != null && ms >= w.startMs - WINDOW_PAD_MS && ms 
 export function buildRealms(orderedLedger, auditByType) {
   const rows = Array.isArray(orderedLedger) ? orderedLedger : [];
   const windows = tenancyWindows(auditByType);
-  const { sessions, realms, gaps } = detectAltSessions(rows);
+  const { sessions, realms } = detectAltSessions(rows);
 
-  // Name each session from the audit window it sits inside. Match on the MIDPOINT, not
-  // the edges — an unrelated window ending just before a session would otherwise
-  // rename it. If two still qualify, a THE FINALS one wins.
-  for (const s of sessions) {
-    const mid = s.startMs != null && s.endMs != null ? (s.startMs + s.endMs) / 2 : s.startMs;
-    const hits = windows.filter((x) => inWindow(mid, x));
-    const w = hits.find((x) => x.realm === REALM.PLAYTEST) ?? hits[0];
-    if (w) {
-      s.tenancy = w.tenancy;
-      s.realm = w.realm;
-      s.label = tenancyLabel(w.tenancy);
-    } else {
-      s.realm = REALM.PLAYTEST;
-      s.label = 'Preview playtest';
+  // A row inside a preview window is off-live regardless of the arithmetic: a seeded
+  // wallet needn't open with a jump. One account was seeded at ZERO and stepped up to
+  // 538,925, so MIN_OPENING_JUMP never fired on any of its 275 rows.
+  //
+  // ONLY preview windows. ARC Raiders cannot write Multibucks, and a daily ARC player has
+  // hours of `pioneer-live` coverage every evening, so honouring it deletes real rewards.
+  // Same for an unrecognised tenancy — it might be another game. Both stay in `windows`
+  // for reference and classify nothing.
+  const classifying = windows.filter((w) => w.realm === REALM.PLAYTEST);
+  const byWindow = rows.map((r) => classifying.find((w) => inWindow(r.ms, w)) ?? null);
+  const finalRealms = realms.map((realm, i) => (
+    realm !== REALM.LIVE ? realm : byWindow[i] ? byWindow[i].realm : REALM.LIVE
+  ));
+
+  // Rebuild sessions from contiguous runs, so every off-live row is in exactly one
+  // session whichever signal flagged it. The caller re-measures the live chain and each
+  // session separately; a row in neither gets absorbed by the next live row.
+  const chainAt = (i) => sessions.find((x) => i >= x.firstIndex && i <= x.lastIndex);
+  const merged = [];
+  for (let i = 0; i < rows.length;) {
+    if (finalRealms[i] === REALM.LIVE) { i++; continue; }
+    let j = i;
+    // A long silence ends the run too: two previews with no live activity between them
+    // are two sessions, not one spanning weeks.
+    while (
+      j + 1 < rows.length && finalRealms[j + 1] !== REALM.LIVE &&
+      !(rows[j + 1].ms != null && rows[j].ms != null && rows[j + 1].ms - rows[j].ms > MAX_SESSION_SPAN_MS)
+    ) j++;
+    const chain = chainAt(i) ?? chainAt(j);
+    let parked = chain?.parkedBalance ?? null;
+    if (parked == null) for (let k = i - 1; k >= 0; k--) {
+      if (finalRealms[k] === REALM.LIVE && rows[k].balance != null) { parked = rows[k].balance; break; }
     }
+    const w = byWindow[i] ?? byWindow[j];
+    merged.push({
+      startMs: rows[i].ms,
+      endMs: rows[j].ms,
+      rows: j - i + 1,
+      firstIndex: i,
+      lastIndex: j,
+      // null when a session precedes every live row — the live balance is unknown then,
+      // and claiming 0 would put a fabricated number on screen.
+      parkedBalance: parked,
+      openingBalance: rows[i].balance,
+      peakBalance: Math.max(
+        rows[i].balance != null ? rows[i].balance - signedQty(rows[i]) : 0,
+        ...rows.slice(i, j + 1).map((x) => x.balance ?? 0)
+      ),
+      tenancy: w?.tenancy ?? null,
+      realm: w?.realm ?? REALM.PLAYTEST,
+      label: w ? tenancyLabel(w.tenancy) : 'Preview playtest',
+      source: chain && w ? 'chain+tenancy' : chain ? 'chain' : 'tenancy',
+    });
+    i = j + 1;
   }
+  sessions.length = 0;
+  sessions.push(...merged);
 
-  // Arithmetic decides, audit only names. Every off-live row belongs to exactly one
-  // session, so no row falls between the live chain and a session slice — which is
-  // what lets the caller re-measure both safely.
-  const ledgerRealms = realms.map((realm, i) => {
+  // Recompute against the FINAL realms: a break the audit has since explained as a
+  // preview is no longer unexplained, and reporting it would describe one event twice.
+  const gaps = walkGaps(rows.filter((_, i) => finalRealms[i] === REALM.LIVE));
+
+  const ledgerRealms = finalRealms.map((realm, i) => {
     if (realm === REALM.LIVE) return { realm: REALM.LIVE, tenancy: null, label: null };
     const s = sessions.find((x) => i >= x.firstIndex && i <= x.lastIndex);
     return { realm: s?.realm ?? realm, tenancy: s?.tenancy ?? null, label: s?.label ?? 'Preview playtest' };
@@ -287,7 +354,7 @@ export function buildRealms(orderedLedger, auditByType) {
   // that entered the state.
   let wasImplausible = false;
   rows.forEach((r, i) => {
-    const bad = realms[i] === REALM.LIVE && isImplausible(r);
+    const bad = finalRealms[i] === REALM.LIVE && isImplausible(r);
     if (bad && !wasImplausible) {
       // Which bound tripped. Each is a different claim and the page words them
       // separately: a `bought` amount the store has no pack for (which can be SMALLER
@@ -302,7 +369,7 @@ export function buildRealms(orderedLedger, auditByType) {
         : 'balance';
       anomalies.push({ kind: 'impossible', by, ms: r.ms, amount: by === 'balance' ? r.balance : q });
     }
-    if (realms[i] === REALM.LIVE) wasImplausible = bad;
+    if (finalRealms[i] === REALM.LIVE) wasImplausible = bad;
   });
   // A break too big to be an unlogged reward — usually a session the guards declined
   // to remove. `promoted` lets the page report the event once, as an anomaly, instead
@@ -319,7 +386,7 @@ export function buildRealms(orderedLedger, auditByType) {
   // one, so preferring sessions could only lose identity.
   const spans = [
     ...sessions.map((s) => ({ startMs: s.startMs, endMs: s.endMs, realm: s.realm, tenancy: s.tenancy ?? null, label: s.label, source: 'chain' })),
-    ...windows.map((w) => ({ ...w, label: tenancyLabel(w.tenancy) })),
+    ...classifying.map((w) => ({ ...w, label: tenancyLabel(w.tenancy) })),
   ];
   const realmAt = (ms) => {
     const hits = spans.filter((x) => inWindow(ms, x));
@@ -335,7 +402,8 @@ export function buildRealms(orderedLedger, auditByType) {
     anomalies,
     ledgerRealms,
     realmAt,
-    has: sessions.length > 0 || windows.length > 0,
-    auditHadTenancy: windows.length > 0,
+    has: sessions.length > 0 || classifying.length > 0,
+    // Only windows that can classify: an ARC-only audit contributed nothing.
+    auditHadTenancy: classifying.length > 0,
   };
 }

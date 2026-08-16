@@ -5,7 +5,6 @@ import { PageHeader, Panel, StatCard, Badge, Note, EmptyState, PageJump } from '
 import { Pagination } from '../../components/Pagination';
 import { num, money, date, dateTime, duration } from '../lib/format';
 import { sourceLabel, sourceTone, storeLabel, typeLabel, logTypeMeta, SOURCE_GROUPS, BASE_CURRENCIES, isBaseCurrency } from '../lib/economy';
-import { REALM } from '../lib/realms';
 import { seasonsInRange } from '../lib/seasons';
 
 const PER_PAGE = 15;
@@ -260,11 +259,6 @@ export const PurchasesPage = () => {
   const spentValue = fiatGrantedCount ? baseMoney(spendBaseTotal) : '—';
   const mbInflowSegs = MB_SEGMENTS.map((s) => ({ ...s, value: mb[s.key] || 0 })).filter((s) => s.value > 0);
   const mbInflowTotal = mb.inTotal;
-  // The disclosure copy differs for a season preview (a throwaway wallet on a THE
-  // FINALS build) vs another Embark title sharing the account.
-  const offLiveIsPlaytest =
-    (realms?.sessions ?? []).some((s) => s.realm === REALM.PLAYTEST) ||
-    (realms?.windows ?? []).some((w) => w.realm === REALM.PLAYTEST);
   const anomalies = realms?.anomalies ?? [];
   const anomalyKinds = new Set(anomalies.map((a) => a.by || a.kind));
   // Each trigger needs its own sentence: a single grant the store can't sell, an
@@ -353,21 +347,10 @@ export const PurchasesPage = () => {
               <div className="flex items-start gap-2.5">
                 <FlaskConical className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-purple-200">
-                    {offLiveIsPlaytest ? 'Playtest records were removed from these figures' : 'Records from another server were removed from these figures'}
-                  </p>
+                  <p className="text-sm font-semibold text-purple-200">Playtest records were removed from these figures</p>
                   <p className="text-xs text-purple-200/80 mt-1">
-                    {offLiveIsPlaytest ? (
-                      <>
-                        Before a season launches, Embark runs a preview build that hands every participant a throwaway wallet
-                        and lets them “buy” from a stubbed store for free.
-                      </>
-                    ) : (
-                      <>
-                        One Embark account covers more than one game and more than one server, and they all report into this
-                        single export.
-                      </>
-                    )}{' '}
+                    Before a season launches, Embark runs a preview build that hands every participant a throwaway wallet
+                    and lets them “buy” from a stubbed store for free.{' '}
                     All of it is written into the same export as your real account, with nothing marking it apart. It cost you
                     no Multibucks, so the currency figures here count the live game only. Real-money charges are judged
                     separately — a card is charged by the store, not by a game server — so the spend total below counts every
@@ -381,7 +364,10 @@ export const PurchasesPage = () => {
                           <span className="text-gray-300">{date(s.startMs)}</span>
                           <span className="text-gray-400">
                             {num(s.rows)} currency row{s.rows === 1 ? '' : 's'} · a separate wallet that peaked at{' '}
-                            {num(s.peakBalance)} · your real balance of {num(s.parkedBalance)} was untouched
+                            {num(s.peakBalance)}
+                            {s.parkedBalance != null
+                              ? <> · your real balance of {num(s.parkedBalance)} was untouched</>
+                              : <> · it came before any live activity in this export</>}
                           </span>
                         </li>
                       ))}
@@ -778,7 +764,18 @@ export const PurchasesPage = () => {
                         <span className={`truncate ${d.known ? '' : 'font-mono text-xs'}`}>{d.name}</span>
                         <ExternalLink className="w-3 h-3 shrink-0" />
                       </a>
-                      <span className="text-gray-500 text-xs whitespace-nowrap">{d.ownedSinceMs ? `since ${date(d.ownedSinceMs)}` : '—'}</span>
+                      <span
+                        className="text-gray-500 text-xs whitespace-nowrap"
+                        title={d.ownedSinceMs && !d.dateIsPurchase
+                          ? (d.dateNote === 'rerecord'
+                            ? 'When Embark last wrote this ownership row. It does match a purchase in this export, but was written long after that purchase was made, so it is a re-record rather than the date you bought it.'
+                            : 'When Embark last wrote this ownership row. Nothing in this export ties it to a purchase, so it is not necessarily when you got it.')
+                          : undefined}
+                      >
+                        {d.ownedSinceMs
+                          ? (d.dateIsPurchase ? `since ${date(d.ownedSinceMs)}` : `recorded ${date(d.ownedSinceMs)}`)
+                          : '—'}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -800,6 +797,13 @@ export const PurchasesPage = () => {
                   </div>
                 )}
                 <Note>
+                  {dlc.some((d) => d.ownedSinceMs && !d.dateIsPurchase) && (
+                    <>
+                      A date marked <em>recorded</em> is when Embark last wrote that ownership row, which is not
+                      necessarily when you got it — re-provisioning your entitlements overwrites the timestamp, so it can
+                      be months late. Steam’s own library has the real purchase date.{' '}
+                    </>
+                  )}
                   The export stores the Steam App ID of each owned DLC, not its name or price (those are localised on
                   Steam). Links open the matching Steam store page.
                 </Note>

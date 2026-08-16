@@ -1139,7 +1139,8 @@ function buildEconomy(byType, auditByType) {
         (pass === 'exact' ? d.ownedSinceMs === t.createdMs : Math.abs(d.ownedSinceMs - t.createdMs) <= LINK_TOL));
       if (!mb && !dlcs.length) continue;
       if (mb) usedMb.add(mb);
-      for (const d of dlcs) usedDlc.add(d);
+      // Remember which charge claimed each DLC row (used below to date it).
+      for (const d of dlcs) { usedDlc.add(d); d.claimedBy = t; }
       t.contents = {
         mb: mb ? mb.quantity : (t.contents?.mb ?? null),
         dlcs: [...(t.contents?.dlcs ?? []), ...dlcs.map((d) => ({ dlcId: d.dlcId, name: d.name, url: d.url }))],
@@ -1190,6 +1191,24 @@ function buildEconomy(byType, auditByType) {
     fiatGranted.push(t);
   }
   const spendBaseTotal = fiatGranted.reduce((s, t) => s + t.pricePoint, 0);
+
+  // Is a DLC row's timestamp the purchase date or a later re-record? Matching a charge is
+  // not enough — a preview re-grants the entitlement AND rewrites the DLC row in the same
+  // instant, so they line up while carrying a purchase date months old. Require a first
+  // grant written promptly after it. Measured lags: genuine DLC 0.0-1.0d, re-records 92d+,
+  // and 3.5/7.1d for the ARC Raiders base game (a free title that links to whichever
+  // charge is nearest). 2 days sits in the empty band and treats those two alike.
+  const RERECORD_LAG = 2 * 24 * 3600e3;
+  for (const d of dlc) {
+    const t = d.claimedBy;
+    const prompt = !!t && !t.duplicateOfEarlierCharge &&
+      t.ms != null && d.ownedSinceMs != null && Math.abs(d.ownedSinceMs - t.ms) <= RERECORD_LAG;
+    d.dateIsPurchase = prompt;
+    // Which reason, so the page can state the true one: nothing ties this row to a
+    // charge, or something does but the row was written long after it.
+    d.dateNote = prompt ? null : (t ? 'rerecord' : 'unlinked');
+    delete d.claimedBy;
+  }
   const walletCurrencies = [...new Set(fiatGranted.map((t) => t.currency).filter(Boolean))];
   const anyLocalized = fiat.some((t) => t.localizedPrice);
 
