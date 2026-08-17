@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Radar, Cpu, Wifi, Loader2, KeyRound, Keyboard } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
-import { PageHeader, Panel, StatCard, Badge, Note, EmptyState, PageJump } from '../components/ui';
+import { PageHeader, Panel, StatCard, Badge, Note, EmptyState } from '../components/ui';
+import { ListSearch, SearchEcho } from '../components/ListSearch';
+import { useListSearch } from '../../hooks/useListSearch';
 import { Pagination } from '../../components/Pagination';
 import { WorldMap } from '../components/WorldMap';
 import { isoToFlag, loadWorldGeo } from '../lib/worldgeo';
@@ -106,13 +108,31 @@ const ActivityStrip = ({ activity }) => {
 
 const IpTable = ({ ips }) => {
   const [page, setPage] = useState(1);
-  const totalPages = Math.max(1, Math.ceil(ips.length / PER_PAGE));
+  const { query, setQuery, filtered } = useListSearch(
+    ips,
+    (r) => [r.ip, `IPv${r.version}`, ...(r.sources || [])],
+    () => setPage(1)
+  );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const safePage = Math.min(page, totalPages);
   const start = (safePage - 1) * PER_PAGE;
-  const slice = ips.slice(start, start + PER_PAGE);
+  const slice = filtered.slice(start, start + PER_PAGE);
 
   return (
     <>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-2">
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex-1 min-w-0">
+          IP addresses ({num(ips.length)})
+        </h3>
+        <ListSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="Search IP or source…"
+          matched={filtered.length}
+          total={ips.length}
+          className="w-full sm:w-64"
+        />
+      </div>
       <div className="table-container" style={totalPages > 1 ? { minHeight: PER_PAGE * 38 } : undefined}>
         <table className="w-full text-sm">
           <thead>
@@ -139,21 +159,23 @@ const IpTable = ({ ips }) => {
           </tbody>
         </table>
       </div>
-      <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <PageJump totalPages={totalPages} onJump={setPage} />
-        <div className="flex-1">
+      {query.trim() && filtered.length === 0 && (
+        <p className="text-sm text-gray-500 py-3">No addresses match “{query.trim()}”.</p>
+      )}
+      {filtered.length > 0 && (
+        <div className="mt-4">
           <Pagination
             currentPage={safePage}
             totalPages={totalPages}
             startIndex={start}
             endIndex={start + PER_PAGE}
-            totalItems={ips.length}
+            totalItems={filtered.length}
             onPageChange={setPage}
             edgeScroll={false}
             variant="compact"
           />
         </div>
-      </div>
+      )}
     </>
   );
 };
@@ -165,15 +187,21 @@ export const SessionsPage = () => {
   const [page, setPage] = useState(1);
   const geo = useGeoCountries(ips);
   const peripherals = usePeripheralNames(antiCheat.peripherals || []);
+  const sessionSearchRef = useRef(null);
 
   const countryCount = geo.countries.filter((c) => c.iso).length;
   const countriesValue = geo.status === 'loading' ? '…' : geo.status === 'none' ? '—' : num(countryCount);
   const countriesAccent = geo.status === 'ready' ? (countryCount > 1 ? 'text-orange-400' : 'text-emerald-400') : 'text-white';
 
-  const totalPages = Math.max(1, Math.ceil(sessions.length / PER_PAGE));
+  const { query, setQuery, filtered } = useListSearch(
+    sessions,
+    (s) => [s.os, s.platform, s.ip, s.source],
+    () => setPage(1)
+  );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const safePage = Math.min(page, totalPages);
   const startIndex = (safePage - 1) * PER_PAGE;
-  const slice = sessions.slice(startIndex, startIndex + PER_PAGE);
+  const slice = filtered.slice(startIndex, startIndex + PER_PAGE);
 
   return (
     <div className="animate-fade-in-up space-y-5">
@@ -298,8 +326,23 @@ export const SessionsPage = () => {
         )}
       </Panel>
 
-      <Panel title="All sessions">
-        <div className="table-container" style={{ minHeight: PER_PAGE * 38 }}>
+      <Panel
+        title="All sessions"
+        action={
+          sessions.length > 0 && (
+            <ListSearch
+              value={query}
+              onChange={setQuery}
+              placeholder="Search device, IP or source…"
+              matched={filtered.length}
+              total={sessions.length}
+              className="w-full sm:w-72"
+              inputRef={sessionSearchRef}
+            />
+          )
+        }
+      >
+        <div className="table-container" style={totalPages > 1 ? { minHeight: PER_PAGE * 38 } : undefined}>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-gray-400 border-b border-gray-700">
@@ -329,20 +372,26 @@ export const SessionsPage = () => {
           </table>
         </div>
 
+        {query.trim() && filtered.length === 0 && (
+          <p className="text-sm text-gray-500 py-3">No sessions match “{query.trim()}”.</p>
+        )}
+
         <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
-          <PageJump totalPages={totalPages} onJump={setPage} />
-          <div className="flex-1">
-            <Pagination
-              currentPage={safePage}
-              totalPages={totalPages}
-              startIndex={startIndex}
-              endIndex={startIndex + PER_PAGE}
-              totalItems={sessions.length}
-              onPageChange={(p) => setPage(p)}
-              edgeScroll={false}
-              variant="compact"
-            />
-          </div>
+          <SearchEcho value={query} onClear={() => setQuery('')} focusRef={sessionSearchRef} />
+          {filtered.length > 0 && (
+            <div className="flex-1">
+              <Pagination
+                currentPage={safePage}
+                totalPages={totalPages}
+                startIndex={startIndex}
+                endIndex={startIndex + PER_PAGE}
+                totalItems={filtered.length}
+                onPageChange={(p) => setPage(p)}
+                edgeScroll={false}
+                variant="compact"
+              />
+            </div>
+          )}
         </div>
       </Panel>
     </div>

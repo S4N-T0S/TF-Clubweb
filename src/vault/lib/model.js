@@ -1577,9 +1577,10 @@ function buildAntiCheat(raw) {
 // history covers that.
 // --- support: in-game chat + customer-service PDF ---------------------------
 // Chat lives in audit `ChatMessageSent` (raw + profanity-filtered text; a type
-// newer exports carry). The CS_extracted_data.pdf duplicates the chat (censored
-// only) and is the ONLY source for Helpshift support tickets — it stays raw
-// bytes here and the Support page lazy-parses it via lib/cs.js (pdfjs).
+// newer exports carry). The CS_extracted_data.pdf is the only source for support
+// tickets; it stays raw bytes here and the Support page lazy-parses it via
+// lib/cs.js (pdfjs). Its older layout also duplicates the chat (censored only);
+// the newer "Customer Support Data Export" layout carries tickets alone.
 const CHAT_CHANNELS = { pl: 'Lobby', party: 'Party' };
 export const chatChannelLabel = (ch) => CHAT_CHANNELS[ch] || ch || 'Chat';
 
@@ -1789,6 +1790,17 @@ export function buildModel(raw) {
   const { matches, weapons, weaponsByArchetype, roundCount, rounds } = buildMatchesAndWeapons(byType);
   const lastActivity = matches.reduce((mx, m) => Math.max(mx, m.end ?? m.start ?? 0), 0) || null;
 
+  // Joined here, not at render: the match list runs to thousands of rows.
+  // Tournaments played before the log existed stay unstamped.
+  const ratings = buildRatings(byType);
+  if (ratings.rankedTournaments.size > 0) {
+    for (const m of matches) {
+      if (!m.isTournament || !m.tournamentId) continue;
+      const ru = ratings.rankedTournaments.get(m.tournamentId);
+      if (ru) m.rankUpdate = ru;
+    }
+  }
+
   // True tournament counts = DISTINCT tournaments (grouped by TournamentID), not
   // the RoundStatSummary's `TournamentsPlayed`, which actually counts tournament
   // *rounds* (verified on redacted: summary 5216 ≈ 5261 tournament rounds, but only
@@ -1833,7 +1845,7 @@ export function buildModel(raw) {
     nameHistory: buildNameHistory(raw, accounts),
     inventory: buildInventory(byType),
     career: buildCareer(byType),
-    ratings: buildRatings(byType),
+    ratings,
     matches,
     rounds, // chronological normalized rounds (already retained via matches[].rounds)
     modeBreakdown: buildModeBreakdown(matches),

@@ -5,7 +5,9 @@ import {
   Sun, Moon, Sunset, CloudFog, CloudLightning, CloudRain, Wind, Snowflake, Sparkles,
 } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
-import { PageHeader, Badge, EmptyState, Note, PageJump } from '../components/ui';
+import { PageHeader, Badge, EmptyState, Note } from '../components/ui';
+import { ListSearch, SearchEcho } from '../components/ListSearch';
+import { useListSearch } from '../../hooks/useListSearch';
 import { WeaponFilterModal } from '../components/WeaponFilterModal';
 import { Pagination } from '../../components/Pagination';
 import { careerModeGroup, CAREER_MODE_GROUPS } from '../lib/gameMeta';
@@ -76,6 +78,13 @@ const matchDebugText = (m) => {
     `class:       ${m.archetypes?.join(' / ') || '—'}`,
     `date:        ${dateTime(m.start)}`,
     `rounds:      ${rounds.length}`,
+    `rankUpdate:  ${
+      m.rankUpdate
+        ? `${m.rankUpdate.before} → ${m.rankUpdate.after} (${m.rankUpdate.delta > 0 ? '+' : ''}${m.rankUpdate.delta}${m.rankUpdate.bonus ? `, ${m.rankUpdate.bonusKind} +${m.rankUpdate.bonus}` : ''}${m.rankUpdate.penalty ? `, penalty ${m.rankUpdate.penalty}` : ''})${
+            m.rankUpdate.adjusted ? ` · ${m.rankUpdate.adjusted}` : ''
+          }${m.rankUpdate.ladder ? ` · ladder ${m.rankUpdate.ladder.map((s) => s.rp).join('/')}` : ' · no ladder'}`
+        : 'none'
+    }`,
     '— per round —',
     ...rounds.map(
       (r, i) =>
@@ -215,6 +224,84 @@ const KillsTooltip = ({ items, label, children }) => {
 // One bracket round inside an expanded tournament. The map is constant across a
 // tournament (shown once on the card), so a round highlights what VARIES: the
 // time/weather, the layout, the weapon used, placement, cashout and combat.
+// What the tournament moved your ranked score by, and what every other finish
+// would have paid. Ranked only, and only since the log existed, so callers skip
+// the strip rather than render a zero.
+const RankDeltaRow = ({ ru }) => {
+  // `|| 0` normalises -0, which formats as "-0".
+  const sign = (v) => `${v > 0 ? '+' : ''}${num(v || 0)}`;
+  return (
+    <div className="relative px-3 py-2 rounded-lg bg-gray-950/45">
+      <div className="flex items-center gap-2 flex-wrap">
+        <p className="text-[10px] uppercase tracking-wider text-gray-400">Rank score</p>
+        <span className="text-sm font-semibold text-gray-100 tabular-nums">
+          {num(ru.before)} <span className="text-gray-400">→</span> {num(ru.after)}
+        </span>
+        <span className={`text-sm font-bold tabular-nums ${ru.delta > 0 ? 'text-emerald-300' : ru.delta < 0 ? 'text-red-300' : 'text-gray-400'}`}>
+          {sign(ru.delta)}
+        </span>
+        {ru.bonusKind === 'performance' && (
+          <span
+            className="text-[10px] text-emerald-300/80 border-b border-dotted border-emerald-500/40 cursor-help"
+            title="More than the flat value of your placement. From Season 11 the game tops each result up based on how you personally performed, so this is the part your own play earned rather than where your team finished."
+          >
+            incl. {sign(ru.bonus)} for your play
+          </span>
+        )}
+        {ru.bonusKind === 'adjustment' && (
+          <span
+            className="text-[10px] text-sky-300/80 border-b border-dotted border-sky-500/40 cursor-help"
+            title="Your score moved this much in your favour beyond what the placement alone was worth, outside the seasons and ranks where the performance bonus pays — every case we've seen softened a loss. The game does correct matches a cheater affected, which is the usual reason, but the export never records why, so this is the amount, not the cause."
+          >
+            incl. {sign(ru.bonus)} adjustment
+          </span>
+        )}
+        {ru.penalty < 0 && (
+          <span
+            className="text-[10px] text-red-300/80 border-b border-dotted border-red-500/40 cursor-help"
+            title="Deducted on top of the placement value, e.g. for leaving a match early."
+          >
+            incl. {num(ru.penalty)} penalty
+          </span>
+        )}
+        {ru.adjusted === 'reverted' && (
+          <Badge tone="red">
+            <span title="The server later rolled this result back. Your season total already accounts for it.">Reverted</span>
+          </Badge>
+        )}
+        {ru.adjusted === 'penalty' && (
+          <Badge tone="red">
+            <span title="A penalty applied to this match, e.g. for leaving early.">Penalty</span>
+          </Badge>
+        )}
+        {!ru.ladder && (
+          <span
+            className="text-[10px] text-gray-500 border-b border-dotted border-gray-600 cursor-help"
+            title="This match records the points change without what each finishing place was worth. The game only started recording that in Season 6, and the odd later match is missing it too."
+          >
+            no placement values
+          </span>
+        )}
+      </div>
+      {ru.ladder && (
+        <div className="grid grid-cols-4 sm:grid-cols-8 gap-1 mt-2">
+          {ru.ladder.map((slot, i) => (
+            <div
+              key={i}
+              className={`text-center rounded px-1 py-0.5 ${slot.mine ? 'bg-emerald-500/15 ring-1 ring-emerald-400/50' : ''}`}
+            >
+              <p className={`text-[9px] uppercase ${slot.mine ? 'text-emerald-300' : 'text-gray-500'}`}>{ordinal(i + 1)}</p>
+              <p className={`text-[11px] font-semibold tabular-nums ${slot.mine ? 'text-white' : slot.rp > 0 ? 'text-emerald-300/70' : slot.rp < 0 ? 'text-red-300/70' : 'text-gray-400'}`}>
+                {sign(slot.rp)}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const RoundRow = ({ r }) => (
   <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3 px-3 py-2 rounded-lg bg-gray-950/45">
     <div className="min-w-0">
@@ -430,6 +517,7 @@ const MatchCard = ({ m, expanded, onToggle }) => {
             <p className="text-[10px] uppercase tracking-wider text-gray-300 px-1 mb-1">
               {mapName ? `${mapName} · ` : ''}{m.rounds.length} round{m.rounds.length !== 1 ? 's' : ''} · total cashout {cash(m.currency)}
             </p>
+            {m.rankUpdate && <RankDeltaRow ru={m.rankUpdate} />}
             {m.rounds.map((r, i) => (
               <RoundRow key={r.matchId ? `${r.matchId}-${i}` : i} r={r} />
             ))}
@@ -464,6 +552,7 @@ export const MatchesPage = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [page, setPage] = useState(1); // 1-based, matches the shared Pagination
   const [expanded, setExpanded] = useState(() => new Set());
+  const searchRef = useRef(null);
 
   const toggle = (id) =>
     setExpanded((prev) => {
@@ -495,10 +584,24 @@ export const MatchesPage = () => {
     [matches, filter, classSel, weaponSel]
   );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  // Runs after the chips, so the query narrows what they left standing. Weapon
+  // names come off the per-round kill rows.
+  const { query, setQuery, filtered: shown } = useListSearch(
+    filtered,
+    (m) => [
+      m.mapName,
+      m.map?.display,
+      m.mode?.label,
+      m.mode?.category,
+      ...(m.weaponKills || []).map((wk) => resolveWeapon(wk.id).name),
+    ],
+    () => setPage(1)
+  );
+
+  const totalPages = Math.max(1, Math.ceil(shown.length / PER_PAGE));
   const safePage = Math.min(page, totalPages);
   const startIndex = (safePage - 1) * PER_PAGE;
-  const slice = filtered.slice(startIndex, startIndex + PER_PAGE);
+  const slice = shown.slice(startIndex, startIndex + PER_PAGE);
 
   const tabs = ['All', ...CAREER_MODE_GROUPS.filter((g) => groupCounts[g]), ...(groupCounts.Other ? ['Other'] : [])];
   const setTab = (t) => {
@@ -533,7 +636,19 @@ export const MatchesPage = () => {
 
   return (
     <div className="animate-fade-in-up">
-      <PageHeader icon={Swords} title="Match history" subtitle={`${num(matches.length)} matches · ${num(model.meta.roundCount)} rounds`} />
+      <PageHeader icon={Swords} title="Match history" subtitle={`${num(matches.length)} matches · ${num(model.meta.roundCount)} rounds`}>
+        {matches.length > 0 && (
+          <ListSearch
+            value={query}
+            onChange={setQuery}
+            placeholder="Search map, mode or weapon…"
+            matched={shown.length}
+            total={filtered.length}
+            className="w-full sm:w-72"
+            inputRef={searchRef}
+          />
+        )}
+      </PageHeader>
 
       {/* Filters: mode group + weapon */}
       <div className="mb-3 space-y-2">
@@ -605,33 +720,43 @@ export const MatchesPage = () => {
         </div>
       </div>
 
-      {filtered.length === 0 ? (
-        <EmptyState icon={Swords} title="No matches with these filters">
-          {weaponSel.size > 0 || classSel.size > 0
-            ? 'No matches match every filter. Try removing a class or weapon, or switching mode.'
-            : null}
-        </EmptyState>
+      {shown.length === 0 ? (
+        // Chips first: if they already emptied the list, blaming the query
+        // points at the wrong control.
+        filtered.length === 0 ? (
+          <EmptyState icon={Swords} title="No matches with these filters">
+            {weaponSel.size > 0 || classSel.size > 0
+              ? 'No matches match every filter. Try removing a class or weapon, or switching mode.'
+              : null}
+          </EmptyState>
+        ) : (
+          <EmptyState icon={Swords} title="No matches for this search">
+            {`Nothing matching “${query.trim()}” in the ${num(filtered.length)} match${filtered.length === 1 ? '' : 'es'} the filters left.`}
+          </EmptyState>
+        )
       ) : (
         <>
           {/* Fixed min-height reserves a full page of rows, so the pager below
-              sits at the same spot on every page (incl. a short last page). */}
-          <div className="space-y-2" style={{ minHeight: PER_PAGE * ROW_PX }}>
+              sits at the same spot on every page (incl. a short last page).
+              Dropped at one page, or a short search result sits under a screen
+              of empty space. */}
+          <div className="space-y-2" style={totalPages > 1 ? { minHeight: PER_PAGE * ROW_PX } : undefined}>
             {slice.map((m) => (
               <MatchCard key={m.id} m={m} expanded={expanded.has(m.id)} onToggle={() => toggle(m.id)} />
             ))}
           </div>
 
-          {/* Bottom pager: page info + jump on the left, buttons bottom-right.
+          {/* Bottom pager: active-search chip on the left, buttons bottom-right.
               Buttons are right-aligned so changing the left text never moves them. */}
           <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
-            <PageJump totalPages={totalPages} onJump={setPage} />
+            <SearchEcho value={query} onClear={() => setQuery('')} focusRef={searchRef} />
             <div className="flex-1">
               <Pagination
                 currentPage={safePage}
                 totalPages={totalPages}
                 startIndex={startIndex}
                 endIndex={startIndex + PER_PAGE}
-                totalItems={filtered.length}
+                totalItems={shown.length}
                 onPageChange={(p) => setPage(p)}
                 edgeScroll={false}
                 variant="compact"

@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Wallet, CreditCard, Store, Coins, Clock, ExternalLink, Info, FlaskConical } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
-import { PageHeader, Panel, StatCard, Badge, Note, EmptyState, PageJump } from '../components/ui';
+import { PageHeader, Panel, StatCard, Badge, Note, EmptyState } from '../components/ui';
+import { ListSearch, SearchEcho } from '../components/ListSearch';
+import { useListSearch } from '../../hooks/useListSearch';
 import { Pagination } from '../../components/Pagination';
 import { num, money, date, dateTime, duration } from '../lib/format';
 import { sourceLabel, sourceTone, storeLabel, typeLabel, logTypeMeta, SOURCE_GROUPS, BASE_CURRENCIES, isBaseCurrency } from '../lib/economy';
@@ -223,6 +225,7 @@ export const PurchasesPage = () => {
   // them see exactly what was set aside.
   const [showTestTx, setShowTestTx] = useState(false);
   const [showTestLedger, setShowTestLedger] = useState(false);
+  const txSearchRef = useRef(null);
 
   const activeGroup = SOURCE_GROUPS.find((g) => g.key === filter) || SOURCE_GROUPS[0];
   const inGroup = (t) => !activeGroup.match || activeGroup.match.includes(t.source);
@@ -238,11 +241,17 @@ export const PurchasesPage = () => {
     [transactionsAll, activeGroup] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  // transaction log paging
-  const txTotalPages = Math.max(1, Math.ceil(filteredTx.length / PER_PAGE));
+  // transaction log paging (the search applies to the active source tab, not
+  // the whole log)
+  const { query: txQuery, setQuery: setTxQuery, filtered: txShown } = useListSearch(
+    filteredTx,
+    (t) => [sourceLabel(t.source), typeLabel(t.type), storeLabel(t.store), t.state, t.granted ? 'granted' : ''],
+    () => setTxPage(1)
+  );
+  const txTotalPages = Math.max(1, Math.ceil(txShown.length / PER_PAGE));
   const txSafePage = Math.min(txPage, txTotalPages);
   const txStart = (txSafePage - 1) * PER_PAGE;
-  const txSlice = filteredTx.slice(txStart, txStart + PER_PAGE);
+  const txSlice = txShown.slice(txStart, txStart + PER_PAGE);
 
   // ledger paging
   const lgRows = showTestLedger ? ledgerAll : ledger;
@@ -482,20 +491,17 @@ export const PurchasesPage = () => {
                   </table>
                 </div>
                 {fiTotalPages > 1 && (
-                  <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                    <PageJump totalPages={fiTotalPages} onJump={setFiatPage} />
-                    <div className="flex-1">
-                      <Pagination
-                        currentPage={fiSafePage}
-                        totalPages={fiTotalPages}
-                        startIndex={fiStart}
-                        endIndex={fiStart + PER_PAGE}
-                        totalItems={fiat.length}
-                        onPageChange={setFiatPage}
-                        edgeScroll={false}
-                        variant="compact"
-                      />
-                    </div>
+                  <div className="mt-4">
+                    <Pagination
+                      currentPage={fiSafePage}
+                      totalPages={fiTotalPages}
+                      startIndex={fiStart}
+                      endIndex={fiStart + PER_PAGE}
+                      totalItems={fiat.length}
+                      onPageChange={setFiatPage}
+                      edgeScroll={false}
+                      variant="compact"
+                    />
                   </div>
                 )}
                 {/* Every row in the table above is in exactly one of these buckets,
@@ -631,20 +637,17 @@ export const PurchasesPage = () => {
                     </tbody>
                   </table>
                 </div>
-                <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                  <PageJump totalPages={lgTotalPages} onJump={setLedgerPage} />
-                  <div className="flex-1">
-                    <Pagination
-                      currentPage={lgSafePage}
-                      totalPages={lgTotalPages}
-                      startIndex={lgStart}
-                      endIndex={lgStart + PER_PAGE}
-                      totalItems={lgRows.length}
-                      onPageChange={setLedgerPage}
-                      edgeScroll={false}
-                      variant="compact"
-                    />
-                  </div>
+                <div className="mt-4">
+                  <Pagination
+                    currentPage={lgSafePage}
+                    totalPages={lgTotalPages}
+                    startIndex={lgStart}
+                    endIndex={lgStart + PER_PAGE}
+                    totalItems={lgRows.length}
+                    onPageChange={setLedgerPage}
+                    edgeScroll={false}
+                    variant="compact"
+                  />
                 </div>
               </>
             )}
@@ -684,7 +687,20 @@ export const PurchasesPage = () => {
           </div>
 
           {/* Full transaction log */}
-          <Panel title="Transaction log">
+          <Panel
+            title="Transaction log"
+            action={
+              <ListSearch
+                value={txQuery}
+                onChange={setTxQuery}
+                placeholder="Search source, type or store…"
+                matched={txShown.length}
+                total={filteredTx.length}
+                className="w-full sm:w-72"
+                inputRef={txSearchRef}
+              />
+            }
+          >
             <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
               {SOURCE_GROUPS.map((g) => (
                 <button
@@ -744,20 +760,26 @@ export const PurchasesPage = () => {
               </table>
             </div>
 
+            {txQuery.trim() && txShown.length === 0 && (
+              <p className="text-sm text-gray-500 py-3">No transactions match “{txQuery.trim()}”.</p>
+            )}
+
             <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
-              <PageJump totalPages={txTotalPages} onJump={setTxPage} />
-              <div className="flex-1">
-                <Pagination
-                  currentPage={txSafePage}
-                  totalPages={txTotalPages}
-                  startIndex={txStart}
-                  endIndex={txStart + PER_PAGE}
-                  totalItems={filteredTx.length}
-                  onPageChange={setTxPage}
-                  edgeScroll={false}
-                  variant="compact"
-                />
-              </div>
+              <SearchEcho value={txQuery} onClear={() => setTxQuery('')} focusRef={txSearchRef} />
+              {txShown.length > 0 && (
+                <div className="flex-1">
+                  <Pagination
+                    currentPage={txSafePage}
+                    totalPages={txTotalPages}
+                    startIndex={txStart}
+                    endIndex={txStart + PER_PAGE}
+                    totalItems={txShown.length}
+                    onPageChange={setTxPage}
+                    edgeScroll={false}
+                    variant="compact"
+                  />
+                </div>
+              )}
             </div>
           </Panel>
 
@@ -799,20 +821,17 @@ export const PurchasesPage = () => {
                   ))}
                 </ul>
                 {dlTotalPages > 1 && (
-                  <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                    <PageJump totalPages={dlTotalPages} onJump={setDlcPage} />
-                    <div className="flex-1">
-                      <Pagination
-                        currentPage={dlSafePage}
-                        totalPages={dlTotalPages}
-                        startIndex={dlStart}
-                        endIndex={dlStart + PER_PAGE}
-                        totalItems={dlc.length}
-                        onPageChange={setDlcPage}
-                        edgeScroll={false}
-                        variant="compact"
-                      />
-                    </div>
+                  <div className="mt-4">
+                    <Pagination
+                      currentPage={dlSafePage}
+                      totalPages={dlTotalPages}
+                      startIndex={dlStart}
+                      endIndex={dlStart + PER_PAGE}
+                      totalItems={dlc.length}
+                      onPageChange={setDlcPage}
+                      edgeScroll={false}
+                      variant="compact"
+                    />
                   </div>
                 )}
                 <Note>
@@ -855,20 +874,17 @@ export const PurchasesPage = () => {
                   </tbody>
                 </table>
               </div>
-              <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                <PageJump totalPages={ofTotalPages} onJump={setOffersPage} />
-                <div className="flex-1">
-                  <Pagination
-                    currentPage={ofSafePage}
-                    totalPages={ofTotalPages}
-                    startIndex={ofStart}
-                    endIndex={ofStart + PER_PAGE}
-                    totalItems={offers.length}
-                    onPageChange={setOffersPage}
-                    edgeScroll={false}
-                    variant="compact"
-                  />
-                </div>
+              <div className="mt-4">
+                <Pagination
+                  currentPage={ofSafePage}
+                  totalPages={ofTotalPages}
+                  startIndex={ofStart}
+                  endIndex={ofStart + PER_PAGE}
+                  totalItems={offers.length}
+                  onPageChange={setOffersPage}
+                  edgeScroll={false}
+                  variant="compact"
+                />
               </div>
               <Note>
                 <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /></span> These are limited-time

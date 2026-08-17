@@ -97,6 +97,24 @@ export function resolveSeason(seasonId, createdMs) {
   return null;
 }
 
+// --- score → league --------------------------------------------------------
+// rankScore = mu * 10.
+const RP_PER_MU = 10;
+// S4+ only. S3 ran 2,500 per division up to Platinum 4 and 5,000 above it.
+export const RANKED_POINTS_PER_DIVISION = 2500;
+// Caps at 20. Ruby is a top-500 cut, not a score threshold, so only the
+// snapshot's leagueRankIndex can report it.
+const scoreToLeagueIdx = (score) => (Number.isFinite(score) && score > 0 ? Math.min(Math.floor(score / RANKED_POINTS_PER_DIVISION) + 1, 20) : 0);
+
+// Per-match grant scaled by personal performance, added in S11.
+const PERFORMANCE_BONUS_FROM_SEASON = 11;
+// Stops paying at Diamond: of 78 S11 matches starting at or above 40,000 none
+// got one, and the highest start that did was 39,696. A gain over the placement
+// value above this line is something else, most likely a cheater-affected fix.
+export const PERFORMANCE_BONUS_MAX_SCORE = 40000;
+// The per-match log begins at S4 in every export seen.
+const RANKUPDATE_FIRST_SEASON = 4;
+
 // --- raw record parsing ----------------------------------------------------
 const RATING_KEY_RE = /^(IVK|OpenSkill)/;
 const toMs = (v) => {
@@ -107,6 +125,9 @@ const toMs = (v) => {
   return Number.isFinite(t) ? t : null;
 };
 const numOr = (v, d = null) => (typeof v === 'number' && Number.isFinite(v) ? v : v != null && v !== '' && Number.isFinite(+v) ? +v : d);
+// Code-unit compare, not localeCompare: ICU collation varies by build and this
+// ordering decides a season's final score.
+const byString = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 function parseRatingRecords(byType) {
   const out = [];
@@ -149,6 +170,156 @@ function parseRatingRecords(byType) {
   return out;
 }
 
+// --- per-match ranked history (RankUpdate) ---------------------------------
+// One row per rated ranked match in 2026-08+ exports: mu before/after plus what
+// each of the 8 finishing slots was worth. Source of the within-season curve,
+// the season low, and of seasons with no snapshot at all (some exports ship no
+// rating buckets). Starts at S4, so it never touches the S2/S3 handover below.
+// UpdateType is NORMAL / REVERT / UNDO_REVERT / PENALTY; a revert logs a second
+// row stamped with the adjustment time, not the match time, and can itself be
+// undone. Chain each row's own MuBefore/MuAfter, never accumulate deltas: the
+// ladder also moves outside these rows.
+function parseRankUpdates(byType) {
+  const rows = byType.RankUpdate || [];
+  const clean = [];
+  let dropped = 0;
+  for (const r of rows) {
+    const before = numOr(r?.MuBefore);
+    const after = numOr(r?.MuAfter);
+    const ms = toMs(r?.CreatedAt);
+    const seasonId = r?.SeasonID != null && r.SeasonID !== '' ? String(r.SeasonID) : null;
+    // Checked after the *10 conversion, and on the difference: a mu near the
+    // float ceiling passes numOr, then overflows, and NaN lands on a card.
+    if (before == null || after == null || ms == null || !seasonId || !Number.isFinite(ms) || !Number.isFinite(before * RP_PER_MU) || !Number.isFinite(after * RP_PER_MU) || !Number.isFinite((after - before) * RP_PER_MU)) {
+      dropped++;
+      continue;
+    }
+    clean.push({
+      seasonId,
+      ms,
+      tournamentId: r.TournamentID != null && r.TournamentID !== '' ? String(r.TournamentID) : null,
+      updateType: typeof r.UpdateType === 'string' ? r.UpdateType : 'NORMAL',
+      before,
+      after,
+      positionIndex: Number.isInteger(r?.PositionIndex) && r.PositionIndex >= 0 && r.PositionIndex < 8 ? r.PositionIndex : null,
+      positionUpdates: Array.isArray(r?.PositionUpdates) && r.PositionUpdates.length === 8 && r.PositionUpdates.every((v) => Number.isFinite(v)) ? r.PositionUpdates : null,
+    });
+  }
+  // Rows sharing a millisecond are common (up to four) and the last row of a
+  // season sets its final score, so ties break on fields, not on file order.
+  clean.sort((a, b) => a.ms - b.ms || byString(a.tournamentId ?? '', b.tournamentId ?? '') || byString(a.updateType, b.updateType));
+
+  const bySeason = new Map();
+  const tourneyRows = new Map();
+  for (const r of clean) {
+    let s = bySeason.get(r.seasonId);
+    if (!s) {
+      s = {
+        points: [],
+        firstMs: r.ms,
+        lastMs: r.ms,
+        // What the soft reset carried in.
+        startScore: r.before * RP_PER_MU,
+        endScore: r.after * RP_PER_MU,
+        low: Infinity,
+        lowMs: r.ms,
+        high: -Infinity,
+        matches: 0,
+        rowCount: 0,
+        // Filled in by the per-tournament pass below.
+        bonusTotal: 0,
+        bonusMatches: 0,
+      };
+      bySeason.set(r.seasonId, s);
+    }
+    const score = r.after * RP_PER_MU;
+    s.points.push({ ms: r.ms, score });
+    s.lastMs = r.ms;
+    s.endScore = score;
+    s.rowCount++;
+    // Played = anything but a rollback. Hits the snapshot's completedMatches in
+    // 23 of 24 seasons (excluding PENALTY: 20), so it's only good to ±a few.
+    if (r.updateType === 'NORMAL' || r.updateType === 'PENALTY') s.matches++;
+    // Both ends of every row: moves made outside these rows only ever show up
+    // on a MuBefore.
+    for (const v of [r.before * RP_PER_MU, score]) {
+      if (v < s.low) {
+        s.low = v;
+        s.lowMs = r.ms;
+      }
+      if (v > s.high) s.high = v;
+    }
+    if (r.tournamentId) {
+      const list = tourneyRows.get(r.tournamentId);
+      if (list) list.push(r);
+      else tourneyRows.set(r.tournamentId, [r]);
+    }
+  }
+
+  // Per-tournament summary for the match card, rounded here so the UI adds up.
+  const byTournament = new Map();
+  for (const [tid, list] of tourneyRows) {
+    const primary = list.find((r) => r.updateType === 'NORMAL') || list[0];
+    const before = Math.round(primary.before * RP_PER_MU);
+    const after = Math.round(primary.after * RP_PER_MU);
+    const delta = after - before;
+    // A revert can itself be undone, so the last adjustment wins. Prefer the
+    // last one that moved the score (chains carry no-op rows), but fall back to
+    // the last row: a rollback that netted zero is still a rollback.
+    const adjustments = list.filter((r) => r.updateType === 'REVERT' || r.updateType === 'UNDO_REVERT');
+    const lastAdjust = adjustments.filter((r) => r.before !== r.after).at(-1) ?? adjustments.at(-1);
+    const penalised = primary.updateType === 'PENALTY';
+    // Only a row for the match itself is a result. With the match row missing,
+    // measuring the leftover rollback against the ladder invents a grant.
+    const playedRow = primary.updateType === 'NORMAL' || penalised;
+    let ladder = null;
+    let bonus = 0;
+    let penalty = 0;
+    if (playedRow && primary.positionUpdates && primary.positionIndex != null) {
+      // Gap between the change and the flat placement value: a bonus on a
+      // normal row, a large deduction on a PENALTY one. Taken in mu before
+      // rounding, or two roundings disagree and fake a 1-point surplus.
+      const surplus = Math.round((primary.after - primary.before - primary.positionUpdates[primary.positionIndex]) * RP_PER_MU);
+      if (penalised) penalty = Math.min(surplus, 0);
+      else bonus = Math.max(surplus, 0);
+      // Own slot is the actual gain minus bonus/penalty, so the card adds up.
+      // Slots 5/6 and 7/8 always pay the same, and stating one of a tied pair
+      // from the exact figure while its twin keeps the rounded one leaves the
+      // ladder reading as though 8th beat 7th, so move both together.
+      const raw = primary.positionUpdates.map((v) => Math.round(v * RP_PER_MU));
+      const own = raw[primary.positionIndex];
+      const stated = delta - bonus - penalty;
+      ladder = raw.map((rp, i) => ({ rp: rp === own ? stated : rp, mine: i === primary.positionIndex }));
+    }
+    // Outside the window the gain is rare, several times larger and only ever
+    // seen on a loss, which fits a rank-score adjustment rather than a reward.
+    const seasonN = resolveSeason(primary.seasonId, primary.ms)?.n ?? null;
+    const performance =
+      bonus > 0 && seasonN != null && seasonN >= PERFORMANCE_BONUS_FROM_SEASON && primary.before * RP_PER_MU < PERFORMANCE_BONUS_MAX_SCORE;
+    if (performance) {
+      const s = bySeason.get(primary.seasonId);
+      if (s) {
+        s.bonusTotal += bonus;
+        s.bonusMatches++;
+      }
+    }
+    byTournament.set(tid, {
+      before,
+      after,
+      delta,
+      bonus,
+      // 'performance' = the S11 grant; 'adjustment' = a gain outside that
+      // window, which the export never gives a reason for.
+      bonusKind: bonus > 0 ? (performance ? 'performance' : 'adjustment') : null,
+      penalty,
+      ladder,
+      adjusted: lastAdjust?.updateType === 'REVERT' ? 'reverted' : penalised ? 'penalty' : null,
+    });
+  }
+
+  return { bySeason, byTournament, rowCount: clean.length, dropped };
+}
+
 // --- ranked, per season ----------------------------------------------------
 // A season mid-engine-swap logs TWO ranked records; only one was the live ladder:
 //   S2  — OpenSkillRankedRating live; IVKRankedRating is a shadow (few matches,
@@ -175,7 +346,7 @@ const familyPriority = (ratingId, seasonN) => {
 // Below this, the record is a parallel shadow rather than the season's ladder.
 const LIVE_ENGINE_PRIORITY = 3;
 
-function buildRanked(records) {
+function buildRanked(records, rankUpdates) {
   const ranked = records.filter((r) => r.isRanked && r.seasonId);
   const groups = new Map();
   for (const r of ranked) {
@@ -265,6 +436,8 @@ function buildRanked(records) {
       seasonId,
       seasonN: season?.n ?? null,
       seasonLabel: season?.label ?? `#${seasonId}`,
+      // Record family; becomes 'both' when a curve folds in below.
+      source: 'bucket',
       engine: rep.engine,
       engineLabel: rep.engine === 'openskill' ? 'OpenSkill' : 'IVK',
       ratingId: rep.ratingId,
@@ -286,6 +459,91 @@ function buildRanked(records) {
       updatedMs: rep.updatedMs,
       played: rep.matches > 0,
     });
+  }
+
+  // --- fold in the per-match curve ----------------------------------------
+  // Has to sit between the snapshot loop and the sort so latest/peak below see
+  // one merged set. Where a snapshot exists it stays authoritative: only it can
+  // report Ruby, a top-500 cut the rebuilt curve can never reach.
+  let curveParked = 0;
+  const bySeasonId = new Map(seasons.map((s) => [String(s.seasonId), s]));
+  const attachCurve = (entry, c) => {
+    entry.curve = c.points;
+    entry.curveStartScore = c.startScore;
+    entry.curveEndScore = c.endScore;
+    entry.curveMatches = c.matches;
+    entry.low = c.low;
+    entry.lowMs = c.lowMs;
+    entry.lowIdx = scoreToLeagueIdx(c.low);
+    entry.lowInfo = leagueInfo(scoreToLeagueIdx(c.low));
+    entry.high = c.high;
+    entry.bonusTotal = c.bonusTotal;
+    entry.bonusMatches = c.bonusMatches;
+  };
+  // Tie on the id so a contested season doesn't depend on Map insertion order.
+  const curves = [...rankUpdates.bySeason.entries()].sort((a, b) => a[1].firstMs - b[1].firstMs || byString(a[0], b[0]));
+  for (const [sid, c] of curves) {
+    // Hard map first, and kept separate: only a known id may merge into a season
+    // another id already owns. An unrecognised id date-falls-back onto the newest
+    // known season, so merging on a date guess hands it the next season's curve.
+    const mapped = resolveSeason(sid, null);
+    const season = mapped ?? resolveSeason(sid, c.firstMs);
+    // Never seen before S4, and must stay that way: scoreToLeagueIdx is the S4+
+    // table and S3 ran a different one.
+    if (season && season.n < RANKUPDATE_FIRST_SEASON) {
+      curveParked++;
+      continue;
+    }
+    let entry = bySeasonId.get(sid) || (mapped ? seasons.find((s) => s.seasonN === mapped.n) : null) || null;
+    // One season, one curve. Ids differing only by a leading zero resolve to the
+    // same season (resolveSeason coerces), and a second curve would overwrite the
+    // chart, low and end score while the row kept the first curve's rank.
+    if (entry?.curve) {
+      curveParked++;
+      continue;
+    }
+    if (entry) {
+      // The UI keys its "rebuilt from the log" caveat off source.
+      entry.source = 'both';
+      // Keep the snapshot's number and let the UI mention the disagreement.
+      entry.endDisagrees = entry.rpReliable && Math.abs(entry.rankPoints - c.endScore) >= 1;
+    } else {
+      if (!season || claimed.has(season.n)) {
+        curveParked++;
+        continue;
+      }
+      claimed.add(season.n);
+      const endIdx = scoreToLeagueIdx(c.endScore);
+      const peakIdx = Math.max(scoreToLeagueIdx(c.high), endIdx);
+      entry = {
+        seasonId: sid,
+        seasonN: season.n,
+        seasonLabel: season.label,
+        source: 'rankUpdate',
+        engine: 'ivk',
+        engineLabel: 'IVK',
+        ratingId: 'RankUpdate',
+        // Trusted like a live snapshot: the log's final score reproduces the
+        // published end-of-season rankScore. It just can't reach Ruby.
+        rpReliable: true,
+        rankReliable: true,
+        reconstructed: true,
+        rankIndex: endIdx,
+        peakIndex: peakIdx,
+        rank: leagueInfo(endIdx),
+        peak: leagueInfo(peakIdx),
+        // Rounded, unlike a snapshot's float rankPoints, to match the curve's end.
+        rankPoints: Math.round(c.endScore),
+        matches: c.matches,
+        mu: c.endScore / RP_PER_MU,
+        createdMs: c.firstMs,
+        updatedMs: c.lastMs,
+        played: c.matches > 0,
+      };
+      seasons.push(entry);
+      bySeasonId.set(sid, entry);
+    }
+    attachCurve(entry, c);
   }
 
   seasons.sort((a, b) => (a.seasonN ?? 99) - (b.seasonN ?? 99) || (a.createdMs ?? 0) - (b.createdMs ?? 0));
@@ -314,6 +572,7 @@ function buildRanked(records) {
     latest: newest,
     withheld: seasons.filter((s) => !s.rankReliable).length,
     seedsDropped,
+    curveParked,
   };
 }
 
@@ -398,7 +657,8 @@ function buildOpenSkill(records) {
 // --- public entry ----------------------------------------------------------
 export function buildRatings(byType) {
   const records = parseRatingRecords(byType);
-  const ranked = buildRanked(records);
+  const rankUpdates = parseRankUpdates(byType);
+  const ranked = buildRanked(records, rankUpdates);
   const hiddenMmr = buildHiddenMmr(records);
   const openSkill = buildOpenSkill(records);
   return {
@@ -407,5 +667,9 @@ export function buildRatings(byType) {
     hiddenMmr,
     openSkill,
     recordCount: records.length,
+    // tournamentId → per-match rank change, for the match cards.
+    rankedTournaments: rankUpdates.byTournament,
+    rankUpdateRows: rankUpdates.rowCount,
+    rankUpdateDropped: rankUpdates.dropped,
   };
 }

@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { ShieldAlert, ShieldCheck, Ban, CheckCircle, Link2, Cpu, Monitor, ExternalLink, Flag, BadgeCheck, AlertTriangle, Fingerprint, History } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
-import { PageHeader, Panel, Badge, StatCard, Note, EmptyState, PageJump, Tooltip } from '../components/ui';
+import { PageHeader, Panel, Badge, StatCard, Note, EmptyState, Tooltip } from '../components/ui';
+import { ListSearch } from '../components/ListSearch';
+import { useListSearch } from '../../hooks/useListSearch';
 import { Pagination } from '../../components/Pagination';
 import { num, date, dateTime } from '../lib/format';
 
@@ -166,20 +168,41 @@ const reasonTone = { Cheating: 'red', 'Verbal abuse': 'yellow', 'Offensive name'
 const ReportsPanel = ({ data }) => {
   const [page, setPage] = useState(1);
   const { count, reports } = data;
-  const totalPages = Math.max(1, Math.ceil(reports.length / REPORTS_PER_PAGE));
+  const { query, setQuery, filtered } = useListSearch(
+    reports,
+    (r) => [r.message, r.reason],
+    () => setPage(1)
+  );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / REPORTS_PER_PAGE));
   const safePage = Math.min(page, totalPages);
   const start = (safePage - 1) * REPORTS_PER_PAGE;
-  const slice = reports.slice(start, start + REPORTS_PER_PAGE);
+  const slice = filtered.slice(start, start + REPORTS_PER_PAGE);
 
   return (
-    <Panel title={`Reports you’ve filed (${num(count)})`}>
+    <Panel
+      title={`Reports you’ve filed (${num(count)})`}
+      action={
+        count > 0 && (
+          <ListSearch
+            value={query}
+            onChange={setQuery}
+            placeholder="Search your notes…"
+            matched={filtered.length}
+            total={reports.length}
+            className="w-full sm:w-64"
+          />
+        )
+      }
+    >
       {count === 0 ? (
         <EmptyState icon={Flag} title="No reports on record">
           Reports you submit against other players are logged in your audit trail. None were found in this export.
         </EmptyState>
       ) : (
         <>
-          <div className="table-container" style={{ minHeight: REPORTS_PER_PAGE * 44 }}>
+          {/* Reserve a full page of rows so the pager stays put — but not once
+              a search has cut the list down to a handful. */}
+          <div className="table-container" style={totalPages > 1 ? { minHeight: REPORTS_PER_PAGE * 44 } : undefined}>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-gray-400 border-b border-gray-700">
@@ -199,21 +222,23 @@ const ReportsPanel = ({ data }) => {
               </tbody>
             </table>
           </div>
-          <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
-            <PageJump totalPages={totalPages} onJump={setPage} />
-            <div className="flex-1">
+          {query.trim() && filtered.length === 0 && (
+            <p className="text-sm text-gray-500 py-3">No reports match “{query.trim()}”.</p>
+          )}
+          {filtered.length > 0 && (
+            <div className="mt-4">
               <Pagination
                 currentPage={safePage}
                 totalPages={totalPages}
                 startIndex={start}
                 endIndex={start + REPORTS_PER_PAGE}
-                totalItems={reports.length}
+                totalItems={filtered.length}
                 onPageChange={setPage}
                 edgeScroll={false}
                 variant="compact"
               />
             </div>
-          </div>
+          )}
           <Note>
             These are reports <strong>you</strong> filed against other players — Embark keeps the reason and any note you added but
             anonymises who you reported. Filing a report isn’t the same as action being taken, and it’s separate from any

@@ -1,6 +1,4 @@
 // Shared presentational primitives for the vault pages.
-import { useState } from 'react';
-
 export const PageHeader = ({ icon: Icon, title, subtitle, children, mobileCenter = false }) => (
   <div
     className={`flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 mb-5 ${
@@ -18,9 +16,16 @@ export const PageHeader = ({ icon: Icon, title, subtitle, children, mobileCenter
   </div>
 );
 
-export const Panel = ({ title, children, className = '' }) => (
+// `action` takes a list's search field: beside the title on desktop, its own
+// full-width row underneath on mobile.
+export const Panel = ({ title, action, children, className = '' }) => (
   <section className={`bg-gray-800 rounded-xl p-5 ${className}`}>
-    {title && <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">{title}</h2>}
+    {(title || action) && (
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-3">
+        {title && <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex-1 min-w-0">{title}</h2>}
+        {action}
+      </div>
+    )}
     {children}
   </section>
 );
@@ -67,32 +72,3 @@ export const Note = ({ children }) => (
 // Lightweight hover/focus tooltip (CSS only — no portal needed for short labels in non-clipping spots like a page header). Opens below by default so it never collides with the banner above the content.
 // Promoted to a shared component (src/components/Tooltip.jsx) for the official-club chip; re-exported here so vault imports keep working unchanged.
 export { Tooltip } from '../../components/Tooltip';
-
-// Jump-to-page box, styled to match the shared Pagination controls
-export const PageJump = ({ totalPages, onJump }) => {
-  const [val, setVal] = useState('');
-  const go = () => {
-    const n = parseInt(val, 10);
-    if (Number.isFinite(n)) onJump(Math.min(Math.max(1, n), totalPages));
-    setVal('');
-  };
-  if (totalPages <= 1) return null;
-  return (
-    <div className="flex items-center gap-2 text-sm text-gray-400">
-      <span>Jump to</span>
-      <input
-        type="number"
-        min={1}
-        max={totalPages}
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && go()}
-        placeholder="#"
-        className="w-16 bg-gray-700 text-white rounded-sm px-2 py-1 text-center outline-none focus:ring-1 focus:ring-emerald-500"
-      />
-      <button onClick={go} className="px-3 py-1 rounded-sm bg-gray-700 text-gray-300 hover:bg-gray-600">
-        Go
-      </button>
-    </div>
-  );
-};

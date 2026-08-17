@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, StatCard, Badge, Note, EmptyState } from '../components/ui';
+import { ListSearch } from '../components/ListSearch';
+import { useListSearch } from '../../hooks/useListSearch';
 import { Pagination } from '../../components/Pagination';
 import { num, pct, date, dateTime } from '../lib/format';
 
@@ -201,6 +203,14 @@ export const EmailsPage = () => {
     return filter === 'all' ? all : all.filter((e) => e.category === filter);
   }, [emailTracking, filter]);
 
+  // Subject lines carry the season/event names, which is how anyone actually
+  // remembers one of these.
+  const { query, setQuery, filtered: shown } = useListSearch(
+    filtered,
+    (e) => [e.subject, catOf(e.category).label],
+    () => setPage(1)
+  );
+
   if (!emailTracking?.has) {
     return (
       <div className="animate-fade-in-up space-y-5">
@@ -215,10 +225,10 @@ export const EmailsPage = () => {
   }
 
   const { stats } = emailTracking;
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(shown.length / PER_PAGE));
   const safePage = Math.min(page, totalPages);
   const startIndex = (safePage - 1) * PER_PAGE;
-  const slice = filtered.slice(startIndex, startIndex + PER_PAGE);
+  const slice = shown.slice(startIndex, startIndex + PER_PAGE);
 
   const changeFilter = (f) => { setFilter(f); setPage(1); };
 
@@ -273,7 +283,19 @@ export const EmailsPage = () => {
       <Funnel stats={stats} />
 
       {/* Filter + email list */}
-      <Panel title={`Every email (${num(filtered.length)})`}>
+      <Panel
+        title={`Every email (${num(filtered.length)})`}
+        action={
+          <ListSearch
+            value={query}
+            onChange={setQuery}
+            placeholder="Search subject lines…"
+            matched={shown.length}
+            total={filtered.length}
+            className="w-full sm:w-64"
+          />
+        }
+      >
         <div className="flex flex-wrap gap-2 mb-4">
           {chips.map((c) => (
             <button
@@ -294,13 +316,17 @@ export const EmailsPage = () => {
           ))}
         </div>
 
-        {totalPages > 1 && (
+        {query.trim() && shown.length === 0 && (
+          <p className="text-sm text-gray-500 py-3">No emails match “{query.trim()}”.</p>
+        )}
+
+        {shown.length > 0 && (totalPages > 1 || query.trim()) && (
           <Pagination
             currentPage={safePage}
             totalPages={totalPages}
             startIndex={startIndex}
             endIndex={startIndex + PER_PAGE}
-            totalItems={filtered.length}
+            totalItems={shown.length}
             onPageChange={setPage}
             edgeScroll={false}
           />

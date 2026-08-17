@@ -11,6 +11,8 @@
 // numbers are a believable composite of a long-time THE FINALS player — there is
 // no real personal data here.
 
+import { PERFORMANCE_BONUS_MAX_SCORE } from './ratings';
+
 // --- deterministic RNG ----------------------------------------------------
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -35,7 +37,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 
 const ACCOUNT_CREATED = Date.parse('2023-09-25T14:30:00Z'); // closed-beta era veteran
 const SPAN_START = Date.parse('2024-01-20T18:00:00Z');
-const SPAN_END = Date.parse('2026-06-14T22:00:00Z');
+const SPAN_END = Date.parse('2026-08-14T22:00:00Z');
 const ANYBRAIN_GOLIVE = Date.parse('2025-07-24T00:00:00Z');
 
 // Two London-block IPs (the classic GeoIP example range)
@@ -192,14 +194,153 @@ function buildRounds() {
     const matches = ri(1, 4);
     for (let m = 0; m < matches; m++) {
       const roll = rf();
-      if (roll < 0.4) t = tournament(rounds, RANKED_ID, t, skill);
-      else if (roll < 0.6) t = tournament(rounds, pick(WORLD_TOUR_IDS), t, skill);
-      else if (roll < 0.86) t = casualMatch(rounds, pick(CASUAL_MODES), t);
+      // Ranked-heavy: a season has to hold enough matches that the per-match
+      // rank change stays in the range real exports show (median 10 mu, never
+      // past ~31). Too few and each match has to move the score so far that a
+      // whole placement ladder goes positive, which never happens for real.
+      if (roll < 0.62) t = tournament(rounds, RANKED_ID, t, skill);
+      else if (roll < 0.72) t = tournament(rounds, pick(WORLD_TOUR_IDS), t, skill);
+      else if (roll < 0.9) t = casualMatch(rounds, pick(CASUAL_MODES), t);
       else t = casualMatch(rounds, pick(LTM_MODES), t);
       t += ri(4, 30) * 60_000;
     }
   }
   return rounds;
+}
+
+// --- per-match ranked log (RankUpdate) ------------------------------------
+// Built from the ranked tournaments above so the two agree, and chained so each
+// season ends on the RankPoints its snapshot records. S2/S3 get no rows: the
+// real log starts at S4, and the snapshot-only path has to stay exercised.
+// startMu is the soft reset, 70% of last season's finish (85% at S11), capped by
+// the placement ceiling. `ladder` is off for S4/S5, where the real per-placement
+// breakdown doesn't appear until S6. endMu is start + about 20-25 mu per match
+// the player actually has that season: real exports move a median 10 mu a match
+// and never past 31, and a season that has to climb faster than that forces the
+// whole placement ladder positive, which never happens in real data.
+const RANKED_LOG_SEASONS = [
+  { seasonId: 814189767, from: Date.parse('2024-09-26T00:00:00Z'), to: Date.parse('2024-12-12T00:00:00Z'), startMu: 1250, endMu: 2090, ladder: false },
+  { seasonId: 483101830, from: Date.parse('2024-12-12T00:00:00Z'), to: Date.parse('2025-03-20T00:00:00Z'), startMu: 1463, endMu: 2453, ladder: false },
+  { seasonId: 279111264, from: Date.parse('2025-03-20T00:00:00Z'), to: Date.parse('2025-06-12T00:00:00Z'), startMu: 1717, endMu: 2277, ladder: true },
+  { seasonId: 607580158, from: Date.parse('2025-06-12T00:00:00Z'), to: Date.parse('2025-09-10T00:00:00Z'), startMu: 1594, endMu: 2322, ladder: true },
+  { seasonId: 607608768, from: Date.parse('2025-09-10T00:00:00Z'), to: Date.parse('2025-12-10T00:00:00Z'), startMu: 1625, endMu: 2129, ladder: true },
+  { seasonId: 825209376, from: Date.parse('2025-12-10T00:00:00Z'), to: Date.parse('2026-03-26T00:00:00Z'), startMu: 1490, endMu: 2618, ladder: true },
+  { seasonId: 965777394, from: Date.parse('2026-03-26T00:00:00Z'), to: Date.parse('2026-07-09T00:00:00Z'), startMu: 1833, endMu: 3058, ladder: true },
+  // In progress at export time, and the only season paying the performance
+  // grant; `bonus` switches it on so the preview shows the Diamond cut-off too.
+  { seasonId: 349883189, from: Date.parse('2026-07-09T00:00:00Z'), to: Infinity, startMu: 2599, endMu: 2963, ladder: true, bonus: true },
+];
+// Typical payout for the 8 finishing places. The real ladder slides with the
+// lobby, so only the shape is fixed.
+const LADDER_SHAPE = [95, 63, 18, -14, -59, -59, -91, -91];
+
+// Seasons that predate the log still need a window, so their snapshot match
+// counts come from the generated history like every other season's.
+const PRE_LOG_SEASON_WINDOWS = [
+  { seasonId: 762104396, from: Date.parse('2024-03-14T00:00:00Z'), to: Date.parse('2024-06-13T00:00:00Z') },
+  { seasonId: 751146294, from: Date.parse('2024-06-13T00:00:00Z'), to: Date.parse('2024-09-26T00:00:00Z') },
+];
+
+function rankedTournamentCounts(rounds) {
+  const windows = [...PRE_LOG_SEASON_WINDOWS, ...RANKED_LOG_SEASONS];
+  const bySeason = new Map();
+  for (const { Data: d } of rounds) {
+    if (d.ScenarioID !== RANKED_ID || !d.TournamentID) continue;
+    const t = Date.parse(d.StartTime);
+    const w = windows.find((x) => t >= x.from && t < x.to);
+    if (!w) continue;
+    let set = bySeason.get(w.seasonId);
+    if (!set) bySeason.set(w.seasonId, (set = new Set()));
+    set.add(d.TournamentID);
+  }
+  return new Map([...bySeason].map(([k, v]) => [k, v.size]));
+}
+
+function buildRankUpdates(rounds) {
+  const byTid = new Map();
+  for (const { Data: d } of rounds) {
+    if (d.ScenarioID !== RANKED_ID || !d.TournamentID) continue;
+    const start = Date.parse(d.StartTime);
+    const t = byTid.get(d.TournamentID);
+    if (t) {
+      t.rounds.push(d);
+      if (start < t.start) t.start = start;
+    } else byTid.set(d.TournamentID, { id: d.TournamentID, start, rounds: [d] });
+  }
+  const all = [...byTid.values()].sort((a, b) => a.start - b.start);
+
+  const out = [];
+  for (const s of RANKED_LOG_SEASONS) {
+    const list = all.filter((t) => t.start >= s.from && t.start < s.to);
+    if (!list.length) continue;
+
+    // Finish position, 0-based (0 = won it), from the deepest round reached.
+    const events = [];
+    for (const t of list) {
+      const deepest = t.rounds.reduce((m, d) => Math.min(m, d.Tier), 9);
+      const last = t.rounds.find((d) => d.Tier === deepest);
+      const place = deepest === 0 ? (last.TournamentWon ? 0 : 1) : deepest === 1 ? (last.LeaderboardPosition ?? 3) - 1 : (last.LeaderboardPosition ?? 3) === 3 ? 4 : 6;
+      // `extra` is what the result was worth beyond the flat placement value,
+      // kept apart so PositionUpdates still shows the placement alone. Negative
+      // = leaver penalty; the S11 grant adds a positive one below.
+      const extra = chance(0.02) ? -ri(80, 150) : 0;
+      events.push({ t, place, type: extra ? 'PENALTY' : 'NORMAL', at: t.start + ri(20, 40) * 60_000, extra, raw: LADDER_SHAPE[place] + extra + (rf() - 0.5) * 8 });
+      // Real exports log a rollback as a second row on the same tournament,
+      // stamped when the rollback happened, and it can itself be rolled back.
+      if (chance(0.08)) {
+        const at = t.start + ri(2, 30) * HOUR;
+        events.push({ t, place, type: 'REVERT', at, extra: 0, raw: -LADDER_SHAPE[place] * 0.9 });
+        if (chance(0.2)) events.push({ t, place, type: 'UNDO_REVERT', at: at + ri(1, 20) * HOUR, extra: 0, raw: LADDER_SHAPE[place] * 0.9 });
+      }
+    }
+    // Chain in timestamp order: a rollback lands on its own stamp, so curves step.
+    events.sort((a, b) => a.at - b.at);
+    const spread = () => (s.endMu - s.startMu - events.reduce((a, e) => a + e.raw, 0)) / events.length;
+    // The grant only pays below the Diamond line, so eligibility depends on the
+    // running score: dry-run the season, then fold the grants into the totals.
+    if (s.bonus) {
+      const dry = spread();
+      let mu = s.startMu;
+      for (const e of events) {
+        if (e.type === 'NORMAL' && mu * 10 < PERFORMANCE_BONUS_MAX_SCORE && chance(0.55)) {
+          e.extra = ri(6, 150) / 10;
+          e.raw += e.extra;
+        }
+        mu += e.raw + dry;
+      }
+    }
+    // Spread the remainder over every row so no single row jumps to the target.
+    const fix = spread();
+
+    let mu = s.startMu;
+    for (const e of events) {
+      const delta = e.raw + fix;
+      const before = mu;
+      mu += delta;
+      // Real rollback rows carry a breakdown too, but it is the original match's
+      // — a rollback has no placement of its own. Deriving one from the reversal
+      // instead pays every slot, including last, which never happens for real.
+      const played = e.type === 'NORMAL' || e.type === 'PENALTY';
+      if (s.ladder && played) e.t.ladder = LADDER_SHAPE.map((v) => v + (delta - e.extra - LADDER_SHAPE[e.place]));
+      const ladder = s.ladder ? e.t.ladder : null;
+      out.push({
+        TournamentID: e.t.id,
+        SeasonID: s.seasonId,
+        ScenarioID: String(RANKED_ID),
+        UpdateType: e.type,
+        MuBefore: before,
+        MuAfter: mu,
+        TeamIndex: ri(0, 7),
+        IsCompleteMatch: e.type === 'NORMAL' || e.type === 'PENALTY',
+        // PositionUpdates is what the placement alone was worth, so anything
+        // paid on top of it (or docked from it) comes back out first.
+        ...(ladder ? { PositionIndex: e.place, PositionUpdates: ladder } : {}),
+        CreatedAt: iso(e.at),
+        ...(e.type === 'REVERT' || e.type === 'UNDO_REVERT' ? { AdjustedAt: iso(e.at - ri(1, 20) * 60_000) } : {}),
+      });
+    }
+  }
+  return out;
 }
 
 // --- lifetime summary (RoundStatSummary buckets, the career headline) -----
@@ -382,7 +523,7 @@ function buildInventoryItems() {
 // real export has, so the preview exercises de-duplication AND the S2/S3 engine
 // handover. Uses the real season ids/dates so season mapping resolves as it would
 // on a real export.
-function buildRatingBuckets() {
+function buildRatingBuckets(rankedCounts) {
   const rb = (ObjectKey, value, CreatedAt, UpdatedAt) => ({ ObjectKey, Value: JSON.stringify(value), CreatedAt, UpdatedAt });
   const ranked = (ratingId, seasonId, mu, sigma, matches, lri, peak, rp) => ({
     ratingId, mu, sigma, seasonId: String(seasonId), completedMatches: matches,
@@ -397,20 +538,23 @@ function buildRatingBuckets() {
   // Per-season ranked: [objectKey base = ratingId, seasonId, created, updated, mu, sigma, matches, finalIndex, peakIndex, RankPoints]
   const R = [
     // S2 is the last OpenSkill season; its points run ~5,000 per division from zero.
-    ['OpenSkillRankedRating', 762104396, '2024-03-14T11:00:00Z', '2024-06-10T22:00:00Z', 32.4, 1.4, 120, 16, 16, 77000],
+    ['OpenSkillRankedRating', 762104396, '2024-03-14T11:00:00Z', '2024-06-10T22:00:00Z', 32.4, 1.4, 120, 11, 12, 52000],
     // S3 is the first IVK season, and its RankPoints is the real S3 RankScore
     // (5,000 per division, Platinum 4 starting at 30,000).
-    ['IVKRankedRating', 751146294, '2024-06-13T11:00:00Z', '2024-09-20T22:00:00Z', 5750, 0, 185, 18, 19, 57500],
-    ['IVKRankedTournamentRating', 814189767, '2024-09-26T11:00:00Z', '2024-12-10T22:00:00Z', 4050, 0, 150, 17, 17, 40500],
-    ['IVKRankedTournamentRating2', 483101830, '2024-12-12T11:00:00Z', '2025-03-15T22:00:00Z', 4320, 0, 210, 18, 19, 43200],
-    ['IVKRankedTournamentRating2', 279111264, '2025-03-20T11:00:00Z', '2025-06-08T22:00:00Z', 4600, 0, 240, 19, 20, 46000],
-    ['IVKRankedTournamentRating2', 607580158, '2025-06-12T11:00:00Z', '2025-09-05T22:00:00Z', 5200, 0, 300, 20, 21, 52000],
-    ['IVKRankedTournamentRating2', 607608768, '2025-09-10T11:00:00Z', '2025-12-05T22:00:00Z', 4500, 0, 190, 19, 20, 45000],
-    ['IVKRankedTournamentRating3', 825209376, '2025-12-10T11:00:00Z', '2026-02-20T22:00:00Z', 5000, 0, 260, 20, 20, 50000],
-    ['IVKRankedTournamentRating4', 965777394, '2026-03-26T11:00:00Z', '2026-06-12T22:00:00Z', 3800, 0, 35, 16, 16, 38000],
+    ['IVKRankedRating', 751146294, '2024-06-13T11:00:00Z', '2024-09-20T22:00:00Z', 2600, 0, 185, 11, 12, 26000],
+    ['IVKRankedTournamentRating', 814189767, '2024-09-26T11:00:00Z', '2024-12-10T22:00:00Z', 2090, 0, 150, 9, 10, 20900],
+    ['IVKRankedTournamentRating2', 483101830, '2024-12-12T11:00:00Z', '2025-03-15T22:00:00Z', 2453, 0, 210, 10, 11, 24530],
+    ['IVKRankedTournamentRating2', 279111264, '2025-03-20T11:00:00Z', '2025-06-08T22:00:00Z', 2277, 0, 240, 10, 10, 22770],
+    ['IVKRankedTournamentRating2', 607580158, '2025-06-12T11:00:00Z', '2025-09-05T22:00:00Z', 2322, 0, 300, 10, 11, 23220],
+    ['IVKRankedTournamentRating2', 607608768, '2025-09-10T11:00:00Z', '2025-12-05T22:00:00Z', 2129, 0, 190, 9, 10, 21290],
+    ['IVKRankedTournamentRating3', 825209376, '2025-12-10T11:00:00Z', '2026-02-20T22:00:00Z', 2618, 0, 260, 11, 11, 26180],
+    ['IVKRankedTournamentRating4', 965777394, '2026-03-26T11:00:00Z', '2026-07-07T22:00:00Z', 3058, 0, 35, 13, 13, 30580],
+    // The season still running when the export was requested.
+    ['IVKRankedTournamentRating5', 349883189, '2026-07-09T11:00:00Z', '2026-08-13T22:00:00Z', 2963, 0, 20, 12, 13, 29630],
   ];
   for (const [rid, sid, c, u, mu, sigma, m, lri, peak, rp] of R)
-    out.push(rb(`${rid}_${sid}`, ranked(rid, sid, mu, sigma, m, lri, peak, rp), c, u));
+    // Match count comes from the generated history so the table and curve agree.
+    out.push(rb(`${rid}_${sid}`, ranked(rid, sid, mu, sigma, rankedCounts?.get(sid) ?? m, lri, peak, rp), c, u));
 
   // Rows that must resolve away in favour of the real progression: a backfilled S9
   // migration seed (0 matches); the S2-era IVK shadow (a brief run alongside
@@ -421,8 +565,10 @@ function buildRatingBuckets() {
   out.push(rb('OpenSkillRankedRating_751146294', ranked('OpenSkillRankedRating', 751146294, 33.6, 2.8, 184, 20, 20, 83500), '2024-06-13T19:34:00Z', '2024-09-20T22:00:00Z'));
 
   // Hidden MMR for the non-ranked playlists (no league rank, just a skill number).
-  out.push(rb('IVKCasualRating', flat('IVKCasualRating', 905, 0, 3240), '2024-01-20T18:00:00Z', '2026-06-12T22:00:00Z'));
-  out.push(rb('IVKWorldTourRating', flat('IVKWorldTourRating', 842, 0, 2410), '2024-08-24T10:00:00Z', '2026-06-10T22:00:00Z'));
+  // Updated dates track the end of the match history: the page presents them as
+  // when the rating last changed, so they can't sit months behind the last game.
+  out.push(rb('IVKCasualRating', flat('IVKCasualRating', 905, 0, 3240), '2024-01-20T18:00:00Z', '2026-08-12T22:00:00Z'));
+  out.push(rb('IVKWorldTourRating', flat('IVKWorldTourRating', 842, 0, 2410), '2024-08-24T10:00:00Z', '2026-08-09T22:00:00Z'));
   out.push(rb('IVKCasualAttackDefendRating', flat('IVKCasualAttackDefendRating', 511, 0, 22), '2024-06-01T13:00:00Z', '2024-10-24T21:00:00Z'));
   out.push(rb('IVKCasualRating', flat('IVKCasualRating', 160, 0, 0), '2025-12-08T17:03:44Z', '2025-12-08T17:03:44Z'));
 
@@ -473,7 +619,8 @@ function buildPersistence() {
       { ThirdPartyProviderID: 'discord', ThirdPartyUserID: 'disc_000', LastSeenAccountName: 'sampleplayer#0', Enabled: true, CreatedAt: iso(ACCOUNT_CREATED + 5 * DAY) },
     ],
     InventoryItem: buildInventoryItems(),
-    BucketObject: buildRatingBuckets(),
+    BucketObject: buildRatingBuckets(rankedTournamentCounts(rounds)),
+    RankUpdate: buildRankUpdates(rounds),
     RoundStatSummary: buildSummary(rounds),
     RoundStat: rounds,
     UserLogin: buildUserLogins(rounds),
@@ -814,7 +961,7 @@ export function buildSampleRaw() {
     denuvo: buildDenuvo(),
     // Request "worked on" a few days after the last session — demonstrates the
     // "data as of your request" freshness banner (request date > last activity).
-    readme: { requestedAtMs: Date.parse('2026-06-18T00:00:00Z'), requestId: '0000', label: '18 June 2026' },
+    readme: { requestedAtMs: Date.parse('2026-08-16T00:00:00Z'), requestId: '0000', label: '16 August 2026' },
     // Pre-parsed CS data (chat comes from the audit rows; tickets in the parsed
     // shape) — the sample must never need pdfjs.
     customerSupportParsed: buildSampleSupport(),
