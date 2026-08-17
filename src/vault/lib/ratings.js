@@ -104,7 +104,7 @@ const RP_PER_MU = 10;
 export const RANKED_POINTS_PER_DIVISION = 2500;
 // Caps at 20. Ruby is a top-500 cut, not a score threshold, so only the
 // snapshot's leagueRankIndex can report it.
-const scoreToLeagueIdx = (score) => (Number.isFinite(score) && score > 0 ? Math.min(Math.floor(score / RANKED_POINTS_PER_DIVISION) + 1, 20) : 0);
+export const scoreToLeagueIdx = (score) => (Number.isFinite(score) && score > 0 ? Math.min(Math.floor(score / RANKED_POINTS_PER_DIVISION) + 1, 20) : 0);
 
 // Per-match grant scaled by personal performance, added in S11.
 const PERFORMANCE_BONUS_FROM_SEASON = 11;
@@ -233,7 +233,11 @@ function parseRankUpdates(byType) {
       bySeason.set(r.seasonId, s);
     }
     const score = r.after * RP_PER_MU;
-    s.points.push({ ms: r.ms, score });
+    // Carries its own `before` rather than differencing with the previous point:
+    // the ladder also moves outside these rows, so a neighbour-difference folds
+    // an unlogged adjustment into a match's own result. `tid` joins to
+    // byTournament; `matchMs` is filled in after the per-tournament loop.
+    s.points.push({ ms: r.ms, score, before: r.before * RP_PER_MU, tid: r.tournamentId, type: r.updateType, matchMs: null });
     s.lastMs = r.ms;
     s.endScore = score;
     s.rowCount++;
@@ -258,8 +262,13 @@ function parseRankUpdates(byType) {
 
   // Per-tournament summary for the match card, rounded here so the UI adds up.
   const byTournament = new Map();
+  const matchMsByTid = new Map();
   for (const [tid, list] of tourneyRows) {
     const primary = list.find((r) => r.updateType === 'NORMAL') || list[0];
+    // Only a row for the match itself dates the match. `primary` falls back to
+    // list[0], which for an adjustment-only tournament is the adjustment, and
+    // stamping that would assert the rollback happened when the match did.
+    if (primary.updateType === 'NORMAL') matchMsByTid.set(tid, primary.ms);
     const before = Math.round(primary.before * RP_PER_MU);
     const after = Math.round(primary.after * RP_PER_MU);
     const delta = after - before;
@@ -315,6 +324,18 @@ function parseRankUpdates(byType) {
       ladder,
       adjusted: lastAdjust?.updateType === 'REVERT' ? 'reverted' : penalised ? 'penalty' : null,
     });
+  }
+
+  // Date each point to the match it describes. A rollback is stamped when the
+  // adjustment ran, 1.5-7.5 days after the match on the sample exports, and its
+  // AdjustedAt is NOT the match time either: that sits seconds before the row's
+  // own CreatedAt, so it stamps the adjustment batch. Only the NORMAL row sharing
+  // the TournamentID dates the match. Points still stay in chain order, which is
+  // what makes a season end on the right score.
+  for (const s of bySeason.values()) {
+    for (const p of s.points) {
+      p.matchMs = p.type === 'NORMAL' || p.type === 'PENALTY' ? p.ms : (matchMsByTid.get(p.tid) ?? null);
+    }
   }
 
   return { bySeason, byTournament, rowCount: clean.length, dropped };

@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Gauge, Trophy, TrendingUp, ChevronDown, Info, Crown, Swords, Target } from 'lucide-react';
+import { Gauge, Trophy, TrendingUp, ChevronDown, Crown, Swords, Target, Maximize2 } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, StatCard, Badge, Note, EmptyState } from '../components/ui';
+import { VaultGraphModal } from '../components/VaultGraphModal';
+import { DEFAULT_GRAPH_SETTINGS } from '../lib/rankChart';
 import { num, decimal, date } from '../lib/format';
 import { leagueAbbrev, RANK_TIERS, RANKED_POINTS_PER_DIVISION, PERFORMANCE_BONUS_MAX_SCORE } from '../lib/ratings';
 
@@ -30,9 +32,9 @@ const BANDS = [
 // Footnote when the two sources disagree, or the rank came from the match log.
 const endRankNote = (s) => {
   if (s.endDisagrees)
-    return `The season snapshot records ${num(Math.round(s.rankPoints))} RankPoints, while the match-by-match log ends at ${num(Math.round(s.curveEndScore))}. The snapshot is the one shown.`;
+    return `Your end-of-season record says ${num(Math.round(s.rankPoints))} RankScore. The match-by-match log of your ranked games ends the season on ${num(Math.round(s.curveEndScore))}. The record is what’s shown here.`;
   if (s.source === 'rankUpdate')
-    return 'Rebuilt from the match-by-match log, because this export didn’t include a season snapshot. Ruby is a top-500 cutoff rather than a score, so a rebuilt rank stops at Diamond 1.';
+    return 'This export has no end-of-season record for this season, so the rank was worked out from your match-by-match log instead. Ruby is the top 500 players rather than a score, so a rank worked out this way stops at Diamond 1.';
   return null;
 };
 
@@ -141,7 +143,7 @@ const RankedChart = ({ seasons }) => {
 const CURVE_W = 120;
 const CURVE_H = 56;
 
-const SeasonCurves = ({ seasons }) => {
+const SeasonCurves = ({ seasons, onOpen }) => {
   const panels = useMemo(() => {
     const curves = seasons.filter((s) => s.curve?.length > 0);
     if (!curves.length) return null;
@@ -158,9 +160,17 @@ const SeasonCurves = ({ seasons }) => {
       list: curves.map((s) => {
         const n = s.curve.length;
         const x = (i) => (n === 1 ? CURVE_W / 2 : (i / (n - 1)) * CURVE_W);
+        const matches = s.matches ?? s.curveMatches ?? n;
+        const plural = matches === 1 ? '' : 'es';
         return {
           key: s.seasonId,
           label: s.seasonLabel,
+          // A withheld season stays a flat card: the graph's axis and tooltips
+          // would hand back precisely the scores this panel refuses to print.
+          openable: s.rankReliable,
+          aria: s.rankReliable
+            ? `${s.seasonLabel}: ${num(Math.round(s.curveStartScore))} to ${num(Math.round(s.curveEndScore))} RankScore over ${num(matches)} match${plural}`
+            : `${s.seasonLabel}: ${num(matches)} ranked match${plural}`,
           // Withheld here too, or this hands back the rank the table refuses.
           // The scores go with it: they resolve to the same rank.
           rank: s.rankReliable ? s.rank : null,
@@ -185,50 +195,79 @@ const SeasonCurves = ({ seasons }) => {
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-      {list.map((p) => (
-        <div key={p.key} className="bg-gray-900/50 rounded-lg p-2.5">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-xs font-semibold text-gray-200">{p.label}</span>
-            {p.rank && <span className={`text-[11px] font-semibold truncate ${p.rank.text}`}>{p.rank.name}</span>}
-          </div>
-          <svg
-            viewBox={`0 0 ${CURVE_W} ${CURVE_H}`}
-            preserveAspectRatio="none"
-            className="w-full h-14 mt-1.5"
-            role="img"
-            aria-label={
-              p.start == null
-                ? `${p.label}: ${num(p.matches)} ranked match${p.matches === 1 ? '' : 'es'}`
-                : `${p.label}: ${num(p.start)} to ${num(p.end)} RankScore over ${num(p.matches)} match${p.matches === 1 ? '' : 'es'}`
-            }
+      {list.map((p) => {
+        // On an openable card the sentence moves to the button and the svg goes
+        // aria-hidden: nested in a button, its label joins the button's own
+        // accessible name and the card announces its description twice.
+        const body = (
+          <>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-xs font-semibold text-gray-200">{p.label}</span>
+              {p.rank && <span className={`text-[11px] font-semibold truncate ${p.rank.text}`}>{p.rank.name}</span>}
+            </div>
+            <svg
+              viewBox={`0 0 ${CURVE_W} ${CURVE_H}`}
+              preserveAspectRatio="none"
+              className="w-full h-14 mt-1.5"
+              role={p.openable ? undefined : 'img'}
+              aria-hidden={p.openable ? 'true' : undefined}
+              aria-label={p.openable ? undefined : p.aria}
+            >
+              {bands.map((b) => (
+                <rect
+                  key={b.name}
+                  x="0"
+                  y={y(Math.min(bandScore(b.top), yMax))}
+                  width={CURVE_W}
+                  height={y(bandScore(b.bot)) - y(Math.min(bandScore(b.top), yMax))}
+                  fill={b.color}
+                  opacity="0.12"
+                />
+              ))}
+              {p.single != null ? (
+                // A dash, not a dot: the viewBox is stretched, so a circle would
+                // render as an ellipse.
+                <line x1={CURVE_W / 2 - 7} x2={CURVE_W / 2 + 7} y1={p.single} y2={p.single} stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+              ) : (
+                <polyline points={p.pts} fill="none" stroke="#34d399" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+              )}
+            </svg>
+            <p className="mt-1 text-[10px] text-gray-400 tabular-nums">
+              {p.start == null ? <span className="text-gray-600">score not shown</span> : <>{num(p.start)} <span className="text-gray-600">→</span> {num(p.end)}</>}
+            </p>
+            <p className="text-[10px] text-gray-500">
+              {num(p.matches)} match{p.matches === 1 ? '' : 'es'}
+            </p>
+          </>
+        );
+
+        if (!p.openable) {
+          return (
+            <div key={p.key} className="bg-gray-900/50 rounded-lg p-2.5" title="The export doesn’t have a rank we can trust for this season, so there’s no graph to open.">
+              {body}
+            </div>
+          );
+        }
+
+        // ring-inset, not a plain ring: <main> is overflow-x-clip, which shaves
+        // the side slivers off an outset one. The resting ring and the icon are
+        // the affordance; hover-only cues left these reading as static panels.
+        return (
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => onOpen(p.key)}
+            aria-label={`Open the graph for ${p.aria}`}
+            className="group relative w-full text-left bg-gray-900/50 rounded-lg p-2.5 cursor-pointer transition-all ring-1 ring-inset ring-emerald-500/20 hover:bg-gray-900 hover:ring-emerald-500/60 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
           >
-            {bands.map((b) => (
-              <rect
-                key={b.name}
-                x="0"
-                y={y(Math.min(bandScore(b.top), yMax))}
-                width={CURVE_W}
-                height={y(bandScore(b.bot)) - y(Math.min(bandScore(b.top), yMax))}
-                fill={b.color}
-                opacity="0.12"
-              />
-            ))}
-            {p.single != null ? (
-              // A dash, not a dot: the viewBox is stretched, so a circle would
-              // render as an ellipse.
-              <line x1={CURVE_W / 2 - 7} x2={CURVE_W / 2 + 7} y1={p.single} y2={p.single} stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-            ) : (
-              <polyline points={p.pts} fill="none" stroke="#34d399" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-            )}
-          </svg>
-          <p className="mt-1 text-[10px] text-gray-400 tabular-nums">
-            {p.start == null ? <span className="text-gray-600">score withheld</span> : <>{num(p.start)} <span className="text-gray-600">→</span> {num(p.end)}</>}
-          </p>
-          <p className="text-[10px] text-gray-500">
-            {num(p.matches)} match{p.matches === 1 ? '' : 'es'}
-          </p>
-        </div>
-      ))}
+            {body}
+            <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-md bg-emerald-500/10 group-hover:bg-emerald-500/25 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-400/70 group-hover:text-emerald-300 transition-colors">
+              <Maximize2 className="w-3 h-3" />
+              Graph
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 };
@@ -237,14 +276,28 @@ export const RatingsPage = () => {
   const { model } = useVaultData();
   const { ratings } = model;
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [graphSeasonId, setGraphSeasonId] = useState(null);
+  // Held on the page, not in the modal: the modal unmounts on close, so the
+  // toggles would snap back every time a season was reopened. Not persisted —
+  // the vault stores nothing between visits by design.
+  const [graphSettings, setGraphSettings] = useState(DEFAULT_GRAPH_SETTINGS);
+  // Lets a clicked graph point open its match, built once rather than scanning
+  // model.matches (thousands of rows) per click. It sits above the empty-state
+  // early return because a hook below it would only run on one of the two paths.
+  const matchesByTournament = useMemo(() => {
+    const map = new Map();
+    for (const m of model.matches || []) if (m.tournamentId) map.set(m.tournamentId, m);
+    return map;
+  }, [model.matches]);
 
   if (!ratings?.has) {
     return (
       <div className="animate-fade-in-up space-y-5">
         <PageHeader icon={Gauge} title="Skill Rating" subtitle="Hidden matchmaking ratings & ranked history" />
         <EmptyState icon={Gauge} title="No skill-rating data in this export">
-          This export didn’t include the <code>BucketObject</code> records that hold your hidden MMR and ranked ratings, nor
-          the <code>RankUpdate</code> rows that log each ranked match.
+          Neither of the records that hold skill ratings is here: the <code>BucketObject</code> entries that store your hidden
+          MMR and ranked ratings, and the <code>RankUpdate</code> rows that log each ranked match. Those are the names to quote
+          if you ask Embark about it.
         </EmptyState>
       </div>
     );
@@ -253,6 +306,10 @@ export const RatingsPage = () => {
   const { ranked, hiddenMmr, openSkill } = ratings;
   // Only newer exports carry the log, so its column and chart are conditional.
   const hasCurve = ranked.seasons.some((s) => s.curve?.length > 0);
+  // Held here rather than in SeasonCurves: that memo projects each season down
+  // to what a sparkline needs and drops the curve itself, which the graph needs.
+  const graphSeasons = ranked.seasons.filter((s) => s.curve?.length > 0 && s.rankReliable);
+  const graphSeason = graphSeasons.find((s) => s.seasonId === graphSeasonId) ?? null;
   const hasReconstructed = ranked.seasons.some((s) => s.source === 'rankUpdate');
   const scoreBonusSeasons = ranked.seasons.filter((s) => s.bonusTotal > 0 && s.bonusMatches > 0);
   const casual = hiddenMmr.find((m) => m.ratingId === 'IVKCasualRating');
@@ -262,24 +319,15 @@ export const RatingsPage = () => {
     <div className="animate-fade-in-up space-y-5">
       <PageHeader icon={Gauge} title="Skill Rating" subtitle="Hidden matchmaking ratings & ranked history" />
 
-      {/* What this is */}
-      <Panel>
-        <div className="flex items-start gap-3">
-          <Info className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-          <p className="text-sm text-gray-300 leading-relaxed">
-            THE FINALS quietly rates your skill in every playlist, even casual ones, and uses that rating to put you in
-            &quot;balanced&quot; lobbies. In <strong className="text-white">Ranked</strong> it becomes the league rank and RankPoints you
-            see on screen; everywhere else it stays hidden. Your <strong className="text-white">Ranked</strong> rating resets
-            every season, while your <strong className="text-white">casual and World Tour</strong> ratings carry across your
-            whole account.
-          </p>
-        </div>
-      </Panel>
+      <p className="text-sm text-gray-400 leading-relaxed">
+        THE FINALS rates your skill in every mode and uses that rating to pick your lobbies. In Ranked you see it as your
+        rank and RankScore. Everywhere else it stays hidden.
+      </p>
 
       {/* Headline standing */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Latest ranked rank"
+          label="Latest rank"
           value={
             ranked.latest ? (
               <RankName info={ranked.latest.rank} />
@@ -292,7 +340,7 @@ export const RatingsPage = () => {
           }
           sub={
             ranked.latest
-              ? `${ranked.latest.seasonLabel}${ranked.latest.rpReliable && ranked.latest.rankPoints > 0 ? ` · ${num(Math.round(ranked.latest.rankPoints))} RP` : ''} · ${num(ranked.latest.matches)} matches`
+              ? `${ranked.latest.seasonLabel}${ranked.latest.rpReliable && ranked.latest.rankPoints > 0 ? ` · ${num(Math.round(ranked.latest.rankPoints))} RS` : ''} · ${num(ranked.latest.matches)} matches`
               : ranked.withheld > 0
                 ? 'this export didn’t record a usable rank'
                 : 'no completed ranked season'
@@ -321,6 +369,60 @@ export const RatingsPage = () => {
         />
       </div>
 
+      {/* Within-season progression, from the per-match log */}
+      {hasCurve && (
+        <Panel
+          title="RankScore within each season"
+          action={
+            <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400/90">
+              <Maximize2 className="w-3.5 h-3.5" />
+              Open a season for the full graph
+            </span>
+          }
+        >
+          <SeasonCurves seasons={ranked.seasons} onOpen={setGraphSeasonId} />
+          {/* Inside the hasCurve gate, so an export with no match-by-match log
+              has no way to mount it. */}
+          {graphSeason && (
+            <VaultGraphModal
+              season={graphSeason}
+              seasons={graphSeasons}
+              onSeasonChange={setGraphSeasonId}
+              onClose={() => setGraphSeasonId(null)}
+              nameHistory={model.nameHistory}
+              tournaments={ratings.rankedTournaments}
+              matchesByTournament={matchesByTournament}
+              note={endRankNote(graphSeason)}
+              settings={graphSettings}
+              onSettingsChange={setGraphSettings}
+            />
+          )}
+          {/* The performance score isn't in the export, only the points it paid,
+              recovered as the gain minus the flat placement value. */}
+          {scoreBonusSeasons.length > 0 && (
+            <p className="mt-3 text-[11px] text-gray-400">
+              <span className="text-emerald-300">Earned for your own play:</span>{' '}
+              {scoreBonusSeasons
+                .map((s) => `${s.seasonLabel} +${num(s.bonusTotal)} over ${num(s.bonusMatches)} match${s.bonusMatches === 1 ? '' : 'es'}`)
+                .join(' · ')}
+              . From S11 the game adds extra RankScore on top of what your team’s finish paid, based on how you personally
+              played, so this is the part you earned yourself. Match history shows it match by match. It stops once you
+              reach Diamond: in every export we can check, no match starting at or above{' '}
+              {num(PERFORMANCE_BONUS_MAX_SCORE)} RankScore has been given one. The performance score itself isn’t in the
+              export, only the RankScore it was worth.
+            </p>
+          )}
+          <Note>
+            One card per season, running left to right through the ranked matches you played that season. The log only
+            starts at S4, so earlier ranked seasons have no card here, but from S4 on it holds virtually every rated
+            match. From S4 a division is a flat {num(RANKED_POINTS_PER_DIVISION)} points, so all the cards sit on one
+            scale and compare directly. Each season starts you well below where you finished: for most of the game’s
+            life placement matches could not put you above Gold 1 however well you played, and that ceiling has only
+            been raised recently. What these show is the climb, not the starting point.
+          </Note>
+        </Panel>
+      )}
+
       {/* Ranked history */}
       {ranked.seasons.length > 0 && (
         <Panel title="Ranked rank by season">
@@ -344,16 +446,16 @@ export const RatingsPage = () => {
                   <th className="text-left py-2 px-3 font-medium">Peak</th>
                   {hasCurve && (
                     <th className="text-left py-2 px-3 font-medium">
-                      {/* Native title for the same clipping reason as the Engine header. */}
+                      {/* Native title for the same clipping reason as the Rating system header. */}
                       <span
                         className="border-b border-dotted border-gray-500 cursor-help"
-                        title="The lowest rank you dropped to during the season, from the match-by-match log. Only newer exports include that log, so seasons without one show a dash."
+                        title="The lowest rank you fell to during the season. It comes from the match-by-match log of your ranked games, which only newer exports include, so a season without one shows a dash."
                       >
-                        Low
+                        Lowest
                       </span>
                     </th>
                   )}
-                  <th className="text-right py-2 px-3 font-medium">RankPoints</th>
+                  <th className="text-right py-2 px-3 font-medium">RankScore</th>
                   <th className="text-right py-2 px-3 font-medium">Matches</th>
                   <th className="text-right py-2 pl-3 font-medium">
                     {/* Native title, not <Tooltip>: this <th> is inside
@@ -361,9 +463,9 @@ export const RatingsPage = () => {
                         clips and inflates scrollHeight into a phantom scrollbar. */}
                     <span
                       className="border-b border-dotted border-gray-500 cursor-help"
-                      title="Which rating engine actually drove the ladder that season. S2 ran on OpenSkill, S3 onwards on IVK. Seasons that logged both engines show the one that was live."
+                      title="Which system the game used to rank you that season. S2 ran on OpenSkill; S3 onwards on IVK, the system behind the rank and RankScore you see in game. Where a season logged both, this is the one that was actually running the ladder."
                     >
-                      Engine
+                      Rating system
                     </span>
                   </th>
                 </tr>
@@ -382,7 +484,7 @@ export const RatingsPage = () => {
                         // popover would fall entirely outside the scroll box.
                         <span
                           className="text-gray-500 border-b border-dotted border-gray-600 cursor-help"
-                          title="This export only kept the background rating for this season, which the game didn't rank you on. Its stored tier is unreliable, so it's withheld rather than shown wrong."
+                          title="For this season the export only kept the rating the game ran in the background, not the one it ranked you on. That rating sits on its own point scale and can read well above or below your real rank, so no rank is shown rather than a wrong one."
                         >
                           Unknown
                         </span>
@@ -409,8 +511,8 @@ export const RatingsPage = () => {
                             className={`${s.lowInfo.text} border-b border-dotted border-gray-600 cursor-help`}
                             title={
                               s.low < s.curveStartScore - 1
-                                ? `Dropped as low as ${num(Math.round(s.low))} RankPoints${s.lowMs ? ` on ${date(s.lowMs)}` : ''} before finishing the season.`
-                                : `Never went below ${num(Math.round(s.low))} RankPoints, where the season started.`
+                                ? `Dropped as low as ${num(Math.round(s.low))} RankScore${s.lowMs ? ` on ${date(s.lowMs)}` : ''} before finishing the season.`
+                                : `Never went below ${num(Math.round(s.low))} RankScore, the score the season started you on.`
                             }
                           >
                             {s.lowInfo.name}
@@ -434,57 +536,28 @@ export const RatingsPage = () => {
             </table>
           </div>
           <Note>
-            Rank shown is where you finished each season, from the recorded <code>leagueRankIndex</code>, with your peak that
-            season alongside. The ranked engine changed hands partway through: S2 ran on OpenSkill, S3 was the first season
-            on IVK, and S4 onwards uses the IVK tournament ladder. Seasons
-            that logged both engines keep only the one that was live, because the other carried on in the background on its own
-            point scale, which can read well above or below the real rank. <strong>RankPoints</strong> is the in-game RankScore from S3
-            onward, but the ladder was rescaled at S4: S3 ran 2,500 points per division up to Platinum 4 and 5,000 per
-            division above it, where S4 onwards is a flat 2,500. So compare it inside a season rather than across S3 to S4. S2’s OpenSkill points were an internal number never shown in-game, so
-            they’re left out. The chart tracks the rank ladder instead, which stays comparable throughout.
-            {hasCurve && ' Newer exports also log every ranked match individually, which is where the Low column comes from: the snapshot only keeps where you finished and how high you got, never how far you fell.'}
+            The rank shown is where you finished each season, with your best rank that season alongside. It comes from the
+            rank the export stores for the season (<code>leagueRankIndex</code>). The rating system behind ranked changed
+            twice: S2 ran on OpenSkill, S3 was the first season on IVK, and S4 onwards uses the IVK tournament ladder. A
+            season that logged both systems keeps only the one that was live, because the other kept running in the
+            background on its own point scale. <strong>RankScore</strong> is the score you saw in game, stored in the export
+            as <code>rankPoints</code>, and it is only there from S3 on. The ladder was rescaled at S4: S3 ran 2,500 points
+            per division up to Platinum 4 and 5,000 per division above that, where S4 onwards is a flat 2,500. So compare a
+            score inside a season, not across S3 and S4. S2’s OpenSkill points were an internal number never shown in game,
+            so they are left out. The chart uses the rank ladder instead, which stays comparable throughout.
+            {hasCurve && ' Newer exports also log every ranked match on its own, which is where the Lowest column comes from: the end-of-season record keeps where you finished and how high you got, never how far you fell.'}
             {hasReconstructed &&
-              ' This export has no season snapshots at all, so the ranks above were rebuilt from that match log. The end-of-season scores match the published leaderboard, but Ruby is a top-500 cutoff rather than a score, so a rebuilt rank stops at Diamond 1.'}
-            {ranked.seedsDropped > 0 && ' Empty placeholder ratings (and, for multi-account exports, a second account’s untouched ratings) are de-duplicated to your real progression.'}
-            {ranked.withheld > 0 && ' A season marked “Unknown” kept only the background rating, whose stored tier can sit well above or below the real one, so it’s withheld rather than shown wrong.'}
-            {ranked.curveParked > 0 && ` ${ranked.curveParked} season${ranked.curveParked === 1 ? '' : 's'} of match history couldn’t be tied to a known season and ${ranked.curveParked === 1 ? 'is' : 'are'} left out.`}
-          </Note>
-        </Panel>
-      )}
-
-      {/* Within-season progression, from the per-match log */}
-      {hasCurve && (
-        <Panel title="RankScore within each season">
-          <SeasonCurves seasons={ranked.seasons} />
-          {/* The performance score isn't in the export, only the points it paid,
-              recovered as the gain minus the flat placement value. */}
-          {scoreBonusSeasons.length > 0 && (
-            <p className="mt-3 text-[11px] text-gray-400">
-              <span className="text-emerald-300">Earned for your own play:</span>{' '}
-              {scoreBonusSeasons
-                .map((s) => `${s.seasonLabel} +${num(s.bonusTotal)} over ${num(s.bonusMatches)} match${s.bonusMatches === 1 ? '' : 'es'}`)
-                .join(' · ')}
-              . From S11 the game tops each result up based on how you personally performed, so this is the part your own
-              play earned rather than where your team finished; it shows per match in Match history. It stops paying once
-              you reach Diamond — in the exports we can check, no match starting at or above{' '}
-              {num(PERFORMANCE_BONUS_MAX_SCORE)} has received one.
-              The score itself isn’t in the export, only the points it was worth.
-            </p>
-          )}
-          <Note>
-            One panel per season, each running left to right through every rated match you played that season, on a shared
-            scale so they compare directly. Every season restarts you well below where you finished — for most of the
-            game’s life placement matches could not put you above Gold 1 however well you did, and the ceiling has only
-            been raised recently — so the climb, not the starting point, is what these show. The log starts at S4, so
-            earlier ranked seasons have no curve at all, but from there it holds virtually every rated match. Points are
-            only comparable within S4 onwards, where a division is a flat {num(RANKED_POINTS_PER_DIVISION)}.
+              ' This export has no end-of-season records at all, so the ranks above were worked out from that match log. The final scores line up with the published leaderboard, but Ruby is the top 500 players rather than a score, so a rank worked out this way stops at Diamond 1.'}
+            {ranked.seedsDropped > 0 && ' Empty placeholder ratings are ignored, along with a second account’s untouched ratings if your export covers more than one account, so what is left is your own progression.'}
+            {ranked.withheld > 0 && ' A season marked “Unknown” kept only that background rating, so no rank is shown for it rather than a wrong one.'}
+            {ranked.curveParked > 0 && ` ${ranked.curveParked} season${ranked.curveParked === 1 ? '' : 's'} of match history couldn’t be matched to a season we know about, so ${ranked.curveParked === 1 ? 'it is' : 'they are'} left out.`}
           </Note>
         </Panel>
       )}
 
       {/* Hidden MMR for non-ranked playlists */}
       {hiddenMmr.length > 0 && (
-        <Panel title="Hidden MMR — casual & other playlists">
+        <Panel title="Hidden MMR: casual and other modes">
           <p className="text-sm text-gray-400 leading-relaxed mb-4">
             Unlike Ranked, these don’t reset each season. Each one is a single rating the game keeps refining across your whole
             account, so the number is where it stands today (the date shows when it last changed). They’re never shown anywhere
@@ -504,9 +577,9 @@ export const RatingsPage = () => {
             ))}
           </div>
           <Note>
-            There’s no public scale for these and no league or badge attached. A higher number just means the game rates you
-            above the average player in that mode, and that’s what it uses to choose who you’re matched with. Beyond “higher is
-            better” the raw value has no in-game meaning; it only matters relative to everyone else.
+            There’s no public scale for these, and no league or badge attached. A higher number just means the game rates
+            you above the average player in that mode, and that’s what it uses to pick who you play with. The number only
+            means anything next to everyone else’s.
           </Note>
         </Panel>
       )}
@@ -532,7 +605,7 @@ export const RatingsPage = () => {
                 In earlier seasons THE FINALS rated skill with <strong className="text-gray-200">OpenSkill</strong>, an
                 open-source system (later revised to a “V2”). These values stopped updating once the game moved everyone onto
                 the current ratings above, so they’re a frozen snapshot of the older system. The “last updated” column shows
-                when each was retired. OpenSkill describes your skill as two numbers per playlist:{' '}
+                when each was retired. OpenSkill describes your skill as two numbers per mode:{' '}
                 <strong className="text-gray-200">μ (mu)</strong>, its best guess at your skill, and{' '}
                 <strong className="text-gray-200">σ (sigma)</strong>, how unsure it still was. A high σ means few games and an
                 unsettled rating; it shrinks as you play.
@@ -541,7 +614,7 @@ export const RatingsPage = () => {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-gray-400 border-b border-gray-700">
-                      <th className="text-left py-2 pr-3 font-medium">Playlist</th>
+                      <th className="text-left py-2 pr-3 font-medium">Mode</th>
                       <th className="text-right py-2 px-3 font-medium">Skill (μ)</th>
                       <th className="text-right py-2 px-3 font-medium">Uncertainty (σ)</th>
                       <th className="text-right py-2 px-3 font-medium">
@@ -551,9 +624,9 @@ export const RatingsPage = () => {
                             table. This was the page's last clipping tooltip. */}
                         <span
                           className="border-b border-dotted border-gray-500 cursor-help"
-                          title="OpenSkill's conservative skill estimate (μ − 3σ): the value that ladders typically sort on."
+                          title="The cautious version of the estimate, μ minus 3σ. Systems like this usually sort ladders on it, so an unsettled rating counts for less until you have played more."
                         >
-                          Conservative
+                          Cautious (μ − 3σ)
                         </span>
                       </th>
                       <th className="text-right py-2 px-3 font-medium">Matches</th>
@@ -578,9 +651,10 @@ export const RatingsPage = () => {
                 </table>
               </div>
               <Note>
-                Both an original and a “V2” OpenSkill value can exist for the same playlist as the method was revised; the
-                most-played record is shown for each. They track the same hidden skill as the ratings above, just with the older
-                system, so treat them as history rather than your current standing.
+                A mode can have both an original and a “v2” OpenSkill value, from when the method was revised, and both are
+                listed here. Where the export holds more than one copy of the same rating, the one with the most matches is
+                used. These track the same hidden skill as the ratings above, just with the older system, so read them as
+                history rather than where you stand now.
               </Note>
             </div>
           )}

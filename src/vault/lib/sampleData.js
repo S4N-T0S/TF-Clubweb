@@ -23,11 +23,35 @@ function mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const rng = mulberry32(0x0067_4c5b);
+const SEED = 0x0067_4c5b;
+// Reseeded at the top of buildSampleRaw, not just at module load: the generator
+// runs again whenever the preview is re-entered, and a stream that carried on
+// from where the last run stopped would hand back a different player each time.
+let rng = mulberry32(SEED);
 const rf = () => rng();
 const ri = (lo, hi) => lo + Math.floor(rng() * (hi - lo + 1));
 const pick = (arr) => arr[Math.floor(rng() * arr.length)];
 const chance = (p) => rng() < p;
+
+// Tournament ids must be unique: matches are grouped by TournamentID, so a
+// collision welds two unrelated tournaments into one match spanning the gap
+// between them. Seven random digits is only ~9M values, and the birthday bound
+// over ~1,900 tournaments puts a collision near one run in five, so draw again
+// rather than trusting the odds.
+const usedTids = new Set();
+const newTid = () => {
+  let t;
+  do {
+    t = `T${ri(1_000_000, 9_999_999)}`;
+  } while (usedTids.has(t));
+  usedTids.add(t);
+  return t;
+};
+
+const resetGenerator = () => {
+  rng = mulberry32(SEED);
+  usedTids.clear();
+};
 
 // --- timeline (fixed, in the past, so the sample never drifts) ------------
 const HOUR = 3_600_000;
@@ -135,7 +159,7 @@ function combat(kLo, kHi, dLo, dHi, cashLo, cashHi) {
 function tournament(rounds, scenarioId, startT, skill = 0.5) {
   const arch = archetypeRoll();
   const map = pick(TOURNEY_MAPS);
-  const tid = `T${ri(1_000_000, 9_999_999)}`;
+  const tid = newTid();
   const r1Exit = 0.45 - skill * 0.25; // ~45% R1 exits early, ~20% now
   const reach = chance(r1Exit) ? 'R1' : chance(0.45) ? 'R2' : 'FINAL';
   const won = reach === 'FINAL' && chance(0.4 + skill * 0.2); // wins the final ~40% -> ~60%
@@ -186,12 +210,17 @@ const LTM_MODES = [
 // --- match history --------------------------------------------------------
 function buildRounds() {
   const rounds = [];
-  const DAYS = 240;
+  const DAYS = 470;
   for (let d = 0; d < DAYS; d++) {
     const dayMs = lerp(SPAN_START, SPAN_END, (d + rf() * 0.7) / DAYS);
     const skill = (d + 0.5) / DAYS; // improves over the account's lifetime
     let t = dayMs + ri(0, 3) * HOUR;
-    const matches = ri(1, 4);
+    // Activity rides a slow wave rather than sitting flat: real exports swing
+    // hard between seasons (one player has 32 ranked matches in one season and
+    // 549 in another), and a flat rate makes every season's curve the same
+    // length, which is the one thing they never are.
+    const busy = 0.5 + 0.5 * Math.sin((d / DAYS) * Math.PI * 4.5);
+    const matches = ri(1, 3) + Math.round(busy * 4);
     for (let m = 0; m < matches; m++) {
       const roll = rf();
       // Ranked-heavy: a season has to hold enough matches that the per-match
@@ -214,10 +243,14 @@ function buildRounds() {
 // real log starts at S4, and the snapshot-only path has to stay exercised.
 // startMu is the soft reset, 70% of last season's finish (85% at S11), capped by
 // the placement ceiling. `ladder` is off for S4/S5, where the real per-placement
-// breakdown doesn't appear until S6. endMu is start + about 20-25 mu per match
-// the player actually has that season: real exports move a median 10 mu a match
-// and never past 31, and a season that has to climb faster than that forces the
-// whole placement ladder positive, which never happens in real data.
+// breakdown doesn't appear until S6.
+//
+// endMu must stay reachable in the number of ranked matches that season actually
+// has. Each row's movement is LADDER_SHAPE plus an even correction that lands the
+// season on endMu, so too few matches for the climb pushes that correction up and
+// shifts the whole placement ladder positive — every slot paying out, including
+// last, which happens in 0 of the ~4,000 real ladders. Raising a rank target
+// means raising the match count with it.
 const RANKED_LOG_SEASONS = [
   { seasonId: 814189767, from: Date.parse('2024-09-26T00:00:00Z'), to: Date.parse('2024-12-12T00:00:00Z'), startMu: 1250, endMu: 2090, ladder: false },
   { seasonId: 483101830, from: Date.parse('2024-12-12T00:00:00Z'), to: Date.parse('2025-03-20T00:00:00Z'), startMu: 1463, endMu: 2453, ladder: false },
@@ -230,9 +263,12 @@ const RANKED_LOG_SEASONS = [
   // grant; `bonus` switches it on so the preview shows the Diamond cut-off too.
   { seasonId: 349883189, from: Date.parse('2026-07-09T00:00:00Z'), to: Infinity, startMu: 2599, endMu: 2963, ladder: true, bonus: true },
 ];
-// Typical payout for the 8 finishing places. The real ladder slides with the
-// lobby, so only the shape is fixed.
-const LADDER_SHAPE = [95, 63, 18, -14, -59, -59, -91, -91];
+// Typical payout for the 8 finishing places, in mu. The real ladder slides with
+// the lobby, so only the shape is fixed. These are the per-slot medians measured
+// off a real Platinum export, which is the closest rank to this demo player;
+// the ladder scales hard with rank, so a Ruby export pays a quarter as much for
+// a win (23.6 mu against 101.5) and the shape must match the rank being shown.
+const LADDER_SHAPE = [101, 71, 28, -3, -46, -46, -76, -76];
 
 // Seasons that predate the log still need a window, so their snapshot match
 // counts come from the generated history like every other season's.
@@ -953,6 +989,7 @@ function buildSampleSupport() {
  * output, ready for buildModel(). No real personal data; deterministic.
  */
 export function buildSampleRaw() {
+  resetGenerator();
   return {
     persistence: buildPersistence(),
     audit: buildAudit(),

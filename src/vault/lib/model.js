@@ -335,6 +335,135 @@ function buildEmbarkNameHistory(auditByType, accounts) {
   return { has: accts.length > 0, multi: accts.length > 1, accounts: accts };
 }
 
+// The name that was in effect at `ms`, from a span list.
+const nameInEffectAt = (spans, ms) => {
+  let name = null;
+  for (const s of spans || []) {
+    if (s.firstMs == null || s.firstMs > ms) break;
+    name = s.name;
+  }
+  return name;
+};
+
+// Tolerance for tying an admin rename row to the exact instant it describes.
+// The one real sample pairs them 13ms apart; 2s is slack for clock skew between
+// the two writers without reaching across to a genuinely separate rename.
+const ADMIN_PAIR_MS = 2000;
+
+// Renames as dated EVENTS, for marking on a time axis. `spans[].firstMs` can't
+// do that job: it's the first time the audit log happened to mention the new
+// name, and ProfileUpdated rows are sparse enough that it lands days late. Two
+// records date a rename exactly:
+//   * ProfileUpdated2/3 `display_name_updated_msts` — the instant itself. Rows
+//     repeat it (one sample's 21 rows carry 7 distinct values), so these dedupe
+//     on the TIMESTAMP, never on the name: the field means "at T the name became
+//     this", and the same name can be adopted twice.
+//   * PlayerViewUpdateProfile — an admin-initiated rename, and the only record
+//     naming what the player renamed AWAY from. It carries no discriminator and
+//     no created_msts, so it can't be attributed to an account by itself.
+// Spans still cover the rest (every v1-era rename), flagged `sighting` so the UI
+// hedges instead of asserting a date the export didn't record.
+function buildNameChangeEvents(auditByType, accounts, embarkAccounts) {
+  const A = auditByType || {};
+
+  const exact = new Map(); // ms -> event
+  for (const type of ['ProfileUpdated2', 'ProfileUpdated3']) {
+    for (const r of A[type] || []) {
+      const ms = toMs(r.display_name_updated_msts);
+      const name = r.display_name;
+      if (ms == null || name == null || name === '') continue;
+      const logMs = toMs(r.logtime);
+      const prev = exact.get(ms);
+      if (prev && (prev.logMs ?? Infinity) <= (logMs ?? Infinity)) continue; // keep the earliest witness
+      const disc = r.display_name_discriminator;
+      const account = attributeAccount(accounts, r.created_msts ?? null, logMs);
+      exact.set(ms, {
+        ms,
+        to: disc != null && disc !== '' ? `${name}#${disc}` : name,
+        accountKey: account?.embarkUserId ?? account?.createdMs ?? '_',
+        logMs,
+      });
+    }
+  }
+
+  const admin = [];
+  for (const r of A.PlayerViewUpdateProfile || []) {
+    const ms = toMs(r.logtime);
+    if (ms == null || !r.updated_display_name) continue;
+    admin.push({ ms, from: r.old_display_name || null, to: r.updated_display_name });
+  }
+
+  const unclaimed = new Set(exact.values());
+  const out = [];
+
+  for (const acct of embarkAccounts) {
+    const key = acct.embarkUserId ?? acct.createdMs ?? '_';
+    for (let i = 1; i < acct.spans.length; i++) {
+      const prev = acct.spans[i - 1];
+      const span = acct.spans[i];
+      // The instant behind this transition names the span's own name and falls
+      // between the two sightings. Latest such wins: a name adopted twice has an
+      // instant per adoption, and the nearer one is this span's.
+      let hit = null;
+      for (const e of unclaimed) {
+        if (e.to !== span.name) continue;
+        if (span.firstMs != null && e.ms > span.firstMs) continue;
+        if (prev.firstMs != null && e.ms <= prev.firstMs) continue;
+        if (!hit || e.ms > hit.ms) hit = e;
+      }
+      if (hit) unclaimed.delete(hit);
+      out.push({
+        ms: hit ? hit.ms : span.firstMs,
+        from: prev.name,
+        to: span.name,
+        source: hit ? 'exact' : 'sighting',
+        accountKey: key,
+      });
+    }
+  }
+
+  // An instant with no span boundary either caught a rename the sightings missed
+  // or is a re-stamp of a name that didn't change: one sample advances the field
+  // twice while display_name AND the discriminator stay identical (Xorog#3439 ->
+  // Xorog#3439). Keep only the first kind — a marker for the second points at
+  // nothing.
+  for (const e of unclaimed) {
+    const acct = embarkAccounts.find((a) => (a.embarkUserId ?? a.createdMs ?? '_') === e.accountKey) ?? embarkAccounts[0];
+    const current = nameInEffectAt(acct?.spans, e.ms);
+    if (current === e.to) continue;
+    out.push({ ms: e.ms, from: current, to: e.to, source: 'exact', accountKey: e.accountKey });
+  }
+
+  out.sort((a, b) => (a.ms ?? 0) - (b.ms ?? 0));
+
+  // Admin rows only enrich: spans usually supply a better `from` because they
+  // keep the discriminator, which PlayerViewUpdateProfile drops.
+  const usedAdmin = new Set();
+  for (const ev of out) {
+    if (ev.ms == null) continue;
+    const pair = admin.find((a) => !usedAdmin.has(a) && Math.abs(a.ms - ev.ms) <= ADMIN_PAIR_MS);
+    if (!pair) continue;
+    usedAdmin.add(pair);
+    if (!ev.from && pair.from) ev.from = pair.from;
+  }
+  // A lone admin row is a rename nothing else recorded. Only usable when there's
+  // one account, since the row carries nothing to attribute it with.
+  if (embarkAccounts.length === 1) {
+    for (const a of admin) {
+      if (usedAdmin.has(a)) continue;
+      // PlayerViewUpdateProfile logs an admin edit to the profile, not a rename
+      // specifically, so it can carry an unchanged name when some other field
+      // was the thing edited. Same rule as the exact-instant path above: no
+      // visible change, no marker.
+      if (a.from === a.to) continue;
+      out.push({ ms: a.ms, from: a.from, to: a.to, source: 'admin', accountKey: embarkAccounts[0].embarkUserId ?? embarkAccounts[0].createdMs ?? '_' });
+    }
+    out.sort((x, y) => (x.ms ?? 0) - (y.ms ?? 0));
+  }
+
+  return out.filter((ev) => ev.ms != null);
+}
+
 function buildPlatformNameHistory(raw) {
   const rows = raw.audit?.byType?.AccountNameAudit2 || [];
   const idToProvider = new Map();
@@ -363,9 +492,15 @@ function buildPlatformNameHistory(raw) {
 }
 
 function buildNameHistory(raw, accounts) {
-  const embark = buildEmbarkNameHistory(raw.audit?.byType, accounts);
+  const auditByType = raw.audit?.byType;
+  const embark = buildEmbarkNameHistory(auditByType, accounts);
   const platforms = buildPlatformNameHistory(raw);
-  return { embark, platforms, hasPlatform: platforms.length > 0, has: embark.has || platforms.length > 0 };
+  return {
+    embark: { ...embark, changes: buildNameChangeEvents(auditByType, accounts, embark.accounts) },
+    platforms,
+    hasPlatform: platforms.length > 0,
+    has: embark.has || platforms.length > 0,
+  };
 }
 
 // --- inventory counts by type (persistence `InventoryItem`) ----------------
