@@ -1,8 +1,18 @@
 // Decode a classified fileset into raw, typed records.
 // Pure-ish (only touches the event loop to yield); safe to move into a Web Worker later if need
 import { entryText } from './ingest';
+import { classifyRoundStat, ROUND_KIND } from './realms';
 
 const yieldToEventLoop = () => new Promise((r) => setTimeout(r, 0));
+
+// `RoundStat` is written by both games an Embark account can own, with unrelated
+// payloads (see `classifyRoundStat`). Split on the way in; ARC and unrecognised
+// rows are preserved verbatim and go unread until the vault surfaces ARC data.
+const ROUND_STAT_BUCKETS = {
+  [ROUND_KIND.FINALS]: 'RoundStat',
+  [ROUND_KIND.ARC]: 'ArcRoundStat',
+  [ROUND_KIND.UNKNOWN]: 'UnknownRoundStat',
+};
 
 // JSON Lines: each line is `{"<RecordType>": {...}}` (one top-level key).
 // Returns { byType: { RecordType: [...inner records] }, counts, total, badLines }.
@@ -34,7 +44,7 @@ async function parseJsonl(text, onProgress = () => {}, label = 'records') {
     // (e.g. "SteamID") would be mistaken for the record type and its scalar value
     // pushed in place of the record.
     if (keys.length === 1 && inner && typeof inner === 'object' && !Array.isArray(inner)) {
-      (byType[type] ||= []).push(inner);
+      (byType[type === 'RoundStat' ? ROUND_STAT_BUCKETS[classifyRoundStat(inner)] : type] ||= []).push(inner);
     } else {
       (byType['DLCID' in obj ? 'SteamDLC' : `Flat:${type}`] ||= []).push(obj);
     }

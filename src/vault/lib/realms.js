@@ -7,7 +7,8 @@
 //      seeds a throwaway wallet (10,000 or 50,000 on the accounts seen) and stubs the
 //      store, and writes it all to the same HardCurrencyLog / TransactionLog as live.
 //   2. ARC Raiders — one Embark account covers both titles, so its playtest rows
-//      (tenancy `pioneer-*`) land in a THE FINALS export too.
+//      (tenancy `pioneer-*`) land in a THE FINALS export too. It also writes its
+//      per-raid stats under the same `RoundStat` type; see `classifyRoundStat`.
 //
 // Two independent signals, both needed:
 //   A. `tenancy` on AUDIT records. Embark's own realm label — exact, but the audit
@@ -55,6 +56,63 @@ export function tenancyLabel(tenancy) {
   if (tenancy === 'pioneer-serverslam') return 'ARC Raiders Server Slam';
   if (tenancy.startsWith('pioneer')) return 'ARC Raiders playtest';
   return tenancy;
+}
+
+// --- RoundStat: THE FINALS round vs ARC Raiders stat event ----------------
+// A leak that has nothing to do with tenancy. Both titles write
+// `{"RoundStat": {...}}` into the same export, with unrelated payloads:
+//
+//   THE FINALS   {"RoundStat":{"CreatedAt":…,"Data":{Kills,RoundWon,ScenarioID,…}}}
+//   ARC Raiders  {"RoundStat":{"EventID":100,"TargetID":995408715,"Amount":5,"CreatedAt":…}}
+//
+// ARC's rows are per-raid stat counters (median 19 per raid, 25 EventID kinds
+// over 112 TargetIDs), not matches. Carrying no `Data`, they read as `RoundWon`
+// undefined (a loss) with no `TournamentID` (a standalone match), so one heavy
+// ARC player's 354 raids surfaced as 7,390 phantom losses.
+//
+// Both kinds are matched positively. "Not ARC-shaped" would let a future ARC
+// schema that grows a `Data` field become match history again; "no Data" would
+// mis-file a truncated FINALS row. Matching neither is UNKNOWN: kept, never
+// counted, in line with this module's rule that nothing is dropped without
+// proof of what it is.
+export const ROUND_KIND = {
+  FINALS: 'finals',
+  ARC: 'arc',
+  UNKNOWN: 'unknown',
+};
+
+// Names specific to THE FINALS' vocabulary. Excludes the generic fields a round
+// payload also carries (`StartTime`, `EndTime`, `Tier`, `MatchID`,
+// `TournamentID`, `IsBackfill`): any Embark title could reuse those, and a
+// single collision would be enough to re-open the bug.
+const FINALS_ROUND_FIELDS = [
+  'ScenarioID', 'MapVariant', 'EnvironmentalCondition', 'CharacterArchetype',
+  'KillsPerItem', 'RoundWon', 'TournamentWon', 'LeaderboardPosition',
+];
+// All 57,385 round payloads across the seven sample exports carry all eight
+// names, so requiring two rejects no real round and needs two collisions to fool.
+const FINALS_ROUND_MIN_FIELDS = 2;
+
+const isPlainObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/** Which game wrote a `RoundStat` record. Total over any JSON value; own properties only. */
+export function classifyRoundStat(rec) {
+  if (!isPlainObject(rec)) return ROUND_KIND.UNKNOWN;
+  if (isPlainObject(rec.Data)) {
+    let hits = 0;
+    for (const f of FINALS_ROUND_FIELDS) {
+      if (Object.hasOwn(rec.Data, f) && ++hits === FINALS_ROUND_MIN_FIELDS) return ROUND_KIND.FINALS;
+    }
+  }
+  // ARC's counter triple. Strict on all three fields and on the absent payload;
+  // a half-match falls through to UNKNOWN, which is preserved but never read.
+  if (
+    rec.Data === undefined &&
+    typeof rec.EventID === 'number' &&
+    typeof rec.TargetID === 'number' &&
+    typeof rec.Amount === 'number'
+  ) return ROUND_KIND.ARC;
+  return ROUND_KIND.UNKNOWN;
 }
 
 // --- (A) audit tenancy windows -------------------------------------------

@@ -4,7 +4,7 @@ import { resolveWeapon } from './weapons';
 import { archetypeLabel, classifyMode, careerModeGroup, CAREER_MODE_GROUPS, parseMapVariant, parseCondition, roundsRemaining, stageLabel, stageTeams, tournamentPlacement } from './gameMeta';
 import { resolveMap, resolveLtmBackground, conditionType } from './maps';
 import { resolveDlc, steamAppUrl, STEAM_BASE_GAME_ID } from './economy';
-import { buildRealms, REALM } from './realms';
+import { buildRealms, REALM, classifyRoundStat, ROUND_KIND } from './realms';
 import { buildRatings } from './ratings';
 
 // timestamp helpers (export mixes ISO-8601 strings and epoch-ms)
@@ -555,8 +555,12 @@ function buildInventory(byType) {
 // --- career (aggregated across ALL RoundStatSummary snapshots) ------------
 // An export can carry SEVERAL RoundStatSummary snapshots. They are DISJOINT
 // epochs (successive stat-storage generations), NOT running cumulative totals:
-// on real exports each snapshot's RoundsPlayed sum to the exact RoundStat record
-// count. So lifetime = the per-bucket SUM across every snapshot.
+// on real exports each snapshot's RoundsPlayed sum to at most the RoundStat
+// record count. So lifetime = the per-bucket SUM across every snapshot.
+// The summed total can sit slightly UNDER the record count (0 to 219 rounds
+// across the sample exports) because Embark counts a multi-round Ranked
+// Terminal Attack series once while the log stores every round; the whole
+// shortfall is in tournament rounds. Never the other way round.
 //
 // The previous "pick the newest snapshot by UpdatedAt" approach silently dropped
 // data whenever the most recent epoch was small — e.g. a 68-round snapshot
@@ -704,7 +708,20 @@ function addRound(m, r) {
 }
 
 function buildMatchesAndWeapons(byType) {
-  const rawRounds = byType.RoundStat || [];
+  // parse.js already buckets ARC Raiders' identically-named records separately,
+  // but re-check here: `byType` is also built by hand (sampleData, harnesses),
+  // and one unfiltered ARC row becomes a phantom match that always reads as a loss.
+  const all = byType.RoundStat || [];
+  const rawRounds = [];
+  // In the export but not read yet. Counted so an ARC view needn't re-derive the split.
+  let otherGameRounds = (byType.ArcRoundStat || []).length;
+  let unknownRounds = (byType.UnknownRoundStat || []).length;
+  for (const r of all) {
+    const kind = classifyRoundStat(r);
+    if (kind === ROUND_KIND.FINALS) rawRounds.push(r);
+    else if (kind === ROUND_KIND.ARC) otherGameRounds++;
+    else unknownRounds++;
+  }
 
   const weaponTotals = new Map(); // id -> kills
   const weaponsByArch = { Light: new Map(), Medium: new Map(), Heavy: new Map(), Unknown: new Map() };
@@ -905,7 +922,7 @@ function buildMatchesAndWeapons(byType) {
       .sort((a, b) => b.kills - a.kills);
   }
 
-  return { matches, weapons, weaponsByArchetype, roundCount: rawRounds.length, rounds: normalized };
+  return { matches, weapons, weaponsByArchetype, roundCount: rawRounds.length, rounds: normalized, otherGameRounds, unknownRounds };
 }
 
 // --- per-map / per-mode / per-class stat breakdowns -----------------------
@@ -1922,7 +1939,7 @@ function buildEmailTracking(auditByType) {
 export function buildModel(raw) {
   const byType = raw.persistence.byType;
 
-  const { matches, weapons, weaponsByArchetype, roundCount, rounds } = buildMatchesAndWeapons(byType);
+  const { matches, weapons, weaponsByArchetype, roundCount, rounds, otherGameRounds, unknownRounds } = buildMatchesAndWeapons(byType);
   const lastActivity = matches.reduce((mx, m) => Math.max(mx, m.end ?? m.start ?? 0), 0) || null;
 
   // Joined here, not at render: the match list runs to thousands of rows.
@@ -1997,6 +2014,9 @@ export function buildModel(raw) {
     meta: {
       roundCount,
       matchCount: matches.length,
+      // ARC Raiders rows, and rows of unrecognised shape. Excluded from every figure above.
+      otherGameRounds,
+      unknownRounds,
       tournamentsPlayed,
       tournamentsWon,
       counts: raw.persistence.counts,
