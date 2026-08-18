@@ -523,6 +523,7 @@ export const GlobalView = ({
   const [isCurrentSeason, setIsCurrentSeason] = useState(currentSeason === selectedSeason);
   const { isModalOpen } = useModal();
   const searchInputRef = useRef(null);
+  const [searchClearSignal, setSearchClearSignal] = useState(0);
 
   const [crossSeason, setCrossSeason] = useState(() => getStoredGlobalViewSettings().crossSeasonSearch);
   const toggleCrossSeason = () => {
@@ -783,11 +784,8 @@ export const GlobalView = ({
   };
 
   const handleCutoffClick = () => {
-    setSearchQuery('');
-
-    setTimeout(() => {
-      scrollToIndex(500);
-    }, 125);
+    setSearchClearSignal((signal) => signal + 1);
+    scrollToIndex(500, { clearSearch: true });
   };
 
   useEffect(() => {
@@ -807,6 +805,7 @@ export const GlobalView = ({
             value={searchQuery}
             onChange={setSearchQuery}
             searchInputRef={searchInputRef}
+            clearSignal={searchClearSignal}
             scopeActive={autofillActive}
             onScopeToggle={showFavourites ? undefined : toggleCrossSeason}
             scopeTitleOn="Cross-season search is on: suggestions from every season appear as you type. Click to turn off."
