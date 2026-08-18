@@ -88,9 +88,20 @@ export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {
   }, [searchQuery, urlSync]);
 
   // Scroll to a specific index new function
-  const scrollToIndex = (index) => {
+  const scrollToIndex = (index, { clearSearch = false } = {}) => {
     const targetPage = Math.ceil((index) / itemsPerPage);
-    setPage(targetPage, { replace: true });
+    if (urlSync && clearSearch) {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.delete('search');
+        if (targetPage <= 1) next.delete('page');
+        else next.set('page', String(targetPage));
+        return next;
+      }, { replace: true });
+    } else {
+      if (clearSearch) setStateSearchQuery('');
+      setPage(targetPage, { replace: true });
+    }
     
     setTimeout(() => {
       // For desktop, we account for the header row.
