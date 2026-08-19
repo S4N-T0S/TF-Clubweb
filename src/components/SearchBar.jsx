@@ -11,11 +11,9 @@ export const SearchBar = ({
   scopeTitleOn = 'Search scope on. Click to turn off.',
   scopeTitleOff = 'Click to widen the search scope.',
   scopeLabel = 'Toggle search scope',
-  clearSignal,
 }) => {
   const [localValue, setLocalValue] = useState(value || '');
   const isFocused = useRef(false);
-  const prevClearSignal = useRef(clearSignal);
 
   useEffect(() => {
     // Only update the local value from external props if the user isn't currently typing.
@@ -24,12 +22,6 @@ export const SearchBar = ({
       setLocalValue(value || '');
     }
   }, [value]);
-
-  useEffect(() => {
-    if (clearSignal === prevClearSignal.current) return;
-    prevClearSignal.current = clearSignal;
-    setLocalValue('');
-  }, [clearSignal]);
 
   const handleSearch = (searchValue) => {
     setLocalValue(searchValue);

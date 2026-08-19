@@ -33,17 +33,23 @@ export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {
     ? (isOnBasePath ? urlSearchLive : frozenSearchRef.current)
     : stateSearchQuery;
 
+  const prevSearchQuery = useRef(searchQuery);
   // Internal setter. When urlSync, writes ?page=N (or removes it for page 1)
   // while preserving any other query params already in the URL.
-  const setPage = (newPage, { replace = false } = {}) => {
+  const setPage = (newPage, { replace = false, clearSearch = false } = {}) => {
     if (urlSync) {
       setSearchParams(prev => {
         const next = new URLSearchParams(prev);
+        if (clearSearch) next.delete('search');
         if (newPage <= 1) next.delete('page');
         else next.set('page', String(newPage));
         return next;
       }, { replace });
     } else {
+      if (clearSearch) {
+        setStateSearchQuery('');
+        prevSearchQuery.current = '';
+      }
       setStateCurrentPage(newPage);
     }
   };
@@ -77,7 +83,6 @@ export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {
   // Reset page when search changes (non-urlSync mode only). In urlSync mode,
   // setSearchQuery already clears ?page atomically, AND we must NOT clobber
   // ?page when a URL like /leaderboard?search=foo&page=3 is loaded externally.
-  const prevSearchQuery = useRef(searchQuery);
   useEffect(() => {
     if (urlSync) return;
     if (prevSearchQuery.current !== searchQuery) {
@@ -90,18 +95,7 @@ export const usePagination = (items, itemsPerPage, isMobile, { customSorters = {
   // Scroll to a specific index new function
   const scrollToIndex = (index, { clearSearch = false } = {}) => {
     const targetPage = Math.ceil((index) / itemsPerPage);
-    if (urlSync && clearSearch) {
-      setSearchParams(prev => {
-        const next = new URLSearchParams(prev);
-        next.delete('search');
-        if (targetPage <= 1) next.delete('page');
-        else next.set('page', String(targetPage));
-        return next;
-      }, { replace: true });
-    } else {
-      if (clearSearch) setStateSearchQuery('');
-      setPage(targetPage, { replace: true });
-    }
+    setPage(targetPage, { replace: true, clearSearch });
     
     setTimeout(() => {
       // For desktop, we account for the header row.
