@@ -21,6 +21,18 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 const WEEK = 7 * DAY;
 
+// One formatter for the axis, not a toLocaleString per tick: chart.js labels every tick it
+// generates before autoSkip trims to maxTicksLimit. Same fields as the leaderboard graph's
+// historical-season labels, so the two date their axes identically.
+const AXIS_LABEL_FORMATTER = new Intl.DateTimeFormat(undefined, {
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+  year: 'numeric',
+});
+
 // Line semantics as on the leaderboard graph: green where the score rose, red
 // where it fell, off-white where nothing moved.
 const UP = '#10B981';
@@ -356,10 +368,13 @@ export const buildRankChart = ({ season, nameEvents = [], settings = DEFAULT_GRA
         type: 'time',
         min: win?.min ?? domainMin,
         max: win?.max ?? domainMax,
-        // Formats, unit and the rotated tick callback are the leaderboard's, so
-        // the two graphs date their axes identically.
+        // Formats, unit floor and the rotated tick callback are the
+        // leaderboard's, so the two graphs date their axes identically.
         time: {
-          unit: 'hour',
+          // minUnit, not unit. Pinning the unit makes chart.js generate one tick
+          // per hour across the whole window (thousands on a full season) and
+          // label every one of them before autoSkip discards all but ~20.
+          minUnit: 'hour',
           displayFormats: {
             millisecond: 'dd MMM HH:mm',
             second: 'dd MMM HH:mm',
@@ -383,15 +398,7 @@ export const buildRankChart = ({ season, nameEvents = [], settings = DEFAULT_GRA
           padding: 4,
           align: 'end',
           // Every vault season is in the past, so the year always shows.
-          callback: (value) =>
-            new Date(value).toLocaleString(undefined, {
-              day: 'numeric',
-              month: 'short',
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: false,
-              year: 'numeric',
-            }),
+          callback: (value) => AXIS_LABEL_FORMATTER.format(value),
         },
       },
       y: {

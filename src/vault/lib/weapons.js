@@ -100,7 +100,10 @@ export const weaponSlug = (name) => (name ? name.toLowerCase().replace(/[^a-z0-9
 // exports from later seasons may contain ids not in the sample set). `icon` is
 // the bundled webp path when one exists, else null (UI falls back to a chip).
 export const resolveWeapon = (id) => {
-  const hit = WEAPONS[String(id)];
+  // hasOwn: KillsPerItem keys are raw export data, and "constructor" would
+  // otherwise resolve to a function that spreads to nothing (blank weapon name).
+  const key = String(id);
+  const hit = Object.hasOwn(WEAPONS, key) ? WEAPONS[key] : null;
   if (!hit) return { name: `Unknown item (${id})`, archetype: 'Unknown', type: 'Unknown', unknown: true, slug: null, icon: null };
   const slug = weaponSlug(hit.name);
   return { ...hit, slug, icon: ICON_SLUGS.has(slug) ? `/vault/weapons/${slug}.webp` : null };

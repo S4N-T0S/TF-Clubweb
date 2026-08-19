@@ -10,18 +10,69 @@ const DB_VERSION = 2; // Bump version due to data structure change.
 // Change this if you ever alter the shape of the data being cached (e.g., in lb-api's transformData).
 const CACHE_STRUCTURE_VERSION = '1.1.0'; // 1.1.0: officialClubName added to leaderboard/identity shapes
 
+// Sanity ceiling on a stored expiry, well above the longest TTL any caller asks for (1 hour).
+// Callers arm their auto-refresh timers from expiresAt, and a nonsense value that outlives the
+// tab would otherwise be re-read on every reload and never repaired.
+const MAX_CACHE_LIFETIME_MS = 24 * 60 * 60 * 1000;
+
+// open() reports 'blocked' (no success, no error) when an upgrade is pending and another tab
+// still holds the old connection. Every caller awaits initDB, so an unsettled promise stalls
+// the whole app; this bounds the wait even for stalls the events don't cover.
+const DB_OPEN_TIMEOUT_MS = 5000;
+
 let dbPromise = null;
+// Guards the handle against late callbacks from an attempt we already abandoned.
+let dbGeneration = 0;
 
 const initDB = () => {
   if (dbPromise) {
     return dbPromise;
   }
+
+  const generation = ++dbGeneration;
+  // Drop the cached handle so the next call reopens. Without this a single transient failure
+  // would disable caching for the rest of the session. Wired to open failures and to the
+  // connection's own close/versionchange events only: a handle that dies between those events
+  // and the next db.transaction() call still throws InvalidStateError into each caller's catch.
+  const invalidate = () => {
+    if (dbGeneration === generation) dbPromise = null;
+  };
+
+  let request;
+  try {
+    request = indexedDB.open(DB_NAME, DB_VERSION);
+  } catch (error) {
+    // Storage can be unavailable outright (blocked site data, some private modes).
+    console.error("IndexedDB unavailable:", error);
+    return Promise.reject(error); // Deliberately not cached, so the next call retries.
+  }
+
   dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    let settled = false;
+    let timeoutId = null;
+
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      invalidate();
+      reject(error);
+    };
+
+    timeoutId = setTimeout(() => {
+      fail(new Error(`IndexedDB open timed out after ${DB_OPEN_TIMEOUT_MS}ms`));
+    }, DB_OPEN_TIMEOUT_MS);
 
     request.onerror = (event) => {
       console.error("IndexedDB error:", event.target.error);
-      reject("IndexedDB error");
+      fail(event.target.error || new Error("IndexedDB error"));
+    };
+
+    // Another tab is holding the previous version open. Fail fast so callers fall back to the
+    // network instead of waiting for that tab to close.
+    request.onblocked = () => {
+      console.warn("IndexedDB upgrade blocked by another tab. Continuing without cache.");
+      fail(new Error("IndexedDB upgrade blocked"));
     };
 
     request.onupgradeneeded = (event) => {
@@ -33,9 +84,27 @@ const initDB = () => {
     };
 
     request.onsuccess = (event) => {
-      resolve(event.target.result);
+      const db = event.target.result;
+      if (settled) {
+        // Already timed out or rejected. Close, or this connection blocks the next upgrade.
+        db.close();
+        return;
+      }
+      settled = true;
+      clearTimeout(timeoutId);
+
+      // Release the connection when another tab needs to upgrade, otherwise its open() sits
+      // in 'blocked' until this tab is closed.
+      db.onversionchange = () => {
+        db.close();
+        invalidate();
+      };
+      db.onclose = invalidate;
+
+      resolve(db);
     };
   });
+
   return dbPromise;
 };
 
@@ -53,8 +122,12 @@ export const getCacheItem = async (key, { ignoreExpiration = false } = {}) => {
     const store = transaction.objectStore(STORE_NAME);
     const request = store.get(key);
 
-    return new Promise((resolve, reject) => {
+    // `return await`: without it the inner rejection escapes the enclosing catch below.
+    return await new Promise((resolve, reject) => {
       request.onerror = () => reject(request.error);
+      // A transaction can abort without the request firing onerror, which would leave this
+      // promise unsettled.
+      transaction.onabort = () => reject(transaction.error || new Error('Transaction aborted'));
       request.onsuccess = () => {
         const result = request.result;
         if (!result) {
@@ -70,8 +143,23 @@ export const getCacheItem = async (key, { ignoreExpiration = false } = {}) => {
           return;
         }
 
-        if (ignoreExpiration || Date.now() < result.expiresAt) {
+        // Emergency and stale-fallback reads are checked first on purpose. They only run once
+        // the network has already failed, where outdated data beats no data, so neither the
+        // expiry nor the sanity check below may reject them.
+        if (ignoreExpiration) {
           resolve(result); // Returns the full object { key, data, expiresAt, version }
+          return;
+        }
+
+        const now = Date.now();
+        if (!Number.isFinite(result.expiresAt) || result.expiresAt > now + MAX_CACHE_LIFETIME_MS) {
+          console.warn(`Cache entry "${key}" has an implausible expiry (${result.expiresAt}). Discarding.`);
+          resolve(null);
+          return;
+        }
+
+        if (now < result.expiresAt) {
+          resolve(result);
         } else {
           // Do not perform a delete here. It's inefficient.
           resolve(null);
@@ -106,8 +194,13 @@ export const setCacheItem = async (key, data, ttlSeconds) => {
   try {
     const db = await initDB();
     const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    store.put(item);
+    // The commit is deliberately not awaited: callers await this from their fetch path, and a
+    // transaction that never settles would hang it. QuotaExceededError aborts asynchronously
+    // though, so put() returns fine and only this event reveals the write was dropped.
+    transaction.onabort = () => {
+      console.error(`Cache write for "${key}" was dropped:`, transaction.error);
+    };
+    transaction.objectStore(STORE_NAME).put(item);
   } catch (error) {
     console.error(`Error writing "${key}" to IndexedDB:`, error);
   }
@@ -145,8 +238,10 @@ export const clearCacheStartingWith = async (prefix) => {
     const range = IDBKeyRange.bound(prefix, prefix + '\uffff');
     const request = store.openCursor(range);
 
-    return new Promise((resolve, reject) => {
+    // `return await`: without it the inner rejection escapes the enclosing catch below.
+    return await new Promise((resolve, reject) => {
       let deletedCount = 0;
+      transaction.onabort = () => reject(transaction.error || new Error('Transaction aborted'));
       request.onsuccess = (event) => {
         const cursor = event.target.result;
         if (cursor) {
@@ -192,6 +287,10 @@ export const cleanupExpiredCacheItems = async () => {
         let shouldDelete = false;
 
         if (item.version !== CACHE_STRUCTURE_VERSION) {
+          shouldDelete = true;
+        } else if (!Number.isFinite(item.expiresAt) || item.expiresAt > now + MAX_CACHE_LIFETIME_MS) {
+          // Same rule getCacheItem applies. Without it a poisoned row holds quota forever and
+          // warns on every read, since only a successful overwrite would otherwise clear it.
           shouldDelete = true;
         } else if (item.expiresAt < now) {
           shouldDelete = true;

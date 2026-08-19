@@ -22,8 +22,10 @@ const Row = ({ label, value, mono, hint }) => (
   </div>
 );
 
-const providerLabel = (p) =>
-  ({ steam: 'Steam', xbox: 'Xbox', discord: 'Discord', twitch: 'Twitch', psn: 'PlayStation', epic: 'Epic Games', epicgames: 'Epic Games', nexon: 'Nexon' }[p] || p);
+// hasOwn: the provider id is a raw export value, and "__proto__" would otherwise
+// resolve to Object.prototype, which React throws on as a child.
+const PROVIDER_LABELS = { steam: 'Steam', xbox: 'Xbox', discord: 'Discord', twitch: 'Twitch', psn: 'PlayStation', epic: 'Epic Games', epicgames: 'Epic Games', nexon: 'Nexon' };
+const providerLabel = (p) => (Object.hasOwn(PROVIDER_LABELS, p) ? PROVIDER_LABELS[p] : p);
 
 // Where each collected email was found (model.emails[].sources).
 const EMAIL_SOURCE_LABEL = { profile: 'Profile', audit: 'Profile log', sent: 'Sent to you' };

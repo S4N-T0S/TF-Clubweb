@@ -69,6 +69,18 @@ TIME.DISPLAY_FORMATS = {
   year: 'yyyy'
 };
 
+// One formatter per axis variant rather than a toLocaleString call per tick: chart.js labels
+// every tick it generates before autoSkip trims the list down to maxTicksLimit, so on a wide
+// view most of that formatting is thrown away. A historical season carries the year because
+// its dates are no longer "this year".
+const TICK_FORMATTER = new Intl.DateTimeFormat(undefined, TIME.FORMAT);
+const TICK_FORMATTER_WITH_YEAR = new Intl.DateTimeFormat(undefined, { ...TIME.FORMAT, year: 'numeric' });
+
+// Legend visibility is tracked per player, not per dataset index: removing a comparison shifts
+// every index after it, so an index-keyed record would follow the wrong player. The main player
+// is always dataset 0 and has no comparison key of its own.
+const MAIN_DATASET_ID = Symbol('main-player');
+
 const NEW_LOGIC_TIMESTAMP_MS = 1750436334 * 1000;
 const SERVER_DOWNTIME_BY_MS = new Map(SERVER_DOWNTIMES.map(d => [d.timestamp * 1000, d]));
 
@@ -326,7 +338,6 @@ export const useChartConfig = ({
   embarkId,
   selectedTimeRange,
   setSelectedTimeRange,
-  chartRef,
   onZoomOrPan,
   eventSettings,
   seasonId,
@@ -349,7 +360,17 @@ export const useChartConfig = ({
 
   const [manualViewWindow, setManualViewWindow] = useState(null);
   const [isManuallyZoomed, setIsManuallyZoomed] = useState(false);
+  // Players the user has switched off via the legend. Keyed by id (see MAIN_DATASET_ID).
+  const [hiddenPlayerIds, setHiddenPlayerIds] = useState(() => new Set());
   const rafRef = useRef(null);
+  // The live chart and the x window a pan/zoom is currently showing. `manualViewWindow` is only
+  // committed to React state once the gesture ends, so between frames this is the only record of
+  // where the chart actually is. Read from callbacks and effects, never during render.
+  const gestureRef = useRef({ active: false, window: null, chart: null });
+
+  const endGesture = useCallback(() => {
+    gestureRef.current = { active: false, window: null, chart: null };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -361,27 +382,32 @@ export const useChartConfig = ({
     // When the user clicks a time range button (24H, 7D, MAX), reset manual zoom.
     // This should not run when `selectedTimeRange` is cleared to null by zooming/panning.
     if (selectedTimeRange) {
+      endGesture();
       setIsManuallyZoomed(false);
       setManualViewWindow(null);
     }
-  }, [selectedTimeRange]);
+  }, [selectedTimeRange, endGesture]);
 
   useEffect(() => {
     // When the season changes, always reset manual zoom state.
+    endGesture();
     setIsManuallyZoomed(false);
     setManualViewWindow(null);
-  }, [seasonId]);
+  }, [seasonId, endGesture]);
 
-  const handleChartUpdate = useCallback((chart) => {
-    // If a frame is already pending, skip this update
-    if (rafRef.current) return;
-
-    rafRef.current = requestAnimationFrame(() => {
-      setManualViewWindow({ min: chart.scales.x.min, max: chart.scales.x.max });
-      if (onZoomOrPan) onZoomOrPan();
-      rafRef.current = null;
+  // Drop players that are no longer being compared, so re-adding one brings it back visible.
+  // That is what chart.js does on its own, since a re-added dataset gets a fresh meta. Note
+  // usePlayerGraphData clears the whole map on a season switch, so that un-hides too.
+  useEffect(() => {
+    setHiddenPlayerIds(prev => {
+      if (prev.size === 0) return prev;
+      const next = new Set();
+      for (const id of prev) {
+        if (id === MAIN_DATASET_ID || comparisonData.has(id)) next.add(id);
+      }
+      return next.size === prev.size ? prev : next;
     });
-  }, [onZoomOrPan]);
+  }, [comparisonData]);
 
   const getPointRadius = useCallback((ctx) => {
     const pointData = ctx.raw?.raw;
@@ -1034,21 +1060,21 @@ export const useChartConfig = ({
       return dataset.slice(startIdx, endIdx + 1);
     };
 
-    const chart = chartRef.current;
+    // Visibility comes from our own record rather than the live chart's dataset metas: during
+    // render the chart still holds the previous dataset list, so a meta lookup by the new
+    // comparison order can land on the wrong player (and, past the end, makes chart.js create
+    // a placeholder meta).
+    const isVisible = (id) => !hiddenPlayerIds.has(id);
+    const visibleComparisons = Array.from(comparisonData.entries())
+      .filter(([id]) => isVisible(id))
+      .map(([, { data: compareData }]) => compareData);
 
     let visibleData = [];
-    if (!chart || chart.getDatasetMeta(0).visible !== false) {
+    if (isVisible(MAIN_DATASET_ID)) {
       visibleData = getVisibleAndNearestData(data);
     }
 
-    const comparisonVisibleData = Array.from(comparisonData.entries())
-      .map(([_, { data: compareData }], index) => {
-        if (!chart || chart.getDatasetMeta(index + 1).visible !== false) {
-          return getVisibleAndNearestData(compareData);
-        }
-        return [];
-      })
-      .flat();
+    const comparisonVisibleData = visibleComparisons.map(getVisibleAndNearestData).flat();
 
     const allVisibleData = [...visibleData, ...comparisonVisibleData];
     const visibleMetricVals = allVisibleData.map(getMetricVal).filter(v => v !== null);
@@ -1060,10 +1086,8 @@ export const useChartConfig = ({
       const rangeStart = timeRange.min;
 
       const allDatasets = [
-        chart?.getDatasetMeta(0).visible !== false ? data : [],
-        ...Array.from(comparisonData.entries())
-          .filter((_, index) => chart?.getDatasetMeta(index + 1).visible !== false)
-          .map(([_, { data: compareData }]) => compareData)
+        isVisible(MAIN_DATASET_ID) ? data : [],
+        ...visibleComparisons
       ];
 
       // Per dataset, the most recent valid value at or before the window start. Rank prefers
@@ -1174,12 +1198,84 @@ export const useChartConfig = ({
     const sMax = Math.ceil((high + sGrace) / sStep) * sStep;
     const sMin = Math.max(0, Math.floor((low - sGrace) / sStep) * sStep);
     return { min: sMin, max: sMax > sMin ? sMax : sMin + sStep, stepSize: sStep, floorTick: null };
-  }, [comparisonData, chartRef, isRankMode]);
+  }, [comparisonData, hiddenPlayerIds, isRankMode]);
 
-  // Memoized array (not a callback): chartOptions rebuilds every animation frame during pan/zoom
-  // because handleChartUpdate updates manualViewWindow per frame. Returning a stable, memoized
-  // array means this O(all-points) event scan runs only when its inputs change, not per frame —
-  // and the annotation plugin keys off each annotation's `id`, so stable identity is desirable.
+  // Writes the recomputed y bounds onto the live scale's own resolved options, the target the
+  // zoom plugin writes x through. chart.js deep-clones every scale config per update
+  // (mergeScaleConfig), so mutating the object chartOptions returned reaches nothing.
+  const applyLiveYBounds = useCallback((chart, viewWindowMs) => {
+    // Resolved per call on purpose: chart.js rebuilds every scale's options proxy inside
+    // update(), so a hoisted reference would be writing to a discarded one after one frame.
+    const yOptions = chart?.canvas && chart.scales?.y?.options;
+    if (!yOptions || !viewWindowMs) return false;
+    const { min, max, stepSize, floorTick } = calculateYAxisBounds(data, viewWindowMs);
+    yOptions.min = min;
+    yOptions.max = max;
+    yOptions.ticks.stepSize = stepSize;
+    // Written alongside min/max so afterBuildTicks can't force a floor tick belonging to some
+    // other window; it reads this back off axis.options rather than from a captured closure.
+    yOptions._floorTick = floorTick;
+    return true;
+  }, [calculateYAxisBounds, data]);
+
+  const handleChartUpdate = useCallback((chart) => {
+    // Recorded synchronously, outside the throttle, so the post-commit effect below always has
+    // the window the chart is really showing.
+    gestureRef.current.chart = chart;
+    gestureRef.current.window = { min: chart.scales.x.min, max: chart.scales.x.max };
+
+    // If a frame is already pending, skip this update
+    if (rafRef.current) return;
+
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      const { chart: liveChart, window: liveWindow } = gestureRef.current;
+      // The plugin runs its own update('none') before it calls onPan/onZoom, so bounds written
+      // here need an update of their own. This one stands in for the per-frame React commit that
+      // used to drive the y axis, it is not a second update on top of it.
+      if (applyLiveYBounds(liveChart, liveWindow)) liveChart.update('none');
+    });
+  }, [applyLiveYBounds]);
+
+  const startGesture = useCallback((chart) => {
+    gestureRef.current = {
+      active: true,
+      window: { min: chart.scales.x.min, max: chart.scales.x.max },
+      chart,
+    };
+    setIsManuallyZoomed(true);
+    if (onZoomOrPan) onZoomOrPan();
+  }, [onZoomOrPan]);
+
+  const completeGesture = useCallback((chart) => {
+    const settled = { min: chart.scales.x.min, max: chart.scales.x.max };
+    endGesture();
+    // The zoom plugin re-registers its debounced onZoomComplete on every chart update and never
+    // clears the pending timer, so one wheel burst delivers a call per notch, each trailing its
+    // own notch by 250ms. They all read the same settled window, so drop all but the first.
+    setManualViewWindow(prev => (prev && prev.min === settled.min && prev.max === settled.max) ? prev : settled);
+    setSelectedTimeRange(null);
+  }, [endGesture, setSelectedTimeRange]);
+
+  // react-chartjs-2 applies new options from an effect inside the <Line> child, which runs before
+  // this one. A re-render landing mid-gesture therefore writes the last committed window back over
+  // the live one and rewinds the drag, so put the live window back before the frame is painted.
+  // Correcting here instead of inside the chartOptions memo is what lets that memo stay pure.
+  useEffect(() => {
+    const { active, window: liveWindow, chart } = gestureRef.current;
+    if (!active || !liveWindow || !chart?.canvas) return;
+    const xOptions = chart.scales?.x?.options;
+    if (!xOptions) return;
+    // Matching bounds mean the commit already carried the live window, and the y bounds with it.
+    if (chart.scales.x.min === liveWindow.min && chart.scales.x.max === liveWindow.max) return;
+    xOptions.min = liveWindow.min;
+    xOptions.max = liveWindow.max;
+    applyLiveYBounds(chart, liveWindow);
+    chart.update('none');
+  });
+
+  // An O(all-points) scan, and chartOptions is rebuilt by anything that touches the modal, not
+  // just by a data change. Memoized so the scan stays tied to its own inputs.
   const eventAnnotations = useMemo(() => {
     const annotations = [];
 
@@ -1395,17 +1491,58 @@ export const useChartConfig = ({
     return annotations;
   }, [data, seasonId, rubyCutoff, isRankMode, eventSettings]);
 
+  // Same reasoning as eventAnnotations: a fresh array on every chartOptions rebuild makes the
+  // annotation plugin re-resolve every entry, so keep the concat identity stable too.
+  const annotations = useMemo(
+    () => [...rankAnnotations, ...eventAnnotations],
+    [rankAnnotations, eventAnnotations]
+  );
+
   const chartOptions = useMemo(() => {
     if (!data) return null;
 
     const { min: overallMin, max: overallMax } = overallTimeDomain;
 
     // The 'viewWindow' from props is our starting point (e.g., last 7 days from button).
-    // The 'manualViewWindow' is the state updated by user zoom/pan.
-    // We decide which one is currently active.
+    // The 'manualViewWindow' is the state committed when a zoom/pan gesture ends.
+    // We decide which one is currently active. Mid-gesture it is deliberately stale; the effect
+    // above puts the live window back once the commit has landed.
     const activeViewWindow = isManuallyZoomed && manualViewWindow ? manualViewWindow : viewWindow;
 
     const { min: initialMinY, max: initialMaxY, stepSize: initialStepSize, floorTick: initialFloorTick } = calculateYAxisBounds(data, activeViewWindow);
+
+    const tickFormatter = isHistoricalSeason ? TICK_FORMATTER_WITH_YEAR : TICK_FORMATTER;
+
+    // Shape has to match what applyLiveYBounds writes onto the live scale, so a gesture and a
+    // commit can never describe the axis differently.
+    const yScaleOptions = {
+      min: initialMinY,
+      max: initialMaxY,
+      _floorTick: initialFloorTick,
+      reverse: isRankMode, // rank mode plots an inverted axis so #1 sits at the top
+      grid: { color: gridColor },
+      ticks: {
+        color: '#cecfd3',
+        callback: value => isRankMode ? `#${Math.round(value).toLocaleString()}` : Math.round(value).toLocaleString(),
+        stepSize: initialStepSize,
+        maxTicksLimit: 15,
+      },
+      // Rank axis can sit slightly above #1 for headroom; strip the impossible (<#1) ticks
+      // that headroom creates and guarantee the best-rank floor tick stays visible.
+      afterBuildTicks: isRankMode ? (axis) => {
+        // Off the resolved scale options, not this closure: a gesture writes _floorTick and
+        // min/max to the same place, and a closure would hold the old pair against them.
+        const floorTick = axis.options._floorTick;
+        let ticks = axis.ticks.filter(t => t.value >= 1);
+        if (floorTick != null && !ticks.some(t => Math.round(t.value) === floorTick)) {
+          ticks.push({ value: floorTick, major: false });
+        }
+        const seen = new Set();
+        axis.ticks = ticks
+          .filter(t => { const k = Math.round(t.value); if (seen.has(k)) return false; seen.add(k); return true; })
+          .sort((a, b) => a.value - b.value);
+      } : undefined,
+    };
 
     return {
       responsive: true,
@@ -1424,7 +1561,10 @@ export const useChartConfig = ({
           time: {
             displayFormats: TIME.DISPLAY_FORMATS,
             tooltipFormat: 'd MMM yyyy HH:mm',
-            unit: 'hour',
+            // minUnit, not unit. Pinning the unit makes chart.js generate one tick per hour
+            // across the whole window (thousands on a full season) and label every one of them
+            // before autoSkip discards all but maxTicksLimit.
+            minUnit: 'hour',
             adapters: {
               date: {
                 locale: Intl.DateTimeFormat().resolvedOptions().locale
@@ -1440,42 +1580,12 @@ export const useChartConfig = ({
             maxTicksLimit: isMobile ? 7 : 20,
             padding: 4,
             align: 'end',
-            callback: function (value) {
-              const date = new Date(value);
-              const options = { ...TIME.FORMAT };
-              if (isHistoricalSeason) {
-                options.year = 'numeric';
-              }
-              return date.toLocaleString(undefined, options);
-            }
+            callback: (value) => tickFormatter.format(value)
           },
           min: activeViewWindow?.min,
           max: activeViewWindow?.max
         },
-        y: {
-          min: initialMinY,
-          max: initialMaxY,
-          reverse: isRankMode, // rank mode plots an inverted axis so #1 sits at the top
-          grid: { color: gridColor },
-          ticks: {
-            color: '#cecfd3',
-            callback: value => isRankMode ? `#${Math.round(value).toLocaleString()}` : Math.round(value).toLocaleString(),
-            stepSize: initialStepSize,
-            maxTicksLimit: 15,
-          },
-          // Rank axis can sit slightly above #1 for headroom; strip the impossible (<#1) ticks
-          // that headroom creates and guarantee the best-rank floor tick stays visible.
-          afterBuildTicks: isRankMode ? (axis) => {
-            let ticks = axis.ticks.filter(t => t.value >= 1);
-            if (initialFloorTick != null && !ticks.some(t => Math.round(t.value) === initialFloorTick)) {
-              ticks.push({ value: initialFloorTick, major: false });
-            }
-            const seen = new Set();
-            axis.ticks = ticks
-              .filter(t => { const k = Math.round(t.value); if (seen.has(k)) return false; seen.add(k); return true; })
-              .sort((a, b) => a.value - b.value);
-          } : undefined,
-        }
+        y: yScaleOptions
       },
       plugins: {
         zoom: {
@@ -1490,31 +1600,21 @@ export const useChartConfig = ({
             enabled: true,
             mode: 'x',
             modifierKey: null,
-            onPanStart: () => {
-              setIsManuallyZoomed(true);
-              if (onZoomOrPan) onZoomOrPan();
-            },
+            onPanStart: (ctx) => startGesture(ctx.chart),
             onPan: (ctx) => handleChartUpdate(ctx.chart),
-            onPanComplete: () => {
-              setSelectedTimeRange(null);
-            }
+            onPanComplete: (ctx) => completeGesture(ctx.chart)
           },
           zoom: {
             wheel: { enabled: true },
             pinch: { enabled: true },
             mode: 'x',
-            onZoomStart: () => {
-              setIsManuallyZoomed(true);
-              if (onZoomOrPan) onZoomOrPan();
-            },
+            onZoomStart: (ctx) => startGesture(ctx.chart),
             onZoom: (ctx) => handleChartUpdate(ctx.chart),
-            onZoomComplete: () => {
-              setSelectedTimeRange(null);
-            }
+            onZoomComplete: (ctx) => completeGesture(ctx.chart)
           },
         },
         annotation: {
-          annotations: [...rankAnnotations, ...eventAnnotations]
+          annotations
         },
         tooltip: {
           enabled: false,
@@ -1531,6 +1631,20 @@ export const useChartConfig = ({
           onClick: (evt, item, legend) => {
             // Run the default behavior
             ChartJS.defaults.plugins.legend.onClick(evt, item, legend);
+            // It sets item.hidden to the new state, which is what the y-axis bounds need.
+            // Datasets run [main player, ...comparisonData keys], so index 0 is the main one.
+            const toggledId = item.datasetIndex === 0
+              ? MAIN_DATASET_ID
+              : Array.from(comparisonData.keys())[item.datasetIndex - 1];
+            const nowHidden = item.hidden === true;
+            if (toggledId !== undefined) {
+              setHiddenPlayerIds(prev => {
+                if (prev.has(toggledId) === nowHidden) return prev;
+                const next = new Set(prev);
+                if (nowHidden) next.add(toggledId); else next.delete(toggledId);
+                return next;
+              });
+            }
             // Then, trigger a state update to force a Y-axis recalculation
             setTimeout(() => {
               const chart = legend.chart;
@@ -1564,13 +1678,13 @@ export const useChartConfig = ({
     isManuallyZoomed,
     manualViewWindow,
     calculateYAxisBounds,
-    rankAnnotations,
-    eventAnnotations,
+    annotations,
     externalTooltipHandler,
     overallTimeDomain,
-    onZoomOrPan,
-    setSelectedTimeRange,
+    comparisonData,
     handleChartUpdate,
+    startGesture,
+    completeGesture,
     isHistoricalSeason,
     isRankMode,
     isMobile,
@@ -1727,6 +1841,10 @@ export const useChartConfig = ({
         : ` ${embarkId}`,
       _legendColor: '#FAF9F6',
       normalized: true,
+      // Seeds visibility for a dataset chart.js hasn't seen before (a re-added comparison, or a
+      // relabelled one after a season switch). An existing meta.hidden still wins, so this can't
+      // fight the legend; it only keeps a fresh meta agreeing with the y-axis bounds.
+      hidden: hiddenPlayerIds.has(MAIN_DATASET_ID),
       data: buildPoints(data),
       segment: {
         borderColor: (ctx) => getBorderColor(ctx, '#FAF9F6', eventSettings, isRankMode),
@@ -1746,6 +1864,7 @@ export const useChartConfig = ({
       label: winrate !== null ? ` ${compareId} (${winrate}% WR)` : ` ${compareId}`,
       _legendColor: color,
       normalized: true,
+      hidden: hiddenPlayerIds.has(compareId),
       data: buildPoints(compareData),
       segment: {
         borderColor: (ctx) => getBorderColor(ctx, color, eventSettings, isRankMode),
@@ -1761,7 +1880,7 @@ export const useChartConfig = ({
       pointHoverRadius: ctx => getPointRadius(ctx) * 1.5,
       tension: 0.01
     }))]
-  } : null, [data, embarkId, comparisonData, eventSettings, getPointRadius, getPointStyle, getPointRotation, getPointBackgroundColor, getPointBorderColor, mainPlayerWinrate, buildPoints, isRankMode]);
+  } : null, [data, embarkId, comparisonData, eventSettings, getPointRadius, getPointStyle, getPointRotation, getPointBackgroundColor, getPointBorderColor, mainPlayerWinrate, buildPoints, isRankMode, hiddenPlayerIds]);
 
   return { chartOptions, chartData };
 };

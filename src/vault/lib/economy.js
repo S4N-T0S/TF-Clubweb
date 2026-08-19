@@ -17,7 +17,10 @@ export const SOURCE_LABELS = {
   thirdpartysubscription: 'Subscription perk',
   unknown: 'Unknown',
 };
-export const sourceLabel = (s) => SOURCE_LABELS[s] || s || 'Unknown';
+// hasOwn on the label tables below: they are keyed by raw export values, and a
+// "__proto__" one would otherwise return Object.prototype (React throws when an
+// object reaches it as a child) or a function for "constructor" (renders blank).
+export const sourceLabel = (s) => (Object.hasOwn(SOURCE_LABELS, s) ? SOURCE_LABELS[s] : s || 'Unknown');
 
 export const SOURCE_TONES = {
   realmoneytransaction: 'yellow',
@@ -40,7 +43,7 @@ export const STORE_LABELS = {
   twitch: 'Twitch',
   giveaway: 'Giveaway',
 };
-export const storeLabel = (s) => (s ? STORE_LABELS[s] || s : '—');
+export const storeLabel = (s) => (s && Object.hasOwn(STORE_LABELS, s) ? STORE_LABELS[s] : s || '—');
 
 // TransactionLog.TransactionType -> friendly label. `purchasewithoutconsume` is still a purchase (the consumable just wasn't burned yet); show it as one
 export const TYPE_LABELS = {
@@ -51,7 +54,7 @@ export const TYPE_LABELS = {
   rewarddurables: 'Reward',
   revokedurables: 'Revoked',
 };
-export const typeLabel = (t) => TYPE_LABELS[t] || t || '—';
+export const typeLabel = (t) => (Object.hasOwn(TYPE_LABELS, t) ? TYPE_LABELS[t] : t || '—');
 
 // HardCurrencyLog.LogType -> label + badge tone + sign (+1 inflow / -1 outflow)
 export const LOGTYPE_META = {
@@ -61,7 +64,7 @@ export const LOGTYPE_META = {
   spent: { label: 'Spent', tone: 'red', sign: -1 },
   unknown: { label: 'Other', tone: 'gray', sign: 1 },
 };
-export const logTypeMeta = (t) => LOGTYPE_META[t] || { label: t || 'Unknown', tone: 'gray', sign: 0 };
+export const logTypeMeta = (t) => (Object.hasOwn(LOGTYPE_META, t) ? LOGTYPE_META[t] : { label: t || 'Unknown', tone: 'gray', sign: 0 });
 
 // Transaction-log filter groups (button -> the set of Sources it matches). `match: null` = show everything
 export const SOURCE_GROUPS = [
@@ -150,8 +153,8 @@ export const DLC_NAMES = {
   1808500: 'ARC Raiders',
 };
 export const steamAppUrl = (id) => `https://store.steampowered.com/app/${id}/`;
-export const resolveDlc = (id) => ({
-  name: DLC_NAMES[id] || `Steam DLC #${id}`,
-  known: id in DLC_NAMES,
-  url: steamAppUrl(id),
-});
+export const resolveDlc = (id) => {
+  // `in` walks the prototype chain, so it would report DLC #constructor as known.
+  const known = Object.hasOwn(DLC_NAMES, id);
+  return { name: known ? DLC_NAMES[id] : `Steam DLC #${id}`, known, url: steamAppUrl(id) };
+};

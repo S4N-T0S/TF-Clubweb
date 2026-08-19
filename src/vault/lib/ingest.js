@@ -32,7 +32,8 @@ const MONTHS = {
 function parseReadmeName(name) {
   const m = name.match(/readme[_ ]+(\d{1,2})[_ ]+([a-z]+)[_ ]+(\d{4})(?:\((\d+)\)|[_ ]+(\d+))?/i);
   if (!m) return null;
-  const month = MONTHS[m[2].toLowerCase()];
+  const monthKey = m[2].toLowerCase();
+  const month = Object.hasOwn(MONTHS, monthKey) ? MONTHS[monthKey] : null;
   if (month == null) return null;
   const day = Number(m[1]);
   const year = Number(m[3]);

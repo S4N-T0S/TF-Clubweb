@@ -477,7 +477,7 @@ function buildPlatformNameHistory(raw) {
     const uid = r.third_party_user_id != null ? String(r.third_party_user_id) : `pid:${r.third_party_provider_id}`;
     const provider =
       idToProvider.get(uid) ||
-      NUMERIC_PROVIDER[r.third_party_provider_id] ||
+      (Object.hasOwn(NUMERIC_PROVIDER, r.third_party_provider_id) ? NUMERIC_PROVIDER[r.third_party_provider_id] : null) ||
       (r.third_party_provider_id != null ? `provider-${r.third_party_provider_id}` : 'unknown');
     let acc = byAccount.get(uid);
     if (!acc) byAccount.set(uid, (acc = { uid, provider, events: [] }));
@@ -531,7 +531,10 @@ const INVENTORY_LABELS = {
   Sanction: 'Sanctions',
   PersistentEntity: 'Persistent entities',
 };
-const humanizeType = (t) => INVENTORY_LABELS[t] || t.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+// hasOwn on the export-keyed tables in this file: an InventoryItem Type of
+// "__proto__" would otherwise return Object.prototype, and React throws when an
+// object reaches it as a child ("constructor" returns a function and renders blank).
+const humanizeType = (t) => (Object.hasOwn(INVENTORY_LABELS, t) ? INVENTORY_LABELS[t] : t.replace(/([a-z0-9])([A-Z])/g, '$1 $2'));
 
 function buildInventory(byType) {
   const rows = byType.InventoryItem || [];
@@ -581,7 +584,7 @@ function aggregateBucket(buckets) {
   out.RoundWinRate = out.RoundsPlayed ? out.RoundsWon / out.RoundsPlayed : null;
   out.TournamentWinRate = out.TournamentsPlayed ? out.TournamentsWon / out.TournamentsPlayed : null;
   // TimePlayedByArchetype is a per-archetype map -> merge by key.
-  const arch = {};
+  const arch = Object.create(null); // archetype keys are raw export data
   for (const b of buckets) for (const k in b?.TimePlayedByArchetype || {}) arch[k] = (arch[k] || 0) + (b.TimePlayedByArchetype[k] || 0);
   out.TimePlayedByArchetype = Object.keys(arch).length ? arch : null;
   return out;
@@ -1686,7 +1689,7 @@ function buildAntiCheat(raw) {
   const FP_LABEL = { tpm: 'TPM', fmw: 'Firmware', usn: 'Disk serial', legacy: 'Legacy ID' };
   const HARDWARE_METHODS = new Set(['tpm', 'fmw', 'usn']);
   const fingerprintMethods = [...fpByMethod.entries()]
-    .map(([key, set]) => ({ key, label: FP_LABEL[key] || key, distinct: set.size, hardware: HARDWARE_METHODS.has(key) }))
+    .map(([key, set]) => ({ key, label: Object.hasOwn(FP_LABEL, key) ? FP_LABEL[key] : key, distinct: set.size, hardware: HARDWARE_METHODS.has(key) }))
     .sort((a, b) => Number(b.hardware) - Number(a.hardware) || b.distinct - a.distinct);
   const hardwareCounts = fingerprintMethods.filter((m) => m.hardware).map((m) => m.distinct);
   const legacyCounts = fingerprintMethods.filter((m) => !m.hardware).map((m) => m.distinct);
@@ -1734,7 +1737,7 @@ function buildAntiCheat(raw) {
 // lib/cs.js (pdfjs). Its older layout also duplicates the chat (censored only);
 // the newer "Customer Support Data Export" layout carries tickets alone.
 const CHAT_CHANNELS = { pl: 'Lobby', party: 'Party' };
-export const chatChannelLabel = (ch) => CHAT_CHANNELS[ch] || ch || 'Chat';
+export const chatChannelLabel = (ch) => (Object.hasOwn(CHAT_CHANNELS, ch) ? CHAT_CHANNELS[ch] : ch || 'Chat');
 
 function buildSupport(raw) {
   const rows = raw.audit?.byType?.ChatMessageSent || [];
@@ -1777,7 +1780,7 @@ function buildReports(raw) {
       target: r.target_client?.origin_uuid || null,
     }))
     .sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0)); // newest first
-  const byReason = {};
+  const byReason = Object.create(null); // report reasons are raw export data
   for (const r of reports) byReason[r.reason] = (byReason[r.reason] || 0) + 1;
   return { count: reports.length, reports, byReason };
 }

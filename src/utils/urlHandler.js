@@ -20,7 +20,8 @@ export const isValidEmbarkId = (id) => {
   // - Can contain letters (any unicode letter), numbers, dots, dashes, underscores
   // - Must not contain our URL separators
   // - Must not be only special characters
-  if (!/^(?=.*[\p{L}0-9])[\p{L}0-9._-]+$/u.test(name) || 
+  // - At most 16 code points
+  if (!/^(?=.*[\p{L}0-9])[\p{L}0-9._-]{1,16}$/u.test(name) ||
       name.includes(URL_HASH_REPLACEMENT) || 
       name.includes(COMPARE_SEPARATOR)) return false;
   

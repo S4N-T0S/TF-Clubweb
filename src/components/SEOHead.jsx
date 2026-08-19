@@ -19,6 +19,23 @@ const WEAPON_NAMES = {
   'r-357': 'R .357', 'bfr-titan': 'BFR TITAN', 'lewis-gun': 'LEWIS GUN', 'm60': 'M60', 'shak-50': 'SHAK-50',
 };
 
+// Hand-picked allowlist for search text reflected into page metadata: narrower than
+// parseSearchQuery accepts, not tied to isValidEmbarkId. Sync with functions/[[path]].js.
+const SEARCH_QUERY_PATTERN = /^[\p{L}\p{N} _.#[\]-]{1,50}$/u;
+
+// A searched leaderboard is only worth indexing when the query is a bare club tag.
+// handleClubClick and modalHrefs are the only places the site links one, and both emit
+// exactly `[TAG]`. Kept in sync with functions/[[path]].js.
+const CLUB_TAG_SEARCH = /^\[[A-Za-z0-9]{2,5}\]$/;
+
+// The `/graph/:season/` slug is user-supplied. Mirrors App.jsx (parseInt, current
+// season when that fails) and additionally rejects ids no season has.
+const validSeasonId = (raw) => {
+  const current = SEASONS[currentSeasonKey]?.id;
+  const n = parseInt(raw, 10);
+  return n >= 1 && n <= current ? n : current;
+};
+
 export const SEOHead = ({
   view,
   weaponSlug,
@@ -36,37 +53,38 @@ export const SEOHead = ({
   let keywords = 'THE FINALS OG CLUB, PLAYER STATS, TOP CLUBS, TOP PLAYERS, LEADERBOARDS, GRAPHS, CHARTS, TRACKING, THE FINALS';
   let canonicalPath = location.pathname;
   let canonicalSearch = '';
+  let noindex = false;
   // Dynamic social card, rendered at the edge by functions/og/[[path]].js
   let ogImage = null;
   let ogImageAlt = null;
 
   // 1. Priority: Graph Modal
   if (graphModalState && graphModalState.isOpen) {
+    const seasonId = validSeasonId(graphModalState.seasonId);
+    const seasonText = seasonId ? `(Season ${seasonId})` : '';
+
     if (graphModalState.compareIds && graphModalState.compareIds.length > 0) {
       const names = [graphModalState.embarkId, ...graphModalState.compareIds].join(' vs ');
-      const seasonText = graphModalState.seasonId ? `(Season ${graphModalState.seasonId})` : '';
       title = `Comparison: ${names} ${seasonText} | THE FINALS Tracker`;
       description = `Compare The Finals rank history and stats for ${names} on the OG Club Dashboard.`;
       keywords = `${names}, comparison, rank graph, stats, the finals, rank charts`;
     } else {
       const name = graphModalState.embarkId || 'Player';
-      const seasonText = graphModalState.seasonId ? `(Season ${graphModalState.seasonId})` : '';
       title = `${name} Graph ${seasonText} | THE FINALS Tracker`;
       description = `View detailed rank progression and score history for ${name} in The Finals.`;
       keywords = `${name}, ${name} stats, rank graph, the finals tracker, rank charts, the finals`;
     }
 
     // SEO Fix: Force the legacy `/graph/:graph` route to point to the new `/graph/:season/:graph` route
-    if (graphModalState.seasonId && !canonicalPath.includes(`/${graphModalState.seasonId}/`)) {
+    if (seasonId && !canonicalPath.includes(`/${seasonId}/`)) {
        // If URL is /graph/x&a&b, this pops 'x&a&b' and formats it properly as /graph/9/x&a&b
        const urlSafeId = canonicalPath.split('/').pop();
-       canonicalPath = `/graph/${graphModalState.seasonId}/${urlSafeId}`;
+       canonicalPath = `/graph/${seasonId}/${urlSafeId}`;
     }
 
     if (isValidEmbarkId(graphModalState.embarkId)) {
       const names = [graphModalState.embarkId, ...(graphModalState.compareIds || []).filter(isValidEmbarkId)];
-      const ogSeason = graphModalState.seasonId ?? currentSeasonKey.substring(1);
-      ogImage = `${OG_IMAGE_BASE}/og/graph/${ogSeason}/${names.map(encodeForPath).join('&')}.png`;
+      ogImage = `${OG_IMAGE_BASE}/og/graph/${seasonId}/${names.map(encodeForPath).join('&')}.png`;
       ogImageAlt = `Rank score graph for ${names.join(' vs ')} in THE FINALS`;
     }
   }
@@ -136,7 +154,9 @@ export const SEOHead = ({
         break;
       }
       case 'spray': {
-        const weaponName = weaponSlug ? WEAPON_NAMES[weaponSlug.toLowerCase()] : null;
+        // hasOwn, or `constructor`/`__proto__` resolve to inherited members.
+        const slug = weaponSlug ? weaponSlug.toLowerCase() : null;
+        const weaponName = slug && Object.hasOwn(WEAPON_NAMES, slug) ? WEAPON_NAMES[slug] : null;
         if (weaponName) {
           title = `${weaponName} Spray Pattern & Recoil | THE FINALS Tracker`;
           description = `Interactive ${weaponName} spray pattern and recoil control guide for The Finals. See the true-to-scale recoil pattern and practice countering it shot by shot.`;
@@ -145,6 +165,9 @@ export const SEOHead = ({
           title = 'Spray Patterns & Recoil Guide | THE FINALS Tracker';
           description = 'Interactive THE FINALS spray patterns and recoil control guides, from pistols and SMGs to rifles and LMGs. Compare true-to-scale recoil and practice shot by shot.';
           keywords = 'the finals spray patterns, the finals recoil, recoil control, spray pattern, weapon guide, the finals weapons';
+          // SprayPatternsView drops an unknown slug from the URL on mount, so point
+          // at the base page now rather than self-canonicalising until it does.
+          if (slug) canonicalPath = '/spray-patterns';
         }
         ogImage = `${OG_IMAGE_BASE}/og/spray.png`;
         ogImageAlt = 'THE FINALS spray patterns and recoil control guide — see where each bullet lands, learn the counter-pull';
@@ -188,9 +211,10 @@ export const SEOHead = ({
           let searchTitlePrefix = '';
           let searchDesc = '';
 
-          if (rawSearch && rawSearch.trim() !== '') {
-            validSearch = rawSearch.trim().substring(0, 50);
-            
+          const searchQuery = rawSearch ? rawSearch.trim() : '';
+          if (SEARCH_QUERY_PATTERN.test(searchQuery)) {
+            validSearch = searchQuery;
+
             if (validSearch.startsWith('[')) {
               // Extract the tag name without brackets
               const cleanTag = validSearch.replace(/[[\]]/g, '');
@@ -227,6 +251,8 @@ export const SEOHead = ({
             }
           }
 
+          noindex = searchQuery !== '' && !CLUB_TAG_SEARCH.test(searchQuery);
+
           const canonicalParams = new URLSearchParams();
           if (validSearch) canonicalParams.set('search', validSearch);
           if (validSeason) canonicalParams.set('season', validSeason);
@@ -250,7 +276,10 @@ export const SEOHead = ({
     ? canonicalPath.slice(0, -1) 
     : canonicalPath;
     
-  const canonicalUrl = `${SITE_URL}${cleanPath}${canonicalSearch}`;
+  // A noindexed page must not carry a canonical to a different URL: the params here
+  // are reordered and re-encoded, so it would rarely be self-referential and Google
+  // can pass the noindex on to whatever it points at. Emit no canonical instead.
+  const canonicalUrl = noindex ? null : `${SITE_URL}${cleanPath}${canonicalSearch}`;
 
   if (!ogImage) {
     ogImage = `${OG_IMAGE_BASE}/og/home.png`;
@@ -264,14 +293,16 @@ export const SEOHead = ({
       <meta name="description" content={description} />
       <meta name="keywords" content={keywords} />
 
+      {noindex && <meta name="robots" content="noindex, nofollow" />}
+
       {/* Clean canonical urls */}
-      <link rel="canonical" href={canonicalUrl} />
+      {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
 
       {/* Open Graph (Social Media) */}
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       {/* Updates og:url to ensure Discord unfurls the exact page */}
-      <meta property="og:url" content={canonicalUrl} />
+      {canonicalUrl && <meta property="og:url" content={canonicalUrl} />}
       <meta property="og:image" content={ogImage} />
       <meta property="og:image:alt" content={ogImageAlt} />
 

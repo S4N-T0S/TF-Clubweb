@@ -15,7 +15,6 @@ const OG_IMAGE_BASE = 'https://api.ogclub.s4nt0s.eu';
 // Current/latest season
 const CURRENT_SEASON_NUM = 11;
 const CURRENT_SEASON_KEY = `S${CURRENT_SEASON_NUM}`;
-const FALLBACK_SEASON_ID = String(CURRENT_SEASON_NUM);
 
 // Slug -> display name for spray-pattern weapon pages.
 // Kept in sync with SEOHead.jsx and src/data/recoil/weapons.json.
@@ -25,6 +24,15 @@ const WEAPON_NAMES = {
   'chimera-xb': 'CHIMERA-XB', 'famas': 'FAMAS', 'fcar': 'FCAR', 'p90': 'P90', 'pike-556': 'PIKE-556',
   'r-357': 'R .357', 'bfr-titan': 'BFR TITAN', 'lewis-gun': 'LEWIS GUN', 'm60': 'M60', 'shak-50': 'SHAK-50',
 };
+
+// Hand-picked allowlist for search text reflected into page metadata: narrower than
+// parseSearchQuery accepts, not tied to isValidEmbarkId. Sync with SEOHead.jsx.
+const SEARCH_QUERY_PATTERN = /^[\p{L}\p{N} _.#[\]-]{1,50}$/u;
+
+// A searched leaderboard is only worth indexing when the query is a bare club tag.
+// handleClubClick and modalHrefs are the only places the site links one, and both emit
+// exactly `[TAG]`. Kept in sync with SEOHead.jsx.
+const CLUB_TAG_SEARCH = /^\[[A-Za-z0-9]{2,5}\]$/;
 
 const BOT_USER_AGENTS = /bot|crawler|spider|crawling|facebookexternalhit|meta-external|chatgpt|perplexity|anthropic|claude-web|cohere|googleother|google-inspectiontool|slurp|qwantify|whatsapp|skype|slack|line|vkshare|telegram/i;
 const STATIC_ASSET_REGEX = /\.(js|css|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|eot|mp4|webm|json|md|xml|webmanifest|txt|map)$/i;
@@ -61,10 +69,19 @@ function isValidEmbarkId(id) {
   // Must have a strictly 4-digit discriminator
   if (!/^\d{4}$/.test(discriminator)) return false;
   
-  // Name validation (alphanumeric, dots, dashes, underscores)
-  if (!/^(?=.*[\p{L}0-9])[\p{L}0-9._-]+$/u.test(name)) return false;
+  // Name validation (alphanumeric, dots, dashes, underscores), max 16 code points.
+  if (!/^(?=.*[\p{L}0-9])[\p{L}0-9._-]{1,16}$/u.test(name)) return false;
   
   return true;
+}
+
+/**
+ * The `/graph/:season/` slug is user-supplied. Mirrors App.jsx (parseInt, current
+ * season when that fails) and additionally rejects ids no season has.
+ */
+function validSeasonId(raw) {
+  const n = parseInt(raw, 10);
+  return n >= 1 && n <= CURRENT_SEASON_NUM ? n : CURRENT_SEASON_NUM;
 }
 
 /**
@@ -100,7 +117,9 @@ function parseMultipleUsernames(urlString) {
   
   const main = parseUsername(parts[0]);
   
-  const compare = parts.slice(1)
+  // Same 5-comparison ceiling as urlHandler.parseMultipleUsernamesFromUrl, so a
+  // longer list does not reflect extra names the client would never render.
+  const compare = parts.slice(1, 6)
     .map(parseUsername)
     .filter(name => name !== 'Player' && Boolean(name)); // Filter out invalid comparison names
     
@@ -120,7 +139,8 @@ function generateMetadata(url) {
     title: 'THE FINALS Tracker Dashboard',
     description: 'The Finals OG Club Dashboard. Track The Finals players in real time. View graphs, clubs, historical seasons, name changes and ban events.',
     keywords: 'THE FINALS OG CLUB, PLAYER STATS, TOP CLUBS, TOP PLAYERS, LEADERBOARDS, GRAPHS, CHARTS, TRACKING, THE FINALS',
-    url: '', // Computed at the end
+    url: '', // Computed at the end, omitted entirely when noindex
+    noindex: false,
     image: '', // Dynamic per-page card, defaulted at the end
     imageAlt: ''
   };
@@ -133,11 +153,11 @@ function generateMetadata(url) {
     let graphStr = '';
 
     if (parts.length >= 3) {
-      seasonId = parts[1];
+      seasonId = validSeasonId(parts[1]);
       graphStr = parts.slice(2).join('/');
     } else if (parts.length === 2) {
       graphStr = parts[1];
-      seasonId = FALLBACK_SEASON_ID;
+      seasonId = CURRENT_SEASON_NUM;
     }
 
     const parsed = parseMultipleUsernames(graphStr);
@@ -157,14 +177,15 @@ function generateMetadata(url) {
 
     // Dynamic rank-score card render
     if (parsed.main) {
-      const ogSeason = seasonId && /^\d{1,2}$/.test(seasonId) ? seasonId : FALLBACK_SEASON_ID;
       const namesPath = [parsed.main, ...parsed.compare].map(encodeForPath).join(COMPARE_SEPARATOR);
-      meta.image = `${OG_IMAGE_BASE}/og/graph/${ogSeason}/${namesPath}.png`;
+      meta.image = `${OG_IMAGE_BASE}/og/graph/${seasonId}/${namesPath}.png`;
       meta.imageAlt = `Rank score graph for ${[parsed.main, ...parsed.compare].join(' vs ')} in THE FINALS`;
     }
 
-    // SEO Fix: Mirroring SEOHead.jsx legacy graph route to new graph route
-    if (seasonId && !canonicalPath.includes(`/${seasonId}/`)) {
+    // SEO Fix: Mirroring SEOHead.jsx legacy graph route to new graph route.
+    // Gated on parsed.main because SEOHead only reaches this when the id parses
+    // (isGraphOpen), so rewriting an unparseable one would diverge from the client.
+    if (parsed.main && seasonId && !canonicalPath.includes(`/${seasonId}/`)) {
        const urlSafeId = canonicalPath.split('/').pop();
        canonicalPath = `/graph/${seasonId}/${urlSafeId}`;
     }
@@ -224,7 +245,8 @@ function generateMetadata(url) {
     if (q) canonicalSearch = `?${q}`;
   } else if (baseRoute === 'spray-patterns') {
     const slug = parts.length > 1 ? parts[1].toLowerCase() : null;
-    const weaponName = slug ? WEAPON_NAMES[slug] : null;
+    // hasOwn, or `constructor`/`__proto__` resolve to inherited members.
+    const weaponName = slug && Object.hasOwn(WEAPON_NAMES, slug) ? WEAPON_NAMES[slug] : null;
     if (weaponName) {
       meta.title = `${weaponName} Spray Pattern & Recoil | THE FINALS Tracker`;
       meta.description = `Interactive ${weaponName} spray pattern and recoil control guide for The Finals. See the true-to-scale recoil pattern and practice countering it shot by shot.`;
@@ -300,9 +322,10 @@ function generateMetadata(url) {
     let searchTitlePrefix = '';
     let searchDesc = '';
 
-    if (rawSearch && rawSearch.trim() !== '') {
-      validSearch = rawSearch.trim().substring(0, 50);
-      
+    const searchQuery = rawSearch ? rawSearch.trim() : '';
+    if (SEARCH_QUERY_PATTERN.test(searchQuery)) {
+      validSearch = searchQuery;
+
       if (validSearch.startsWith('[')) {
         // Extract the tag name without brackets
         const cleanTag = validSearch.replace(/[[\]]/g, '');
@@ -339,6 +362,8 @@ function generateMetadata(url) {
       }
     }
 
+    meta.noindex = searchQuery !== '' && !CLUB_TAG_SEARCH.test(searchQuery);
+
     const canonicalParams = new URLSearchParams();
     if (validSearch) canonicalParams.set('search', validSearch);
     if (validSeason) canonicalParams.set('season', validSeason);
@@ -362,7 +387,10 @@ function generateMetadata(url) {
     ? canonicalPath.slice(0, -1)
     : canonicalPath;
 
-  meta.url = `${BASE_URL}${cleanPath}${canonicalSearch}`;
+  // A noindexed page must not carry a canonical to a different URL: the params here
+  // are reordered and re-encoded, so it would rarely be self-referential and Google
+  // can pass the noindex on to whatever it points at. Emit no canonical instead.
+  meta.url = meta.noindex ? '' : `${BASE_URL}${cleanPath}${canonicalSearch}`;
 
   // Every page carries a card; routes without a bespoke one use the site card.
   if (!meta.image) {
@@ -379,8 +407,13 @@ class HeadHandler {
     this.meta = meta;
   }
   element(element) {
-    element.append(`<meta property="og:url" content="${escapeHTML(this.meta.url)}" />\n`, { html: true });
-    element.append(`<link rel="canonical" href="${escapeHTML(this.meta.url)}" />\n`, { html: true });
+    if (this.meta.noindex) {
+      element.append(`<meta name="robots" content="noindex, nofollow" />\n`, { html: true });
+    }
+    if (this.meta.url) {
+      element.append(`<meta property="og:url" content="${escapeHTML(this.meta.url)}" />\n`, { html: true });
+      element.append(`<link rel="canonical" href="${escapeHTML(this.meta.url)}" />\n`, { html: true });
+    }
     element.append(`<meta name="twitter:title" content="${escapeHTML(this.meta.title)}" />\n`, { html: true });
     element.append(`<meta name="twitter:description" content="${escapeHTML(this.meta.description)}" />\n`, { html: true });
     if (this.meta.jsonLd) {

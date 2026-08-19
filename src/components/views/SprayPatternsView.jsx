@@ -16,9 +16,9 @@ const WeaponVideo = ({ weapon, videoRef, sync, onReady }) => {
     if (videoRef.current) videoRef.current.volume = 0.05;
   }, [videoRef]);
 
-  // If the browser loaded the video entirely from cache before mounting, bypass standard events
+  // If the metadata was already cached before mounting, no further event will fire.
   useEffect(() => {
-    if (videoRef.current && videoRef.current.readyState >= 3) {
+    if (videoRef.current && videoRef.current.readyState >= 1) {
       onReady();
     }
   }, [videoRef, onReady]);
@@ -44,11 +44,9 @@ const WeaponVideo = ({ weapon, videoRef, sync, onReady }) => {
             ref={videoRef}
             src={weaponVideoSrc(weapon)}
             controls={show}
-            preload="auto"
+            preload="metadata"
             playsInline
-            onLoadedData={onReady}
-            onCanPlay={onReady}
-            onCanPlayThrough={onReady}
+            onLoadedMetadata={onReady}
             onError={() => setError(true)}
             className="w-full h-full rounded-xl bg-black"
           />

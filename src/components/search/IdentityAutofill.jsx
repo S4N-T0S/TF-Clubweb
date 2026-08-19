@@ -160,7 +160,7 @@ export const IdentityAutofill = ({
               <span className="text-white truncate block">{renderHighlighted(s.name, matchTerm)}</span>
               {s.matchedVia && s.matchedVia !== 'embark' && s.matchedValue && (
                 <span className="text-xs text-gray-400 truncate block">
-                  {MATCH_VIA_LABELS[s.matchedVia] || s.matchedVia}: {renderHighlighted(s.matchedValue, matchTerm)}
+                  {Object.hasOwn(MATCH_VIA_LABELS, s.matchedVia) ? MATCH_VIA_LABELS[s.matchedVia] : s.matchedVia}: {renderHighlighted(s.matchedValue, matchTerm)}
                 </span>
               )}
             </span>

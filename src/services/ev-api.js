@@ -4,15 +4,39 @@ import { getCacheItem, setCacheItem } from "./idbCache";
 
 const getCacheKey = (seasonKey) => `events_cache_${seasonKey || currentSeasonKey}`;
 
+// The events view groups, sorts and searches the whole multi-season feed eagerly, so a row it
+// cannot handle takes down the view even if it is never paginated into sight. Rows that fail
+// this check are dropped before they are cached, otherwise a reload just replays the poison.
+const isValidEventRow = (event) =>
+  !!event &&
+  typeof event === 'object' &&
+  typeof event.event_type === 'string' &&
+  Number.isFinite(event.start_timestamp);
+
 const transformEventData = (event, seasonKey) => {
+  if (!isValidEventRow(event)) return null;
+
   return {
     ...event,
+    // Renderers and filters destructure details unconditionally, so it must be an object.
+    details: (event.details && typeof event.details === 'object') ? event.details : {},
     seasonKey: seasonKey, // Attach source season for context-aware actions
     // Ensure timestamps are JS Date objects for easier use in components
     startTimestamp: new Date(event.start_timestamp * 1000),
-    endTimestamp: event.end_timestamp ? new Date(event.end_timestamp * 1000) : null,
+    // `> 0` keeps epoch 0 meaning "unresolved", matching the raw-field truthiness checks the
+    // graph hooks still apply. Number.isFinite additionally rejects the NaN and string cases
+    // that truthiness let through as an Invalid Date.
+    endTimestamp: Number.isFinite(event.end_timestamp) && event.end_timestamp > 0
+      ? new Date(event.end_timestamp * 1000)
+      : null,
   };
 };
+
+// Also guards the cache-read paths, which can still hold rows written before this validation.
+const transformEvents = (rows, seasonKey) =>
+  (Array.isArray(rows) ? rows : [])
+    .map((event) => transformEventData(event, seasonKey))
+    .filter(Boolean);
 
 export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) => {
   const effectiveSeasonKey = seasonKey || currentSeasonKey;
@@ -29,9 +53,9 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
         remainingTtl: Math.floor((cached.expiresAt - Date.now()) / 1000),
       });
       // The cached item's data is already structured correctly.
-      return { 
-        ...cached.data, 
-        data: cached.data.data.map(e => transformEventData(e, effectiveSeasonKey)), 
+      return {
+        ...cached.data,
+        data: transformEvents(cached.data.data, effectiveSeasonKey),
         expiresAt: cached.expiresAt,
         timestamp: cached.data.timestamp * 1000,
       };
@@ -59,9 +83,15 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
 
     // Use new centralized TTL calculator.
     const ttlForCache = calculateClientCacheTtl(headers, 30, `events (Season ${effectiveSeasonKey})`);
-    
+
+    // Cache the raw rows that passed validation, never the untouched response.
+    const validRows = result.data.filter(isValidEventRow);
+    if (validRows.length !== result.data.length) {
+      console.warn(`Dropped ${result.data.length - validRows.length} malformed event row(s) for season ${effectiveSeasonKey}.`);
+    }
+
     // Use the new cache service with the TTL derived from the Expires header
-    await setCacheItem(cacheKey, result, ttlForCache);
+    await setCacheItem(cacheKey, { ...result, data: validRows }, ttlForCache);
 
     logApiCall(result.source || 'Direct', {
       groupName: `Events (Season: ${effectiveSeasonKey})`,
@@ -71,7 +101,7 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
 
     return {
       ...result,
-      data: result.data.map(e => transformEventData(e, effectiveSeasonKey)), // Transform data for consistency
+      data: transformEvents(validRows, effectiveSeasonKey), // Transform data for consistency
       expiresAt: Date.now() + (ttlForCache * 1000),
       timestamp: result.timestamp * 1000,
     };
@@ -86,9 +116,9 @@ export const fetchRecentEvents = async (forceRefresh = false, seasonKey = null) 
     const staleCache = await getCacheItem(cacheKey, { ignoreExpiration: true });
     if (staleCache) {
         console.warn(`Returning stale event cache for season ${effectiveSeasonKey} due to network error.`);
-        return { 
-            ...staleCache.data, 
-            data: staleCache.data.data.map(e => transformEventData(e, effectiveSeasonKey)),
+        return {
+            ...staleCache.data,
+            data: transformEvents(staleCache.data.data, effectiveSeasonKey),
             expiresAt: Date.now() + 30000, // Short TTL for stale data
             timestamp: staleCache.data.timestamp * 1000,
         };

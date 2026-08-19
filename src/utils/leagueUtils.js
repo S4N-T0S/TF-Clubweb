@@ -28,7 +28,7 @@ const UNKNOWN_LEAGUE = { name: 'Unknown', style: 'text-gray-600' };
 
 export const getLeagueInfo = (leagueNumber) => {
     if (leagueNumber !== undefined && leagueNumber !== null) {
-      return LEAGUE_DATA[leagueNumber] || UNKNOWN_LEAGUE;
+      return Object.hasOwn(LEAGUE_DATA, leagueNumber) ? LEAGUE_DATA[leagueNumber] : UNKNOWN_LEAGUE;
     }
 
     return UNKNOWN_LEAGUE;

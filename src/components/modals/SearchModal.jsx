@@ -233,7 +233,11 @@ const SeasonNode = ({ row, isFirst, isLast, onClubClick, onGraphOpen, profileSea
               </button>
             )}
             {nonBanEvents.map(([type, count]) => {
-              const cfg = EVENT_CONFIG[type] || { Icon: Info, color: 'text-gray-400', label: type.toLowerCase().replace(/_/g, ' ') };
+              // hasOwn: eventCounts keys come straight from the API, and an event_type of
+              // "__proto__" would otherwise resolve to Object.prototype (no Icon -> crash).
+              const cfg = Object.hasOwn(EVENT_CONFIG, type)
+                ? EVENT_CONFIG[type]
+                : { Icon: Info, color: 'text-gray-400', label: type.toLowerCase().replace(/_/g, ' ') };
               const Icon = cfg.Icon;
               return (
                 <span
@@ -782,7 +786,7 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
                         <span className="text-white font-medium truncate block">{renderHighlighted(s.name, cardMatchTerm)}</span>
                         {s.matchedVia && s.matchedVia !== 'embark' && s.matchedValue && (
                           <span className="text-xs text-gray-400 truncate block">
-                            {MATCH_VIA_LABELS[s.matchedVia] || s.matchedVia}: {renderHighlighted(s.matchedValue, cardMatchTerm)}
+                            {Object.hasOwn(MATCH_VIA_LABELS, s.matchedVia) ? MATCH_VIA_LABELS[s.matchedVia] : s.matchedVia}: {renderHighlighted(s.matchedValue, cardMatchTerm)}
                           </span>
                         )}
                       </span>

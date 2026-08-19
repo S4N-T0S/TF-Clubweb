@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
 import { mapTunerPlugin } from './tools/vite-map-tuner.js';
 
 export default defineConfig({
@@ -25,6 +26,16 @@ export default defineConfig({
     },
     react(),
     mapTunerPlugin(),
+    {
+      name: 'strip-private-fixtures',
+      apply: 'build',
+      closeBundle() {
+        const dir = fileURLToPath(new URL('./dist/__verify', import.meta.url));
+        if (!fs.existsSync(dir)) return;
+        fs.rmSync(dir, { recursive: true, force: true });
+        this.warn('stripped dist/__verify from the build output');
+      },
+    },
     {
       name: 'generate-version-json',
       // This hook runs during the build process not dev

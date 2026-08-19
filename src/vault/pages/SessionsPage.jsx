@@ -277,7 +277,7 @@ export const SessionsPage = () => {
             {antiCheat.logins.grantTypes.map((g) => (
               <span key={g.type} className="inline-flex items-center gap-1.5 text-xs text-gray-300" title={g.type}>
                 <Badge tone="gray">{num(g.count)}</Badge>
-                {GRANT_LABELS[g.type] || g.type}
+                {Object.hasOwn(GRANT_LABELS, g.type) ? GRANT_LABELS[g.type] : g.type}
               </span>
             ))}
           </div>

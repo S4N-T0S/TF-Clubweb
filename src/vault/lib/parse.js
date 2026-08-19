@@ -17,7 +17,10 @@ const ROUND_STAT_BUCKETS = {
 // JSON Lines: each line is `{"<RecordType>": {...}}` (one top-level key).
 // Returns { byType: { RecordType: [...inner records] }, counts, total, badLines }.
 async function parseJsonl(text, onProgress = () => {}, label = 'records') {
-  const byType = {};
+  // Null prototype: the record type is whatever key the line carried, so a
+  // "__proto__" / "constructor" line would otherwise hit an inherited member
+  // (truthy, so `||=` keeps it) and `.push` on it throws.
+  const byType = Object.create(null);
   let total = 0;
   let badLines = 0;
 
@@ -68,7 +71,7 @@ function parseCsv(text) {
   const header = rows[0].split(',').map((h) => h.trim());
   return rows.slice(1).map((r) => {
     const cells = r.split(',');
-    const obj = {};
+    const obj = Object.create(null); // header names come from the file, same reason as byType
     header.forEach((h, i) => (obj[h] = (cells[i] ?? '').trim()));
     return obj;
   });

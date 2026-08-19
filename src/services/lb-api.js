@@ -4,20 +4,35 @@ import { getCacheItem, setCacheItem } from "./idbCache";
 
 const CACHE_KEY = 'leaderboard_cache';
 
+// Rows render eagerly and unwrapped, so a non-numeric field here crashes a downstream
+// `.toLocaleString()` rather than looking wrong. Checks instead of converting: Number('')
+// and Number(null) are both 0, so parsing would hide the same contract break it papers over.
+let warnedNonNumeric = false;
+const finiteOr0 = (value, field) => {
+  if (Number.isFinite(value)) return value;
+  if (!warnedNonNumeric && value !== undefined && value !== null) {
+    warnedNonNumeric = true;
+    console.warn(`Leaderboard field "${field}" is not a finite number (${typeof value}: ${value}). Using 0.`);
+  }
+  return 0;
+};
+
 const transformData = (rawData) => {
   return rawData.map(entry => {
     const transformed = {
-      rank: entry.rank,
-      change: entry.change,
+      rank: finiteOr0(entry.rank, 'rank'),
+      change: finiteOr0(entry.change, 'change'),
       name: entry.name || 'Unknown#0000',
       steamName: entry.steamName || null,
       psnName: entry.psnName || null,
       xboxName: entry.xboxName || null,
       clubTag: entry.clubTag || null,
       officialClubName: entry.officialClubName || null,
-      leagueNumber: entry.leagueNumber,
+      leagueNumber: finiteOr0(entry.leagueNumber, 'leagueNumber'),
+      // Looked up from the raw value on purpose: a missing league should still read
+      // "Unknown", not the "Unranked" that league 0 maps to.
       league: getLeagueInfo(entry.leagueNumber).name,
-      rankScore: entry.rankScore
+      rankScore: finiteOr0(entry.rankScore, 'rankScore')
     };
     return transformed;
   });

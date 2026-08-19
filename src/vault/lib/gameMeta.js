@@ -6,7 +6,10 @@ export const ARCHETYPES = {
   DA_Archetype_Medium: 'Medium',
   DA_Archetype_Heavy: 'Heavy',
 };
-export const archetypeLabel = (raw) => ARCHETYPES[raw] || (raw ? 'Unknown' : '—');
+// hasOwn on the export-keyed tables in this file: a CharacterArchetype of
+// "__proto__" would otherwise return Object.prototype, which React throws on when
+// it reaches a child ("constructor" returns a function and renders blank instead).
+export const archetypeLabel = (raw) => (Object.hasOwn(ARCHETYPES, raw) ? ARCHETYPES[raw] : (raw ? 'Unknown' : '—'));
 
 // Internal map codename -> display name
 export const MAP_NAMES = {
@@ -31,7 +34,7 @@ export const parseMapVariant = (mv) => {
   if (!m) return { map: mv, variant: null, display: mv };
   const code = m[1];
   const variant = m[3] || 'Base';
-  return { map: code, variant, display: MAP_NAMES[code] || code };
+  return { map: code, variant, display: Object.hasOwn(MAP_NAMES, code) ? MAP_NAMES[code] : code };
 };
 
 // Parse "DA_EC_Arena_01_Night" or bare "Night" -> a friendly condition string
@@ -154,16 +157,18 @@ const LTM_MAPS = {
  */
 export const classifyMode = (data) => {
   if (!data) return { label: 'Unknown', category: 'Other', teams: null, confirmed: false };
+  const scenarioId = String(data.ScenarioID);
 
   // Heavy Hitters & Heaven or Else share ScenarioID 152796620 — the arena tells them apart
-  if (String(data.ScenarioID) === '152796620') {
+  if (scenarioId === '152796620') {
     const onHeavenOrElse = parseMapVariant(data.MapVariant).map === 'HeavyHitters';
     return { label: onHeavenOrElse ? 'Heaven or Else' : 'Heavy Hitters', category: 'LTM', teams: 2, confirmed: true };
   }
 
-  const known = SCENARIO_MODES[String(data.ScenarioID)];
-  if (known) return { ...known, confirmed: true };
-  if (WORLD_TOUR_SCENARIOS.has(String(data.ScenarioID))) return { label: 'World Tour', category: 'World Tour', teams: 4, confirmed: true };
+  // Without hasOwn a "constructor" id spreads a function into the mode, which
+  // renders as a blank label while still flagged confirmed.
+  if (Object.hasOwn(SCENARIO_MODES, scenarioId)) return { ...SCENARIO_MODES[scenarioId], confirmed: true };
+  if (WORLD_TOUR_SCENARIOS.has(scenarioId)) return { label: 'World Tour', category: 'World Tour', teams: 4, confirmed: true };
 
   const { map } = parseMapVariant(data.MapVariant);
   const cond = parseCondition(data.EnvironmentalCondition);
@@ -171,7 +176,7 @@ export const classifyMode = (data) => {
   const teams = typeof data.LeaderboardPosition === 'number' ? data.LeaderboardPosition : null;
 
   // Map-based LTM detection (independent of scenario id).
-  if (map && LTM_MAPS[map]) return { label: LTM_MAPS[map], category: 'LTM', teams, confirmed: false };
+  if (map && Object.hasOwn(LTM_MAPS, map)) return { label: LTM_MAPS[map], category: 'LTM', teams, confirmed: false };
   if (map === 'Bernal' && cond === 'Fog') return { label: 'Blast Off!', category: 'LTM', teams, confirmed: false };
   if (map === 'Monaco' && /Winter/i.test(cond || '')) return { label: 'Snowball Blitz', category: 'LTM', teams, confirmed: false };
   if (map === 'Forest') return { label: 'Team Deathmatch', category: 'Casual', teams, confirmed: false }; // P.E.A.C.E. Center

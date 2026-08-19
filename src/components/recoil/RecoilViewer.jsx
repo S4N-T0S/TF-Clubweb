@@ -39,11 +39,14 @@ export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef,
   const accent = CLASS_ACCENT[weapon.class] || CLASS_ACCENT.Medium;
   const recoil = hasRecoil(weapon);
 
-  // Wrapper boolean to prevent syncing while the video is still downloading/buffering
+  // The clip is the master clock in sync mode, so wait until its duration is known.
   const activeSync = sync && videoReady;
 
-  // "Live" = this view is both the focused tab AND not covered by a modal.
-  const live = isVisible && active;
+  // "Live" = this view is the focused tab, not covered by a route modal, and not
+  // sitting behind the practice drill. The drill term mirrors the modal's own mount
+  // condition: practiceOpen can outlive the modal on a weapon with no pattern, and
+  // would otherwise pin this false with no reachable control left to clear it.
+  const live = isVisible && active && !(practiceOpen && recoil);
 
   useEffect(() => { playheadRef.current = playhead; }, [playhead]);
 
@@ -71,17 +74,24 @@ export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef,
   // Recoil control guide: the inverse of the bullet pattern (the path to pull
   // your mouse), drawn descending from the top.
   const guide = useMemo(
-    () => weapon.pattern.map(([x, y, t], i, arr) => ({
-      t: typeof t === 'number' ? t : (arr.length > 1 ? i / (arr.length - 1) : 0),
-      cx: ORIGIN_X - x * scale,
-      cy: GUIDE_TOP - y * scale,
-    })),
+    () => weapon.pattern.map(([x, y, t], i, arr) => {
+      const cx = ORIGIN_X - x * scale;
+      const cy = GUIDE_TOP - y * scale;
+      return {
+        t: typeof t === 'number' ? t : (arr.length > 1 ? i / (arr.length - 1) : 0),
+        cx,
+        cy,
+        d: `${cx.toFixed(1)} ${cy.toFixed(1)}`,
+      };
+    }),
     [weapon, scale],
   );
 
-  // Optional visual-recoil overlay: the raw aim/camera trajectory.
-  const visualTraj = useMemo(
-    () => weapon.trajectory.map(([x, y]) => [ORIGIN_X + x * scale, ORIGIN_Y + y * scale]),
+  // Optional visual-recoil overlay: the raw aim/camera trajectory. Held as
+  // pre-formatted path coordinates because this is the long one (876 points on
+  // the M60) and the animation re-derives the revealed prefix every frame.
+  const visCoords = useMemo(
+    () => weapon.trajectory.map(([x, y]) => `${(ORIGIN_X + x * scale).toFixed(1)} ${(ORIGIN_Y + y * scale).toFixed(1)}`),
     [weapon, scale],
   );
 
@@ -96,6 +106,12 @@ export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef,
     playheadRef.current = minT;
     setPlayhead(minT);
   }, [weapon.key, minT]);
+
+  // Browser Back/Forward swaps the weapon under an open drill without touching this
+  // component, so end the drill here: the run in flight was aimed at the old weapon,
+  // and on a weapon with no pattern the modal unmounts on its own and would strand
+  // practiceOpen with nothing left to close it.
+  useEffect(() => { setPracticeOpen(false); }, [weapon.key]);
 
   // Playback increments from the current playhead each frame -> pause/resume
   // continues where it left off; loop wraps instead of stopping.
@@ -230,12 +246,12 @@ export const RecoilViewer = ({ weapon, bounds, patternBounds, uniform, videoRef,
   const dotR = Math.max(2.6, Math.min(4.5, 110 / dots.length));
 
   const shownGuide = guide.filter((g) => g.t <= playhead + 1e-6);
-  const guidePath = shownGuide.length ? 'M' + shownGuide.map((g) => `${g.cx.toFixed(1)} ${g.cy.toFixed(1)}`).join(' L') : '';
+  const guidePath = shownGuide.length ? 'M' + shownGuide.map((g) => g.d).join(' L') : '';
   const activeGuide = shownGuide.length ? shownGuide[shownGuide.length - 1] : null;
 
-  const visIdx = Math.round(playhead * (visualTraj.length - 1));
-  const visPath = showVisual && visualTraj.length
-    ? 'M' + visualTraj.slice(0, visIdx + 1).map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join(' L')
+  const visIdx = Math.round(playhead * (visCoords.length - 1));
+  const visPath = showVisual && visCoords.length
+    ? 'M' + visCoords.slice(0, visIdx + 1).join(' L')
     : '';
 
   const fireRate = (weapon.rpm / 60).toFixed(1);

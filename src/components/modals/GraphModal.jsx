@@ -9,11 +9,9 @@ import { X, Plus, Settings, UserPen, Gavel, ChevronsUpDown, Users, AlertTriangle
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Chart as ChartJS,
-  CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
-  Title,
   Tooltip,
   Legend,
   TimeScale
@@ -30,15 +28,13 @@ import { LoadingDisplay } from '../LoadingDisplay';
 import { SearchBar } from '../SearchBar';
 import { getStoredGraphSettings, setStoredGraphSettings } from '../../services/localStorageManager';
 import { SEASONS, getSeasonLeaderboard } from '../../services/historicalDataService';
-import { filterPlayerByQuery } from '../../utils/searchUtils';
+import { parseSearchQuery, matchesParsedPlayer } from '../../utils/searchUtils';
 import { formatTimeAgo } from '../../utils/timeUtils';
 
 ChartJS.register(
-  CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
-  Title,
   Tooltip,
   Legend,
   TimeScale,
@@ -571,58 +567,75 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
   const modalOptions = useMemo(() => ({ type: 'nested' }), []);
   const { modalRef: modalContentRef } = useModal(true, onClose, modalOptions);
 
-  // Find main player's score from leaderboard
+  // Tested once per leaderboard row (~10k), so it has to be a set and not a scan of the keys.
+  const excluded = useMemo(() => new Set(comparisonData.keys()), [comparisonData]);
+
+  // Also read by the row list below, which would otherwise re-scan the leaderboard per row.
+  const mainPlayer = useMemo(() => leaderboard.find(p => p.name === mainEmbarkId), [leaderboard, mainEmbarkId]);
+  const baseScore = mainPlayer?.rankScore ?? mainPlayerLastDataPoint?.rankScore;
+
   const getClosestPlayers = useCallback(() => {
-    const mainPlayer = leaderboard.find(p => p.name === mainEmbarkId);
-
-    // Get all valid players (not the main player and not already in comparison)
-    const validPlayers = leaderboard.filter(player =>
-      player.name !== mainEmbarkId &&
-      !Array.from(comparisonData.keys()).includes(player.name)
-    );
-
-    let sortedPlayers;
+    let getDistance;
 
     if (mainPlayer) {
-      // Player is on the leaderboard, sort by rank distance
+      // Player is on the leaderboard, rank distance
       const mainRank = mainPlayer.rank;
-      sortedPlayers = validPlayers
-        .map(player => ({ ...player, distance: Math.abs(player.rank - mainRank) }))
-        .sort((a, b) => a.distance - b.distance);
+      getDistance = (player) => Math.abs(player.rank - mainRank);
 
     } else if (mainPlayerLastDataPoint) {
-      // Player not on leaderboard, sort by rankScore distance to last known score
+      // Player not on leaderboard, rankScore distance to last known score
       const lastKnownScore = mainPlayerLastDataPoint.rankScore;
-      sortedPlayers = validPlayers
-        .map(player => ({ ...player, distance: Math.abs(player.rankScore - lastKnownScore) }))
-        .sort((a, b) => a.distance - b.distance);
+      getDistance = (player) => Math.abs(player.rankScore - lastKnownScore);
 
     } else {
       return []; // No main player on leaderboard and no graph data available.
     }
 
-    // Take the 50 closest players and sort them by rank
-    return sortedPlayers
-      .slice(0, 50)
+    // Bounded selection rather than sorting the whole leaderboard for 50 rows. `closest` stays
+    // ordered by (distance, leaderboard index): inserting after the equal-distance entries keeps
+    // ties resolving to the earlier leaderboard row, which is what a stable sort gave us.
+    const LIMIT = 50;
+    const closest = [];
+    for (const player of leaderboard) {
+      if (player.name === mainEmbarkId || excluded.has(player.name)) continue;
+
+      const distance = getDistance(player);
+      if (closest.length === LIMIT && distance >= closest[LIMIT - 1].distance) continue;
+
+      let lo = 0;
+      let hi = closest.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (closest[mid].distance <= distance) lo = mid + 1;
+        else hi = mid;
+      }
+      closest.splice(lo, 0, { player, distance });
+      if (closest.length > LIMIT) closest.pop();
+    }
+
+    return closest
+      .map(c => c.player)
       .sort((a, b) => a.rank - b.rank); // Final sort by rank ascending
-  }, [mainEmbarkId, leaderboard, comparisonData, mainPlayerLastDataPoint]);
+  }, [mainEmbarkId, leaderboard, excluded, mainPlayer, mainPlayerLastDataPoint]);
 
   useEffect(() => {
     if (searchTerm) {
-      // If there's a search term, filter using the advanced logic
-      const filtered = leaderboard
-        .filter(player =>
-          player.name !== mainEmbarkId &&
-          !Array.from(comparisonData.keys()).includes(player.name) &&
-          filterPlayerByQuery(player, searchTerm)
-        )
-        .slice(0, 50);
+      // If there's a search term, filter using the advanced logic. parseSearchQuery is
+      // query-only, so it's parsed once per keystroke instead of once per row.
+      const parsedQuery = parseSearchQuery(searchTerm);
+      const filtered = [];
+      for (const player of leaderboard) {
+        if (player.name === mainEmbarkId || excluded.has(player.name)) continue;
+        if (!matchesParsedPlayer(player, parsedQuery)) continue;
+        filtered.push(player);
+        if (filtered.length === 50) break;
+      }
       setFilteredPlayers(filtered);
     } else {
       // If no search term, show closest players
       setFilteredPlayers(getClosestPlayers());
     }
-  }, [searchTerm, mainEmbarkId, leaderboard, comparisonData, getClosestPlayers]);
+  }, [searchTerm, mainEmbarkId, leaderboard, excluded, getClosestPlayers]);
 
   return (
     <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4 animate-fade-in-fast">
@@ -655,8 +668,6 @@ const ComparePlayerModal = ({ onSelect, mainEmbarkId, leaderboard, onClose, comp
             </div>
           ) : (
             filteredPlayers.map((player) => {
-              const mainPlayer = leaderboard.find(p => p.name === mainEmbarkId);
-              const baseScore = mainPlayer?.rankScore ?? mainPlayerLastDataPoint?.rankScore;
               const scoreDiff = baseScore !== undefined ? player.rankScore - baseScore : 0;
               return (
                 <div

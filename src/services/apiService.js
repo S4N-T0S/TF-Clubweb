@@ -17,6 +17,12 @@ export class ApiError extends Error {
   }
 }
 
+// Bounds applied to every derived TTL. The ceiling is the important one: callers persist the
+// TTL and schedule their auto-refresh from it, and a delay past setTimeout's 32-bit limit wraps
+// to a negative value, which fires immediately against a still-fresh cache entry and spins.
+const MIN_TTL_SECONDS = 30;
+const MAX_TTL_SECONDS = 3600;
+
 /**
  * Calculates a safe client-side TTL (Time To Live) in seconds based on an API response's 'Expires' header.
  * If the header is missing, invalid, or in the past, it returns a specified fallback TTL.
@@ -24,7 +30,7 @@ export class ApiError extends Error {
  * @param {Headers} headers - The Headers object from the fetch response.
  * @param {number} fallbackTtlSeconds - The default TTL in seconds to use if the header is unusable.
  * @param {string} [logContext=''] - Optional context for warning logs (e.g., 'leaderboard', 'events').
- * @returns {number} The calculated TTL in seconds, guaranteed to be at least 1.
+ * @returns {number} The calculated TTL in seconds, clamped to [MIN_TTL_SECONDS, MAX_TTL_SECONDS].
  */
 export const calculateClientCacheTtl = (headers, fallbackTtlSeconds, logContext = '') => {
   const expiresHeader = headers.get('Expires');
@@ -47,8 +53,12 @@ export const calculateClientCacheTtl = (headers, fallbackTtlSeconds, logContext 
     finalTtl = fallbackTtlSeconds;
   }
 
-  // Ensure the TTL is a positive integer. Caching for 0s is pointless.
-  return Math.max(1, finalTtl);
+  if (finalTtl > MAX_TTL_SECONDS) {
+    const contextMsg = logContext ? ` for ${logContext}` : '';
+    console.warn(`Expires header${contextMsg} implies a ${finalTtl}s TTL. Capping at ${MAX_TTL_SECONDS}s.`);
+  }
+
+  return Math.min(MAX_TTL_SECONDS, Math.max(MIN_TTL_SECONDS, finalTtl));
 };
 
 // --- Central Fetch Function ---

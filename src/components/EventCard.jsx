@@ -70,6 +70,10 @@ const ClubTag = ({ tag, seasonKey, onClubClick, officialClubName = null }) => {
   );
 };
 
+// Event details come straight from the API with no per-field schema. Optional chaining alone
+// is not enough here: a string or NaN would not throw, it would just render as garbage.
+const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v.toLocaleString() : 'N/A');
+
 const getEventConfig = (event) => {
   const { event_type, details, endTimestamp } = event;
   switch (event_type) {
@@ -148,7 +152,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
         const reappearanceDetails = (
           <div className="text-sm text-gray-500 pl-2 border-l-2 border-gray-600 space-y-0.5 mt-1">
             <p>
-              <span className="font-semibold text-gray-400">Disappeared at:</span> Rank #{d.last_known_rank.toLocaleString()} ({d.last_known_rank_score.toLocaleString()} RS)
+              <span className="font-semibold text-gray-400">Disappeared at:</span> Rank #{num(d.last_known_rank)} ({num(d.last_known_rank_score)} RS)
             </p>
             {d.reappeared_at_rank != null && (
               <p>
@@ -211,7 +215,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
           <PlayerName name={d.last_known_name} onPlayerSearch={onPlayerSearch} />
           <span> has disappeared from the leaderboard.</span>
           <p className="text-sm text-gray-500 mt-1">
-            Last seen at Rank #{d.last_known_rank?.toLocaleString()} ({d.last_known_rank_score.toLocaleString()} RS)
+            Last seen at Rank #{num(d.last_known_rank)} ({num(d.last_known_rank_score)} RS)
           </p>
         </div>
       );
@@ -222,8 +226,8 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
           <div className="text-gray-400 leading-relaxed">
             {d.club_tag && <ClubTag tag={d.club_tag} officialClubName={d.club_official_name} seasonKey={event.seasonKey} onClubClick={handleClubClick} />}{' '}
             <PlayerName name={d.name} onPlayerSearch={onPlayerSearch} />
-            <span> fell off the leaderboard from Rank #{d.old_rank?.toLocaleString()} ({d.old_score.toLocaleString()} RS). </span>
-            <span className="font-semibold text-red-400">Lost at least {d.minimum_loss.toLocaleString()} RS.</span>
+            <span> fell off the leaderboard from Rank #{num(d.old_rank)} ({num(d.old_score)} RS). </span>
+            <span className="font-semibold text-red-400">Lost at least {num(d.minimum_loss)} RS.</span>
           </div>
         );
       }
@@ -234,7 +238,7 @@ const renderEventDetails = (event, onPlayerSearch, onClubClick, isMobile, colorC
           <PlayerName name={d.name} onPlayerSearch={onPlayerSearch} />
           <span> had a rank score adjustment of </span>
           <span className={`font-semibold ${changeClass}`}>
-            {d.change > 0 ? '+' : ''}{d.change.toLocaleString()} RS
+            {d.change > 0 ? '+' : ''}{num(d.change)} RS
           </span>.
           <p className="text-sm text-gray-500 mt-1">
             #{d.old_rank?.toLocaleString() ?? 'N/A'} ({d.old_score?.toLocaleString() ?? 'N/A'} RS) → #{d.new_rank?.toLocaleString() ?? 'N/A'} ({d.new_score?.toLocaleString() ?? 'N/A'} RS)

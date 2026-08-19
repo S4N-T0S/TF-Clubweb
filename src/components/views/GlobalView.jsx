@@ -520,7 +520,7 @@ export const GlobalView = ({
   setShowFavourites,
   showToast
 }) => {
-  const [isCurrentSeason, setIsCurrentSeason] = useState(currentSeason === selectedSeason);
+  const isCurrentSeason = currentSeason === selectedSeason;
   const { isModalOpen } = useModal();
   const searchInputRef = useRef(null);
 
@@ -566,11 +566,6 @@ export const GlobalView = ({
       targetRef: viewContainerRef,
     }
   );
-
-  // Live comparison to check if we viewing currentseason
-  useEffect(() => {
-    setIsCurrentSeason(currentSeason === selectedSeason);
-  }, [currentSeason, selectedSeason]);
 
   // Update the season selection handler. Uses setSelectedSeason's atomic
   // resetPage option so season + page are written in one setSearchParams call.

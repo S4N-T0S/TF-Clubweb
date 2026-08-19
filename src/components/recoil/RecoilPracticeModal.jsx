@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X, Settings2, MousePointer2, Crosshair } from 'lucide-react';
 import { pxToDeg, degPerCount, cmPer360, countsForDeg, countsPer360 } from '../../data/recoil/sensitivity';
-import { getStoredAimSettings, setStoredAimSettings, isAimCustomized } from '../../services/localStorageManager';
+import { getStoredAimSettings, setStoredAimSettings, isAimCustomized, defaultAimSettings } from '../../services/localStorageManager';
 
 const BOX = 360;
 const PAD = 36;
@@ -28,23 +28,63 @@ const scoreMessage = (s) =>
   s >= 90 ? 'Perfect!' : s >= 70 ? 'Great!' : s >= 45 ? 'Nice try!' : 'Keep Practicing!';
 const scoreColor = (s) => (s >= 70 ? '#34d399' : s >= 45 ? '#fbbf24' : '#fb7185');
 
-const clamp = (v, min, max) => Math.min(max, Math.max(min, Number.isFinite(v) ? v : min));
+// Field ranges, shared by the inputs and the stored-settings guard. Every lower
+// bound is the smallest value that field's own step can reach, and all are strictly
+// positive: sens or zoomMult at 0 makes degPerCount 0, which reads out as Infinity
+// cm/360 and freezes the traced path, scoring every run 0.
+const LIMITS = {
+  sens: [0.5, 100],
+  dpi: [1, 100000],
+  zoomMult: [1, 100],
+  fov: [45, 100],
+  inputScale: [0.1, 10],
+};
+
+// Non-finite input (a cleared or half-typed field) keeps the previous value, so an
+// in-progress edit never commits.
+const clamp = (v, [min, max], prev) => (Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : prev);
+
+// localStorage is hand-editable and the stored-shape validator only type-checks four
+// of these fields, so re-clamp on read. A rejected value lands on the in-game default
+// rather than the range minimum: inputScale is not type-checked at all, so a stray "1"
+// or null would otherwise become 0.1 and quietly run the drill 10x under-sensitive.
+const sanitizeAim = (a) => {
+  const out = { ...a };
+  for (const k of Object.keys(LIMITS)) {
+    // Only inputScale reads 0 as "off" (it used to reach a `|| 1` downstream), so it is
+    // the only field where 0 means unset instead of "clamp to the bottom of the range".
+    const v = k === 'inputScale' && a[k] === 0 ? undefined : a[k];
+    out[k] = clamp(v, LIMITS[k], defaultAimSettings[k]);
+  }
+  return out;
+};
 
 // Aim settings panel
 
-const NumberField = ({ label, value, onChange, step = 1, min, max, suffix, hint }) => (
-  <label className="flex flex-col gap-1 text-xs text-gray-300">
-    <span className="font-medium">{label}{hint && <span className="text-gray-500"> · {hint}</span>}</span>
-    <div className="flex items-center gap-1">
-      <input
-        type="number" value={value} step={step} min={min} max={max}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full bg-gray-900 border border-gray-600 rounded-md px-2 py-1.5 text-white tabular-nums focus:outline-hidden focus:border-blue-500"
-      />
-      {suffix && <span className="text-gray-500 text-[11px] shrink-0">{suffix}</span>}
-    </div>
-  </label>
-);
+const NumberField = ({ label, value, onChange, step = 1, min, max, suffix, hint }) => {
+  // Keystrokes are held locally so the field can sit empty or half-typed ("", "0.")
+  // while editing without the parent seeing it. Only a finite parse is committed,
+  // and dropping the draft on blur re-syncs the box to the clamped value.
+  const [draft, setDraft] = useState(null);
+  return (
+    <label className="flex flex-col gap-1 text-xs text-gray-300">
+      <span className="font-medium">{label}{hint && <span className="text-gray-500"> · {hint}</span>}</span>
+      <div className="flex items-center gap-1">
+        <input
+          type="number" value={draft ?? String(value)} step={step} min={min} max={max}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            const n = parseFloat(e.target.value);
+            if (Number.isFinite(n)) onChange(n);
+          }}
+          onBlur={() => setDraft(null)}
+          className="w-full bg-gray-900 border border-gray-600 rounded-md px-2 py-1.5 text-white tabular-nums focus:outline-hidden focus:border-blue-500"
+        />
+        {suffix && <span className="text-gray-500 text-[11px] shrink-0">{suffix}</span>}
+      </div>
+    </label>
+  );
+};
 
 const AimSettingsPanel = ({ aim, setAim }) => {
   const set = (patch) => setAim((prev) => ({ ...prev, ...patch }));
@@ -52,15 +92,15 @@ const AimSettingsPanel = ({ aim, setAim }) => {
   return (
     <div className="bg-gray-900/60 rounded-xl border border-gray-700 p-3 mb-3">
       <div className="grid grid-cols-2 gap-3">
-        <NumberField label="Mouse Look Sens" value={aim.sens} min={0} max={100} step={0.5}
-          onChange={(v) => set({ sens: clamp(v, 0, 100) })} />
-        <NumberField label="DPI" value={aim.dpi} min={1} step={50}
-          onChange={(v) => set({ dpi: clamp(v, 1, 100000) })} />
-        <NumberField label="Zoom Sens Mult" value={aim.zoomMult} min={0} max={100} step={1} suffix="%"
-          onChange={(v) => set({ zoomMult: clamp(v, 0, 100) })} />
-        <NumberField label="FOV (vertical)" value={aim.fov} min={45} max={100} step={1}
+        <NumberField label="Mouse Look Sens" value={aim.sens} min={LIMITS.sens[0]} max={LIMITS.sens[1]} step={0.5}
+          onChange={(v) => set({ sens: clamp(v, LIMITS.sens, aim.sens) })} />
+        <NumberField label="DPI" value={aim.dpi} min={LIMITS.dpi[0]} step={50}
+          onChange={(v) => set({ dpi: clamp(v, LIMITS.dpi, aim.dpi) })} />
+        <NumberField label="Zoom Sens Mult" value={aim.zoomMult} min={LIMITS.zoomMult[0]} max={LIMITS.zoomMult[1]} step={1} suffix="%"
+          onChange={(v) => set({ zoomMult: clamp(v, LIMITS.zoomMult, aim.zoomMult) })} />
+        <NumberField label="FOV (vertical)" value={aim.fov} min={LIMITS.fov[0]} max={LIMITS.fov[1]} step={1}
           hint={aim.focalSens ? 'in use' : 'off'}
-          onChange={(v) => set({ fov: clamp(v, 45, 100) })} />
+          onChange={(v) => set({ fov: clamp(v, LIMITS.fov, aim.fov) })} />
       </div>
       <label className="flex items-center gap-2 mt-3 text-xs text-gray-300 cursor-pointer select-none">
         <input type="checkbox" checked={aim.focalSens}
@@ -76,9 +116,9 @@ const AimSettingsPanel = ({ aim, setAim }) => {
       <details className="mt-2 text-xs text-gray-400">
         <summary className="cursor-pointer select-none hover:text-gray-200">Calibration (advanced)</summary>
         <div className="mt-2">
-          <NumberField label="Input scale" value={aim.inputScale} min={0.1} max={10} step={0.05}
+          <NumberField label="Input scale" value={aim.inputScale} min={LIMITS.inputScale[0]} max={LIMITS.inputScale[1]} step={0.05}
             hint="1.0 = raw"
-            onChange={(v) => set({ inputScale: clamp(v, 0.1, 10) })} />
+            onChange={(v) => set({ inputScale: clamp(v, LIMITS.inputScale, aim.inputScale) })} />
           <p className="text-[10px] text-gray-500 mt-1 leading-snug">
             Leave at 1.0 if your browser supplies raw mouse input. Only adjust if the spray feels more or
             less sensitive than in-game — raise it to make the trainer more sensitive.
@@ -99,7 +139,7 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
   const [markerF, setMarkerF] = useState(0);
   const [rawUnsupported, setRawUnsupported] = useState(false);
 
-  const [aim, setAimState] = useState(getStoredAimSettings);
+  const [aim, setAimState] = useState(() => sanitizeAim(getStoredAimSettings()));
   const setAim = useCallback((updater) => {
     setAimState((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
@@ -313,6 +353,11 @@ export const RecoilPracticeModal = ({ weapon, globalBounds, onClose }) => {
     cancelAnimationFrame(rafRef.current);
     document.removeEventListener('mousemove', onMouseMove);
     document.removeEventListener('mousedown', armFire);
+    // Drop the run before releasing the lock. This teardown also fires when the weapon
+    // changes under a live drill (armFire's identity tracks the weapon), and the
+    // pointerlockchange that follows would otherwise finish those samples against the
+    // new weapon's tolerance.
+    runRef.current = null;
     if (document.pointerLockElement) document.exitPointerLock();
   }, [onMouseMove, armFire]);
 

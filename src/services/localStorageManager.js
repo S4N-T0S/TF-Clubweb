@@ -1,3 +1,14 @@
+// Best-effort removal. When site data is blocked the `localStorage` property access itself
+// throws SecurityError, so a cleanup attempt inside a catch would escape uncaught to callers
+// that run during render.
+const safeRemoveItem = (key) => {
+  try {
+    localStorage.removeItem(key);
+  } catch (_error) {
+    // Storage unavailable, nothing to clean up.
+  }
+};
+
 // A generic, robust getter for JSON-parsed localStorage items.
 export const getStoredJsonItem = (key, defaultValue, validator) => {
   try {
@@ -5,21 +16,21 @@ export const getStoredJsonItem = (key, defaultValue, validator) => {
     if (storedValue === null) {
       return defaultValue;
     }
-    
+
     const parsedValue = JSON.parse(storedValue);
-    
+
     // The validator function confirms the data is in the expected format.
     if (validator && !validator(parsedValue)) {
       // If validation fails, remove the corrupt item and return default.
-      localStorage.removeItem(key);
+      safeRemoveItem(key);
       return defaultValue;
     }
-    
+
     return parsedValue;
   } catch (error) {
     console.error(`Error reading "${key}" from localStorage:`, error);
     // If parsing fails, remove the corrupt item and return default.
-    localStorage.removeItem(key);
+    safeRemoveItem(key);
     return defaultValue;
   }
 };
@@ -199,7 +210,7 @@ const areValidAimSettings = (value) => {
          typeof value.fov === 'number' &&
          typeof value.dpi === 'number';
 };
-const defaultAimSettings = {
+export const defaultAimSettings = {
   sens: 50,        // Mouse Look Sensitivity (in-game default)
   zoomMult: 100,   // Mouse Zoom Sensitivity Multiplier (%)
   focalSens: true, // Mouse Focal Length Sensitivity Scaling (in-game default)
@@ -229,47 +240,54 @@ const DEPRECATED_CACHE_CLEANUP_FLAG = 'v3_storage_cleanup_complete';
  * per user, making it "safe" to call on every app startup.
  */
 export const cleanupDeprecatedCache = () => {
-  // 1. Check if the cleanup has already been performed. If so, do nothing.
-  if (localStorage.getItem(DEPRECATED_CACHE_CLEANUP_FLAG)) {
-    return;
-  }
-
-  console.log("Performing one-time cleanup of deprecated localStorage...");
-
-  const keysToRemove = [
-    'v1_storage_cleanup_complete',
-    'v2_storage_cleanup_complete',
-    'dashboard_autoRefresh',
-    'leaderboard_cache'
-  ];
-
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && (
-      key.startsWith('graph_cache_') ||
-      key.startsWith('events_cache_')
-    )) {
-      keysToRemove.push(key);
-    }
-  }
-
-  // 3. Remove all the identified keys.
-  keysToRemove.forEach(key => {
-    try {
-      if (localStorage.getItem(key) !== null) {
-        localStorage.removeItem(key);
-        console.log(`Removed deprecated localStorage key: ${key}`);
-      }
-    } catch (error) {
-      console.error(`Failed to remove deprecated key "${key}":`, error);
-    }
-  });
-
-  // 4. Set the flag to prevent this from running again.
+  // Every statement here touches localStorage, including the `.length` and `.key()` reads,
+  // and the property access itself throws when site data is blocked. This runs from a startup
+  // effect, so an escaping error takes down the whole route.
   try {
-    localStorage.setItem(DEPRECATED_CACHE_CLEANUP_FLAG, 'true');
-    console.log("Deprecated localStorage cleanup complete.");
+    // 1. Check if the cleanup has already been performed. If so, do nothing.
+    if (localStorage.getItem(DEPRECATED_CACHE_CLEANUP_FLAG)) {
+      return;
+    }
+
+    console.log("Performing one-time cleanup of deprecated localStorage...");
+
+    const keysToRemove = [
+      'v1_storage_cleanup_complete',
+      'v2_storage_cleanup_complete',
+      'dashboard_autoRefresh',
+      'leaderboard_cache'
+    ];
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (
+        key.startsWith('graph_cache_') ||
+        key.startsWith('events_cache_')
+      )) {
+        keysToRemove.push(key);
+      }
+    }
+
+    // 3. Remove all the identified keys.
+    keysToRemove.forEach(key => {
+      try {
+        if (localStorage.getItem(key) !== null) {
+          localStorage.removeItem(key);
+          console.log(`Removed deprecated localStorage key: ${key}`);
+        }
+      } catch (error) {
+        console.error(`Failed to remove deprecated key "${key}":`, error);
+      }
+    });
+
+    // 4. Set the flag to prevent this from running again.
+    try {
+      localStorage.setItem(DEPRECATED_CACHE_CLEANUP_FLAG, 'true');
+      console.log("Deprecated localStorage cleanup complete.");
+    } catch (error) {
+      console.error("Failed to set storage cleanup completion flag:", error);
+    }
   } catch (error) {
-    console.error("Failed to set storage cleanup completion flag:", error);
+    console.error("Skipping deprecated localStorage cleanup:", error);
   }
 };
