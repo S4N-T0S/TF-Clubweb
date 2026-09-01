@@ -534,14 +534,14 @@ const SearchModal = ({ isOpen, onClose, initialSearch, currentSeasonData, onSear
       }
     }
     const seasonsPlayed = new Set(base.map((r) => r.seasonKey)).size;
-    const latestClubRow = [...base].reverse().find((r) => r.clubTag);
-    const latestClub = latestClubRow
-      ? { tag: latestClubRow.clubTag, seasonKey: latestClubRow.seasonKey, officialClubName: latestClubRow.officialClubName || null }
-      : null;
 
-    // The newest season's platform names are the player's CURRENT handles; any
-    // other alias is a previous one (dimmed in the hero so it's clear which is live).
+    // The newest season is the player's CURRENT state: its club (or lack of one)
+    // and platform names. Never fall back to an older season's club, or a player
+    // who left/was kicked would still wear the old tag next to their name.
     const newestRow = base[base.length - 1];
+    const latestClub = newestRow?.clubTag
+      ? { tag: newestRow.clubTag, seasonKey: newestRow.seasonKey, officialClubName: newestRow.officialClubName || null }
+      : null;
     const currentPlat = {
       steam: newestRow?.steamName || null,
       psn: newestRow?.psnName || null,
