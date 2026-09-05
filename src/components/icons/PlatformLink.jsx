@@ -3,7 +3,7 @@ import { PlatformIcons } from "./Platforms";
 // Profile lookup URLs for each linkable platform
 const PROFILE_URL = {
     steam: (name) => `https://steamcommunity.com/search/users/#text=${encodeURIComponent(name)}`,
-    xbox: (name) => `https://xboxgamertag.com/search/${name}`,
+    xbox: (name) => `https://xboxgamertag.com/search/${name.replace(/#/g, "").trim().replace(/\s+/g, "-")}`,
     psn: (name) => `https://psnprofiles.com/?psnId=${encodeURIComponent(name)}`,
 };
 
