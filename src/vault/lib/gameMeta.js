@@ -1,4 +1,5 @@
 // Game metadata + classifiers for RoundStat records
+import { STATIC_KEYS } from './keys.js';
 
 // CharacterArchetype -> class label.
 export const ARCHETYPES = {
@@ -145,6 +146,25 @@ const WORLD_TOUR_SCENARIOS = new Set([
   '688748083', '193786221', '205691223', '961608855', '609953292', '769621951',
 ]);
 
+// Embark's scenario names (key file `Name`) -> the mode as players know it. Outranks
+// SCENARIO_MODES: several ids there were fingerprinted from play patterns, this is proof.
+const EMBARK_SCENARIOS = {
+  QuickCash: { label: 'Quick Cash', category: 'Casual', teams: 3 },
+  RankedTournament: { label: 'Ranked Cashout', category: 'Ranked', teams: 4 },
+  WorldTournament: { label: 'World Tour', category: 'World Tour', teams: 4 },
+  PushVillage: { label: 'Point Break', category: 'Casual', teams: 2 },
+  HeavyHitters: { label: 'Heavy Hitters', category: 'LTM', teams: 2 },
+  Dragonfall: { label: 'Dragonfall', category: 'LTM', teams: null },
+  // New-player onboarding lobbies against bots (FTUE = first-time user experience).
+  CashoutBotsSolo: { label: 'Cashout vs bots', category: 'Other', teams: null },
+  CashoutBotsSoloFTUE: { label: 'Cashout vs bots', category: 'Other', teams: null },
+};
+
+export const scenarioFromKey = (key) => {
+  if (Object.hasOwn(EMBARK_SCENARIOS, key.name)) return { ...EMBARK_SCENARIOS[key.name], translated: true };
+  return { label: key.name.replace(/([a-z0-9])([A-Z])/g, '$1 $2'), category: 'Other', teams: null, translated: false };
+};
+
 // Maps that, by themselves, identify a Limited-Time Mode
 const LTM_MAPS = {
   HeavyHitters: 'Heaven or Else',
@@ -155,20 +175,27 @@ const LTM_MAPS = {
  * Best-effort classification of a single RoundStat.Data into a mode + category.
  * Returns { label, category, teams, confirmed }.
  */
-export const classifyMode = (data) => {
+export const classifyMode = (data, keys = STATIC_KEYS) => {
   if (!data) return { label: 'Unknown', category: 'Other', teams: null, confirmed: false };
   const scenarioId = String(data.ScenarioID);
 
-  // Heavy Hitters & Heaven or Else share ScenarioID 152796620 — the arena tells them apart
+  // Heavy Hitters & Heaven or Else share ScenarioID 152796620; the arena tells them
+  // apart. _02 only: the S11 Heavy Hitters return plays on HeavyHitters_03 (Relay Grid).
   if (scenarioId === '152796620') {
-    const onHeavenOrElse = parseMapVariant(data.MapVariant).map === 'HeavyHitters';
+    const onHeavenOrElse = /^DA_MV_HeavyHitters_02(_|$)/.test(data.MapVariant || '');
     return { label: onHeavenOrElse ? 'Heaven or Else' : 'Heavy Hitters', category: 'LTM', teams: 2, confirmed: true };
   }
+
+  const key = keys.scenario(scenarioId);
+  const viaKey = key ? scenarioFromKey(key) : null;
+  if (viaKey?.translated) return { label: viaKey.label, category: viaKey.category, teams: viaKey.teams, confirmed: true };
 
   // Without hasOwn a "constructor" id spreads a function into the mode, which
   // renders as a blank label while still flagged confirmed.
   if (Object.hasOwn(SCENARIO_MODES, scenarioId)) return { ...SCENARIO_MODES[scenarioId], confirmed: true };
   if (WORLD_TOUR_SCENARIOS.has(scenarioId)) return { label: 'World Tour', category: 'World Tour', teams: 4, confirmed: true };
+  // Named by Embark, not translated yet. Still beats the map heuristics below.
+  if (viaKey) return { label: viaKey.label, category: viaKey.category, teams: viaKey.teams, confirmed: true };
 
   const { map } = parseMapVariant(data.MapVariant);
   const cond = parseCondition(data.EnvironmentalCondition);

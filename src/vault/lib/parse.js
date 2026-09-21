@@ -14,15 +14,24 @@ const ROUND_STAT_BUCKETS = {
   [ROUND_KIND.UNKNOWN]: 'UnknownRoundStat',
 };
 
+// Since 2026-09 game-scoped types carry their title (`TheFinalsRoundStat`). Stripping
+// it here makes both generations look alike downstream. ARC Raiders keeps its prefix:
+// bare, it would collide with THE FINALS' own types, as it did in older exports.
+const canonicalType = (type) => {
+  if (type === 'ArcRaidersRoundStat') return ROUND_STAT_BUCKETS[ROUND_KIND.ARC];
+  return type.length > 9 && type.startsWith('TheFinals') ? type.slice(9) : type;
+};
+
 // JSON Lines: each line is `{"<RecordType>": {...}}` (one top-level key).
 // Returns { byType: { RecordType: [...inner records] }, counts, total, badLines }.
-async function parseJsonl(text, onProgress = () => {}, label = 'records') {
+async function parseJsonl(text, onProgress = () => {}, label = 'records', rename = canonicalType) {
   // Null prototype: the record type is whatever key the line carried, so a
   // "__proto__" / "constructor" line would otherwise hit an inherited member
   // (truthy, so `||=` keeps it) and `.push` on it throws.
   const byType = Object.create(null);
   let total = 0;
   let badLines = 0;
+  let gamePrefixed = false;
 
   // Split lazily-ish: one big split is fine for tens of MB; yield while iterating so the UI thread stays responsive.
   const lines = text.split('\n');
@@ -37,9 +46,10 @@ async function parseJsonl(text, onProgress = () => {}, label = 'records') {
       continue;
     }
     const keys = Object.keys(obj);
-    const type = keys[0];
-    if (!type) continue;
-    const inner = obj[type];
+    if (!keys[0]) continue;
+    const inner = obj[keys[0]];
+    const type = rename(keys[0]);
+    if (!gamePrefixed && /^(TheFinals|ArcRaiders)/.test(keys[0])) gamePrefixed = true;
     // Standard records are { "<RecordType>": {...} } — exactly one top-level key
     // whose value is the record object. A few rows are FLAT (no wrapper): the
     // Steam DLC ownership row is { SteamID, DLCID, ... }. Bucket those under a
@@ -60,7 +70,7 @@ async function parseJsonl(text, onProgress = () => {}, label = 'records') {
   }
 
   const counts = Object.fromEntries(Object.entries(byType).map(([k, v]) => [k, v.length]));
-  return { byType, counts, total, badLines };
+  return { byType, counts, total, badLines, gamePrefixed };
 }
 
 // Minimal CSV: Anybrain files (os/screens/sessions are simple columns)
@@ -119,11 +129,23 @@ export async function parseFileset(fileset, onProgress = () => {}) {
   // Request metadata parsed from the README pdf filename (date/ticket), if present
   const readme = fileset.readme || null;
 
+  // Embark's id -> name lookup, under its own type names (lib/keys.js reads those).
+  let keys = null;
+  if (fileset.keys?.length) {
+    onProgress('Reading item keys…');
+    const byType = Object.create(null);
+    for (const e of fileset.keys) {
+      const parsed = await parseJsonl(entryText(e), onProgress, 'item keys', (t) => t);
+      for (const [t, rows] of Object.entries(parsed.byType)) byType[t] = (byType[t] || []).concat(rows);
+    }
+    keys = { byType };
+  }
+
   // Customer-Service PDF: passed through as raw bytes — parsing it needs pdfjs,
   // which stays out of the import path (the Support page lazy-parses on demand).
   const customerSupport = fileset.customerSupport
     ? { name: fileset.customerSupport.path, bytes: fileset.customerSupport.bytes, size: fileset.customerSupport.bytes.length }
     : null;
 
-  return { persistence, audit, eos, anybrain, denuvo, readme, customerSupport };
+  return { persistence, audit, eos, anybrain, denuvo, readme, customerSupport, keys };
 }

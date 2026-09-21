@@ -20,8 +20,17 @@ export const SEASONS = [
   { n: 11, label: 'S11', startMs: day('2026-07-09') },
 ];
 
+// SEASONS plus any later season Embark's key file dates. Known seasons keep the
+// dates above: they are the real launch days, and the key file's S1 is a day early.
+export const withKeySeasons = (keySeasons) => {
+  const extra = keySeasons
+    .filter((k) => k.startMs != null && !SEASONS.some((s) => s.n === k.n))
+    .map((k) => ({ n: k.n, label: `S${k.n}`, startMs: k.startMs }));
+  return extra.length ? [...SEASONS, ...extra].sort((a, b) => a.n - b.n) : SEASONS;
+};
+
 // Season starts that fall within [minMs, maxMs] — for overlaying on a time axis
-export const seasonsInRange = (minMs, maxMs) => {
+export const seasonsInRange = (minMs, maxMs, seasons = SEASONS) => {
   if (minMs == null || maxMs == null || maxMs <= minMs) return [];
-  return SEASONS.filter((s) => s.startMs >= minMs && s.startMs <= maxMs);
+  return seasons.filter((s) => s.startMs >= minMs && s.startMs <= maxMs);
 };

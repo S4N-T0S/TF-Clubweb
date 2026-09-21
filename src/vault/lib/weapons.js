@@ -2,6 +2,8 @@
 // Keys are the signed-32-bit IDs that appear in RoundStat.Data.KillsPerItem.
 // Source: .docs/finals-weapon-id-table.md (all 56 sample IDs mapped).
 // KillsPerItem keys arrive as strings, so we key this table by string too.
+// Names are checked against Embark's own key file by tools/generate-vault-keys.mjs.
+import { STATIC_KEYS } from './keys.js';
 
 // type: Weapon | Gadget | Spec | Event
 // archetype: Light | Medium | Heavy | Global
@@ -40,7 +42,7 @@ export const WEAPONS = {
   '-1834102173': { name: 'P90', archetype: 'Medium', type: 'Weapon' },
   '-1714487033': { name: 'Riot Shield', archetype: 'Medium', type: 'Weapon' },
   '-21077747': { name: 'Gas Mine', archetype: 'Medium', type: 'Gadget' },
-  '1886362451': { name: 'APS Turret', archetype: 'Medium', type: 'Gadget' },
+  '1886362451': { name: 'Guardian Turret', archetype: 'Medium', type: 'Spec' },
   '140643579': { name: 'Chimera-XB', archetype: 'Medium', type: 'Weapon' },
   '-2146518365': { name: 'Defibrillator', archetype: 'Medium', type: 'Gadget' },
   '-1356235903': { name: 'Jump Pad', archetype: 'Medium', type: 'Gadget' },
@@ -76,6 +78,9 @@ export const WEAPONS = {
   // Event / LTM items
   '-1157104516': { name: 'Snowball', archetype: 'Global', type: 'Event' },
   '-2046791033': { name: 'Blast Off! RPG-7', archetype: 'Medium', type: 'Event' },
+
+  // 0 is Embark's "no game content" id: a kill no item was credited with.
+  '0': { name: 'No item recorded', archetype: 'Global', type: 'Other' },
 };
 
 // Slugs that have a bundled icon under public/vault/weapons/<slug>.webp.
@@ -87,7 +92,7 @@ const ICON_SLUGS = new Set([
   '50-akimbo', '93r', 'akm', 'anti-gravity-cube', 'aps-turret', 'arn-220', 'bfr-titan', 'blast-off-rpg-7', 'breach-charge', 'breach-drill',
   'c4', 'cb-01-repeater', 'cerberus-12ga', 'charge-n-slam', 'chimera-xb', 'cl-40', 'dagger', 'defibrillator',
   'dual-blades', 'explosive-mine', 'famas', 'fcar', 'flamethrower', 'frag-grenade', 'gas-grenade', 'gas-mine',
-  'gateway', 'h-infuser', 'jump-pad', 'ks-23', 'lewis-gun', 'lh1', 'lockbolt', 'm11', 'm134-minigun', 'm26-matter', 'm60',
+  'gateway', 'guardian-turret', 'h-infuser', 'jump-pad', 'ks-23', 'lewis-gun', 'lh1', 'lockbolt', 'm11', 'm134-minigun', 'm26-matter', 'm60',
   'mgl32', 'model-1887', 'p90', 'pike-556', 'pyro-grenade', 'pyro-mine', 'r-357', 'recurve-bow', 'riot-shield',
   'rpg-7', 'sa1216', 'sh1900', 'shak-50', 'sledgehammer', 'spear', 'sr-84', 'sword', 'thermal-bore',
   'throwing-knives', 'tracking-dart', 'v9s', 'winch-claw', 'xp-54',
@@ -96,14 +101,20 @@ const ICON_SLUGS = new Set([
 // Weapon display-name -> filename slug (matches the bundled icon files).
 export const weaponSlug = (name) => (name ? name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : null);
 
-// Resolve a KillsPerItem id to a display record, tolerant of unknown ids (real
-// exports from later seasons may contain ids not in the sample set). `icon` is
-// the bundled webp path when one exists, else null (UI falls back to a chip).
-export const resolveWeapon = (id) => {
+const KEY_ITEM_TYPES = { Weapon: 'Weapon', Gadget: 'Gadget', Skill: 'Spec' };
+
+// Resolve a KillsPerItem id to a display record. An id the table lacks (a weapon
+// newer than this build) takes its name from Embark's keys, without archetype or icon.
+// `icon` is the bundled webp path when one exists, else null (UI falls back to a chip).
+export const resolveWeapon = (id, keys = STATIC_KEYS) => {
   // hasOwn: KillsPerItem keys are raw export data, and "constructor" would
   // otherwise resolve to a function that spreads to nothing (blank weapon name).
   const key = String(id);
-  const hit = Object.hasOwn(WEAPONS, key) ? WEAPONS[key] : null;
+  let hit = Object.hasOwn(WEAPONS, key) ? WEAPONS[key] : null;
+  if (!hit) {
+    const k = keys.item(key);
+    if (k?.name) hit = { name: k.name, archetype: 'Unknown', type: (Object.hasOwn(KEY_ITEM_TYPES, k.subType) && KEY_ITEM_TYPES[k.subType]) || 'Unknown' };
+  }
   if (!hit) return { name: `Unknown item (${id})`, archetype: 'Unknown', type: 'Unknown', unknown: true, slug: null, icon: null };
   const slug = weaponSlug(hit.name);
   return { ...hit, slug, icon: ICON_SLUGS.has(slug) ? `/vault/weapons/${slug}.webp` : null };
@@ -112,7 +123,7 @@ export const resolveWeapon = (id) => {
 // Every weapon / gadget / specialization as a display record, in the table's
 // natural order (Light → Medium → Heavy → Global → Event). Used by the match
 // weapon-filter picker (grouped like thefinals.wiki/wiki/Weapons by archetype).
-export const ALL_WEAPONS = Object.entries(WEAPONS).map(([id, w]) => {
+export const ALL_WEAPONS = Object.entries(WEAPONS).filter(([, w]) => w.type !== 'Other').map(([id, w]) => {
   const slug = weaponSlug(w.name);
   return { id, ...w, slug, icon: ICON_SLUGS.has(slug) ? `/vault/weapons/${slug}.webp` : null };
 });

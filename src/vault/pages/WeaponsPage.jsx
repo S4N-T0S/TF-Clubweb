@@ -14,6 +14,7 @@ const TYPE_SECTIONS = [
   { type: 'Spec', label: 'Specializations' },
   { type: 'Gadget', label: 'Gadgets' },
   { type: 'Event', label: 'Event items' },
+  { type: 'Other', label: 'Other' },
   { type: 'Unknown', label: 'Unrecognised items' },
 ];
 
@@ -60,7 +61,7 @@ export const WeaponsPage = () => {
   const [expanded, setExpanded] = useState(null);
 
   const totalKills = useMemo(() => weapons.reduce((s, w) => s + w.kills, 0), [weapons]);
-  const usedKnown = useMemo(() => weapons.filter((w) => !w.unknown).length, [weapons]);
+  const usedKnown = useMemo(() => weapons.filter((w) => !w.unknown && w.type !== 'Other').length, [weapons]);
 
   // Full arsenal = every item you killed with (incl. unrecognised ids) + every
   // known item you never scored a kill with (kills: 0, shown dimmed).
@@ -287,9 +288,11 @@ export const WeaponsPage = () => {
       )}
 
       <Note>
-        Kills are summed from every round’s <code>KillsPerItem</code>. The export records kills only — there is no
-        per-weapon K/D, damage or accuracy (deaths aren’t attributed to a weapon; those stats live on the in-game career
-        screen). Dimmed rows are items you’ve never scored a kill credit with; click any other row for its kill history.
+        Kills are summed from every round’s <code>KillsPerItem</code>.{' '}
+        {model.meta.exportV2
+          ? 'Your export also records per-weapon damage, which this page doesn’t show yet. There is still no per-weapon K/D or accuracy (deaths aren’t attributed to a weapon; those stats live on the in-game career screen).'
+          : 'The export records kills only — there is no per-weapon K/D, damage or accuracy (deaths aren’t attributed to a weapon; those stats live on the in-game career screen).'}{' '}
+        Dimmed rows are items you’ve never scored a kill credit with; click any other row for its kill history.
         For real K/D by class, map and mode see the Breakdown page.
       </Note>
     </div>

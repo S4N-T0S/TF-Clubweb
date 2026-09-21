@@ -1,4 +1,5 @@
 // Map identity + background art, bundled from thefinals.wiki (thank you bbg)
+import { STATIC_KEYS } from './keys.js';
 
 // Keys that have a bundled <key>.webp file
 const MAP_SLUGS = new Set([
@@ -9,7 +10,7 @@ const MAP_SLUGS = new Set([
 
 // `focus` is the CSS object-position used to crop the wide photo into the card — tune per map (e.g. '50% 30%' shows higher up) to frame the recognizable part.
 // `zoom` (optional, default 1) scales the photo: 1 = cover, <1 zooms OUT to reveal more of the scene (gaps get a blurred fill), >1 zooms IN. Tune both with /__maptuner.
-const MAPS = {
+export const MAPS = {
   Arena_01: { key: 'skyway', name: 'Skyway Stadium', focus: '50% 42%' },
   Arena_02: { key: 'horizon', name: 'Horizon', focus: '50% 51%' },
   Arena_04: { key: 'citadel', name: 'NOZOMI Citadel', focus: '50% 85%' },
@@ -25,20 +26,26 @@ const MAPS = {
   PracticeRange_01: { key: 'practice', name: 'Practice Range', focus: '50% 66%' },
   Playground_01: { key: 'heavyhitters', name: 'Heavy Hitters', focus: '50% 21%' },
   HeavyHitters_02: { key: 'heavenorelse', name: 'Heaven or Else', focus: '50% 16%' },
+  HeavyHitters_03: { key: null, name: 'Relay Grid' }, // S11 Heavy Hitters arena, no art yet
   Village_01: { key: 'starlight', name: 'Starlight Hollow', focus: '50% 56%' },
   CashBall_01: { key: 'cashball', name: 'Cashball', focus: '50% 37%' },
   Space_01: { key: 'galaxy', name: 'Galaxy Estates', focus: '50% 62%' },
 };
 
-const lookup = (mv) => {
+// An unknown number borrowing _01 is a guess (Arena_01/_02/_04 are three different
+// stadiums), so Embark's key names the map first when it can.
+const lookup = (mv, keys) => {
   const m = /^DA_MV_([A-Za-z]+)_(\d+)/.exec(mv || '');
   if (!m) return null;
-  return MAPS[`${m[1]}_${m[2]}`] || MAPS[`${m[1]}_01`] || null; // unknown number -> _01 of same map
+  const exact = MAPS[`${m[1]}_${m[2]}`];
+  if (exact) return exact;
+  const named = keys.map(mv)?.name;
+  return named ? { name: named } : MAPS[`${m[1]}_01`] || null;
 };
 
 // { name, image (path|null), focus, zoom } for a round's MapVariant
-export function resolveMap(mapVariant) {
-  const e = lookup(mapVariant);
+export function resolveMap(mapVariant, keys = STATIC_KEYS) {
+  const e = lookup(mapVariant, keys);
   if (!e) return { name: null, image: null, focus: '50% 40%', zoom: 1 };
   return {
     name: e.name,

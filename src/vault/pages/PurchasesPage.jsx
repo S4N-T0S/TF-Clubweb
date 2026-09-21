@@ -34,7 +34,7 @@ const IncludeToggle = ({ on, onChange, count, controls }) => (
 );
 
 // Premium-currency balance over time
-const BalanceChart = ({ series }) => {
+const BalanceChart = ({ series, seasons }) => {
   if (series.length < 2) return null;
   const W = 1000;
   const H = 200;
@@ -47,7 +47,7 @@ const BalanceChart = ({ series }) => {
   const y = (b) => H - pad - (b / maxB) * (H - pad * 2);
   const pts = series.map((p) => `${x(p.ms).toFixed(1)},${y(p.balance).toFixed(1)}`);
   const base = H - pad;
-  const markers = seasonsInRange(minT, maxT).map((s) => ({ ...s, leftPct: ((s.startMs - minT) / spanT) * 100 }));
+  const markers = seasonsInRange(minT, maxT, seasons).map((s) => ({ ...s, leftPct: ((s.startMs - minT) / spanT) * 100 }));
   return (
     <div>
       <div className="relative">
@@ -571,7 +571,7 @@ export const PurchasesPage = () => {
             {balanceSeries.length >= 2 && (
               <div className="mb-4">
                 <p className="text-xs text-gray-500 mb-1">Balance over time · vertical lines mark season starts</p>
-                <BalanceChart series={balanceSeries} />
+                <BalanceChart series={balanceSeries} seasons={model.seasons} />
               </div>
             )}
 
@@ -907,9 +907,10 @@ export const PurchasesPage = () => {
             ))}
           </div>
           <Note>
-            Counts come from your <code>InventoryItem</code> records. The export stores each item’s <em>type</em> and
-            quantity but no item IDs, so individual cosmetics can’t be named or listed — only counted by category. We
-            need help filling out this category and making it more accurate.
+            Counts come from your <code>InventoryItem</code> records.{' '}
+            {model.meta.exportV2
+              ? 'Your export names every item, but this page only counts them by category for now.'
+              : 'The export stores each item’s type and quantity but no item IDs, so individual cosmetics can’t be named or listed — only counted by category. We need help filling out this category and making it more accurate.'}
           </Note>
         </Panel>
       )}

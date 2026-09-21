@@ -73,6 +73,7 @@ function classify(flat) {
     anybrain: { os: [], screens: [], sessions: [], peripherals: [] }, // arrays: exports can split across anybrain_clean_N.zip
     denuvo: [],
     readme: null, // { requestedAtMs, requestId, label } parsed from the README pdf name
+    keys: [], // <id>_keys.jsonl: Embark's id -> name lookup (exports since 2026-09)
     customerSupport: null, // CS_extracted_data.pdf raw bytes (chat log + support tickets)
     unknown: [],
     all: flat,
@@ -91,6 +92,12 @@ function classify(flat) {
       // Customer-Service export: in-game chat log + Helpshift support tickets.
       // Bytes are kept raw here; the Support page lazy-parses them (pdfjs).
       if (!fileset.customerSupport || entry.bytes.length > fileset.customerSupport.bytes.length) fileset.customerSupport = entry;
+    } else if (/keys\.(jsonl|json)$/.test(base)) {
+      // Ahead of the persistence rule: the key file ships inside <id>_persistence.zip,
+      // and a name carrying both words must not compete to BE the persistence file.
+      fileset.keys.push(entry);
+    } else if (/^(\d+_)?readme\.txt$/.test(base)) {
+      // Embark's plain-text field guide, one per zip since 2026-09. Nothing to read from it.
     } else if (/persistence\.(jsonl|json|txt)$/.test(base) || (base.includes('persistence') && /\.(jsonl|txt)$/.test(base))) {
       // Prefer the largest persistence file if several appear.
       if (!fileset.persistence || entry.bytes.length > fileset.persistence.bytes.length) fileset.persistence = entry;

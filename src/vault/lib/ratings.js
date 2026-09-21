@@ -13,6 +13,7 @@
 // suffix for per-season ranked ratings.
 //
 import { SEASONS } from './seasons';
+import { STATIC_KEYS } from './keys';
 
 // --- league rank tiers -----------------------------------------------------
 // leagueRankIndex 0..21 → Bronze..Ruby. This MIRRORS the main app's
@@ -78,9 +79,14 @@ const RANKED_SEASON_IDS = {
   349883189: 11,
 };
 
+// An id Embark's key file names is as good as a hard-mapped one: that is how a
+// season newer than the table above resolves before this build learns about it.
+const keySeason = (keys, seasonId) => keys.season(seasonId) ?? (Number.isFinite(Number(seasonId)) ? keys.season(Number(seasonId)) : null);
+const isMappedSeason = (keys, seasonId) => Object.hasOwn(RANKED_SEASON_IDS, seasonId) || !!keySeason(keys, seasonId);
+
 // seasonId → { n, label }. Falls back to "the season live at createdMs" for any
 // future/unknown id (date of the player's real first game that season).
-export function resolveSeason(seasonId, createdMs) {
+export function resolveSeason(seasonId, createdMs, keys = STATIC_KEYS) {
   // hasOwn, not a bare lookup: seasonId comes from the export, so a key like
   // "constructor" would otherwise resolve to an inherited Object property and
   // put a function into seasonN.
@@ -89,6 +95,8 @@ export function resolveSeason(seasonId, createdMs) {
     const s = SEASONS.find((x) => x.n === known);
     return s ? { n: s.n, label: s.label } : { n: known, label: `S${known}` };
   }
+  const named = keySeason(keys, seasonId);
+  if (named) return { n: named.n, label: `S${named.n}` };
   if (createdMs != null) {
     let best = null;
     for (const s of SEASONS) if (s.startMs <= createdMs && (!best || s.startMs > best.startMs)) best = s;
@@ -179,7 +187,7 @@ function parseRatingRecords(byType) {
 // row stamped with the adjustment time, not the match time, and can itself be
 // undone. Chain each row's own MuBefore/MuAfter, never accumulate deltas: the
 // ladder also moves outside these rows.
-function parseRankUpdates(byType) {
+function parseRankUpdates(byType, keys) {
   const rows = byType.RankUpdate || [];
   const clean = [];
   let dropped = 0;
@@ -302,7 +310,7 @@ function parseRankUpdates(byType) {
     }
     // Outside the window the gain is rare, several times larger and only ever
     // seen on a loss, which fits a rank-score adjustment rather than a reward.
-    const seasonN = resolveSeason(primary.seasonId, primary.ms)?.n ?? null;
+    const seasonN = resolveSeason(primary.seasonId, primary.ms, keys)?.n ?? null;
     const performance =
       bonus > 0 && seasonN != null && seasonN >= PERFORMANCE_BONUS_FROM_SEASON && primary.before * RP_PER_MU < PERFORMANCE_BONUS_MAX_SCORE;
     if (performance) {
@@ -367,7 +375,7 @@ const familyPriority = (ratingId, seasonN) => {
 // Below this, the record is a parallel shadow rather than the season's ladder.
 const LIVE_ENGINE_PRIORITY = 3;
 
-function buildRanked(records, rankUpdates) {
+function buildRanked(records, rankUpdates, keys) {
   const ranked = records.filter((r) => r.isRanked && r.seasonId);
   const groups = new Map();
   for (const r of ranked) {
@@ -395,10 +403,10 @@ function buildRanked(records, rankUpdates) {
   // canonical id loses its own season whenever a twin happens to sit above it in
   // the file.
   const byExactness = [...groups.keys()].sort(
-    (a, b) => Number(Object.hasOwn(RANKED_SEASON_IDS, b)) - Number(Object.hasOwn(RANKED_SEASON_IDS, a)) || String(a).localeCompare(String(b)),
+    (a, b) => Number(isMappedSeason(keys, b)) - Number(isMappedSeason(keys, a)) || String(a).localeCompare(String(b)),
   );
   for (const seasonId of byExactness) {
-    const mapped = resolveSeason(seasonId, null);
+    const mapped = resolveSeason(seasonId, null, keys);
     // Claim-check pass A too: two ids that both map to one number would otherwise
     // BOTH keep it, which is the duplicate this whole two-pass structure prevents.
     if (mapped && !claimed.has(mapped.n)) {
@@ -416,7 +424,7 @@ function buildRanked(records, rankUpdates) {
     // file order, which is what "must not depend on row order" actually requires.
     .sort((a, b) => (a.at ?? Infinity) - (b.at ?? Infinity) || String(a.seasonId).localeCompare(String(b.seasonId)));
   for (const { seasonId, at } of pending) {
-    const guess = resolveSeason(seasonId, at);
+    const guess = resolveSeason(seasonId, at, keys);
     const free = guess && !claimed.has(guess.n);
     if (free) claimed.add(guess.n);
     resolvedSeason.set(seasonId, free ? guess : null);
@@ -507,8 +515,8 @@ function buildRanked(records, rankUpdates) {
     // Hard map first, and kept separate: only a known id may merge into a season
     // another id already owns. An unrecognised id date-falls-back onto the newest
     // known season, so merging on a date guess hands it the next season's curve.
-    const mapped = resolveSeason(sid, null);
-    const season = mapped ?? resolveSeason(sid, c.firstMs);
+    const mapped = resolveSeason(sid, null, keys);
+    const season = mapped ?? resolveSeason(sid, c.firstMs, keys);
     // Never seen before S4, and must stay that way: scoreToLeagueIdx is the S4+
     // table and S3 ran a different one.
     if (season && season.n < RANKUPDATE_FIRST_SEASON) {
@@ -676,10 +684,10 @@ function buildOpenSkill(records) {
 }
 
 // --- public entry ----------------------------------------------------------
-export function buildRatings(byType) {
+export function buildRatings(byType, keys = STATIC_KEYS) {
   const records = parseRatingRecords(byType);
-  const rankUpdates = parseRankUpdates(byType);
-  const ranked = buildRanked(records, rankUpdates);
+  const rankUpdates = parseRankUpdates(byType, keys);
+  const ranked = buildRanked(records, rankUpdates, keys);
   const hiddenMmr = buildHiddenMmr(records);
   const openSkill = buildOpenSkill(records);
   return {

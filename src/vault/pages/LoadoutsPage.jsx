@@ -82,9 +82,9 @@ export const LoadoutsPage = () => {
       </div>
 
       <Note>
-        The export doesn’t store loadout configurations — <code>InventoryItem</code> records carry no item IDs, so exact
-        saved loadouts can’t be reconstructed. This page approximates your loadouts from how much you played each class
-        and which weapons you actually got kills with.
+        {model.meta.exportV2
+          ? 'This page approximates your loadouts from how much you played each class and which weapons you actually got kills with. Your export does list the loadout you equipped each round and your saved contestant packs, but the vault doesn’t read those yet.'
+          : 'The export doesn’t store loadout configurations — InventoryItem records carry no item IDs, so exact saved loadouts can’t be reconstructed. This page approximates your loadouts from how much you played each class and which weapons you actually got kills with.'}
       </Note>
     </div>
   );

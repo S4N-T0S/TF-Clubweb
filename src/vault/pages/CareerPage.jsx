@@ -148,6 +148,7 @@ export const CareerPage = () => {
         <dl className="flex items-start justify-center gap-x-6 gap-y-2 flex-wrap text-center sm:justify-end sm:text-left">
           <HeaderFact label="Created">{date(identity.accountCreatedAt)}</HeaderFact>
           <HeaderFact label="Last active">{date(meta.lastActivity)}</HeaderFact>
+          {career.level && <HeaderFact label="Career rank">{num(career.level.rank)}</HeaderFact>}
           <HeaderFact label="Country">
             {identity.countryCode ? (
               <span className="inline-flex items-center gap-1.5">

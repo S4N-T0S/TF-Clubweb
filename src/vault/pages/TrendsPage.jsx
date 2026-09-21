@@ -3,7 +3,7 @@ import { TrendingUp, TrendingDown, Minus, LineChart } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, EmptyState, Note } from '../components/ui';
 import { careerModeGroup, CAREER_MODE_GROUPS } from '../lib/gameMeta';
-import { SEASONS, seasonsInRange } from '../lib/seasons';
+import { seasonsInRange } from '../lib/seasons';
 import { num } from '../lib/format';
 
 const MODE_TABS = ['All modes', ...CAREER_MODE_GROUPS, 'Other'];
@@ -16,14 +16,14 @@ const GRAINS = [
   { key: 'season', label: 'Season', lowSample: 50 },
 ];
 
-const bucketOf = (ms, grain) => {
+const bucketOf = (ms, grain, seasons) => {
   if (grain === 'week') {
     const k = Math.floor(ms / WEEK_MS);
     return { key: k, start: k * WEEK_MS };
   }
   if (grain === 'season') {
-    let s = SEASONS[0];
-    for (const x of SEASONS) if (x.startMs <= ms) s = x;
+    let s = seasons[0];
+    for (const x of seasons) if (x.startMs <= ms) s = x;
     return { key: s.n, start: s.startMs, label: s.label };
   }
   const d = new Date(ms);
@@ -87,7 +87,7 @@ const Spark = ({ pts }) => {
 // The expanded explorer chart: SVG lines in percent space (strokes non-scaling,
 // like the Purchases BalanceChart), season markers and data dots as HTML overlays
 // so nothing distorts under preserveAspectRatio="none".
-const Explorer = ({ metric, buckets, grain, lowSample, lifetime }) => {
+const Explorer = ({ metric, buckets, grain, lowSample, lifetime, seasons }) => {
   const pts = buckets.map((b) => ({ start: b.start, v: metric.calc(b), n: b.rounds, label: bucketLabel(b, grain) }));
   if (pts.length < 2) {
     return <Note>Not enough {grain === 'season' ? 'seasons' : grain + 's'} with rounds in this mode to draw a trend.</Note>;
@@ -106,7 +106,7 @@ const Explorer = ({ metric, buckets, grain, lowSample, lifetime }) => {
     const w = pts.slice(Math.max(0, i - 3), i + 1);
     return `${X(p.start).toFixed(2)},${Y(w.reduce((s, q) => s + q.v, 0) / w.length).toFixed(2)}`;
   }).join(' ');
-  const seasonMarks = grain === 'season' ? [] : seasonsInRange(minT, pts[pts.length - 1].start);
+  const seasonMarks = grain === 'season' ? [] : seasonsInRange(minT, pts[pts.length - 1].start, seasons);
 
   return (
     <div>
@@ -154,6 +154,7 @@ const Explorer = ({ metric, buckets, grain, lowSample, lifetime }) => {
 export const TrendsPage = () => {
   const { model } = useVaultData();
   const rounds = model.rounds ?? NO_ROUNDS;
+  const { seasons } = model;
   const [modePick, setModePick] = useState(null);
   const [grainKey, setGrainKey] = useState('month');
   const [metricKey, setMetricKey] = useState('kd');
@@ -179,7 +180,7 @@ export const TrendsPage = () => {
       if (mode !== 'All modes' && careerModeGroup(r.mode) !== mode) continue;
       const t = r.start ?? r.end;
       if (!t) continue;
-      const b = bucketOf(t, grain.key);
+      const b = bucketOf(t, grain.key, seasons);
       let e = map.get(b.key);
       if (!e) {
         e = { ...ZERO, key: b.key, start: b.start, label: b.label };
@@ -193,7 +194,7 @@ export const TrendsPage = () => {
       e.revives += r.revives || 0;
     }
     return [...map.values()].sort((a, b) => a.start - b.start);
-  }, [rounds, mode, grain.key]);
+  }, [rounds, mode, grain.key, seasons]);
 
   const lifetime = useMemo(() => mergeBuckets(buckets), [buckets]);
 
@@ -280,7 +281,7 @@ export const TrendsPage = () => {
                   {metric.label} <span className="text-gray-500 font-normal">· {mode} · {grain.label.toLowerCase()}</span>
                 </p>
               </div>
-              <Explorer metric={metric} buckets={buckets} grain={grain.key} lowSample={grain.lowSample} lifetime={lifetime} />
+              <Explorer metric={metric} buckets={buckets} grain={grain.key} lowSample={grain.lowSample} lifetime={lifetime} seasons={seasons} />
             </div>
           )}
         </>

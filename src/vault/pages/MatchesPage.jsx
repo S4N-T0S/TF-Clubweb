@@ -318,7 +318,7 @@ export const MatchesPage = () => {
       m.map?.display,
       m.mode?.label,
       m.mode?.category,
-      ...(m.weaponKills || []).map((wk) => resolveWeapon(wk.id).name),
+      ...(m.weaponKills || []).map((wk) => wk.name),
     ],
     () => setPage(1)
   );

@@ -76,7 +76,7 @@ const PRIMARY = {
 };
 const GADGET = {
   Light: ['432758549', '1948814529'], // Breach Charge, Gateway
-  Medium: ['-21077747', '1886362451'], // Gas Mine, APS Turret
+  Medium: ['-21077747', '1886362451'], // Gas Mine, Guardian Turret
   Heavy: ['1042541498', '-455578974', '1647891907'], // RPG-7, C4, Pyro Mine
 };
 const GLOBAL_GADGET = ['1082327915', '-351094439', '81925953']; // Frag, Explosive Mine, Pyro Grenade
@@ -660,7 +660,8 @@ function buildPersistence() {
     RoundStatSummary: buildSummary(rounds),
     RoundStat: rounds,
     UserLogin: buildUserLogins(rounds),
-    RankBucket: [{ XP: 184500, Rank: 'Diamond' }, { XP: 92000, Rank: 'Platinum' }],
+    // The BucketID'd row is the 2026-09+ shape: that id is the "Career rank" track in Embark's key file.
+    RankBucket: [{ XP: 184500, Rank: 'Diamond' }, { XP: 92000, Rank: 'Platinum' }, { BucketID: '393268067', XP: 4125000, Rank: 62 }],
     TransactionLog: buildTransactions(),
     HardCurrencyLog: buildLedger(),
     SteamDLC: buildSteamDlc(),

@@ -6,6 +6,8 @@ import { resolveMap, resolveLtmBackground, conditionType } from './maps';
 import { resolveDlc, steamAppUrl, STEAM_BASE_GAME_ID } from './economy';
 import { buildRealms, REALM, classifyRoundStat, ROUND_KIND } from './realms';
 import { buildRatings } from './ratings';
+import { createKeys } from './keys';
+import { withKeySeasons } from './seasons';
 
 // timestamp helpers (export mixes ISO-8601 strings and epoch-ms)
 const toMs = (v) => {
@@ -268,13 +270,16 @@ function collectEmails(byType, auditByType) {
   for (const t of ['ProfileUpdated', 'ProfileUpdated2', 'ProfileUpdated3', 'EmailCollectedProfileStore2']) {
     for (const r of A[t] || []) add(r.email, 'audit');
   }
-  // Addresses embedded in the SES nested-JSON blobs — regex them out (don't full-parse).
+  // Addresses embedded in the SES blobs: regex them out (don't full-parse). The
+  // blobs are nested-JSON strings up to 2026-08 and plain objects since.
+  const blobText = (v) => (typeof v === 'string' ? v : v && typeof v === 'object' ? JSON.stringify(v) : '');
   for (const r of A.AwsSesEvent || []) {
-    const m = typeof r.mail === 'string' ? r.mail.match(EMAIL_RE) : null;
+    const m = blobText(r.mail).match(EMAIL_RE);
     if (m) for (const e of m) add(e, 'sent');
   }
   for (const r of A.EmailStatus || []) {
-    const blob = [r.delivery, r.bounce, r.complaint].filter((v) => typeof v === 'string').join(' ');
+    // The trimmed form keeps the recipient on `mail` alone.
+    const blob = [typeof r.mail === 'object' ? r.mail : null, r.delivery, r.bounce, r.complaint].map(blobText).join(' ');
     const m = blob.match(EMAIL_RE);
     if (m) for (const e of m) add(e, 'sent');
   }
@@ -474,9 +479,11 @@ function buildPlatformNameHistory(raw) {
   for (const r of rows) {
     const name = r.last_seen_account_name || null;
     if (!name) continue;
-    const uid = r.third_party_user_id != null ? String(r.third_party_user_id) : `pid:${r.third_party_provider_id}`;
+    // 2026-09+ exports name the provider (`third_party_provider_name: "xbox"`) where older ones numbered it.
+    const uid = r.third_party_user_id != null ? String(r.third_party_user_id) : `pid:${r.third_party_provider_name ?? r.third_party_provider_id}`;
     const provider =
       idToProvider.get(uid) ||
+      (typeof r.third_party_provider_name === 'string' && r.third_party_provider_name) ||
       (Object.hasOwn(NUMERIC_PROVIDER, r.third_party_provider_id) ? NUMERIC_PROVIDER[r.third_party_provider_id] : null) ||
       (r.third_party_provider_id != null ? `provider-${r.third_party_provider_id}` : 'unknown');
     let acc = byAccount.get(uid);
@@ -590,7 +597,7 @@ function aggregateBucket(buckets) {
   return out;
 }
 
-function buildCareer(byType) {
+function buildCareer(byType, keys) {
   const summaries = byType.RoundStatSummary || [];
   const pluck = (key) => aggregateBucket(summaries.map((s) => s.Data?.[key]).filter(Boolean));
   const total = pluck('total');
@@ -619,6 +626,13 @@ function buildCareer(byType) {
 
   // RankBucket carries XP/Rank standings (ambiguous scope; surfaced raw).
   const ranks = (byType.RankBucket || []).map((rb) => ({ xp: rb.XP ?? null, rank: rb.Rank ?? null }));
+  // 2026-09+ rows name their track (`BucketID`); the key file's "Career rank" one is
+  // the account level. Older rows have no BucketID, so theirs stays unknown.
+  let level = null;
+  for (const rb of byType.RankBucket || []) {
+    if (rb.BucketID == null || keys.mastery(rb.BucketID)?.category !== 'Career rank') continue;
+    if (typeof rb.Rank === 'number' && (!level || rb.Rank > level.rank)) level = { rank: rb.Rank, xp: rb.XP ?? null };
+  }
 
   // Newest snapshot timestamp, purely for the "as of" display.
   const updatedAt = summaries.reduce(
@@ -641,6 +655,7 @@ function buildCareer(byType) {
     otherRoundsPlayed: Math.max(0, total.RoundsPlayed - casual.RoundsPlayed - ranked.RoundsPlayed),
     otherTimePlayedMs: Math.max(0, total.TotalTimePlayed - casual.TotalTimePlayed - ranked.TotalTimePlayed),
     ranks,
+    level,
   };
 }
 
@@ -710,7 +725,7 @@ function addRound(m, r) {
   if (r.disconnected) m.disconnected = true;
 }
 
-function buildMatchesAndWeapons(byType) {
+function buildMatchesAndWeapons(byType, keys) {
   // parse.js already buckets ARC Raiders' identically-named records separately,
   // but re-check here: `byType` is also built by hand (sampleData, harnesses),
   // and one unfiltered ARC row becomes a phantom match that always reads as a loss.
@@ -734,7 +749,7 @@ function buildMatchesAndWeapons(byType) {
     const d = rawRounds[i].Data || {};
     const archetype = archetypeLabel(d.CharacterArchetype);
     const pmap = parseMapVariant(d.MapVariant);
-    const rmap = resolveMap(d.MapVariant); // precise name + one bg photo + crop focus
+    const rmap = resolveMap(d.MapVariant, keys); // precise name + one bg photo + crop focus
     const ltmBg = resolveLtmBackground(d.ScenarioID); // LTM-specific background by gamemode id (overrides the map photo)
     const cond = parseCondition(d.EnvironmentalCondition);
     const variant = pmap.variant && pmap.variant !== 'Base' ? pmap.variant : null;
@@ -753,7 +768,7 @@ function buildMatchesAndWeapons(byType) {
       weaponTotals.set(id, (weaponTotals.get(id) || 0) + k);
       const bucket = weaponsByArch[archetype] || weaponsByArch.Unknown;
       bucket.set(id, (bucket.get(id) || 0) + k);
-      const w = resolveWeapon(id);
+      const w = resolveWeapon(id, keys);
       const rec = { id, kills: k, name: w.name, slug: w.slug, icon: w.icon, type: w.type };
       weaponKills.push(rec);
       if (!topAny || k > topAny.kills) topAny = rec;
@@ -800,7 +815,7 @@ function buildMatchesAndWeapons(byType) {
       disconnected: !!d.Disconnected,
       squadName: d.SquadName ?? null,
       squadId: d.SquadID ?? null,
-      mode: classifyMode(d),
+      mode: classifyMode(d, keys),
       weapon: topWeapon || topAny || null, // primary weapon used this round (kills-based)
       weaponKills, // all items that got a kill this round, desc — for the "also killed with" line
     };
@@ -915,13 +930,13 @@ function buildMatchesAndWeapons(byType) {
 
   // Weapon view-models.
   const weapons = [...weaponTotals.entries()]
-    .map(([id, kills]) => ({ id, kills, ...resolveWeapon(id) }))
+    .map(([id, kills]) => ({ id, kills, ...resolveWeapon(id, keys) }))
     .sort((a, b) => b.kills - a.kills);
 
   const weaponsByArchetype = {};
   for (const arch of ['Light', 'Medium', 'Heavy']) {
     weaponsByArchetype[arch] = [...weaponsByArch[arch].entries()]
-      .map(([id, kills]) => ({ id, kills, ...resolveWeapon(id) }))
+      .map(([id, kills]) => ({ id, kills, ...resolveWeapon(id, keys) }))
       .sort((a, b) => b.kills - a.kills);
   }
 
@@ -1736,7 +1751,7 @@ function buildAntiCheat(raw) {
 // tickets; it stays raw bytes here and the Support page lazy-parses it via
 // lib/cs.js (pdfjs). Its older layout also duplicates the chat (censored only);
 // the newer "Customer Support Data Export" layout carries tickets alone.
-const CHAT_CHANNELS = { pl: 'Lobby', party: 'Party' };
+const CHAT_CHANNELS = { pl: 'Lobby', party: 'Party', squad: 'Squad', clan: 'Club' }; // squad/clan: 2026-09+ exports
 export const chatChannelLabel = (ch) => (Object.hasOwn(CHAT_CHANNELS, ch) ? CHAT_CHANNELS[ch] : ch || 'Chat');
 
 function buildSupport(raw) {
@@ -1796,7 +1811,13 @@ function buildReports(raw) {
 // per `messageId` into one timeline per email, so a player can see precisely
 // which emails they were sent, which they opened (and how many times), and what
 // they clicked — i.e. the engagement data a marketing team normally sees.
+//
+// Since 2026-09 the blobs are plain snake_cased objects with no sender, headers or
+// SES tags, so those emails can no longer be told apart by category.
 const sesJson = (s) => {
+  if (s && typeof s === 'object' && !Array.isArray(s)) {
+    return { ...s, messageId: s.messageId ?? s.message_id, userAgent: s.userAgent ?? s.user_agent, ipAddress: s.ipAddress ?? s.ip_address };
+  }
   if (typeof s !== 'string') return null;
   try { return JSON.parse(s); } catch { return null; }
 };
@@ -1828,7 +1849,8 @@ const cleanSesIp = (ip) => (typeof ip === 'string' && ip && !/REDACT|\[/.test(ip
 // Marketing blasts go through the "email-scheduler" SES identity and carry a
 // List-Unsubscribe topic; everything else (verify-email, email-change) is
 // transactional account/security mail with no marketing topic or scheduler tag.
-const categorizeEmail = (topic, caller) => {
+const categorizeEmail = (topic, caller, sender) => {
+  if (!topic && !caller && !sender) return 'other'; // a trimmed 2026-09+ blob: nothing to tell by
   if (topic && /_ARC\b/i.test(topic)) return 'marketing_arc';
   if (topic && /(MARKETING|PROMO|NEWS)/i.test(topic)) return 'marketing';
   if (caller && /scheduler|marketing/i.test(caller)) return 'marketing';
@@ -1851,7 +1873,7 @@ function buildEmailTracking(auditByType) {
     const m = sesJson(blob);
     if (!m || !m.messageId) return null;
     const e = touch(m.messageId);
-    const subj = m.commonHeaders?.subject || (Array.isArray(m.headers) ? m.headers.find((h) => h.name === 'Subject')?.value : null) || null;
+    const subj = m.commonHeaders?.subject || (Array.isArray(m.headers) ? m.headers.find((h) => h.name === 'Subject')?.value : null) || m.subject || null;
     if (subj && !e.subject) e.subject = subj;
     if (m.source && !e.sender) e.sender = m.source;
     if (Array.isArray(m.destination) && m.destination[0] && !e.recipient) e.recipient = m.destination[0];
@@ -1896,7 +1918,7 @@ function buildEmailTracking(auditByType) {
       e.clicks.sort((a, b) => (a.ms ?? 0) - (b.ms ?? 0));
       return {
         ...e,
-        category: categorizeEmail(e.topic, e.caller),
+        category: categorizeEmail(e.topic, e.caller, e.sender),
         delivered: e.deliveredMs != null || e.opens.length > 0 || e.clicks.length > 0,
         openCount: e.opens.length,
         clickCount: e.clicks.length,
@@ -1941,13 +1963,14 @@ function buildEmailTracking(auditByType) {
 /** Build the full set of view-models from parsed raw records. */
 export function buildModel(raw) {
   const byType = raw.persistence.byType;
+  const keys = createKeys(raw.keys?.byType);
 
-  const { matches, weapons, weaponsByArchetype, roundCount, rounds, otherGameRounds, unknownRounds } = buildMatchesAndWeapons(byType);
+  const { matches, weapons, weaponsByArchetype, roundCount, rounds, otherGameRounds, unknownRounds } = buildMatchesAndWeapons(byType, keys);
   const lastActivity = matches.reduce((mx, m) => Math.max(mx, m.end ?? m.start ?? 0), 0) || null;
 
   // Joined here, not at render: the match list runs to thousands of rows.
   // Tournaments played before the log existed stay unstamped.
-  const ratings = buildRatings(byType);
+  const ratings = buildRatings(byType, keys);
   if (ratings.rankedTournaments.size > 0) {
     for (const m of matches) {
       if (!m.isTournament || !m.tournamentId) continue;
@@ -1999,7 +2022,7 @@ export function buildModel(raw) {
     linkedAccounts: buildLinkedAccounts(byType),
     nameHistory: buildNameHistory(raw, accounts),
     inventory: buildInventory(byType),
-    career: buildCareer(byType),
+    career: buildCareer(byType, keys),
     ratings,
     matches,
     rounds, // chronological normalized rounds (already retained via matches[].rounds)
@@ -2014,6 +2037,7 @@ export function buildModel(raw) {
     reports: buildReports(raw),
     support: buildSupport(raw),
     emailTracking: buildEmailTracking(raw.audit?.byType),
+    seasons: withKeySeasons(keys.seasons()), // for the time-axis markers
     meta: {
       roundCount,
       matchCount: matches.length,
@@ -2023,6 +2047,8 @@ export function buildModel(raw) {
       tournamentsPlayed,
       tournamentsWon,
       counts: raw.persistence.counts,
+      // 2026-09+ export: carries data the older one lacked (item names, loadouts, per-weapon damage).
+      exportV2: !!raw.persistence.gamePrefixed,
       lastActivity,
       snapshot,
       hasAudit: !!raw.audit,
