@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { User, Ban, Activity, Medal, Target, Skull, Flame, HeartPulse, Coins, Banknote, TrendingUp, TrendingDown } from 'lucide-react';
+import { User, Ban, Activity, Medal, Target, Skull, Flame, HeartPulse, Coins, Banknote, TrendingUp, TrendingDown, Gauge } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, StatCard, Badge, Note } from '../components/ui';
-import { num, decimal, hours, date, pct, cash } from '../lib/format';
+import { num, decimal, hours, date, pct, cash, scoreValue, compact } from '../lib/format';
 import { isoToFlag } from '../lib/worldgeo';
+import { SCORE_TIERS } from '../lib/gameMeta';
 
 // One colour per named game mode (shared by the pie + the per-mode table)
 const MODE_COLOR = {
@@ -124,6 +125,96 @@ const RECORD_DEFS = [
   { key: 'lossStreak', icon: TrendingDown, label: 'Longest loss streak', accent: 'text-white', fmt: (r) => num(r.value), context: () => 'rounds in a row', sub: recDate },
 ];
 
+const SCORE_GRID = 'grid grid-cols-[84px_1fr_60px] sm:grid-cols-[96px_1fr_56px_64px_64px] items-center gap-x-3';
+
+const ScorecardsSection = ({ scorecards }) => {
+  const [picked, setPicked] = useState(null);
+  const group = scorecards.groups.find((g) => g.key === picked) || scorecards.groups[0];
+  const top = SCORE_TIERS[0];
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-x-3 gap-y-1 mb-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Gauge className="w-4 h-4 text-gray-400" />
+          <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Scorecards</h2>
+        </div>
+        <span className="w-full sm:w-auto text-[11px] text-gray-500 tabular-nums">
+          {num(scorecards.rounds)} of {num(scorecards.totalRounds)} rounds · since {date(scorecards.firstMs)}
+        </span>
+      </div>
+      <Panel>
+        {scorecards.groups.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
+            {scorecards.groups.map((g) => (
+              <button
+                key={g.key}
+                onClick={() => setPicked(g.key)}
+                className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  g === group ? 'bg-emerald-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'
+                }`}
+              >
+                {g.label} · {num(g.rounds)}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-x-3 gap-y-1 mb-3 text-[11px] text-gray-400">
+          {SCORE_TIERS.map((t) => (
+            <span key={t.name} className="inline-flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-sm ${t.bg}`} />
+              {t.name}
+            </span>
+          ))}
+        </div>
+
+        <div className={`${SCORE_GRID} pb-1.5 text-[10px] uppercase tracking-wider text-gray-500`}>
+          <span>Metric</span>
+          <span>Share of rounds</span>
+          <span className={`hidden sm:block text-right ${top.text}`}>{top.name}</span>
+          <span className="text-right">Avg</span>
+          <span className="hidden sm:block text-right">Best</span>
+        </div>
+
+        <div className="divide-y divide-gray-700/40">
+          {group.metrics.map((m) => (
+            <div key={m.name} className={`${SCORE_GRID} py-2.5`}>
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-gray-200 truncate">{m.name}</span>
+                <span className={`sm:hidden block text-[10px] tabular-nums ${top.text}`}>
+                  {num(m.tierCounts[0])} {top.name}
+                </span>
+              </span>
+              <div className="flex gap-0.5 h-2.5 rounded overflow-hidden min-w-0" role="img" aria-label={`Tiers for ${m.name}, ${top.name} on the left`}>
+                {m.tierCounts.map((c, i) => (
+                  <div
+                    key={i}
+                    className={SCORE_TIERS[i].bg}
+                    style={{ width: `${m.rounds ? (c / m.rounds) * 100 : 0}%` }}
+                    title={m.rounds ? `${SCORE_TIERS[i].name}: ${num(c)} of ${num(m.rounds)} rounds` : undefined}
+                  />
+                ))}
+              </div>
+              <span className={`hidden sm:block text-xs tabular-nums text-right ${top.text}`}>{num(m.tierCounts[0])}</span>
+              <span className="text-right">
+                <span className="block text-sm font-bold text-white tabular-nums">{scoreValue(m.name, m.avgScore)}</span>
+                <span className="sm:hidden block text-[10px] text-gray-500 tabular-nums">best {scoreValue(m.name, m.bestScore)}</span>
+              </span>
+              <span className="hidden sm:block text-xs text-gray-500 tabular-nums text-right">{scoreValue(m.name, m.bestScore)}</span>
+            </div>
+          ))}
+        </div>
+
+        <Note>
+          Each round the game grades these from {top.name} down to {SCORE_TIERS[SCORE_TIERS.length - 1].name}. Embark does not publish the cut-offs, and
+          they differ by metric. So compare a metric with itself, not with another. Damage here is Embark’s own score, not the damage total on
+          your match cards.
+        </Note>
+      </Panel>
+    </div>
+  );
+};
+
 export const CareerPage = () => {
   const { model } = useVaultData();
   const { career, careerModes, identity, ban, meta, records } = model;
@@ -148,7 +239,12 @@ export const CareerPage = () => {
         <dl className="flex items-start justify-center gap-x-6 gap-y-2 flex-wrap text-center sm:justify-end sm:text-left">
           <HeaderFact label="Created">{date(identity.accountCreatedAt)}</HeaderFact>
           <HeaderFact label="Last active">{date(meta.lastActivity)}</HeaderFact>
-          {career.level && <HeaderFact label="Career rank">{num(career.level.rank)}</HeaderFact>}
+          {career.level && (
+            <HeaderFact label="Career rank">
+              {num(career.level.rank)}
+              {career.level.xp != null && <span className="block text-[10px] font-normal text-gray-500 normal-case tracking-normal mt-0.5">{compact(career.level.xp)} XP</span>}
+            </HeaderFact>
+          )}
           <HeaderFact label="Country">
             {identity.countryCode ? (
               <span className="inline-flex items-center gap-1.5">
@@ -233,6 +329,8 @@ export const CareerPage = () => {
           </div>
         </div>
       )}
+
+      {model.scorecards.has && <ScorecardsSection scorecards={model.scorecards} />}
 
       {/* Where you played — by game mode */}
       <div>

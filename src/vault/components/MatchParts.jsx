@@ -5,7 +5,8 @@ import {
   Sun, Moon, Sunset, CloudFog, CloudLightning, CloudRain, Wind, Snowflake, Sparkles,
 } from 'lucide-react';
 import { Badge } from './ui';
-import { num, ordinal, cash, compact } from '../lib/format';
+import { num, ordinal, cash, compact, scoreValue } from '../lib/format';
+import { SCORE_TIERS } from '../lib/gameMeta';
 
 // The pieces that render one match, shared by MatchesPage and the Skill Rating
 // graph's match modal. Nothing here is page-specific: the filter chips and
@@ -51,15 +52,22 @@ export const ConditionTag = ({ type, label, className = '' }) => {
 // One item you got kills with (weapon, gadget or spec). The wiki icons carry a
 // light in-game "card" backdrop, so we show them as small rounded tiles — that
 // reads as a deliberate weapon card rather than a white box on the dark UI.
+export const ItemIcon = ({ it, className = 'w-9 h-9' }) => (
+  <span
+    title={it.name}
+    className={`${className} rounded-md overflow-hidden bg-linear-to-b from-gray-300 to-gray-400 ring-1 ring-black/25 flex items-center justify-center shrink-0`}
+  >
+    {it.icon ? (
+      <img src={it.icon} alt={it.name} className="w-full h-full object-cover" />
+    ) : (
+      <span className="text-[8px] text-gray-700 text-center leading-tight px-0.5">{it.name}</span>
+    )}
+  </span>
+);
+
 const KillTile = ({ it }) => (
   <li className="flex items-center gap-2.5 text-xs">
-    <span className="w-9 h-9 rounded-md overflow-hidden bg-linear-to-b from-gray-300 to-gray-400 ring-1 ring-black/25 flex items-center justify-center shrink-0">
-      {it.icon ? (
-        <img src={it.icon} alt="" className="w-full h-full object-cover" />
-      ) : (
-        <span className="text-[8px] text-gray-700 text-center leading-tight px-0.5">{it.name}</span>
-      )}
-    </span>
+    <ItemIcon it={it} />
     <span className="flex-1 min-w-0">
       <span className="text-gray-100 block truncate">{it.name}</span>
       {it.type && it.type !== 'Weapon' && it.type !== 'Event' && (
@@ -73,13 +81,18 @@ const KillTile = ({ it }) => (
 // Hover (or tap) the K/D to see what you got kills with — for a single round or
 // a whole match. Rendered in a portal so the card's overflow-hidden / rounded
 // corners can't clip it.
-export const KillsTooltip = ({ items, label, children }) => {
+const HoverTip = ({ tip, children }) => {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState(null);
   const ref = useRef(null);
+  // Kept inside the viewport: a trigger at the card's right edge would push a centred
+  // tip off screen, and one near the top has no room above it.
   const place = () => {
     const r = ref.current?.getBoundingClientRect();
-    if (r) setPos({ x: r.left + r.width / 2, y: r.top });
+    if (!r) return;
+    const half = 128; // half of w-60, plus a margin
+    const x = Math.min(Math.max(r.left + r.width / 2, half), Math.max(half, window.innerWidth - half));
+    setPos(r.top < 240 ? { x, y: r.bottom + 10, below: true } : { x, y: r.top - 10, below: false });
   };
   // Dismiss on scroll / resize / outside tap (the fixed tooltip would otherwise
   // float away on scroll, and a tap-opened one needs an outside-tap to close).
@@ -118,23 +131,95 @@ export const KillsTooltip = ({ items, label, children }) => {
         pos &&
         createPortal(
           <div
-            style={{ position: 'fixed', left: pos.x, top: pos.y - 10, transform: 'translate(-50%, -100%)', zIndex: 90 }}
+            style={{ position: 'fixed', left: pos.x, top: pos.y, transform: `translate(-50%, ${pos.below ? '0' : '-100%'})`, zIndex: 90 }}
             className="pointer-events-none w-60 rounded-xl bg-gray-900/98 border border-gray-700 shadow-2xl p-3"
           >
-            <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">{label}</p>
-            {items?.length ? (
-              <ul className="space-y-1.5">
-                {items.map((it) => (
-                  <KillTile key={it.id} it={it} />
-                ))}
-              </ul>
-            ) : (
-              <p className="text-xs text-gray-500">No kills recorded.</p>
-            )}
+            {tip}
           </div>,
           document.body
         )}
     </div>
+  );
+};
+
+export const KillsTooltip = ({ items, label, loadout, children }) => (
+  <HoverTip
+    tip={
+      <>
+        <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">{label}</p>
+        {items?.length ? (
+          <ul className="space-y-1.5">
+            {items.map((it) => (
+              <KillTile key={it.id} it={it} />
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-gray-500">No kills recorded.</p>
+        )}
+        {loadout && (
+          <>
+            <p className="text-[10px] uppercase tracking-wider text-gray-400 mt-3 mb-2">Loadout on record</p>
+            <div className="flex gap-1.5">
+              {loadout.map((it) => (
+                <ItemIcon key={it.id} it={it} />
+              ))}
+            </div>
+          </>
+        )}
+      </>
+    }
+  >
+    {children}
+  </HoverTip>
+);
+
+// A six-spoke shape of the round's tiers: the further a corner reaches, the better
+// that metric's tier. Hover or tap for the scores.
+export const ScorecardMark = ({ scorecard, className = 'w-9' }) => {
+  // No card for this round: hold the column so its stats line up with its neighbours.
+  if (!scorecard) {
+    return (
+      <div className={className}>
+        <p className="text-[10px] uppercase text-gray-400">Card</p>
+        <div className="h-5 leading-5 text-sm text-gray-600">—</div>
+      </div>
+    );
+  }
+  const n = scorecard.length;
+  const points = scorecard
+    .map((m, i) => {
+      const a = (Math.PI * 2 * i) / n - Math.PI / 2;
+      const r = 2.5 + 8 * ((5 - m.tier) / 4);
+      return `${(11 + r * Math.cos(a)).toFixed(1)},${(11 + r * Math.sin(a)).toFixed(1)}`;
+    })
+    .join(' ');
+  return (
+    <HoverTip
+      tip={
+        <>
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">Round scorecard</p>
+          <ul className="space-y-1.5">
+            {scorecard.map((m) => (
+              <li key={m.name} className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-gray-200">{m.name}</span>
+                <span className="flex items-center gap-2">
+                  <span className={`text-[10px] uppercase tracking-wide ${SCORE_TIERS[m.tier - 1].text}`}>{SCORE_TIERS[m.tier - 1].name}</span>
+                  <span className="text-white font-semibold tabular-nums w-12 text-right">{scoreValue(m.name, m.score)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      }
+    >
+      <div className={className}>
+        <p className="text-[10px] uppercase text-gray-400">Card</p>
+        <svg viewBox="0 0 22 22" className="w-5 h-5 ml-auto text-emerald-400" aria-hidden="true">
+          <circle cx="11" cy="11" r="10.5" className="text-gray-600" fill="none" stroke="currentColor" strokeWidth="0.75" strokeDasharray="1.5 1.5" />
+          <polygon points={points} fill="currentColor" fillOpacity="0.55" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
+        </svg>
+      </div>
+    </HoverTip>
   );
 };
 
@@ -219,7 +304,7 @@ export const RankDeltaRow = ({ ru }) => {
 // One bracket round inside an expanded tournament. The map is constant across a
 // tournament (shown once on the card), so a round highlights what VARIES: the
 // time/weather, the layout, the weapon used, placement, cashout and combat.
-export const RoundRow = ({ r }) => (
+export const RoundRow = ({ r, cardSlot = false }) => (
   <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3 px-3 py-2 rounded-lg bg-gray-950/45">
     <div className="min-w-0">
       <div className="flex items-center gap-2 flex-wrap text-sm font-semibold text-gray-100">
@@ -230,7 +315,7 @@ export const RoundRow = ({ r }) => (
           </Badge>
         )}
         {r.backfill && <span className="text-[10px] font-normal text-gray-400">joined in progress</span>}
-        {r.disconnected && <span className="text-[10px] font-normal text-red-300">disconnected</span>}
+        {(r.abandoned || r.disconnected) && <span className="text-[10px] font-normal text-red-300">{r.abandoned ? 'abandoned' : 'disconnected'}</span>}
         <span className="ml-auto sm:hidden inline-flex items-center gap-2 text-xs font-normal text-gray-300">
           <ConditionTag type={r.condType} label={r.condition} />
           {r.layout && <span className="text-gray-400">{r.layout.replace(/([a-z])([A-Z])/g, '$1 $2')}</span>}
@@ -260,7 +345,7 @@ export const RoundRow = ({ r }) => (
         <p className="text-[10px] uppercase text-gray-400">Rev</p>
         <p className="text-sm font-semibold text-gray-100 tabular-nums">{r.revives}</p>
       </div>
-      <KillsTooltip items={r.weaponKills} label="Killed with">
+      <KillsTooltip items={r.weaponKills} label="Killed with" loadout={r.loadout}>
         <div className="w-12 sm:w-14">
           <p className="text-[10px] uppercase text-gray-400">K / D</p>
           <p className="text-sm font-semibold text-gray-100 tabular-nums underline decoration-dotted decoration-gray-500 underline-offset-2">
@@ -268,6 +353,7 @@ export const RoundRow = ({ r }) => (
           </p>
         </div>
       </KillsTooltip>
+      {(r.scorecard || cardSlot) && <ScorecardMark scorecard={r.scorecard} />}
     </div>
   </div>
 );

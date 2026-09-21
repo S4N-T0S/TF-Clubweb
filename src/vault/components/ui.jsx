@@ -64,6 +64,22 @@ export const EmptyState = ({ icon: Icon, title, children }) => (
   </div>
 );
 
+// Pill switch for folding set-aside rows back into a list.
+export const TogglePill = ({ on, onChange, icon: Icon, controls, children }) => (
+  <button
+    type="button"
+    onClick={() => onChange(!on)}
+    aria-pressed={on}
+    aria-controls={controls}
+    className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border transition-colors ${
+      on ? 'border-purple-500/50 bg-purple-500/15 text-purple-200' : 'border-gray-700 bg-gray-800 text-gray-400 hover:text-gray-200'
+    }`}
+  >
+    {Icon && <Icon className="w-3.5 h-3.5" />}
+    {children}
+  </button>
+);
+
 // A small explanatory note for the heuristic / not-in-export caveats
 export const Note = ({ children }) => (
   <p className="text-xs text-gray-500 italic mt-3 border-l-2 border-gray-700 pl-3">{children}</p>

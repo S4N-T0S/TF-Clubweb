@@ -1,12 +1,13 @@
 import { useMemo, useRef, useState } from 'react';
 import { Wallet, CreditCard, Store, Coins, Clock, ExternalLink, Info, FlaskConical } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
-import { PageHeader, Panel, StatCard, Badge, Note, EmptyState } from '../components/ui';
+import { PageHeader, Panel, StatCard, Badge, Note, EmptyState, TogglePill } from '../components/ui';
 import { ListSearch, SearchEcho } from '../components/ListSearch';
+import { InventoryBrowser } from '../components/InventoryBrowser';
 import { useListSearch } from '../../hooks/useListSearch';
 import { Pagination } from '../../components/Pagination';
 import { num, money, date, dateTime, duration } from '../lib/format';
-import { sourceLabel, sourceTone, storeLabel, typeLabel, logTypeMeta, SOURCE_GROUPS, BASE_CURRENCIES, isBaseCurrency } from '../lib/economy';
+import { sourceLabel, sourceTone, storeLabel, typeLabel, logTypeMeta, SOURCE_GROUPS, BASE_CURRENCIES, isBaseCurrency, localAmount } from '../lib/economy';
 import { seasonsInRange } from '../lib/seasons';
 
 const PER_PAGE = 15;
@@ -19,18 +20,9 @@ const RealmBadge = ({ row }) => (row.isLive ? null : <Badge tone="purple">{row.r
 // rather than "playtest" because the same toggle also covers rows from Embark's
 // other game, which is not a playtest of this one.
 const IncludeToggle = ({ on, onChange, count, controls }) => (
-  <button
-    type="button"
-    onClick={() => onChange(!on)}
-    aria-pressed={on}
-    aria-controls={controls}
-    className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border transition-colors ${
-      on ? 'border-purple-500/50 bg-purple-500/15 text-purple-200' : 'border-gray-700 bg-gray-800 text-gray-400 hover:text-gray-200'
-    }`}
-  >
-    <FlaskConical className="w-3.5 h-3.5" />
+  <TogglePill on={on} onChange={onChange} icon={FlaskConical} controls={controls}>
     {on ? 'Hide' : 'Show'} {num(count)} set-aside row{count === 1 ? '' : 's'}
-  </button>
+  </TogglePill>
 );
 
 // Premium-currency balance over time
@@ -156,14 +148,21 @@ const rowInBaseCurrency = (t) => (t.currency ? isBaseCurrency(t.currency) : !t.l
 
 // Price cell for the real-money table: the standard USD/EUR price, with the real local
 // charge underneath when the wallet isn't USD/EUR and the export recorded it.
-const PriceCell = ({ t }) => (
-  <div className="leading-tight">
-    <span className="text-white tabular-nums">{baseMoney(t.pricePoint)}</span>
-    {t.localizedPrice && !rowInBaseCurrency(t) && (
-      <span className="block text-[11px] text-gray-400 tabular-nums">paid {t.localizedPrice}</span>
-    )}
-  </div>
-);
+const PriceCell = ({ t }) => {
+  // A known charge in a known non-USD/EUR currency leads, formatted from CurrencyCode
+  // because the recorded string's bare "$" does not say which dollar.
+  const paid = t.currency && !isBaseCurrency(t.currency) ? localAmount(t.localizedPrice) : null;
+  return (
+    <div className="leading-tight">
+      <span className="text-white tabular-nums">{paid != null ? money(paid, t.currency) : baseMoney(t.pricePoint)}</span>
+      {paid != null ? (
+        <span className="block text-[11px] text-gray-400 tabular-nums">standard {baseMoney(t.pricePoint)}</span>
+      ) : (
+        t.localizedPrice && !rowInBaseCurrency(t) && <span className="block text-[11px] text-gray-400 tabular-nums">paid {t.localizedPrice}</span>
+      )}
+    </div>
+  );
+};
 
 // The date column shows when the purchase was MADE, but a row can be written much later:
 // a preview re-provisions your entitlements and writes a fresh row carrying the original
@@ -208,7 +207,7 @@ export const PurchasesPage = () => {
   const { economy, inventory } = model;
   const {
     transactions, transactionsAll, transactionCount, grantedCount, bySource, byStore,
-    fiat, fiatGrantedCount, fiatFailedCount, fiatUnpricedCount, spendBaseTotal, walletCurrencies,
+    fiat, fiatGrantedCount, fiatFailedCount, fiatUnpricedCount, spendBaseTotal, charged, walletCurrencies,
     ledger, ledgerAll, mb, currentBalance, balanceSeries, dlc, offers,
     realms, testTransactionCount, testLedgerCount, testFiatCount, mbTest,
     duplicateChargeCount, duplicateChargeTotal,
@@ -284,7 +283,13 @@ export const PurchasesPage = () => {
   // If any granted purchase used a wallet that isn't USD/EUR, the displayed standard price is only an estimate of what they actually paid — flag it for the disclaimer
   const nonBaseCurrencies = walletCurrencies.filter((c) => !BASE_CURRENCIES.has(c));
   const walletIsBase = nonBaseCurrencies.length === 0;
-  const spentValue = fiatGrantedCount ? baseMoney(spendBaseTotal) : '—';
+  // The store's own charges lead only on a non-USD/EUR wallet (elsewhere the standard
+  // price IS what was paid) and only when they cover at least half the purchases, so a
+  // big number never stands for a small fraction of the spending.
+  const chargedText = charged.byCurrency.map((c) => money(c.total, c.currency)).join(' + ');
+  const chargedLeads = !walletIsBase && charged.count > 0 && charged.count * 2 >= fiatGrantedCount;
+  const restText = charged.uncharged > 0 ? `${num(charged.uncharged)} more at about ${baseMoney(charged.unchargedBaseTotal)} standard price` : null;
+  const spentValue = !fiatGrantedCount ? '—' : chargedLeads ? chargedText : baseMoney(spendBaseTotal);
   const mbInflowSegs = MB_SEGMENTS.map((s) => ({ ...s, value: mb[s.key] || 0 })).filter((s) => s.value > 0);
   const mbInflowTotal = mb.inTotal;
   const anomalies = realms?.anomalies ?? [];
@@ -339,9 +344,11 @@ export const PurchasesPage = () => {
               value={spentValue}
               accent="text-yellow-400"
               sub={
-                fiatGrantedCount
-                  ? `${num(fiatGrantedCount)} purchase${fiatGrantedCount === 1 ? '' : 's'} · standard USD/EUR price${walletIsBase ? '' : ' (approx)'}`
-                  : 'no real-money purchases'
+                !fiatGrantedCount
+                  ? 'no real-money purchases'
+                  : chargedLeads
+                    ? `charged on ${num(charged.count)} of ${num(fiatGrantedCount)} purchases${restText ? ` · ${restText}` : ''}`
+                    : `${num(fiatGrantedCount)} purchase${fiatGrantedCount === 1 ? '' : 's'} · standard USD/EUR price${walletIsBase ? '' : ' (approx)'}`
               }
             />
             <StatCard label="Multibucks balance" value={num(currentBalance)} accent="text-emerald-400" sub="current premium currency" />
@@ -447,10 +454,20 @@ export const PurchasesPage = () => {
             ) : (
               <>
                 <div className="flex flex-wrap items-end gap-x-4 gap-y-1 mb-4">
-                  <p className="text-3xl font-bold text-yellow-400">{baseMoney(spendBaseTotal)}</p>
+                  <p className="text-3xl font-bold text-yellow-400">{spentValue}</p>
                   <p className="text-xs text-gray-500 pb-1">
-                    standard USD / EUR store price · {num(fiatGrantedCount)} purchase{fiatGrantedCount === 1 ? '' : 's'}
-                    {walletCurrencies.length > 0 && <> · wallet: {walletCurrencies.join(', ')}</>}
+                    {chargedLeads ? (
+                      <>
+                        what your store charged · {num(charged.count)} of {num(fiatGrantedCount)} purchase{fiatGrantedCount === 1 ? '' : 's'}
+                        {restText && <> · {restText}</>}
+                      </>
+                    ) : (
+                      <>
+                        standard USD / EUR store price · {num(fiatGrantedCount)} purchase{fiatGrantedCount === 1 ? '' : 's'}
+                        {walletCurrencies.length > 0 && <> · wallet: {walletCurrencies.join(', ')}</>}
+                        {!walletIsBase && charged.count > 0 && <> · your store recorded {chargedText} for {num(charged.count)} of them</>}
+                      </>
+                    )}
                   </p>
                 </div>
                 <div className="table-container" style={fiTotalPages > 1 ? { minHeight: PER_PAGE * 38 } : undefined}>
@@ -529,12 +546,21 @@ export const PurchasesPage = () => {
                 {!walletIsBase && (
                   <div className="mt-3 flex items-start gap-2.5 rounded-lg border border-amber-700/40 bg-amber-950/30 px-3 py-2.5 text-xs text-amber-200/90">
                     <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                    <p>
-                      Your wallet is in <strong>{nonBaseCurrencies.join(', ')}</strong>, but the game only records the
-                      standard <strong>USD / EUR</strong> price (the same number in both). Items are usually priced lower
-                      in other regions, so <strong>you may have actually paid up to ~20% less</strong> than the amounts shown
-                      here. Where the export recorded your exact local charge, it’s shown beneath the price.
-                    </p>
+                    {chargedLeads ? (
+                      <p>
+                        Your wallet is in <strong>{nonBaseCurrencies.join(', ')}</strong>. The total above adds up what your store says it charged,
+                        which the export recorded for {num(charged.count)} of your {num(fiatGrantedCount)} purchases.
+                        {charged.uncharged > 0 && ' The rest only carry the standard USD / EUR price, which is not what you paid, so they are kept out of that total.'}{' '}
+                        Whether a charge is recorded depends on the store you bought through.
+                      </p>
+                    ) : (
+                      <p>
+                        Your wallet is in <strong>{nonBaseCurrencies.join(', ')}</strong>, but the game only records the
+                        standard <strong>USD / EUR</strong> price (the same number in both). Items are usually priced lower
+                        in other regions, so <strong>you may have actually paid up to ~20% less</strong> than the amounts shown
+                        here. Where the export recorded your exact local charge, it’s shown beneath the price.
+                      </p>
+                    )}
                   </div>
                 )}
               </>
@@ -896,7 +922,8 @@ export const PurchasesPage = () => {
       )}
 
       {/* Inventory counts by type — shown independently of purchase/currency data. */}
-      {inventory.has && (
+      {inventory.hasNames && <InventoryBrowser inventory={inventory} />}
+      {inventory.has && !inventory.hasNames && (
         <Panel title={`Items you own (${num(inventory.total)})`}>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {inventory.categories.map((c) => (
@@ -907,10 +934,9 @@ export const PurchasesPage = () => {
             ))}
           </div>
           <Note>
-            Counts come from your <code>InventoryItem</code> records.{' '}
-            {model.meta.exportV2
-              ? 'Your export names every item, but this page only counts them by category for now.'
-              : 'The export stores each item’s type and quantity but no item IDs, so individual cosmetics can’t be named or listed — only counted by category. We need help filling out this category and making it more accurate.'}
+            Counts come from your <code>InventoryItem</code> records. The export stores each item’s <em>type</em> and
+            quantity but no item IDs, so individual cosmetics can’t be named or listed — only counted by category. We
+            need help filling out this category and making it more accurate.
           </Note>
         </Panel>
       )}

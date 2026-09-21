@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, Fragment } from 'react';
-import { MessagesSquare, Bot, Paperclip, Ticket, ChevronDown, Loader2, Monitor } from 'lucide-react';
+import { MessagesSquare, Bot, Paperclip, Ticket, ChevronDown, Loader2, Monitor, Gamepad2 } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
-import { PageHeader, Panel, Badge, EmptyState, Note, StatCard } from '../components/ui';
+import { PageHeader, Panel, Badge, EmptyState, Note, StatCard, TogglePill } from '../components/ui';
 import { ListSearch, SearchEcho } from '../components/ListSearch';
 import { useListSearch } from '../../hooks/useListSearch';
 import { Pagination } from '../../components/Pagination';
@@ -132,6 +132,134 @@ const TicketThread = ({ ticket, you }) => {
   );
 };
 
+const INBOX_PER_PAGE = 10;
+
+// One-way messages the game showed the player (2026-09+). Embark's two games share
+// the table, so ARC Raiders rows are set aside unless asked for.
+const InboxPanel = ({ inbox }) => {
+  const finals = inbox.messages.filter((m) => m.finals);
+  const arcCount = inbox.messages.length - finals.length;
+  const [showArc, setShowArc] = useState(finals.length === 0 && arcCount > 0);
+  const [open, setOpen] = useState(null);
+  const [page, setPage] = useState(1);
+  const rows = showArc ? inbox.messages : finals;
+  const pages = Math.max(1, Math.ceil(rows.length / INBOX_PER_PAGE));
+  const safePage = Math.min(page, pages);
+  const start = (safePage - 1) * INBOX_PER_PAGE;
+  const notices = inbox.notices.filter((n) => showArc || n.finals);
+  const rewarded = finals.filter((m) => m.rewards.length > 0).length;
+
+  return (
+    <Panel title={`In-game inbox (${num(finals.length)})`}>
+      <p className="text-xs text-gray-400 -mt-1 mb-3">
+        {num(finals.length)} message{finals.length === 1 ? '' : 's'} for THE FINALS, {num(rewarded)} with a reward attached.
+      </p>
+      {arcCount > 0 && (
+        <div className="mb-3">
+          <TogglePill on={showArc} onChange={(v) => { setShowArc(v); setPage(1); setOpen(null); }} icon={Gamepad2} controls="inbox-list">
+            {showArc ? 'Hide' : 'Show'} {num(arcCount)} ARC Raiders message{arcCount === 1 ? '' : 's'}
+          </TogglePill>
+        </div>
+      )}
+
+      <div id="inbox-list" className="space-y-2">
+        {rows.slice(start, start + INBOX_PER_PAGE).map((m, idx) => {
+          const i = start + idx;
+          const details = [
+            ...m.rewards.map((id) => ({ label: 'Reward id', value: id })),
+            m.season != null && { label: 'Season', value: m.season },
+            m.sourceType && { label: 'Source', value: m.sourceType },
+          ].filter(Boolean);
+          const expandable = !!m.body || details.length > 0 || !!m.buttonLabel;
+          const isOpen = open === i && expandable;
+          return (
+            <div key={i} className="bg-gray-900/50 rounded-lg overflow-hidden ring-1 ring-inset ring-white/5">
+              <button
+                type="button"
+                disabled={!expandable}
+                onClick={() => setOpen(isOpen ? null : i)}
+                className={`w-full text-left px-3 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 ${expandable ? 'hover:bg-gray-700/30 transition-colors' : 'cursor-default'}`}
+              >
+                {!m.seen && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0">
+                    <span className="sr-only">Unread</span>
+                  </span>
+                )}
+                <span className="flex-1 min-w-0 truncate text-sm">
+                  {m.title ? <span className="font-medium text-white">{m.title}</span> : <span className="font-mono text-xs text-gray-400">{m.messageName || 'Untitled message'}</span>}
+                </span>
+                <span className="flex items-center gap-2 shrink-0 text-[11px] text-gray-500">
+                  {!m.finals && <Badge tone="purple">{m.game}</Badge>}
+                  {m.rewards.length > 0 && <Badge tone="emerald">Reward attached</Badge>}
+                  {m.favorited && <Badge tone="yellow">Favourited</Badge>}
+                  {date(m.ms)}
+                  {expandable && <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />}
+                </span>
+              </button>
+              {isOpen && (
+                <div className="border-t border-white/10 px-3 py-3 space-y-2">
+                  {m.body && <p className="text-sm text-gray-300 whitespace-pre-line wrap-break-word max-h-96 overflow-y-auto">{m.body}</p>}
+                  {m.buttonLabel && <p className="text-xs text-gray-500">In game this showed a button: “{m.buttonLabel}”.</p>}
+                  {details.length > 0 && (
+                    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px] bg-gray-900/50 rounded-lg px-3 py-2">
+                      {details.map((r, k) => (
+                        <Fragment key={k}>
+                          <dt className="text-gray-500 uppercase tracking-wide">{r.label}</dt>
+                          <dd className="text-gray-300 font-mono wrap-break-word min-w-0">{r.value}</dd>
+                        </Fragment>
+                      ))}
+                    </dl>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {rows.length > INBOX_PER_PAGE && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={safePage}
+            totalPages={pages}
+            startIndex={start}
+            endIndex={start + INBOX_PER_PAGE}
+            totalItems={rows.length}
+            onPageChange={(p) => { setPage(p); setOpen(null); }}
+            edgeScroll={false}
+            variant="compact"
+          />
+        </div>
+      )}
+
+      {notices.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-gray-700">
+          <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-2">Broadcast notices ({num(notices.length)})</p>
+          <ul className="space-y-1">
+            {notices.map((n, i) => (
+              <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+                <span className="font-mono text-gray-400 min-w-0 truncate flex-1">{n.messageName || 'Unnamed notice'}</span>
+                {!n.finals && <Badge tone="purple">{n.game}</Badge>}
+                {n.deleted && <Badge tone="gray">Deleted</Badge>}
+                <span className="text-gray-500 shrink-0">
+                  {date(n.ms)}
+                  {n.expiresMs ? ` to ${date(n.expiresMs)}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <Note>
+        These are one-way messages the game showed you: announcements, story drops and the occasional reward. A message carrying a reward
+        shows that one was offered, not that you claimed it. Broadcast notices come with Embark’s internal name only, no text.
+        {arcCount > 0 && ' This tool covers THE FINALS, so messages from Embark’s other game are set aside unless you switch them on.'}
+      </Note>
+    </Panel>
+  );
+};
+
 export const SupportPage = () => {
   const { model } = useVaultData();
   const support = model.support;
@@ -256,6 +384,8 @@ export const SupportPage = () => {
         <StatCard label="Support tickets" value={status === 'done' ? num(tickets.length) : '…'} />
         <StatCard label="Ticket attachments" value={status === 'done' ? num(attachments) : '…'} />
       </div>
+
+      {support.inbox.has && <InboxPanel inbox={support.inbox} />}
 
       <Panel
         title="In-game chat"

@@ -44,6 +44,9 @@ export const money = (amount, currency) => {
 };
 
 // In-match virtual cash (the cashout "$"), an integer -> "$50,000".
+// A scorecard metric's raw score: KDR is a ratio, the rest are points or counts.
+export const scoreValue = (name, v) => (name === 'KDR' ? decimal(v) : Number.isInteger(v) || v >= 100 ? num(Math.round(v)) : decimal(v, 1));
+
 export const cash = (n) => (n == null || !Number.isFinite(Number(n)) ? '—' : `$${Number(n).toLocaleString()}`);
 
 // Compact a large count for a tight stat column: 2417 -> "2.4k", 950 -> "950", 1.2e6 -> "1.2M".

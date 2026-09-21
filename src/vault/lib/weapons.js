@@ -5,8 +5,10 @@
 // Names are checked against Embark's own key file by tools/generate-vault-keys.mjs.
 import { STATIC_KEYS } from './keys.js';
 
-// type: Weapon | Gadget | Spec | Event
+// type: Weapon | Gadget | Spec | Event | Other
 // archetype: Light | Medium | Heavy | Global
+// unlisted: kept out of ALL_WEAPONS (the kill lists). These have never been credited with a
+// kill or damage in any export, so they only turn up in 2026-09+ loadouts.
 export const WEAPONS = {
   // Light
   '199277493': { name: 'ARN-220', archetype: 'Light', type: 'Weapon' },
@@ -27,6 +29,14 @@ export const WEAPONS = {
   '981999322': { name: 'Tracking Dart', archetype: 'Light', type: 'Gadget' },
   '-578452692': { name: 'Thermal Bore', archetype: 'Light', type: 'Gadget' },
   '988268619': { name: 'H+ Infuser', archetype: 'Light', type: 'Gadget' },
+  '-1926332066': { name: 'Cloaking Device', archetype: 'Light', type: 'Spec', unlisted: true },
+  '-1873247082': { name: 'Evasive Dash', archetype: 'Light', type: 'Spec', unlisted: true },
+  '-1107836742': { name: 'Grappling Hook', archetype: 'Light', type: 'Spec', unlisted: true },
+  '1458504064': { name: 'Vanishing Bomb', archetype: 'Light', type: 'Gadget', unlisted: true },
+  '-660720463': { name: 'Sonar Grenade', archetype: 'Light', type: 'Gadget', unlisted: true },
+  '780830895': { name: 'Glitch Grenade', archetype: 'Light', type: 'Gadget', unlisted: true },
+  '569743774': { name: 'Gravity Vortex', archetype: 'Light', type: 'Gadget', unlisted: true },
+  '911049848': { name: 'Nullifier', archetype: 'Light', type: 'Gadget', unlisted: true },
 
   // Medium
   '473278792': { name: 'AKM', archetype: 'Medium', type: 'Weapon' },
@@ -47,6 +57,13 @@ export const WEAPONS = {
   '-2146518365': { name: 'Defibrillator', archetype: 'Medium', type: 'Gadget' },
   '-1356235903': { name: 'Jump Pad', archetype: 'Medium', type: 'Gadget' },
   '806000640': { name: 'Breach Drill', archetype: 'Medium', type: 'Gadget' },
+  '782876493': { name: 'Healing Beam', archetype: 'Medium', type: 'Spec', unlisted: true },
+  '-1652494848': { name: 'Dematerializer', archetype: 'Medium', type: 'Spec', unlisted: true },
+  '-177887536': { name: 'Shockwave', archetype: 'Medium', type: 'Spec', unlisted: true },
+  '1360184575': { name: 'APS Turret', archetype: 'Medium', type: 'Gadget', unlisted: true },
+  '1086753401': { name: 'Data Reshaper', archetype: 'Medium', type: 'Gadget', unlisted: true },
+  '-430504418': { name: 'Glitch Trap', archetype: 'Medium', type: 'Gadget', unlisted: true },
+  '-862944950': { name: 'Zipline', archetype: 'Medium', type: 'Gadget', unlisted: true },
 
   // Heavy
   '-816074217': { name: '.50 Akimbo', archetype: 'Heavy', type: 'Weapon' },
@@ -68,16 +85,26 @@ export const WEAPONS = {
   '-1790216799': { name: 'Winch Claw', archetype: 'Heavy', type: 'Spec' },
   '-1823661953': { name: 'Lockbolt', archetype: 'Heavy', type: 'Gadget' },
   '917919559': { name: 'Anti-Gravity Cube', archetype: 'Heavy', type: 'Gadget' },
+  '-967796788': { name: 'Goo Gun', archetype: 'Heavy', type: 'Spec', unlisted: true },
+  '31490805': { name: 'Mesh Shield', archetype: 'Heavy', type: 'Spec', unlisted: true },
+  '534956297': { name: 'Dome Shield', archetype: 'Heavy', type: 'Gadget', unlisted: true },
+  '2124147649': { name: 'Barricade', archetype: 'Heavy', type: 'Gadget', unlisted: true },
+  '1166704846': { name: 'Healing Emitter', archetype: 'Heavy', type: 'Gadget', unlisted: true },
 
   // Global / shared gadgets
   '1082327915': { name: 'Frag Grenade', archetype: 'Global', type: 'Gadget' },
   '-351094439': { name: 'Explosive Mine', archetype: 'Global', type: 'Gadget' },
   '207168914': { name: 'Gas Grenade', archetype: 'Global', type: 'Gadget' },
   '81925953': { name: 'Pyro Grenade', archetype: 'Global', type: 'Gadget' },
+  '1378460172': { name: 'Flashbang', archetype: 'Global', type: 'Gadget', unlisted: true },
+  '1884976108': { name: 'Goo Grenade', archetype: 'Global', type: 'Gadget', unlisted: true },
+  '-1360814459': { name: 'Smoke Grenade', archetype: 'Global', type: 'Gadget', unlisted: true },
+  '1846963076': { name: 'Proximity Sensor', archetype: 'Global', type: 'Gadget', unlisted: true },
 
   // Event / LTM items
   '-1157104516': { name: 'Snowball', archetype: 'Global', type: 'Event' },
   '-2046791033': { name: 'Blast Off! RPG-7', archetype: 'Medium', type: 'Event' },
+  '-1430355108': { name: "Heavy Hitters Charge 'n' Slam", archetype: 'Heavy', type: 'Event' }, // asset ..._Sumo, only ever equipped in Heavy Hitters
 
   // 0 is Embark's "no game content" id: a kill no item was credited with.
   '0': { name: 'No item recorded', archetype: 'Global', type: 'Other' },
@@ -92,10 +119,15 @@ const ICON_SLUGS = new Set([
   '50-akimbo', '93r', 'akm', 'anti-gravity-cube', 'aps-turret', 'arn-220', 'bfr-titan', 'blast-off-rpg-7', 'breach-charge', 'breach-drill',
   'c4', 'cb-01-repeater', 'cerberus-12ga', 'charge-n-slam', 'chimera-xb', 'cl-40', 'dagger', 'defibrillator',
   'dual-blades', 'explosive-mine', 'famas', 'fcar', 'flamethrower', 'frag-grenade', 'gas-grenade', 'gas-mine',
-  'gateway', 'guardian-turret', 'h-infuser', 'jump-pad', 'ks-23', 'lewis-gun', 'lh1', 'lockbolt', 'm11', 'm134-minigun', 'm26-matter', 'm60',
+  'gateway', 'guardian-turret', 'h-infuser', 'heavy-hitters-charge-n-slam', 'jump-pad', 'ks-23', 'lewis-gun', 'lh1', 'lockbolt', 'm11', 'm134-minigun', 'm26-matter', 'm60',
   'mgl32', 'model-1887', 'p90', 'pike-556', 'pyro-grenade', 'pyro-mine', 'r-357', 'recurve-bow', 'riot-shield',
   'rpg-7', 'sa1216', 'sh1900', 'shak-50', 'sledgehammer', 'spear', 'sr-84', 'sword', 'thermal-bore',
   'throwing-knives', 'tracking-dart', 'v9s', 'winch-claw', 'xp-54',
+  // unlisted items (loadouts only)
+  'barricade', 'cloaking-device', 'data-reshaper', 'dematerializer', 'dome-shield', 'evasive-dash', 'flashbang',
+  'glitch-grenade', 'glitch-trap', 'goo-grenade', 'goo-gun', 'grappling-hook', 'gravity-vortex', 'healing-beam',
+  'healing-emitter', 'mesh-shield', 'nullifier', 'proximity-sensor', 'shockwave', 'smoke-grenade', 'sonar-grenade',
+  'vanishing-bomb', 'zipline',
 ]);
 
 // Weapon display-name -> filename slug (matches the bundled icon files).
@@ -123,7 +155,7 @@ export const resolveWeapon = (id, keys = STATIC_KEYS) => {
 // Every weapon / gadget / specialization as a display record, in the table's
 // natural order (Light → Medium → Heavy → Global → Event). Used by the match
 // weapon-filter picker (grouped like thefinals.wiki/wiki/Weapons by archetype).
-export const ALL_WEAPONS = Object.entries(WEAPONS).filter(([, w]) => w.type !== 'Other').map(([id, w]) => {
+export const ALL_WEAPONS = Object.entries(WEAPONS).filter(([, w]) => w.type !== 'Other' && !w.unlisted).map(([id, w]) => {
   const slug = weaponSlug(w.name);
   return { id, ...w, slug, icon: ICON_SLUGS.has(slug) ? `/vault/weapons/${slug}.webp` : null };
 });

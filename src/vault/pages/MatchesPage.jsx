@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Swords, Trophy, MapPin, ChevronDown, Crosshair, X, Check } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Badge, EmptyState, Note } from '../components/ui';
-import { MapBg, ConditionTag, KillsTooltip, RankDeltaRow, RoundRow } from '../components/MatchParts';
+import { MapBg, ConditionTag, KillsTooltip, RankDeltaRow, RoundRow, ScorecardMark } from '../components/MatchParts';
 import { OVER_PHOTO, categoryTone, ARCH_TONE } from '../lib/matchStyle';
 import { ListSearch, SearchEcho } from '../components/ListSearch';
 import { useListSearch } from '../../hooks/useListSearch';
@@ -80,7 +80,7 @@ const matchDebugText = (m) => {
   ].join('\n');
 };
 
-const MatchCard = ({ m, expanded, onToggle }) => {
+const MatchCard = ({ m, expanded, onToggle, cardSlot }) => {
   const tone = categoryTone[m.mode?.category] || 'gray';
   const expandable = m.isTournament;
   const mapName = m.mapName || m.map?.display;
@@ -190,8 +190,8 @@ const MatchCard = ({ m, expanded, onToggle }) => {
                 // Win/loss result: a single-round casual match, OR a 2-team
                 // multi-round match that isn't a bracket (e.g. Terminal Attack).
                 <div className="flex sm:flex-col items-center sm:items-end gap-2">
-                  {m.won ? <Badge tone="emerald">Win</Badge> : <Badge tone="gray">Loss</Badge>}
-                  {m.finalPlacement != null && (
+                  {m.won ? <Badge tone="emerald">Win</Badge> : m.abandoned ? <Badge tone="red">Abandoned</Badge> : <Badge tone="gray">Loss</Badge>}
+                  {m.finalPlacement != null && !m.abandoned && (
                     <span className="text-xs text-gray-300">
                       {ordinal(m.finalPlacement)}
                       {m.teams ? ` of ${m.teams}` : ''}
@@ -208,31 +208,42 @@ const MatchCard = ({ m, expanded, onToggle }) => {
               )}
             </div>
 
-            {/* K/D block — hover/tap for the weapons used across the match */}
-            <KillsTooltip items={m.weaponKills} label="Weapons used">
-              <div className="flex gap-3 sm:gap-5 shrink-0 sm:border-l sm:border-white/15 sm:pl-5">
-                <div className="text-center">
-                  <p className="text-[10px] uppercase text-gray-300">Kills</p>
-                  <p className="text-lg font-bold text-white">{m.kills}</p>
+            {/* K/D block — hover/tap for the weapons used across the match. The scorecard
+                mark is a sibling, not a child, so the two hovers never open together. */}
+            <div className="flex items-start gap-3 sm:gap-5 shrink-0 sm:border-l sm:border-white/15 sm:pl-5">
+              <KillsTooltip items={m.weaponKills} label="Weapons used" loadout={m.rounds.length === 1 ? m.rounds[0].loadout : null}>
+                <div className="flex gap-3 sm:gap-5">
+                  <div className="text-center min-w-9">
+                    <p className="text-[10px] uppercase text-gray-300">Kills</p>
+                    <p className="text-lg font-bold text-white">{m.kills}</p>
+                  </div>
+                  <div className="text-center min-w-10">
+                    <p className="text-[10px] uppercase text-gray-300">Deaths</p>
+                    <p className="text-lg font-bold text-white">{m.deaths}</p>
+                  </div>
+                  <div className="text-center min-w-11">
+                    <p className="text-[10px] uppercase text-gray-300">K/D</p>
+                    <p className="text-lg font-bold text-emerald-300 underline decoration-dotted decoration-white/40 underline-offset-4">{decimal(m.kd)}</p>
+                  </div>
+                  <div className="text-center min-w-11">
+                    <p className="text-[10px] uppercase text-gray-300">Dmg</p>
+                    <p className="text-lg font-bold text-white tabular-nums">{compact(m.damage)}</p>
+                  </div>
+                  <div className="text-center min-w-8">
+                    <p className="text-[10px] uppercase text-gray-300">Rev</p>
+                    <p className="text-lg font-bold text-white tabular-nums">{num(m.revives)}</p>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <p className="text-[10px] uppercase text-gray-300">Deaths</p>
-                  <p className="text-lg font-bold text-white">{m.deaths}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] uppercase text-gray-300">K/D</p>
-                  <p className="text-lg font-bold text-emerald-300 underline decoration-dotted decoration-white/40 underline-offset-4">{decimal(m.kd)}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] uppercase text-gray-300">Dmg</p>
-                  <p className="text-lg font-bold text-white tabular-nums">{compact(m.damage)}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] uppercase text-gray-300">Rev</p>
-                  <p className="text-lg font-bold text-white tabular-nums">{num(m.revives)}</p>
-                </div>
-              </div>
-            </KillsTooltip>
+              </KillsTooltip>
+              {/* Every card keeps the column once the export has scorecards, so the stats
+                  line up down the list. A tournament's cards are on its rounds, so it
+                  gets an empty spacer rather than a dash that would read as "missing". */}
+              {m.rounds.length === 1 && (m.rounds[0].scorecard || cardSlot) ? (
+                <ScorecardMark scorecard={m.rounds[0].scorecard} className="w-7 text-center [&>svg]:mx-auto [&>svg]:mt-1 [&>p]:text-gray-300" />
+              ) : (
+                cardSlot && <div className="w-7" aria-hidden="true" />
+              )}
+            </div>
           </div>
         </div>
 
@@ -244,7 +255,7 @@ const MatchCard = ({ m, expanded, onToggle }) => {
             </p>
             {m.rankUpdate && <RankDeltaRow ru={m.rankUpdate} />}
             {m.rounds.map((r, i) => (
-              <RoundRow key={r.matchId ? `${r.matchId}-${i}` : i} r={r} />
+              <RoundRow key={r.matchId ? `${r.matchId}-${i}` : i} r={r} cardSlot={m.rounds.some((x) => x.scorecard)} />
             ))}
           </div>
         )}
@@ -467,7 +478,7 @@ export const MatchesPage = () => {
               of empty space. */}
           <div className="space-y-2" style={totalPages > 1 ? { minHeight: PER_PAGE * ROW_PX } : undefined}>
             {slice.map((m) => (
-              <MatchCard key={m.id} m={m} expanded={expanded.has(m.id)} onToggle={() => toggle(m.id)} />
+              <MatchCard key={m.id} m={m} expanded={expanded.has(m.id)} onToggle={() => toggle(m.id)} cardSlot={model.scorecards.has} />
             ))}
           </div>
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Radar, Cpu, Wifi, Loader2, KeyRound, Keyboard } from 'lucide-react';
+import { Radar, Cpu, Wifi, Loader2, KeyRound, Keyboard, Gamepad2 } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, StatCard, Badge, Note, EmptyState } from '../components/ui';
 import { ListSearch, SearchEcho } from '../components/ListSearch';
@@ -263,6 +263,66 @@ export const SessionsPage = () => {
         </Panel>
       )}
 
+      {/* Console token claims (audit XboxTokenClaims*): console players only */}
+      {antiCheat.console && (
+        <Panel title="Console">
+          <div className="grid sm:grid-cols-2 gap-2">
+            {antiCheat.console.devices.map((d, i) => (
+              <div key={d.deviceId || i} className="bg-gray-900/50 rounded-lg px-3 py-2.5 text-sm min-w-0">
+                <p className="flex items-center gap-2 text-white">
+                  <Gamepad2 className="w-4 h-4 text-purple-400 shrink-0" />
+                  <span className="truncate">{d.typeLabel}</span>
+                  <span className="ml-auto text-xs text-gray-500 shrink-0">{num(d.records)} record{d.records === 1 ? '' : 's'}</span>
+                </p>
+                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                  {d.gamertags.length > 0 && (
+                    <>
+                      <dt className="text-gray-500">Gamertag</dt>
+                      <dd className="text-gray-300 min-w-0 wrap-break-word">
+                        {d.gamertags.join(', ')}
+                        {d.classicTags.length > 0 && <span className="text-gray-500"> (classic: {d.classicTags.join(', ')})</span>}
+                      </dd>
+                    </>
+                  )}
+                  {d.deviceId && (
+                    <>
+                      <dt className="text-gray-500">Device id</dt>
+                      <dd className="text-gray-300 font-mono min-w-0 wrap-break-word">{d.deviceId}</dd>
+                    </>
+                  )}
+                  {d.ageGroups.length > 0 && (
+                    <>
+                      <dt className="text-gray-500">Age group</dt>
+                      <dd className="text-gray-300">{d.ageGroups.join(', ')}</dd>
+                    </>
+                  )}
+                  {d.countries.length > 0 && (
+                    <>
+                      <dt className="text-gray-500">Country</dt>
+                      <dd className="text-gray-300">{d.countries.join(', ')}</dd>
+                    </>
+                  )}
+                  <dt className="text-gray-500">Seen</dt>
+                  <dd className="text-gray-300">{date(d.firstMs)} → {date(d.lastMs)}</dd>
+                </dl>
+                {d.privileges.length > 0 && (
+                  <details className="mt-2 text-xs">
+                    <summary className="cursor-pointer text-gray-500 hover:text-gray-300">{num(d.privileges.length)} permission codes (meaning not public)</summary>
+                    <pre className="mt-1.5 font-mono text-[11px] text-gray-400 whitespace-pre-wrap wrap-break-word bg-gray-900/60 rounded px-2 py-1.5">{d.privileges.join(' ')}</pre>
+                  </details>
+                )}
+              </div>
+            ))}
+          </div>
+          <Note>
+            When you sign in on a console, the platform hands Embark a token describing the account and the device, and Embark logs it. This is
+            what those {num(antiCheat.console.records)} records say. PC players have none of them. The permission codes are Xbox’s own numeric ids
+            and their meaning is not published, so they are shown as they are.
+            {antiCheat.console.licenceChecks > 0 && ` Embark also logged ${num(antiCheat.console.licenceChecks)} licence checks for this account.`}
+          </Note>
+        </Panel>
+      )}
+
       {/* Backend account sign-ins (persistence UserLogin) — the longest-lived IP trail */}
       {antiCheat.logins?.count > 0 && (
         <Panel title="Account sign-ins">
@@ -281,6 +341,17 @@ export const SessionsPage = () => {
               </span>
             ))}
           </div>
+          {antiCheat.logins.byGame?.length > 0 && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 pt-3 border-t border-gray-700 text-xs text-gray-300">
+              <span className="text-[10px] uppercase tracking-wider text-gray-500">By game</span>
+              {antiCheat.logins.byGame.map((g) => (
+                <span key={g.game} className="inline-flex items-center gap-1.5">
+                  <Badge tone="gray">{num(g.count)}</Badge>
+                  {g.game}
+                </span>
+              ))}
+            </div>
+          )}
           <Note>
             These are the account system’s token grants, not play sessions: interactive sign-ins are you logging in for example on the website,
             game-client tokens are the game authenticating you in the background when you open it. Their IPs feed the locations below and

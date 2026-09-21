@@ -99,6 +99,7 @@ const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 // Curated names that differ from Embark's on purpose.
 const INTENTIONAL_NAMES = new Set([
   '-2046791033', // the Blast Off! LTM launcher; Embark calls it plain "RPG-7", same as the Heavy gadget
+  '-1430355108', // the Heavy Hitters LTM variant; Embark calls it plain "Charge 'N' Slam"
 ]);
 const issues = [];
 

@@ -12,6 +12,7 @@
 // no real personal data here.
 
 import { PERFORMANCE_BONUS_MAX_SCORE } from './ratings';
+import { WEAPONS } from './weapons';
 
 // --- deterministic RNG ----------------------------------------------------
 function mulberry32(seed) {
@@ -32,6 +33,12 @@ const rf = () => rng();
 const ri = (lo, hi) => lo + Math.floor(rng() * (hi - lo + 1));
 const pick = (arr) => arr[Math.floor(rng() * arr.length)];
 const chance = (p) => rng() < p;
+// A second stream for the 2026-09 export fields (see decorateRounds).
+let rng2 = mulberry32(SEED ^ 0x2026_0921);
+const rf2 = () => rng2();
+const ri2 = (lo, hi) => lo + Math.floor(rng2() * (hi - lo + 1));
+const pick2 = (arr) => arr[Math.floor(rng2() * arr.length)];
+const chance2 = (p) => rng2() < p;
 
 // Tournament ids must be unique: matches are grouped by TournamentID, so a
 // collision welds two unrelated tournaments into one match spanning the gap
@@ -50,6 +57,7 @@ const newTid = () => {
 
 const resetGenerator = () => {
   rng = mulberry32(SEED);
+  rng2 = mulberry32(SEED ^ 0x2026_0921);
   usedTids.clear();
 };
 
@@ -537,20 +545,13 @@ function buildOffers() {
   return out;
 }
 
-// Owned items (persistence `InventoryItem`). No item ids exist in the export, so
-// only per-Type counts are meaningful — a believable cosmetic-heavy spread.
+// Owned items (persistence `InventoryItem`): a believable cosmetic-heavy spread.
+// buildInventoryItems names them, as exports have since 2026-09.
 const INVENTORY_SPREAD = [
   ['CustomizationItem', 180], ['WeaponSkin', 142], ['WeaponCharm', 46], ['WeaponSticker', 38],
   ['PlayerCardCustomization', 33], ['AnimationCustomization', 21], ['Spray', 16], ['Emoticon', 12],
   ['GameItem', 9], ['BattlePass', 6], ['ClansCustomization', 4], ['Currency', 3],
 ];
-function buildInventoryItems() {
-  const rows = [];
-  for (const [type, n] of INVENTORY_SPREAD) {
-    for (let i = 0; i < n; i++) rows.push({ Type: type, Amount: 1, HasSeen: true, UpdatedAt: iso(lerp(SPAN_START, SPAN_END, (i + 0.5) / n)) });
-  }
-  return rows;
-}
 
 // Hidden matchmaking / skill ratings (persistence `BucketObject`). A believable
 // long-time-Diamond veteran: OpenSkill-era ranked in S2, the IVK ladder from S3
@@ -618,12 +619,225 @@ function buildRatingBuckets(rankedCounts) {
   return out;
 }
 
+// --- fields Embark added to the export in 2026-09 -------------------------
+// Loadouts, scorecards, placements, named inventory, saved builds, social, inbox and
+// console records. They draw from their own stream (rng2), so adding one never
+// reshuffles the numbers the rest of the sample already produces.
+const pseudoUuid = () => {
+  const hex = (n) => Array.from({ length: n }, () => Math.floor(rng2() * 16).toString(16)).join('');
+  return `${hex(8)}-${hex(4)}-4${hex(3)}-a${hex(3)}-${hex(12)}`;
+};
+
+// spec + three gadgets per class, most-played first; the weapon is picked per round.
+const BUILDS = {
+  Light: [
+    { spec: -1873247082, gadgets: [1458504064, -660720463, 1948814529] }, // Evasive Dash: Vanishing Bomb, Sonar Grenade, Gateway
+    { spec: -1107836742, gadgets: [432758549, 207168914, 81925953] }, // Grappling Hook: Breach Charge, Gas Grenade, Pyro Grenade
+    { spec: -1926332066, gadgets: [780830895, -578452692, -1360814459] }, // Cloaking Device: Glitch Grenade, Thermal Bore, Smoke Grenade
+  ],
+  Medium: [
+    { spec: 782876493, gadgets: [-2146518365, -1356235903, 1884976108] }, // Healing Beam: Defibrillator, Jump Pad, Goo Grenade
+    { spec: 1886362451, gadgets: [-21077747, -351094439, 1082327915] }, // Guardian Turret: Gas Mine, Explosive Mine, Frag Grenade
+    { spec: -1652494848, gadgets: [-862944950, -1356235903, -430504418] }, // Dematerializer: Zipline, Jump Pad, Glitch Trap
+  ],
+  Heavy: [
+    { spec: -1790216799, gadgets: [534956297, -455578974, 1042541498] }, // Winch Claw: Dome Shield, C4, RPG-7
+    { spec: 520836765, gadgets: [1647891907, 1042541498, 2124147649] }, // Charge 'n' Slam: Pyro Mine, RPG-7, Barricade
+    { spec: 31490805, gadgets: [534956297, 1166704846, 917919559] }, // Mesh Shield: Dome Shield, Healing Emitter, Anti-Gravity Cube
+  ],
+};
+const ARCH_OF = Object.fromEntries(Object.entries(ARCH_KEY).map(([name, key]) => [key, name]));
+
+// Scorecard metric ids (the objective-mode set) and cut-offs shaped like the real
+// ones. Level 0 is the TOP tier. Deathmatch modes score other metrics, so TDM gets none.
+const SCORECARD_FROM = Date.parse('2026-03-05T00:00:00Z');
+const SCORECARD_METRICS = [
+  { id: 2096050391, cuts: [3500, 2100, 1100, 250], score: (d) => d.DamageDone * (0.38 + rf2() * 0.22) }, // Damage
+  { id: -293567368, cuts: [16, 9, 6, 2], score: (d) => d.Kills }, // Eliminations
+  { id: -235639956, cuts: [4, 2.5, 1.5, 0.8], score: (d) => (d.Deaths ? d.Kills / d.Deaths : d.Kills) }, // KDR
+  { id: -1113936816, cuts: [2500, 1200, 600, 150], score: (d) => d.RevivesDone * 220 + ri2(0, 1600) }, // Support
+  { id: -227416787, cuts: [5000, 2500, 1200, 300], score: (d) => Math.round(d.Currency / 20) + ri2(0, 1500) }, // Objective
+  { id: -521537420, cuts: [5, 3, 2, 1], score: (d) => d.RevivesDone }, // Revives
+];
+const QUICK_CASH_ID = 164312917;
+const TDM_ID = 418401773;
+
+function decorateRounds(rounds) {
+  for (const r of rounds) {
+    const d = r.Data;
+    const arch = ARCH_OF[d.CharacterArchetype];
+    const roll = rf2();
+    const build = BUILDS[arch][roll < 0.55 ? 0 : roll < 0.85 ? 1 : 2];
+    // One snapshot per round: about a third of the time the gun that got the kills
+    // had been swapped in from reserve and is not in it, as on real exports.
+    const topGun = Object.entries(d.KillsPerItem).filter(([id]) => PRIMARY[arch].includes(id)).sort((a, b) => b[1] - a[1])[0]?.[0];
+    const weapon = topGun && chance2(0.68) ? topGun : pick2(PRIMARY[arch]);
+    d.LoadoutItemAssetIDs = [build.spec, Number(weapon), ...build.gadgets];
+
+    d.Abandoned = d.Disconnected && !d.RoundWon && chance2(0.8);
+    if (d.Abandoned) d.PlacedAt = 0;
+    else if (d.LeaderboardPosition != null) d.PlacedAt = d.LeaderboardPosition;
+    else d.PlacedAt = d.RoundWon ? 1 : d.ScenarioID === QUICK_CASH_ID ? ri2(2, 3) : 2;
+
+    const t = Date.parse(d.StartTime);
+    if (t >= SCORECARD_FROM && !d.Abandoned && d.ScenarioID !== TDM_ID) {
+      d.Scorecards = SCORECARD_METRICS.map((m) => {
+        const score = Math.round(m.score(d) * 100) / 100;
+        const level = m.cuts.findIndex((c) => score >= c);
+        return { GameAssetID: m.id, Score: score, Level: level < 0 ? 4 : level };
+      });
+    }
+  }
+}
+
+// Named inventory. Names are invented; a few are left as the internal labels real
+// exports carry, so the preview shows how those read.
+const NAME_ADJ = ['Neon', 'Velvet', 'Chrome', 'Arcade', 'Midnight', 'Solar', 'Static', 'Paper', 'Coral', 'Carbon', 'Retro', 'Glacier', 'Signal', 'Rogue', 'Pastel', 'Turbo'];
+const NAME_NOUN = {
+  CustomizationItem: ['Jacket', 'Visor', 'Sneakers', 'Gloves', 'Backpack', 'Beanie', 'Trousers', 'Mask', 'Headphones', 'Scarf', 'Boots', 'Cap'],
+  WeaponSkin: ['Finish', 'Wrap', 'Coat', 'Pattern', 'Lacquer', 'Camo', 'Plating', 'Weave', 'Glaze', 'Etching'],
+  WeaponCharm: ['Dice', 'Rubber Duck', 'Dog Tag', 'Lucky Coin', 'Keycard', 'Plush'],
+  WeaponSticker: ['Stamp', 'Decal', 'Emblem'],
+  PlayerCardCustomization: ['Background', 'Border', 'Badge'],
+  AnimationCustomization: ['Reload', 'Inspect', 'Spin', 'Flourish'],
+  Spray: ['Tag', 'Stencil', 'Mural'],
+  Emoticon: ['Wave', 'Laugh', 'Salute'],
+  ClansCustomization: ['Banner', 'Crest'],
+};
+const INTERNAL_NAMES = ['Type {0}', 'HoverCar_01', 'Mechanical_01', 'Default'];
+const SAVED_BUILDS = [
+  { title: 'Light 1', arch: 'Light', build: 0, weapon: '199277493', reserve: ['1599997630', '-322594587', '-158222801', 780830895] },
+  { title: 'Light 2', arch: 'Light', build: 1, weapon: '1599997630', reserve: ['199277493', '-657541680', '1612446258', -1360814459] },
+  { title: 'Medium 1', arch: 'Medium', build: 0, weapon: '-566338044', reserve: ['473278792', '-240495033', '107797000', -862944950], selected: true },
+  { title: 'Heavy 1', arch: 'Heavy', build: 0, weapon: '-676727577', reserve: ['-212966229', '1743942098', '1096645849', 1647891907] },
+  { title: 'Heavy 2', arch: 'Heavy', build: 1, weapon: '1096645849', reserve: ['-160507163', '1480845770', '-676727577', 534956297] },
+];
+
+function buildInventoryItems() {
+  const rows = [];
+  const byType = {};
+  const add = (type, i, n, extra) => {
+    const at = iso(lerp(SPAN_START, SPAN_END, (i + 0.5) / n));
+    const row = { InstanceID: pseudoUuid(), Type: type, Amount: 1, HasSeen: chance2(0.1), CreatedAt: at, UpdatedAt: at, ...extra };
+    rows.push(row);
+    (byType[type] ||= []).push(row);
+    return row;
+  };
+  INVENTORY_SPREAD.forEach(([type, n], k) => {
+    const nouns = NAME_NOUN[type];
+    if (!nouns) return;
+    for (let i = 0; i < n; i++) {
+      const name = i % 47 === 46 ? INTERNAL_NAMES[(i + k) % INTERNAL_NAMES.length] : `${NAME_ADJ[(i + k * 3) % NAME_ADJ.length]} ${nouns[Math.floor(i / NAME_ADJ.length) % nouns.length]}`;
+      add(type, i, n, { GameAssetID: ri2(-2_000_000_000, 2_000_000_000), Name: name });
+    }
+  });
+  for (let s = 6; s <= 11; s++) add('BattlePass', s - 6, 6, { GameAssetID: ri2(1, 2_000_000_000), Name: `Season ${s} Battle Pass` });
+  [['Multibucks', TARGET_BALANCE], ['VRs', 5000], ['Show Tokens', 12]].forEach(([name, amount], i) => add('Currency', i, 3, { GameAssetID: ri2(1, 2_000_000_000), Name: name, Amount: amount }));
+
+  // Every weapon, gadget and specialization the saved builds refer to.
+  const gearRow = new Map();
+  const gearIds = [...new Set(SAVED_BUILDS.flatMap((b) => [BUILDS[b.arch][b.build].spec, b.weapon, ...BUILDS[b.arch][b.build].gadgets, ...b.reserve]).map(String))];
+  gearIds.forEach((id, i) => gearRow.set(id, add('GameItem', i, gearIds.length, { GameAssetID: Number(id), Name: WEAPONS[id]?.name ?? `Item ${id}` })));
+  const archRow = Object.fromEntries(['Light', 'Medium', 'Heavy'].map((a, i) => [a, add('Archetype', i, 3, { GameAssetID: ri2(1, 2_000_000_000), Name: a })]));
+
+  const some = (type) => pick2(byType[type]).InstanceID;
+  let selected = null;
+  SAVED_BUILDS.forEach((b, i) => {
+    const build = BUILDS[b.arch][b.build];
+    const pack = add('ContestantPack', i, SAVED_BUILDS.length, {
+      GameAssetID: ri2(1, 2_000_000_000),
+      Name: 'User-managed contestant pack',
+      Properties: {
+        ContestantPack: {
+          Title: b.title,
+          ArchetypeItemID: archRow[b.arch].InstanceID,
+          FirstHandItemIDs: [build.spec, b.weapon, ...build.gadgets].map((id) => gearRow.get(String(id)).InstanceID),
+          ReservedItemIDs: b.reserve.map((id) => gearRow.get(String(id)).InstanceID),
+          Slots: [
+            { SlotName: 'IntroPose', ItemIDs: [some('AnimationCustomization')] },
+            { SlotName: 'VictoryPose', ItemIDs: [some('AnimationCustomization')] },
+            ...(i % 2 === 0 ? [{ SlotName: 'ObjectiveSticker', ItemIDs: [some('WeaponSticker')] }] : []),
+          ],
+          SprayItemID: some('Spray'),
+          EmoteWheelItemIDs: [some('Emoticon'), some('Emoticon'), some('AnimationCustomization')],
+        },
+      },
+    });
+    if (b.selected) selected = pack;
+  });
+  add('Loadout', 0, 1, { GameAssetID: ri2(1, 2_000_000_000), Name: 'Loadout', Properties: { Loadout: { SelectedContestantPackItemID: selected.InstanceID, CosmeticNumber: 3 } } });
+  return rows;
+}
+
+// Friends, blocks and club: dates and directions only, as in a real export.
+function buildSocial() {
+  const spread = (n, from, make) => Array.from({ length: n }, (_, i) => make(iso(lerp(from, SPAN_END, (i + rf2()) / n)))).sort((a, b) => a.CreatedAt.localeCompare(b.CreatedAt));
+  const clubJoined = Date.parse('2025-02-01T19:20:00Z');
+  return {
+    Friend: spread(64, ACCOUNT_CREATED + 30 * DAY, (at) => ({ Direction: chance2(0.55) ? 'sent' : 'received', CreatedAt: at })),
+    BlockedPlayer: spread(7, SPAN_START, (at) => ({ CreatedAt: at })),
+    ClanMembership: [{ ClanName: 'THE OG CLUB', ClanTag: 'OG', Role: 'member', LastLoggedInAt: iso(SPAN_END - 2 * HOUR), CreatedAt: iso(clubJoined) }],
+    ClanStats: [{ QuestsCompleted: 41, CreatedAt: iso(clubJoined), UpdatedAt: iso(SPAN_END - 3 * DAY) }],
+    ClanTimelineMessage: spread(6, clubJoined, (at) => ({ PayloadType: 'TYPE_MEMBER_JOINED', CreatedAt: at })),
+  };
+}
+
+// In-game inbox. The wording is invented for the preview.
+const INBOX = [
+  ['Season 11 is live', 'A new season has started. Your seasonal progress has been reset and a fresh Battle Pass is waiting in the store.\n\nGood luck out there, contestant.', null, 11],
+  ['A small thank-you', 'Matchmaking was unavailable for a few hours last weekend. We have added a gift to your account for the trouble.', 'SAMPLECOMP0001', null],
+  ['Twitch Drops are back', 'Link your account and watch any participating stream to earn this month’s cosmetics.', null, null],
+  ['Your club finished a quest', 'THE OG CLUB completed a weekly club quest. Rewards have been shared with every active member.', 'SAMPLECOMP0002', null],
+  ['World Tour: new stop', 'A new sponsor has taken over World Tour for the next three weeks, with its own rules and rewards.', null, null],
+  ['Season 10 rewards', 'Thanks for playing Season 10. Your ranked rewards have been delivered to your inventory.', 'SAMPLECOMP0003', 10],
+  [null, null, null, null],
+  ['Limited-time mode returns', 'Heavy Hitters is back for one week only. Knock your opponents out of the arena to score.', null, null],
+  [null, null, null, null],
+  ['Patch notes', 'Balance changes for several weapons and gadgets went live today. The full notes are on the website.', null, null],
+  ['Welcome back', 'It has been a while. Here is a little something to get you started again.', 'SAMPLECOMP0004', null],
+  ['Season 9 is live', 'A new season has started, with a new map and a new limited-time event.', null, 9],
+];
+function buildInbox() {
+  const at = (i, n) => iso(lerp(Date.parse('2025-12-10T16:00:00Z'), SPAN_END, (n - i - 0.5) / n));
+  const finals = INBOX.map(([Title, Body, comp, season], i) => ({
+    Game: 'THE FINALS',
+    ...(Title ? { Title, Body } : {}),
+    MessageID: ri2(1, 900_000_000),
+    MessageName: Title ? 'SharedParameterizedMessageRef' : 'SampleStoreRefreshMessage',
+    Payload: { ...(comp ? { compensationId: comp } : {}), ...(season ? { season } : {}) },
+    Seen: i > 1,
+    Favorited: i === 5,
+    CreatedAt: at(i, INBOX.length),
+  }));
+  const arc = Array.from({ length: 4 }, (_, i) => ({ Game: 'ARC Raiders', Title: 'Expedition rewards ready', Body: 'Your rewards from the last expedition can be collected.', MessageID: ri2(1, 900_000_000), MessageName: 'SharedParameterizedMessageRef', Payload: {}, Seen: true, Favorited: false, CreatedAt: at(i, 4) }));
+  const notices = ['SampleSeason11LaunchMessage', 'SamplePrivacyUpdateMessage', 'SampleEventPassMessage', 'SampleSeason10LaunchMessage', 'SampleCrossPromotionMessage'].map((MessageName, i) => {
+    const published = Date.parse(at(i, 5));
+    return { Game: i === 4 ? 'ARC Raiders' : 'THE FINALS', MessageID: ri2(1, 900_000_000), MessageName, PublishedAt: iso(published), ExpiredAt: iso(published + 21 * DAY), Seen: i !== 0, Deleted: i === 3, Favorited: false, CreatedAt: iso(published + HOUR) };
+  });
+  return { InboxMessage: [...finals, ...arc], InboxGlobalMessage: notices };
+}
+
+// Console token claims for the linked Xbox account ("Demo Gamer"), which this
+// otherwise-PC player signs in on now and then.
+function buildConsoleClaims() {
+  const privileges = [182, 183, 184, 185, 186, 187, 188, 190, 191, 192, 193, 194, 196, 198, 199, 200, 201, 203, 204, 205, 206, 207, 208, 211, 214, 215, 216, 217, 220, 224, 227, 228, 235, 238, 245, 247, 249, 252, 254, 255, 258].join(' ');
+  const from = Date.parse('2025-10-04T18:00:00Z');
+  const claims = Array.from({ length: 36 }, (_, i) => ({
+    logtime: iso(lerp(from, SPAN_END, (i + rf2()) / 36)), tenancy: 'discovery-live', xbox_id: 'xuid_000',
+    gamer_tag_classic: 'Demo Gamer', gamer_tag_modern: 'Demo Gamer', gamer_tag_modern_suffix: '1234', age_group: 'Adult', country: 'GB',
+    privileges, device_id: 'F4000SAMPLE00001', device_type: 'Scarlett', device_pairwise_id: 'SAMPLEPAIRWISE0000000000000000000000001',
+  }));
+  const licences = Array.from({ length: 6 }, (_, i) => ({ logtime: iso(lerp(from, SPAN_END, (i + 0.5) / 6)), tenancy: null, third_party_account_id: 'xuid_000', third_party_provider_name: 'xbox', license_id: 'samplelicence0000000000000000001', is_restricted: false, third_party_device_platform_name: 'microsoft_scarlett', third_party_device_platform_id: 1 }));
+  return { XboxTokenClaims3: claims, ThirdPartyLicenseAssociationUpdated: licences };
+}
+
 // --- identity / linked accounts / restriction ----------------------------
 function buildPersistence() {
   // Generate the match history ONCE and derive the lifetime summary from it, so
   // the RoundStatSummary buckets (career headline + the ranked/casual/other note)
   // stay consistent with the actual rounds the dashboard shows.
   const rounds = buildRounds();
+  decorateRounds(rounds);
   const byType = {
     // A single Embark account
     EmbarkUser: [
@@ -666,10 +880,13 @@ function buildPersistence() {
     HardCurrencyLog: buildLedger(),
     SteamDLC: buildSteamDlc(),
     OfferTransaction: buildOffers(),
+    ...buildSocial(),
+    ...buildInbox(),
   };
   const counts = Object.fromEntries(Object.entries(byType).map(([k, v]) => [k, v.length]));
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  return { byType, counts, total, badLines: 0 };
+  // gamePrefixed: the sample stands for an export in the 2026-09 format.
+  return { byType, counts, total, badLines: 0, gamePrefixed: true };
 }
 
 // Backend sign-ins (persistence `UserLogin`) — the account system's token
@@ -680,13 +897,13 @@ function buildPersistence() {
 function buildUserLogins(rounds) {
   const out = [];
   for (let t = ACCOUNT_CREATED; t <= SPAN_END; t += ri(11, 18) * DAY) {
-    out.push({ CreatedAt: iso(t + ri(0, 12) * 3_600_000), GrantType: 'authorization_code', IPAddress: IPS[ri(0, IPS.length - 1)] });
+    out.push({ CreatedAt: iso(t + ri(0, 12) * 3_600_000), GrantType: 'authorization_code', IPAddress: IPS[ri(0, IPS.length - 1)], Game: chance2(0.3) ? 'Embark account' : 'THE FINALS' });
   }
   rounds.forEach((r, i) => {
     if (i % 5 !== 0) return;
     const ms = Date.parse(r.CreatedAt);
     if (!Number.isFinite(ms)) return;
-    out.push({ CreatedAt: iso(ms - ri(5, 40) * 60_000), GrantType: 'client_credentials', IPAddress: IPS[ri(0, IPS.length - 1)] });
+    out.push({ CreatedAt: iso(ms - ri(5, 40) * 60_000), GrantType: 'client_credentials', IPAddress: IPS[ri(0, IPS.length - 1)], Game: chance2(0.05) ? 'ARC Raiders' : 'THE FINALS' });
   });
   return out.sort((a, b) => a.CreatedAt.localeCompare(b.CreatedAt));
 }
@@ -894,7 +1111,7 @@ function buildAudit() {
     { logtime: iso(SPAN_END), created_msts: ACCOUNT_CREATED, display_name: 'SAMPLE_PLAYER', display_name_discriminator: '0000', is_spender: true, email_verified_msts: ACCOUNT_CREATED + DAY, email: EMAIL },
   ];
   const { ses, legacy } = buildSesEvents(EMAIL);
-  const byType = { ClientUserLoginDetails: login, AccountNameAudit2: names, PlayerReport: reports, ProfileUpdated3: profileUpdated, AwsSesEvent: ses, EmailStatus: legacy, ChatMessageSent: buildChatMessages() };
+  const byType = { ClientUserLoginDetails: login, AccountNameAudit2: names, PlayerReport: reports, ProfileUpdated3: profileUpdated, AwsSesEvent: ses, EmailStatus: legacy, ChatMessageSent: buildChatMessages(), ...buildConsoleClaims() };
   const counts = Object.fromEntries(Object.entries(byType).map(([k, v]) => [k, v.length]));
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return { byType, counts, total, badLines: 0 };

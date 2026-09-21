@@ -82,6 +82,22 @@ export const SOURCE_GROUPS = [
 // amount; any other wallet paid a regionally-priced / converted amount we can't derive,
 // so the page shows a disclaimer for non-base wallets. Treat an unknown (null) code as
 // base — we can't claim a different amount was charged without evidence.
+// The number in a LocalizedPrice ("$14.95", "MX$180.00", "PLN 20.95"). Only the number:
+// a bare "$" is AUD on one export and USD on another, so the currency has to come from
+// CurrencyCode. Every sample uses "." decimals, but a lone "," is read as a decimal
+// unless three digits follow it, in case a store ever localises the separator.
+export const localAmount = (s) => {
+  let n = typeof s === 'string' ? s.replace(/[^\d.,]/g, '') : '';
+  if (!n) return null;
+  const dot = n.lastIndexOf('.');
+  const comma = n.lastIndexOf(',');
+  if (dot >= 0 && comma >= 0) n = dot > comma ? n.replace(/,/g, '') : n.replace(/\./g, '').replace(',', '.');
+  else if (comma >= 0) n = /,\d{3}$/.test(n) ? n.replace(/,/g, '') : n.replace(',', '.');
+  else if (n.indexOf('.') !== dot) n = n.replace(/\./g, '');
+  const v = Number(n);
+  return Number.isFinite(v) && v > 0 ? v : null;
+};
+
 export const BASE_CURRENCIES = new Set(['EUR', 'USD']);
 export const isBaseCurrency = (code) => !code || BASE_CURRENCIES.has(code);
 

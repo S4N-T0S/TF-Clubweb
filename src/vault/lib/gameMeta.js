@@ -46,6 +46,17 @@ export const parseCondition = (ec) => {
   return parts[parts.length - 1] || ec;
 };
 
+// Scorecard tiers, best first, in the ladder's league colours. The export only has a
+// number (Level 0..4, 0 best); the league names are how the game shows them, from the
+// owner's memory of the in-game medals rather than from anything in the data.
+export const SCORE_TIERS = [
+  { name: 'Ruby', bg: 'bg-red-600', text: 'text-red-500' },
+  { name: 'Diamond', bg: 'bg-blue-400', text: 'text-blue-400' },
+  { name: 'Platinum', bg: 'bg-cyan-300', text: 'text-cyan-300' },
+  { name: 'Gold', bg: 'bg-yellow-400', text: 'text-yellow-400' },
+  { name: 'Silver', bg: 'bg-gray-300', text: 'text-gray-300' },
+];
+
 // Top-level categories used for the match-history mode filter
 export const MODE_CATEGORIES = ['Ranked', 'World Tour', 'Casual', 'LTM', 'Other'];
 

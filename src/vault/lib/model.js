@@ -3,10 +3,10 @@
 import { resolveWeapon } from './weapons';
 import { archetypeLabel, classifyMode, careerModeGroup, CAREER_MODE_GROUPS, parseMapVariant, parseCondition, roundsRemaining, stageLabel, stageTeams, tournamentPlacement } from './gameMeta';
 import { resolveMap, resolveLtmBackground, conditionType } from './maps';
-import { resolveDlc, steamAppUrl, STEAM_BASE_GAME_ID } from './economy';
+import { resolveDlc, steamAppUrl, STEAM_BASE_GAME_ID, localAmount } from './economy';
 import { buildRealms, REALM, classifyRoundStat, ROUND_KIND } from './realms';
 import { buildRatings } from './ratings';
-import { createKeys } from './keys';
+import { createKeys, cleanName } from './keys';
 import { withKeySeasons } from './seasons';
 
 // timestamp helpers (export mixes ISO-8601 strings and epoch-ms)
@@ -543,22 +543,113 @@ const INVENTORY_LABELS = {
 // object reaches it as a child ("constructor" returns a function and renders blank).
 const humanizeType = (t) => (Object.hasOwn(INVENTORY_LABELS, t) ? INVENTORY_LABELS[t] : t.replace(/([a-z0-9])([A-Z])/g, '$1 $2'));
 
-function buildInventory(byType) {
+// Some names are Embark's internal labels, not what the game shows ("Type {0}", "HoverCar_01").
+const INTERNAL_NAME_RE = /[{}_]|^(Default|Premium)$/;
+const PACK_SLOT_LABELS = { IntroPose: 'Intro pose', VictoryPose: 'Victory pose', OutfitPack: 'Outfit', ObjectiveSticker: 'Objective sticker', PlayerCard: 'Player card' };
+
+function buildInventory(byType, keys) {
   const rows = byType.InventoryItem || [];
   const map = new Map();
+  // 2026-09+ rows are named; older ones carry a type and nothing else.
+  const items = [];
+  const byInstance = new Map();
+  let firstMs = null;
   for (const it of rows) {
     const type = it.Type || 'Unknown';
     let rec = map.get(type);
     if (!rec) map.set(type, (rec = { type, label: humanizeType(type), count: 0, amount: 0 }));
     rec.count += 1;
     rec.amount += typeof it.Amount === 'number' ? it.Amount : 0;
+    const name = cleanName(it.Name);
+    if (it.InstanceID != null) byInstance.set(it.InstanceID, it);
+    if (!name) continue;
+    const ms = toMs(it.CreatedAt);
+    if (ms != null && (firstMs == null || ms < firstMs)) firstMs = ms;
+    items.push({ name, type, label: rec.label, amount: typeof it.Amount === 'number' ? it.Amount : 1, ms, internal: INTERNAL_NAME_RE.test(name) });
   }
+  items.sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0) || a.name.localeCompare(b.name));
+
+  // Saved contestant packs reference other inventory rows by InstanceID. An id this
+  // export does not cover resolves to null and is shown as such, never dropped.
+  const nameOf = (id) => cleanName(byInstance.get(id)?.Name) || null;
+  const gear = (ids) =>
+    (Array.isArray(ids) ? ids : []).map((id) => {
+      const row = byInstance.get(id);
+      if (!row || row.GameAssetID == null) return { id: String(id), name: null, icon: null, type: null };
+      const w = resolveWeapon(row.GameAssetID, keys);
+      return { id: String(id), name: w.unknown ? cleanName(row.Name) : w.name, icon: w.icon, type: w.type };
+    });
+  const packs = [];
+  // The `Loadout` row names the pack that was selected when the export was made.
+  const activePackId = rows.find((it) => it.Properties?.Loadout?.SelectedContestantPackItemID)?.Properties.Loadout.SelectedContestantPackItemID ?? null;
+  for (const it of rows) {
+    const p = it.Properties?.ContestantPack;
+    if (!p || typeof p !== 'object') continue;
+    packs.push({
+      id: String(it.InstanceID ?? packs.length),
+      active: activePackId != null && it.InstanceID === activePackId,
+      title: cleanName(p.Title) || 'Untitled build',
+      archetype: nameOf(p.ArchetypeItemID),
+      equipped: gear(p.FirstHandItemIDs),
+      reserve: gear(p.ReservedItemIDs),
+      // PlayerCard and OutfitPack point at container rows with no name of their own.
+      slots: (Array.isArray(p.Slots) ? p.Slots : [])
+        .filter((s) => s?.SlotName !== 'PlayerCard' && s?.SlotName !== 'OutfitPack')
+        .map((s) => ({ label: Object.hasOwn(PACK_SLOT_LABELS, s.SlotName) ? PACK_SLOT_LABELS[s.SlotName] : String(s.SlotName), names: (s.ItemIDs || []).map(nameOf) })),
+      spray: p.SprayItemID ? [nameOf(p.SprayItemID)] : [],
+      emotes: (Array.isArray(p.EmoteWheelItemIDs) ? p.EmoteWheelItemIDs : []).map(nameOf),
+    });
+  }
+  const classRank = (a) => { const i = ['Light', 'Medium', 'Heavy'].indexOf(a); return i < 0 ? 3 : i; };
+  packs.sort((a, b) => classRank(a.archetype) - classRank(b.archetype) || a.title.localeCompare(b.title, undefined, { numeric: true }));
+
   const categories = [...map.values()].sort((a, b) => b.count - a.count);
   return {
     has: rows.length > 0,
     total: rows.length,
     totalAmount: categories.reduce((s, r) => s + r.amount, 0),
     categories,
+    hasNames: items.length > 0,
+    items,
+    firstMs,
+    packs,
+  };
+}
+
+// --- friends, blocks and club (counts and dates: the export never names anyone) ---
+function buildSocial(byType) {
+  const range = (rows) => {
+    let first = null;
+    let last = null;
+    for (const r of rows) {
+      const t = toMs(r.CreatedAt);
+      if (t == null) continue;
+      if (first == null || t < first) first = t;
+      if (last == null || t > last) last = t;
+    }
+    return { firstMs: first, lastMs: last };
+  };
+  const friends = byType.Friend || [];
+  const blocked = byType.BlockedPlayer || [];
+  const membership = (byType.ClanMembership || [])[0] || null;
+  const stats = [...(byType.ClanStats || [])].sort((a, b) => (toMs(b.UpdatedAt) ?? 0) - (toMs(a.UpdatedAt) ?? 0))[0] || null;
+  const timeline = byType.ClanTimelineMessage || [];
+  const sent = friends.filter((f) => f.Direction === 'sent').length;
+  const received = friends.filter((f) => f.Direction === 'received').length;
+  const tl = range(timeline);
+  const memberSinceMs = toMs(membership?.CreatedAt);
+  return {
+    has: friends.length > 0 || blocked.length > 0 || !!membership || !!stats || timeline.length > 0,
+    // Some older rows have no Direction, so the split is only shown when it adds up.
+    friends: { total: friends.length, sent, received, directionKnown: friends.length > 0 && sent + received === friends.length, ...range(friends) },
+    blocked: { total: blocked.length, ...range(blocked) },
+    club: membership
+      ? { name: membership.ClanName ?? null, tag: membership.ClanTag ?? null, role: membership.Role ?? null, memberSinceMs, lastLoginMs: toMs(membership.LastLoggedInAt) }
+      : null,
+    questsCompleted: stats && typeof stats.QuestsCompleted === 'number' ? stats.QuestsCompleted : null,
+    timeline: { count: timeline.length, ...tl },
+    // The club log starting well before the current membership suggests a rejoin.
+    mayHaveRejoined: memberSinceMs != null && tl.firstMs != null && memberSinceMs - tl.firstMs > 24 * 3600e3,
   };
 }
 
@@ -689,6 +780,7 @@ function newMatch(r, isTournament) {
     tournamentWon: false,
     won: false,
     disconnected: false,
+    abandoned: false,
   };
 }
 
@@ -723,6 +815,7 @@ function addRound(m, r) {
   if (r.tournamentWon) m.tournamentWon = true;
   if (r.roundWon) m.won = true;
   if (r.disconnected) m.disconnected = true;
+  if (r.abandoned) m.abandoned = true;
 }
 
 function buildMatchesAndWeapons(byType, keys) {
@@ -742,6 +835,17 @@ function buildMatchesAndWeapons(byType, keys) {
   }
 
   const weaponTotals = new Map(); // id -> kills
+  // One record per item id, shared by every round that equipped it.
+  const loadoutItems = new Map();
+  const loadoutItem = (id) => {
+    let it = loadoutItems.get(id);
+    if (!it) {
+      const w = resolveWeapon(id, keys);
+      loadoutItems.set(id, (it = { id: String(id), name: w.name, slug: w.slug, icon: w.icon, type: w.type, archetype: w.archetype }));
+    }
+    return it;
+  };
+  const LOADOUT_ORDER = { Spec: 0, Weapon: 1 };
   const weaponsByArch = { Light: new Map(), Medium: new Map(), Heavy: new Map(), Unknown: new Map() };
 
   const normalized = new Array(rawRounds.length);
@@ -775,6 +879,34 @@ function buildMatchesAndWeapons(byType, keys) {
       if ((w.type === 'Weapon' || w.type === 'Event') && (!topWeapon || k > topWeapon.kills)) topWeapon = rec;
     }
     weaponKills.sort((a, b) => b.kills - a.kills);
+    // 2026-09+ only. ONE snapshot of what was equipped: players swap items from their
+    // reserve mid-round, so kills often come from items that are not in it.
+    const loadoutIds = Array.isArray(d.LoadoutItemAssetIDs) ? d.LoadoutItemAssetIDs.filter((id) => id) : [];
+    const loadout = loadoutIds.length
+      ? loadoutIds.map(loadoutItem).sort((a, b) => (LOADOUT_ORDER[a.type] ?? 2) - (LOADOUT_ORDER[b.type] ?? 2))
+      : null;
+    // 2026-09+ `PlacedAt` is the final placement and agrees with every win;
+    // `LeaderboardPosition` swaps 2nd and 3rd on about one casual round in ten.
+    // PlacedAt 0 means the player abandoned, so the team's standing is kept instead.
+    const placedAt = typeof d.PlacedAt === 'number' && d.PlacedAt > 0 ? d.PlacedAt : null;
+    // 2026-09+, and only for rounds from 5 March 2026. Metric ids differ per mode but
+    // Embark's key file gives them shared names, so rounds are comparable by name.
+    // `Level` is a grade where 0 is the TOP: score and level correlate at -0.73 to
+    // -0.91 on every metric, with clean cut-offs (Quick Cash damage 3,500 / 2,100 /
+    // 1,100 / 250). Embark's README reads as if higher were better; it is not.
+    // Shown as tier 1 (best) to 5. A card whose scores are all zero is unpopulated
+    // (most such rounds have real kills and damage), so it is dropped.
+    let scorecard = null;
+    if (Array.isArray(d.Scorecards) && d.Scorecards.some((s) => s?.Score > 0)) {
+      scorecard = [];
+      for (const s of d.Scorecards) {
+        const name = keys.item(s?.GameAssetID)?.name;
+        if (!name || !Number.isFinite(s.Score) || !Number.isInteger(s.Level)) continue;
+        scorecard.push({ name, score: s.Score, tier: Math.min(5, Math.max(1, s.Level + 1)) });
+      }
+      scorecard.sort((a, b) => scorecardRank(a.name) - scorecardRank(b.name));
+      if (!scorecard.length) scorecard = null;
+    }
     normalized[i] = {
       createdAt: rawRounds[i].CreatedAt,
       start: toMs(d.StartTime),
@@ -810,14 +942,17 @@ function buildMatchesAndWeapons(byType, keys) {
       // RoundWon false / Currency 0), but a newer-generation export also carries
       // it on a WON final, so read nothing into it beyond "unknown". Normalise to
       // null so every consumer's `!= null` guard renders "—" instead of "0th".
-      position: typeof d.LeaderboardPosition === 'number' && d.LeaderboardPosition > 0 ? d.LeaderboardPosition : null,
+      position: placedAt ?? (typeof d.LeaderboardPosition === 'number' && d.LeaderboardPosition > 0 ? d.LeaderboardPosition : null),
       backfill: !!d.IsBackfill,
       disconnected: !!d.Disconnected,
+      abandoned: !!d.Abandoned, // left and did not come back (2026-09+)
       squadName: d.SquadName ?? null,
       squadId: d.SquadID ?? null,
       mode: classifyMode(d, keys),
       weapon: topWeapon || topAny || null, // primary weapon used this round (kills-based)
       weaponKills, // all items that got a kill this round, desc — for the "also killed with" line
+      loadout, // [spec, weapon, gadgets…] on record for the round, or null
+      scorecard, // [{ name, score, tier }] (tier 1 = best) or null
     };
   }
 
@@ -941,6 +1076,109 @@ function buildMatchesAndWeapons(byType, keys) {
   }
 
   return { matches, weapons, weaponsByArchetype, roundCount: rawRounds.length, rounds: normalized, otherGameRounds, unknownRounds };
+}
+
+// --- per-round scorecards (2026-09+ `Data.Scorecards`) ---------------------
+const SCORECARD_ORDER = ['Damage', 'Eliminations', 'KDR', 'Support', 'Objective', 'Revives', 'KillStreak', 'Assists'];
+const scorecardRank = (name) => {
+  const i = SCORECARD_ORDER.indexOf(name);
+  return i < 0 ? SCORECARD_ORDER.length : i;
+};
+
+// Rounds are grouped by which metrics they carry: objective modes score Objective
+// and Revives where deathmatch modes score KillStreak and Assists, and averaging
+// across the two would describe neither.
+function buildScorecards(rounds) {
+  const groups = new Map();
+  let count = 0;
+  let firstMs = null;
+  for (const r of rounds) {
+    if (!r.scorecard) continue;
+    count++;
+    if (r.start != null && (firstMs == null || r.start < firstMs)) firstMs = r.start;
+    const key = r.scorecard.map((m) => m.name).join('|');
+    let g = groups.get(key);
+    if (!g) groups.set(key, (g = { key, rounds: 0, metrics: new Map() }));
+    g.rounds++;
+    for (const m of r.scorecard) {
+      let e = g.metrics.get(m.name);
+      if (!e) g.metrics.set(m.name, (e = { name: m.name, rounds: 0, sum: 0, bestScore: 0, tierCounts: [0, 0, 0, 0, 0] }));
+      e.rounds++;
+      e.sum += m.score;
+      if (m.score > e.bestScore) e.bestScore = m.score;
+      e.tierCounts[m.tier - 1]++;
+    }
+  }
+  const out = [...groups.values()]
+    .sort((a, b) => b.rounds - a.rounds || a.key.localeCompare(b.key))
+    .map((g) => ({
+      key: g.key,
+      label: g.metrics.has('KillStreak') || g.metrics.has('Assists') ? 'Deathmatch modes' : g.metrics.has('Objective') ? 'Objective modes' : 'Other modes',
+      rounds: g.rounds,
+      // tierCounts[0] is tier 1, the best
+      metrics: [...g.metrics.values()].map((e) => ({ name: e.name, rounds: e.rounds, avgScore: div(e.sum, e.rounds), bestScore: e.bestScore, tierCounts: e.tierCounts })),
+    }));
+  return { has: count > 0, rounds: count, totalRounds: rounds.length, firstMs, groups: out };
+}
+
+// --- equipped loadouts (2026-09+ `LoadoutItemAssetIDs`) --------------------
+// Per class: how often each item was in the recorded loadout and how those rounds
+// went, plus the most-played full builds. `coverage` is the share of kills made
+// with an item that was in that round's snapshot, so the page can say how far the
+// snapshot is from everything the player actually used.
+const LOADOUT_CLASSES = ['Light', 'Medium', 'Heavy'];
+function buildLoadouts(rounds) {
+  const classes = Object.fromEntries(LOADOUT_CLASSES.map((c) => [c, { rounds: 0, wins: 0, items: new Map(), builds: new Map() }]));
+  let count = 0;
+  let firstMs = null;
+  let kills = 0;
+  let killsInLoadout = 0;
+  for (const r of rounds) {
+    if (!r.loadout) continue;
+    count++;
+    if (r.start != null && (firstMs == null || r.start < firstMs)) firstMs = r.start;
+    for (const wk of r.weaponKills) {
+      if (wk.id === '0') continue;
+      kills += wk.kills;
+      if (r.loadout.some((it) => it.id === wk.id)) killsInLoadout += wk.kills;
+    }
+    const c = classes[r.archetype];
+    if (!c) continue;
+    c.rounds++;
+    if (r.roundWon) c.wins++;
+    for (const it of r.loadout) {
+      let e = c.items.get(it.id);
+      if (!e) c.items.set(it.id, (e = { ...it, rounds: 0, wins: 0 }));
+      e.rounds++;
+      if (r.roundWon) e.wins++;
+    }
+    const key = r.loadout.map((it) => it.id).sort().join('|');
+    let b = c.builds.get(key);
+    if (!b) c.builds.set(key, (b = { key, items: r.loadout, rounds: 0, wins: 0 }));
+    b.rounds++;
+    if (r.roundWon) b.wins++;
+  }
+  const byClass = {};
+  for (const name of LOADOUT_CLASSES) {
+    const c = classes[name];
+    const items = [...c.items.values()]
+      .map((e) => ({ ...e, pickRate: div(e.rounds, c.rounds), winRate: div(e.wins, e.rounds) }))
+      .sort((a, b) => b.rounds - a.rounds || a.name.localeCompare(b.name));
+    byClass[name] = {
+      rounds: c.rounds,
+      winRate: div(c.wins, c.rounds),
+      specs: items.filter((e) => e.type === 'Spec'),
+      weapons: items.filter((e) => e.type === 'Weapon' || e.type === 'Event'),
+      gadgets: items.filter((e) => e.type !== 'Spec' && e.type !== 'Weapon' && e.type !== 'Event'),
+      distinctBuilds: c.builds.size,
+      builds: [...c.builds.values()]
+        .filter((b) => b.rounds > 1)
+        .sort((a, b) => b.rounds - a.rounds || a.key.localeCompare(b.key))
+        .slice(0, 3)
+        .map((b) => ({ ...b, winRate: div(b.wins, b.rounds) })),
+    };
+  }
+  return { has: count > 0, rounds: count, totalRounds: rounds.length, firstMs, coverage: kills ? killsInLoadout / kills : null, byClass };
 }
 
 // --- per-map / per-mode / per-class stat breakdowns -----------------------
@@ -1362,6 +1600,30 @@ function buildEconomy(byType, auditByType) {
   }
   const spendBaseTotal = fiatGranted.reduce((s, t) => s + t.pricePoint, 0);
 
+  // What the store actually charged, for the purchases that record it. Whether a row
+  // records it depends on the STORE, not the export generation (Microsoft rows nearly
+  // always do, Steam rows rarely), so the totals never travel without their count.
+  // Built on `fiatGranted`, so failed attempts and repeat grants are already out. One
+  // total per currency: never added together, never converted, never paired with
+  // PricePoint. A price with no CurrencyCode stays uncounted, because its currency
+  // cannot be told from the symbol.
+  const chargedBy = new Map();
+  let unchargedBaseTotal = 0;
+  for (const t of fiatGranted) {
+    const amount = t.currency ? localAmount(t.localizedPrice) : null;
+    if (amount == null) {
+      unchargedBaseTotal += t.pricePoint;
+      continue;
+    }
+    let c = chargedBy.get(t.currency);
+    if (!c) chargedBy.set(t.currency, (c = { currency: t.currency, cents: 0, count: 0 }));
+    c.cents += Math.round(amount * 100);
+    c.count++;
+  }
+  const chargedCurrencies = [...chargedBy.values()].map((c) => ({ currency: c.currency, total: c.cents / 100, count: c.count })).sort((a, b) => b.count - a.count);
+  const chargedCount = chargedCurrencies.reduce((s, c) => s + c.count, 0);
+  const charged = { byCurrency: chargedCurrencies, count: chargedCount, uncharged: fiatGranted.length - chargedCount, unchargedBaseTotal };
+
   // Is a DLC row's timestamp the purchase date or a later re-record? Matching a charge is
   // not enough — a preview re-grants the entitlement AND rewrites the DLC row in the same
   // instant, so they line up while carrying a purchase date months old. Require a first
@@ -1469,6 +1731,7 @@ function buildEconomy(byType, auditByType) {
     duplicateChargeCount,
     duplicateChargeTotal,
     spendBaseTotal,
+    charged,
     walletCurrencies,
     anyLocalized,
     ledger,
@@ -1615,6 +1878,7 @@ function buildAntiCheat(raw) {
   // a real export has actual addresses covering the whole account lifetime.
   const loginRows = raw.persistence?.byType?.UserLogin || [];
   const grantTally = new Map();
+  const gameTally = new Map();
   const loginIpSet = new Set();
   let loginFirst = Infinity;
   let loginLast = -Infinity;
@@ -1626,6 +1890,7 @@ function buildAntiCheat(raw) {
     }
     const g = typeof l.GrantType === 'string' && l.GrantType ? l.GrantType : 'unknown';
     grantTally.set(g, (grantTally.get(g) || 0) + 1);
+    if (typeof l.Game === 'string' && l.Game) gameTally.set(l.Game, (gameTally.get(l.Game) || 0) + 1);
     const ip = l.IPAddress;
     if (!ip) continue;
     if (!isRealIp(ip)) {
@@ -1650,6 +1915,7 @@ function buildAntiCheat(raw) {
     firstMs: Number.isFinite(loginFirst) ? loginFirst : null,
     lastMs: Number.isFinite(loginLast) ? loginLast : null,
     grantTypes: [...grantTally.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
+    byGame: [...gameTally.entries()].map(([game, count]) => ({ game, count })).sort((a, b) => b.count - a.count), // 2026-09+
     distinctIps: loginIpSet.size,
   };
   if (logins.count > 0) {
@@ -1732,11 +1998,58 @@ function buildAntiCheat(raw) {
     operatingSystems: [...new Set([...eosOses, ...anybrainOses])],
     resolutions,
     peripherals,
+    console: buildConsole(raw.audit?.byType),
     // Device-fingerprint summary (see comment above). `machineEstimate` replaces
     // the old "distinct TPM ids" count, which conflated fingerprint methods.
     machineEstimate,
     fingerprintMethods,
     denuvoPlatforms: raw.denuvo.length,
+  };
+}
+
+// --- console device facts (audit `XboxTokenClaims*`, console players only) ----
+const CONSOLE_TYPES = { Scarlett: 'Xbox Series X|S', XboxOne: 'Xbox One' };
+function buildConsole(auditByType) {
+  const A = auditByType || {};
+  const rows = Object.keys(A).filter((t) => /^XboxTokenClaims/.test(t)).flatMap((t) => A[t] || []);
+  if (!rows.length) return null;
+  const devices = new Map();
+  for (const r of rows) {
+    const key = r.device_id || r.device_pairwise_id || 'unknown';
+    let d = devices.get(key);
+    if (!d) devices.set(key, (d = { deviceId: r.device_id || null, type: r.device_type || null, records: 0, firstMs: null, lastMs: null, gamertags: new Set(), modernTags: new Set(), classicTags: new Set(), ageGroups: new Set(), countries: new Set(), privileges: new Set() }));
+    d.records++;
+    const t = toMs(r.logtime);
+    if (t != null) {
+      if (d.firstMs == null || t < d.firstMs) d.firstMs = t;
+      if (d.lastMs == null || t > d.lastMs) d.lastMs = t;
+    }
+    const tag = r.gamer_tag_modern ? `${r.gamer_tag_modern}${r.gamer_tag_modern_suffix ? `#${r.gamer_tag_modern_suffix}` : ''}` : null;
+    if (tag) d.gamertags.add(tag);
+    if (r.gamer_tag_modern) d.modernTags.add(r.gamer_tag_modern);
+    if (r.gamer_tag_classic) d.classicTags.add(r.gamer_tag_classic);
+    if (r.age_group) d.ageGroups.add(r.age_group);
+    if (r.country) d.countries.add(r.country);
+    if (typeof r.privileges === 'string') for (const code of r.privileges.split(/\s+/)) if (code) d.privileges.add(code);
+  }
+  return {
+    records: rows.length,
+    licenceChecks: (A.ThirdPartyLicenseAssociationUpdated || []).length,
+    devices: [...devices.values()]
+      .map((d) => ({
+        deviceId: d.deviceId,
+        type: d.type,
+        typeLabel: (d.type && Object.hasOwn(CONSOLE_TYPES, d.type) && CONSOLE_TYPES[d.type]) || d.type || 'Console',
+        records: d.records,
+        firstMs: d.firstMs,
+        lastMs: d.lastMs,
+        gamertags: [...d.gamertags],
+        classicTags: [...d.classicTags].filter((t) => !d.modernTags.has(t)),
+        ageGroups: [...d.ageGroups],
+        countries: [...d.countries],
+        privileges: [...d.privileges].sort((a, b) => Number(a) - Number(b)),
+      }))
+      .sort((a, b) => b.records - a.records),
   };
 }
 
@@ -1775,8 +2088,36 @@ function buildSupport(raw) {
     .sort((a, b) => a.ms - b.ms);
   const pdf = raw.customerSupport || null;
   const preParsed = raw.customerSupportParsed || null; // sample data injects the parsed shape directly
+  // In-game inbox (2026-09+). One-way messages; both of Embark's games share the table.
+  const P = raw.persistence?.byType || {};
+  const isFinals = (game) => !game || game === 'THE FINALS';
+  const messages = (P.InboxMessage || [])
+    .map((m) => {
+      const pl = m.Payload && typeof m.Payload === 'object' ? m.Payload : {};
+      const rewards = [pl.compensationId, ...(Array.isArray(pl.attachments) ? pl.attachments.map((a) => a?.compensation?.id) : [])].filter(Boolean);
+      return {
+        ms: toMs(m.CreatedAt),
+        game: m.Game || null,
+        finals: isFinals(m.Game),
+        title: m.Title || null,
+        body: m.Body || null,
+        buttonLabel: m.ButtonLabel || null,
+        messageName: m.MessageName || null,
+        rewards: [...new Set(rewards)],
+        season: pl.season ?? null,
+        sourceType: pl.sourceType ?? null,
+        seen: m.Seen !== false,
+        favorited: m.Favorited === true,
+      };
+    })
+    .sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0));
+  const notices = (P.InboxGlobalMessage || [])
+    .map((m) => ({ ms: toMs(m.PublishedAt ?? m.CreatedAt), expiresMs: toMs(m.ExpiredAt), game: m.Game || null, finals: isFinals(m.Game), messageName: m.MessageName || null, seen: m.Seen !== false, deleted: m.Deleted === true }))
+    .sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0));
+  const inbox = { has: messages.length > 0 || notices.length > 0, messages, notices };
   return {
-    hasAny: chat.length > 0 || !!pdf || !!preParsed,
+    inbox,
+    hasAny: chat.length > 0 || !!pdf || !!preParsed || inbox.has,
     chat,
     pdf,
     preParsed,
@@ -2021,7 +2362,8 @@ export function buildModel(raw) {
     ban: buildBans(byType),
     linkedAccounts: buildLinkedAccounts(byType),
     nameHistory: buildNameHistory(raw, accounts),
-    inventory: buildInventory(byType),
+    inventory: buildInventory(byType, keys),
+    social: buildSocial(byType),
     career: buildCareer(byType, keys),
     ratings,
     matches,
@@ -2029,6 +2371,8 @@ export function buildModel(raw) {
     modeBreakdown: buildModeBreakdown(matches),
     careerModes: buildCareerModes(matches),
     breakdowns: buildBreakdowns(rounds),
+    loadouts: buildLoadouts(rounds),
+    scorecards: buildScorecards(rounds),
     records: buildRecords(rounds, matches),
     weapons,
     weaponsByArchetype,

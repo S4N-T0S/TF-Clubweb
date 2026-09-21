@@ -252,6 +252,50 @@ const ReportsPanel = ({ data }) => {
   );
 };
 
+// Friends, blocks and club. The export never says who, so this is counts and dates.
+const SocialPanel = ({ social }) => {
+  const { friends, blocked, club } = social;
+  return (
+    <Panel title="Social">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCard label="Friends" value={num(friends.total)} />
+        {friends.directionKnown ? (
+          <>
+            <StatCard label="Requests you sent" value={num(friends.sent)} />
+            <StatCard label="Requests you received" value={num(friends.received)} />
+          </>
+        ) : (
+          social.questsCompleted != null && <StatCard label="Club quests" value={num(social.questsCompleted)} />
+        )}
+        <StatCard label="Players blocked" value={num(blocked.total)} />
+      </div>
+
+      <div className="mt-4 space-y-1">
+        {friends.total > 0 && <Row label="Friends added" value={`${date(friends.firstMs)} → ${date(friends.lastMs)}`} />}
+        {blocked.total > 0 && <Row label="Blocks made" value={`${date(blocked.firstMs)} → ${date(blocked.lastMs)}`} />}
+        {club && (
+          <>
+            <Row label="Club" value={club.tag ? `${club.name} [${club.tag}]` : club.name} />
+            <Row label="Club role" value={club.role} />
+            <Row label="Member since" value={date(club.memberSinceMs)} />
+          </>
+        )}
+        {social.questsCompleted != null && <Row label="Club quests completed" value={num(social.questsCompleted)} />}
+        {social.timeline.count > 0 && (
+          <Row label="Club membership events" value={`${num(social.timeline.count)}, ${date(social.timeline.firstMs)} → ${date(social.timeline.lastMs)}`} />
+        )}
+      </div>
+
+      <Note>
+        The export does not name who you are friends with or who you blocked. That is Embark protecting the other player’s data, not a gap in
+        this page, so it can only show counts and dates. In game a clan is called a Club.
+        {!friends.directionKnown && friends.total > 0 && ' This export does not say how many requests you sent and how many you received.'}
+        {social.mayHaveRejoined && ' Your club’s membership log starts before your current join date, so you may have left and rejoined.'}
+      </Note>
+    </Panel>
+  );
+};
+
 export const AccountPage = () => {
   const { model } = useVaultData();
   const { identity, ban, linkedAccounts, antiCheat, reports, meta, nameHistory, accounts, multiAccount, emails } = model;
@@ -317,6 +361,8 @@ export const AccountPage = () => {
 
       {/* Reports the player filed against others */}
       <ReportsPanel data={reports} />
+
+      {model.social.has && <SocialPanel social={model.social} />}
 
       {/* Multiple Embark accounts merged into one export (e.g. shared email) */}
       {multiAccount && (
