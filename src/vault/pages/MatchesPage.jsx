@@ -211,7 +211,7 @@ const MatchCard = ({ m, expanded, onToggle, cardSlot }) => {
             {/* K/D block — hover/tap for the weapons used across the match. The scorecard
                 mark is a sibling, not a child, so the two hovers never open together. */}
             <div className="flex items-start gap-3 sm:gap-5 shrink-0 sm:border-l sm:border-white/15 sm:pl-5">
-              <KillsTooltip items={m.weaponKills} label="Weapons used" loadout={m.rounds.length === 1 ? m.rounds[0].loadout : null}>
+              <KillsTooltip items={m.weaponKills} label="Weapons used" loadout={m.rounds.length === 1 ? m.rounds[0].loadout : null} damageOnly={m.damageOnly}>
                 <div className="flex gap-3 sm:gap-5">
                   <div className="text-center min-w-9">
                     <p className="text-[10px] uppercase text-gray-300">Kills</p>
@@ -460,11 +460,7 @@ export const MatchesPage = () => {
         // Chips first: if they already emptied the list, blaming the query
         // points at the wrong control.
         filtered.length === 0 ? (
-          <EmptyState icon={Swords} title="No matches with these filters">
-            {weaponSel.size > 0 || classSel.size > 0
-              ? 'No matches match every filter. Try removing a class or weapon, or switching mode.'
-              : null}
-          </EmptyState>
+          <EmptyState icon={Swords} title="No matches with these filters" />
         ) : (
           <EmptyState icon={Swords} title="No matches for this search">
             {`Nothing matching “${query.trim()}” in the ${num(filtered.length)} match${filtered.length === 1 ? '' : 'es'} the filters left.`}
@@ -503,16 +499,11 @@ export const MatchesPage = () => {
       )}
 
       <Note>
-        Filter by mode, by class, or by weapon to find the rounds where you got a kill with a specific item — a gun, a Mine,
-        a Jump Pad, a Defibrillator, anything that can score. Tip: hold{' '}
         <span className="text-gray-300">Shift</span> (or <span className="text-gray-300">Ctrl</span> /{' '}
-        <span className="text-gray-300">⌘</span>) and click a match to copy its debug details — the scenario (gamemode) id,
-        match id and per-round data — to your clipboard. Ranked Cashout is an 8-team
-        tournament — click any tournament to see its rounds. The bracket is Round 1 (two parallel 4-team lobbies, top 2
-        advance) → Round 2 (4 teams, top 2 advance) → a 1v1 Final. Placement is derived from the furthest round you reached
-        and your finish there; Round-1 exits resolve to a tied range (5th–6th or 7th–8th) because the two lobbies run in
-        parallel. Each card’s photo is the arena; the icon by each round marks the time/weather. Mode labels marked “heuristic” are inferred
-        from structure, not a confirmed ScenarioID.
+        <span className="text-gray-300">⌘</span>) click a match to copy its debug details to your clipboard: scenario id,
+        match id and per-round data. Placement comes from the furthest round you reached and how you finished there, so a
+        Round 1 exit gives a tied range (5th–6th or 7th–8th) because the two lobbies run in parallel. A mode label marked
+        “heuristic” was inferred from the shape of the match, not from a confirmed ScenarioID.
       </Note>
 
       {modalOpen && (

@@ -1,4 +1,77 @@
 // Shared presentational primitives for the vault pages.
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+
+// Hover (or tap) a figure to see what is behind it. Rendered in a portal so a card's
+// overflow-hidden or a table container's overflow-x cannot clip it. `width` sizes the
+// card and its viewport clamp; `height` is the caller's estimate, used to pick a side
+// and keep the card on screen.
+export const HoverTip = ({ tip, width = 240, height = 240, className = '', children }) => {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const ref = useRef(null);
+  const place = () => {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return;
+    const half = width / 2 + 8;
+    const x = Math.min(Math.max(r.left + r.width / 2, half), Math.max(half, window.innerWidth - half));
+    const below = r.top < height;
+    const y = below ? Math.min(r.bottom + 10, Math.max(8, window.innerHeight - 8 - height)) : Math.max(r.top - 10, height + 8);
+    setPos({ x, y, below });
+  };
+  // Dismiss on scroll / resize / outside tap / Escape: the fixed card would otherwise
+  // float away on scroll, and a tap-opened one needs a way to close.
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = () => setOpen(false);
+    const onDown = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  return (
+    <div
+      ref={ref}
+      className={`cursor-help ${className}`}
+      onMouseEnter={() => {
+        place();
+        setOpen(true);
+      }}
+      onMouseLeave={() => setOpen(false)}
+      onClick={(e) => {
+        e.stopPropagation();
+        place();
+        setOpen((o) => !o);
+      }}
+    >
+      {children}
+      {open &&
+        pos &&
+        createPortal(
+          <div
+            style={{ position: 'fixed', left: pos.x, top: pos.y, width, transform: `translate(-50%, ${pos.below ? '0' : '-100%'})`, zIndex: 90 }}
+            className="pointer-events-none rounded-xl bg-gray-900/98 border border-gray-700 shadow-2xl p-3"
+          >
+            {tip}
+          </div>,
+          document.body
+        )}
+    </div>
+  );
+};
+
 export const PageHeader = ({ icon: Icon, title, subtitle, children, mobileCenter = false }) => (
   <div
     className={`flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4 mb-5 ${

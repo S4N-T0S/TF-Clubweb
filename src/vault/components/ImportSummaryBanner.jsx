@@ -22,10 +22,9 @@ export const ImportSummaryBanner = () => {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-amber-200">Some expected files weren’t found in this import</p>
           <p className="text-xs text-amber-200/70 mt-1 leading-relaxed">
-            We loaded {foundCount} of {total} data files, but {n === 1 ? 'one part' : `${n} parts`} of your export
-            {n === 1 ? ' wasn’t' : ' weren’t'} detected. Embark sends these as separate files (or zips), so it’s easy to
-            miss one. Everything else still works — the pages below will just be empty. You can keep exploring, or re-import
-            with {n === 1 ? 'it' : 'them'} included.
+            We loaded {foundCount} of {total} data files. Embark sends these as separate files or zips, so it’s easy to
+            miss one. The pages that need the missing {n === 1 ? 'part' : 'parts'} will be empty until you re-import with
+            {n === 1 ? ' it' : ' them'} included.
           </p>
 
           <ul className="mt-3 space-y-1.5">
@@ -33,7 +32,7 @@ export const ImportSummaryBanner = () => {
               <li key={c.key} className="flex items-start gap-2 text-xs">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500/60 shrink-0 mt-1.5" />
                 <span className="text-gray-300">
-                  <code className="text-amber-200/90">{c.file}</code> — {c.label}
+                  <code className="text-amber-200/90">{c.file}</code>: {c.label}
                   <span className="text-gray-500"> · powers {c.powers}</span>
                 </span>
               </li>

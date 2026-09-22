@@ -64,7 +64,7 @@ const VaultRoot = () => {
   return (
     <VaultDataProvider>
       <Helmet>
-        <title>Your Data Vault — OG Club</title>
+        <title>Your Data Vault · OG Club</title>
         <meta property="og:image" content={VAULT_OG_IMAGE} />
         <meta property="og:image:alt" content={VAULT_OG_IMAGE_ALT} />
         <meta name="twitter:card" content="summary_large_image" />

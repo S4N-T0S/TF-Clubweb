@@ -54,7 +54,7 @@ export const WeaponFilterModal = ({ selected, onToggle, onClear, onClose }) => {
         <div className="flex items-center gap-3 p-4 border-b border-gray-700 shrink-0">
           <div className="flex-1 min-w-0">
             <h2 className="text-white font-semibold">Filter by weapon</h2>
-            <p className="text-xs text-gray-400">Show only matches where you got a kill with the items you pick.</p>
+            <p className="text-xs text-gray-400">Matches where you got a kill with the items you pick.</p>
           </div>
           {selected.size > 0 && (
             <button onClick={onClear} className="text-xs text-gray-400 hover:text-white whitespace-nowrap">

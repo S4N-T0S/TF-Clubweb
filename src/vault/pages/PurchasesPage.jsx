@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
-import { Wallet, CreditCard, Store, Coins, Clock, ExternalLink, Info, FlaskConical } from 'lucide-react';
+import { Wallet, CreditCard, Store, Coins, ExternalLink, Info, FlaskConical } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
-import { PageHeader, Panel, StatCard, Badge, Note, EmptyState, TogglePill } from '../components/ui';
+import { PageHeader, Panel, StatCard, Badge, Note, EmptyState, TogglePill, HoverTip } from '../components/ui';
 import { ListSearch, SearchEcho } from '../components/ListSearch';
 import { InventoryBrowser } from '../components/InventoryBrowser';
 import { useListSearch } from '../../hooks/useListSearch';
@@ -183,8 +183,103 @@ const TxDate = ({ t, fmt }) => {
   );
 };
 
-// What a real-money charge actually granted — matched by timestamp in the model (Multibucks top-up and/or a Steam DLC; DLC packs bundle both)
+// Named contents (2026-09+ `TransactionLog.Items`). A skin granted for several weapons
+// arrives as repeated lines, so identical names fold into one with a count.
+const groupItems = (items) => {
+  const out = new Map();
+  for (const it of items) {
+    const key = `${it.name}|${it.label}`;
+    const e = out.get(key);
+    if (e) e.amount += it.amount;
+    else out.set(key, { ...it });
+  }
+  return [...out.values()];
+};
+const ItemName = ({ it, typed = false }) => (
+  <span className="inline-flex items-baseline gap-1">
+    {it.currency ? (
+      <span className="inline-flex items-center gap-1 text-white whitespace-nowrap">
+        <Coins className="w-3.5 h-3.5 text-yellow-400 shrink-0" /> {num(it.amount)} {it.name}
+      </span>
+    ) : (
+      <span className={it.internal ? 'font-mono text-xs text-gray-500' : 'text-gray-200'}>
+        {it.name}
+        {it.amount > 1 && <span className="text-gray-500"> ×{num(it.amount)}</span>}
+      </span>
+    )}
+    {(it.internal || typed) && it.label && !it.currency && <span className="text-[10px] text-gray-500">{it.label}</span>}
+  </span>
+);
+const ITEMS_INLINE = 3;
+const ITEMS_TIP_MAX = 16;
+// Up to three items inline. A bundle folds into a count whose contents open in a
+// fixed-position card: the table container clips positioned children, and anything
+// in flow would reflow the row and shift every row below it.
+const GrantedItems = ({ items, lead = null, typed = false, title = 'What you got', className = '' }) => {
+  const grouped = groupItems(items);
+  if (grouped.length <= ITEMS_INLINE) {
+    return (
+      <span className={className}>
+        {lead}
+        {grouped.map((it, i) => (
+          <span key={i}>
+            {i > 0 && ', '}
+            <ItemName it={it} typed={typed} />
+          </span>
+        ))}
+      </span>
+    );
+  }
+  const shown = grouped.slice(0, ITEMS_TIP_MAX);
+  const spoken = grouped.map((it) => (it.amount > 1 ? `${it.name} ×${num(it.amount)}` : it.name)).join(', ');
+  return (
+    <HoverTip
+      className={className}
+      width={288}
+      height={60 + shown.length * 24}
+      tip={
+        <>
+          <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">{title}</p>
+          <ul className="space-y-1">
+            {shown.map((it, i) => (
+              <li key={i} className="text-xs leading-snug">
+                <ItemName it={it} typed />
+              </li>
+            ))}
+          </ul>
+          {grouped.length > shown.length && <p className="text-[10px] text-gray-500 mt-1.5">+{num(grouped.length - shown.length)} more</p>}
+        </>
+      }
+    >
+      <button
+        type="button"
+        className="cursor-help text-left text-gray-400 hover:text-gray-200 underline decoration-dotted underline-offset-2"
+        aria-label={`${num(grouped.length)} items: ${spoken}`}
+      >
+        {lead}
+        {num(grouped.length)} items
+      </button>
+    </HoverTip>
+  );
+};
+
+// What a real-money charge actually granted: the named list when the export has one
+// (a pack's Multibucks stays visible, the cosmetics fold behind the count), else
+// matched by timestamp in the model (Multibucks top-up and/or a Steam DLC; DLC packs bundle both)
 const Contents = ({ c }) => {
+  if (c?.items?.length) {
+    const cur = c.items.filter((it) => it.currency);
+    const rest = c.items.filter((it) => !it.currency);
+    if (cur.length && rest.length > ITEMS_INLINE) {
+      return (
+        <span className="text-sm inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+          <GrantedItems items={cur} />
+          <GrantedItems items={rest} lead="plus " title="Also in this purchase" />
+        </span>
+      );
+    }
+    return <GrantedItems items={c.items} className="text-sm" />;
+  }
   if (!c || (c.mb == null && !c.dlcs.length)) return <span className="text-gray-500">—</span>;
   return (
     <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -210,8 +305,9 @@ export const PurchasesPage = () => {
     fiat, fiatGrantedCount, fiatFailedCount, fiatUnpricedCount, spendBaseTotal, charged, walletCurrencies,
     ledger, ledgerAll, mb, currentBalance, balanceSeries, dlc, offers,
     realms, testTransactionCount, testLedgerCount, testFiatCount, mbTest,
-    duplicateChargeCount, duplicateChargeTotal,
+    duplicateChargeCount, duplicateChargeTotal, topMbSpends, mbSpendsNamed,
   } = economy;
+  const spentRows = useMemo(() => ledger.reduce((n, r) => n + (r.logType === 'spent' ? 1 : 0), 0), [ledger]);
 
   const [filter, setFilter] = useState('All');
   const [txPage, setTxPage] = useState(1);
@@ -367,10 +463,9 @@ export const PurchasesPage = () => {
                 {anomalies.length === 1 ? " doesn't" : " don't"} match anything the live game does
                 (largest {num(Math.max(...anomalies.map((a) => a.amount || 0)))} Multibucks).
                 {anomalyReason}
-                {' '}The likeliest cause is another test server we couldn’t identify from this export — most often
-                one whose wallet was close enough to your real balance that we can’t prove which rows belong to it.
-                The figures above still include {anomalies.length === 1 ? 'it' : 'them'}, so treat the Multibucks
-                totals as an upper bound rather than an exact figure.
+                {' '}The likeliest cause is another test server whose wallet sat close enough to your real balance that
+                we can’t prove which rows were its own. The figures above still include
+                {anomalies.length === 1 ? ' it' : ' them'}, so read the Multibucks totals as an upper bound.
               </p>
             </div>
           )}
@@ -384,12 +479,11 @@ export const PurchasesPage = () => {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-purple-200">Playtest records were removed from these figures</p>
                   <p className="text-xs text-purple-200/80 mt-1">
-                    Before a season launches, Embark runs a preview build that hands every participant a throwaway wallet
-                    and lets them “buy” from a stubbed store for free.{' '}
-                    All of it is written into the same export as your real account, with nothing marking it apart. It cost you
-                    no Multibucks, so the currency figures here count the live game only. Real-money charges are judged
-                    separately — a card is charged by the store, not by a game server — so the spend total below counts every
-                    genuine charge and drops only the ones re-issued a second time.
+                    A season preview hands every participant a throwaway wallet and a stubbed store, and all of it lands
+                    in the same export as your real account with nothing marking it apart. None of it cost you Multibucks,
+                    so the currency figures here count the live game only. Real-money charges are judged separately, since
+                    a card is charged by the store and not by a game server: the spend total below keeps every genuine
+                    charge and drops only the ones re-issued a second time.
                   </p>
                   {realms.sessions.length > 0 && (
                     <ul className="mt-3 space-y-1.5">
@@ -448,8 +542,7 @@ export const PurchasesPage = () => {
           <Panel title="Real-money spend">
             {fiat.length === 0 ? (
               <EmptyState icon={CreditCard} title="No real-money purchases recorded">
-                Nothing was bought with real currency on this account. Premium currency (Multibucks) you spent in-game is
-                tracked in the ledger below.
+                Multibucks you spent in game are in the ledger below.
               </EmptyState>
             ) : (
               <>
@@ -537,8 +630,8 @@ export const PurchasesPage = () => {
                     {duplicateChargeCount > 0 && (
                       <>
                         {num(duplicateChargeCount)} row{duplicateChargeCount === 1 ? ' is a' : 's are'} repeat
-                        grant{duplicateChargeCount === 1 ? '' : 's'} of a charge already counted (a server re-issuing something you
-                        already own) — counting {duplicateChargeCount === 1 ? 'it' : 'them'} again would have added {baseMoney(duplicateChargeTotal)}.
+                        grant{duplicateChargeCount === 1 ? '' : 's'} of a charge already counted, a server re-issuing
+                        something you already own. Counting {duplicateChargeCount === 1 ? 'it' : 'them'} again would have added {baseMoney(duplicateChargeTotal)}.
                       </>
                     )}
                   </p>
@@ -617,8 +710,8 @@ export const PurchasesPage = () => {
             )}
             {showTestLedger && lgRows.length > 0 && (
               <p className="text-xs text-purple-200/80 mb-3">
-                Set-aside rows are shown below. They belong to a separate wallet, so read “Balance after” within a
-                realm, not down the whole column — it steps between your real balance and the test one.
+                The set-aside rows belong to a separate wallet, so “Balance after” steps between your real balance and
+                the test one. Read it within a realm, not down the column.
               </p>
             )}
             <div id="mb-ledger-rows">
@@ -626,7 +719,7 @@ export const PurchasesPage = () => {
               <p className="text-sm text-gray-500">
                 {ledgerAll.length === 0
                   ? 'No premium-currency movements recorded.'
-                  : 'No live-game movements recorded — every currency row in this export came from another server.'}
+                  : 'No live-game movements recorded. Every currency row in this export came from another server.'}
               </p>
             ) : (
               <>
@@ -654,6 +747,7 @@ export const PurchasesPage = () => {
                                 <Badge tone={meta.tone}>{meta.label}</Badge>
                                 <RealmBadge row={l} />
                               </span>
+                              {l.items?.length > 0 && <GrantedItems items={l.items} lead="Bought: " title="What this bought" className="block text-[11px] text-gray-500 mt-0.5" />}
                             </td>
                             <td className={`py-2 px-3 text-right tabular-nums font-medium ${amountClass}`}>{signed}</td>
                             <td className="py-2 px-3 text-right tabular-nums text-gray-400">{num(l.balance)}</td>
@@ -679,11 +773,12 @@ export const PurchasesPage = () => {
             )}
             </div>
             <Note>
-              Multibucks is the in-game premium currency. <strong>Earned</strong> = Battle Pass, ranks and code redemptions;
-              <strong> Bought</strong> = real-money top-ups; <strong>Gifted</strong> = gifts; <strong>Other</strong> =
-              uncategorised grants the export tags only as <code>unknown</code> (usually small +75 reward drops, occasionally a
-              correction). The ledger records only these broad types, not a finer source (which Battle Pass, which Twitch drop),
-              so that’s all that can be shown.
+              The ledger tags every inflow as one of four broad types and nothing finer, so which Battle Pass or which
+              Twitch drop is not recoverable. <strong>Earned</strong> is Battle Pass, ranks and code redemptions,{' '}
+              <strong>Bought</strong> is real-money top-ups, <strong>Gifted</strong> is gifts, and <strong>Other</strong>{' '}
+              is anything the export tags only as <code>unknown</code>, usually a small +75 reward drop and occasionally a
+              correction.
+              {mbSpendsNamed > 0 && ' Where a spend’s items are known, they’re listed beneath it. Lists of more than three fold into a count you can hover or tap.'}
               {ledger.length > 0 && (
                 <> These are actual balance changes, so they reconcile: total in − Spent
                   {mb.startBalance ? <> + a starting balance of {num(mb.startBalance)}</> : null} = your current
@@ -691,16 +786,44 @@ export const PurchasesPage = () => {
               )}
               {gaps.length > 0 && (
                 <>
-                  {' '}Embark didn’t log every movement, though: {num(gaps.length)} balance change
+                  {' '}Embark didn’t log every movement: {num(gaps.length)} balance change
                   {gaps.length === 1 ? '' : 's'} here {gaps.length === 1 ? 'has' : 'have'} no matching row
                   ({gaps.map((g, i) => <span key={i}>{i > 0 ? ', ' : ''}{g.unexplained > 0 ? '+' : '−'}{num(Math.abs(g.unexplained))} on {date(g.ms)}</span>)}).
                   Each is absorbed by the row it lands on, so that row’s Amount differs from its own
-                  <code> Quantity</code> by the missing amount — which is why an occasional row shows a figure,
-                  or even a direction, its type wouldn’t suggest. The running balance stays correct throughout.
+                  <code> Quantity</code> by the missing amount. That is why the odd row shows a figure, or a direction,
+                  its type wouldn’t suggest. The running balance stays correct throughout.
                 </>
               )}
             </Note>
           </Panel>
+
+          {/* Biggest Multibucks spends (2026-09+, from the named purchase contents) */}
+          {topMbSpends.length > 0 && (
+            <Panel title="Biggest Multibucks spends">
+              <div className="space-y-3">
+                {topMbSpends.map((s, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <span className="w-4 text-right text-xs text-gray-500 tabular-nums pt-0.5">{i + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white tabular-nums">
+                        <span className="font-semibold">{num(s.mb)}</span> Multibucks <span className="text-gray-500">· {date(s.ms)}</span>
+                      </p>
+                      {s.items?.length ? (
+                        <GrantedItems items={s.items} lead="Bought: " typed title="What this bought" className="text-xs text-gray-400" />
+                      ) : (
+                        <p className="text-xs text-gray-600">What this bought isn’t recorded for this spend.</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Note>
+                {mbSpendsNamed >= spentRows
+                  ? `Every one of your ${num(spentRows)} spends carries an item name in this export.`
+                  : `An item name is known for ${num(mbSpendsNamed)} of your ${num(spentRows)} spends, since battle pass and collection-event grants don’t carry one. A larger spend missing from this list is one the export attached no items to.`}
+              </Note>
+            </Panel>
+          )}
 
           {/* Where grants came from */}
           <div className="grid lg:grid-cols-2 gap-4">
@@ -774,7 +897,15 @@ export const PurchasesPage = () => {
                           <RealmBadge row={t} />
                         </span>
                       </td>
-                      <td className="py-2 px-3 text-gray-400">{typeLabel(t.type)}</td>
+                      <td className="py-2 px-3 text-gray-400">
+                        {typeLabel(t.type)}
+                        {t.items?.granted?.length > 0 && <GrantedItems items={t.items.granted} lead="Got: " className="block text-[11px] text-gray-500 mt-0.5" />}
+                        {t.items?.cost?.some((c) => !/multibucks/i.test(c.name)) && (
+                          <span className="block text-[11px] text-gray-500 mt-0.5 tabular-nums">
+                            Cost: {t.items.cost.filter((c) => !/multibucks/i.test(c.name)).map((c) => `${num(c.amount)} ${c.name}`).join(', ')}
+                          </span>
+                        )}
+                      </td>
                       <td className="py-2 px-3 text-gray-400">{storeLabel(t.store)}</td>
                       <td className="py-2 px-3 text-right tabular-nums text-gray-300">{t.isFiat && t.pricePoint != null ? baseMoney(t.pricePoint) : '—'}</td>
                       <td className="py-2 px-3">
@@ -813,7 +944,7 @@ export const PurchasesPage = () => {
           <Panel title={`Owned Steam DLC (${num(dlc.length)})`}>
             {dlc.length === 0 ? (
               <EmptyState icon={Store} title="No Steam DLC recorded">
-                This export listed no Steam DLC ownership rows (these only appear for Steam accounts that own paid DLC packs).
+                Ownership rows only appear for Steam accounts that own a paid DLC pack.
               </EmptyState>
             ) : (
               <>
@@ -835,8 +966,8 @@ export const PurchasesPage = () => {
                         className="text-gray-500 text-xs whitespace-nowrap"
                         title={d.ownedSinceMs && !d.dateIsPurchase
                           ? (d.dateNote === 'rerecord'
-                            ? 'When Embark last wrote this ownership row. It does match a purchase in this export, but was written long after that purchase was made, so it is a re-record rather than the date you bought it.'
-                            : 'When Embark last wrote this ownership row. Nothing in this export ties it to a purchase, so it is not necessarily when you got it.')
+                            ? 'When Embark last wrote this ownership row. It matches a purchase in this export but was written long after it, so it is a re-record, not the day you bought it.'
+                            : 'When Embark last wrote this ownership row. Nothing here ties it to a purchase, so it is not necessarily when you got it.')
                           : undefined}
                       >
                         {d.ownedSinceMs
@@ -863,13 +994,12 @@ export const PurchasesPage = () => {
                 <Note>
                   {dlc.some((d) => d.ownedSinceMs && !d.dateIsPurchase) && (
                     <>
-                      A date marked <em>recorded</em> is when Embark last wrote that ownership row, which is not
-                      necessarily when you got it — re-provisioning your entitlements overwrites the timestamp, so it can
-                      be months late. Steam’s own library has the real purchase date.{' '}
+                      A date marked <em>recorded</em> is when Embark last wrote that ownership row, not necessarily when
+                      you got it: re-provisioning your entitlements overwrites the timestamp, so it can be months late.
+                      Steam’s own library has the real purchase date.{' '}
                     </>
                   )}
-                  The export stores the Steam App ID of each owned DLC, not its name or price (those are localised on
-                  Steam). Links open the matching Steam store page.
+                  The export stores each owned DLC’s Steam App ID and no name or price, which is why some rows show an id.
                 </Note>
               </>
             )}
@@ -913,8 +1043,7 @@ export const PurchasesPage = () => {
                 />
               </div>
               <Note>
-                <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /></span> These are limited-time
-                store offers the game <em>showed</em> you, not confirmed purchases.
+                Offers the game <em>showed</em> you, not purchases.
               </Note>
             </Panel>
           )}
@@ -934,9 +1063,9 @@ export const PurchasesPage = () => {
             ))}
           </div>
           <Note>
-            Counts come from your <code>InventoryItem</code> records. The export stores each item’s <em>type</em> and
-            quantity but no item IDs, so individual cosmetics can’t be named or listed — only counted by category. We
-            need help filling out this category and making it more accurate.
+            Counts come from your <code>InventoryItem</code> records, which store each item’s <em>type</em> and quantity
+            and no item IDs, so cosmetics can only be counted by category, never named. We need help filling out this
+            category and making it more accurate.
           </Note>
         </Panel>
       )}

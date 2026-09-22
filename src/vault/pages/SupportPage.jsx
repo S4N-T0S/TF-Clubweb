@@ -252,9 +252,106 @@ const InboxPanel = ({ inbox }) => {
       )}
 
       <Note>
-        These are one-way messages the game showed you: announcements, story drops and the occasional reward. A message carrying a reward
-        shows that one was offered, not that you claimed it. Broadcast notices come with Embark’s internal name only, no text.
-        {arcCount > 0 && ' This tool covers THE FINALS, so messages from Embark’s other game are set aside unless you switch them on.'}
+        A message carrying a reward shows one was offered, not that you claimed it. Broadcast notices arrive with
+        Embark’s internal name and no text.
+        {arcCount > 0 && ' Messages from Embark’s other game are set aside unless you switch them on.'}
+      </Note>
+    </Panel>
+  );
+};
+
+// Automated moderation verdicts (2026-09+ audit rows). A record of automated decisions
+// about the player's text, so it gets its own panel; the chat rows below already mark
+// the same messages with the "filtered in game" tag.
+const plural = (n, word) => `${num(n)} ${word}${n === 1 ? '' : 's'}`;
+const FLAGGED_PER_PAGE = 25;
+const ModerationPanel = ({ moderation }) => {
+  const [open, setOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const { messagesChecked, checksPerMessage, flaggedMessages, channels, nameChecks, other, unmatched, flagged, fromMs, toMs } = moderation;
+  const pages = Math.max(1, Math.ceil(flagged.length / FLAGGED_PER_PAGE));
+  const safePage = Math.min(page, pages);
+  const start = (safePage - 1) * FLAGGED_PER_PAGE;
+  return (
+    <Panel title="Automated moderation checks">
+      <p className="text-xs text-gray-400 -mt-1 mb-3">
+        A record of the automated checks the game ran on what you typed.
+      </p>
+      {messagesChecked === 0 ? (
+        <p className="text-sm text-gray-500">
+          No messages fall inside the window this export logged checks for ({date(fromMs)} to {date(toMs)}).
+        </p>
+      ) : (
+        <>
+          <p className="text-sm text-gray-200">
+            <span className="font-semibold">{num(flaggedMessages)}</span> of {plural(messagesChecked, 'message')} you sent were flagged.
+          </p>
+          <p className="text-xs text-gray-500 mt-1 mb-3">
+            Each message got {num(checksPerMessage)} automated checks{checksPerMessage === 3 ? ', one advisory and two enforcing' : ''}. “Enforced” describes the
+            check, not a punishment. Any actual restriction is on the Account &amp; Bans page.
+          </p>
+          <ul className="space-y-1 text-sm text-gray-300 tabular-nums">
+            {channels.map((c) => (
+              <li key={c.channel}>
+                {c.label} · {plural(c.messages, 'message')} checked · {num(c.flagged)} flagged
+              </li>
+            ))}
+            {nameChecks && (
+              <li>
+                Club name · checked {plural(nameChecks.count, 'time')} on {date(nameChecks.ms)} · {nameChecks.flagged === 0 ? 'none flagged' : `${num(nameChecks.flagged)} flagged`}
+              </li>
+            )}
+            {other.map((o) => (
+              <li key={o.name}>
+                <code>{o.name}</code> · {plural(o.count, 'check')} · {num(o.flagged)} flagged
+              </li>
+            ))}
+          </ul>
+          {unmatched > 0 && <p className="text-xs text-gray-500 mt-2">{plural(unmatched, 'chat check')} in this log did not line up with a message in it.</p>}
+          {flaggedMessages === 0 ? (
+            <p className="text-sm text-gray-500 mt-4">None of your checked messages were flagged.</p>
+          ) : (
+            <div className="mt-4">
+              <TogglePill on={open} onChange={setOpen} controls="mod-flagged-list">
+                {open ? 'Hide flagged messages' : `Show ${plural(flaggedMessages, 'flagged message')}`}
+              </TogglePill>
+              {open && (
+                <div id="mod-flagged-list" className="mt-3 space-y-1.5" style={pages > 1 ? { minHeight: FLAGGED_PER_PAGE * 26 } : undefined}>
+                  {flagged.slice(start, start + FLAGGED_PER_PAGE).map((m, i) => (
+                    <div key={start + i} className="flex items-baseline gap-2 text-sm">
+                      <span className="text-[11px] text-gray-500 tabular-nums shrink-0">{dateTime(m.ms)}</span>
+                      <Badge tone={CHANNEL_TONE[m.channel] || 'gray'}>{chatChannelLabel(m.channel)}</Badge>
+                      <span className="text-gray-200 wrap-break-word min-w-0">{m.text}</span>
+                      {m.text !== m.censored && (
+                        <span className="text-[10px] text-amber-400/80 shrink-0" title={`Shown as “${m.censored}” in game`}>
+                          filtered in game
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {open && pages > 1 && (
+                <div className="mt-3">
+                  <Pagination
+                    currentPage={safePage}
+                    totalPages={pages}
+                    startIndex={start}
+                    endIndex={start + FLAGGED_PER_PAGE}
+                    totalItems={flagged.length}
+                    onPageChange={setPage}
+                    edgeScroll={false}
+                    variant="compact"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+      <Note>
+        Verdicts come from the <code>ModerationDecisionPII</code> audit log, which this export carries from {date(fromMs)} to {date(toMs)} only.
+        Chat is kept for about 90 days, so most of it falls outside that window and has no verdict.
       </Note>
     </Panel>
   );
@@ -366,10 +463,9 @@ export const SupportPage = () => {
         <PageHeader icon={MessagesSquare} title="Support & Chat" subtitle="Your in-game chat log and Embark support tickets" />
         <EmptyState icon={MessagesSquare} title="No chat or support data in this export" />
         <Note>
-          Chat and support-ticket history arrives in two places: newer audit logs carry your recent in-game chat, and a
-          separate <code>CS_extracted_data.pdf</code> holds the full customer-service record (chat plus Helpshift
-          tickets). Neither is present here — if you asked Embark for “all personal data”, the CS file is sometimes sent
-          separately.
+          This history arrives in two places: newer audit logs carry recent in-game chat, and a separate{' '}
+          <code>CS_extracted_data.pdf</code> holds the customer-service record. Neither is here. Even on a request for
+          “all personal data”, Embark sometimes sends the CS file separately.
         </Note>
       </div>
     );
@@ -386,6 +482,7 @@ export const SupportPage = () => {
       </div>
 
       {support.inbox.has && <InboxPanel inbox={support.inbox} />}
+      {support.moderation && <ModerationPanel moderation={support.moderation} />}
 
       <Panel
         title="In-game chat"
@@ -421,7 +518,10 @@ export const SupportPage = () => {
                       <Badge tone={CHANNEL_TONE[c.channel] || 'gray'}>{chatChannelLabel(c.channel)}</Badge>
                       <span className="text-gray-200 wrap-break-word min-w-0">{c.text}</span>
                       {c.wasCensored && c.source === 'audit' && (
-                        <span className="text-[10px] text-amber-400/80 shrink-0" title={`Shown as “${c.censored}” in game`}>
+                        <span
+                          className="text-[10px] text-amber-400/80 shrink-0"
+                          title={`Shown as “${c.censored}” in game${c.moderation?.flagged ? '. Also logged as a flagged message in the automated moderation checks above.' : ''}`}
+                        >
                           filtered in game
                         </span>
                       )}
@@ -457,7 +557,7 @@ export const SupportPage = () => {
           </div>
         )}
         <p className="mt-3 text-[11px] text-gray-500">
-          Only your own sent messages are included, and chat appears to be retained for roughly the last ~90 days before the export.
+          Only your own sent messages are here, and only about the last 90 days before the export.
           {chatPages > 1 && ' Newest first.'}
         </p>
       </Panel>
@@ -490,14 +590,14 @@ export const SupportPage = () => {
         )}
         {status === 'error' && (
           <Note>
-            Couldn’t read the ticket transcripts from the PDF{parsed?.parseError ? ` (${parsed.parseError})` : ''} — the
-            chat log above still comes from your audit file.
+            Couldn’t read the ticket transcripts from the PDF{parsed?.parseError ? ` (${parsed.parseError})` : ''}. The
+            chat log above comes from your audit file and is unaffected.
           </Note>
         )}
         {status === 'none' && (
           <Note>
-            No <code>CS_extracted_data.pdf</code> found in this export — ticket transcripts live only in that file. Your
-            chat above comes from the audit log.
+            No <code>CS_extracted_data.pdf</code> in this export, and ticket transcripts live only in that file. The chat
+            above comes from the audit log.
           </Note>
         )}
         {status === 'done' && tickets.length === 0 && (
@@ -558,8 +658,8 @@ export const SupportPage = () => {
       <Note>
         {tickets.length > 0 && !exportLayout ? (
           <>
-            Helpshift stores per-message times only as day offsets (“15d ago”), so message dates marked <code>~</code> are
-            approximate; each ticket is re-anchored on its exact “Resolved” date.{' '}
+            Helpshift stores per-message times as day offsets (“15d ago”), so a date marked <code>~</code> is
+            approximate, re-anchored on that ticket’s exact “Resolved” date.{' '}
           </>
         ) : exportLayout ? (
           <>
@@ -567,8 +667,8 @@ export const SupportPage = () => {
             resolved.{' '}
           </>
         ) : null}
-        The <span className="text-gray-300">filtered in game</span> marker means other players saw a censored version;
-        your export keeps what you actually typed.
+        The <span className="text-gray-300">filtered in game</span> marker means other players saw a censored version.
+        Your export keeps what you actually typed.
       </Note>
     </div>
   );

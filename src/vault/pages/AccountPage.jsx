@@ -125,7 +125,7 @@ const RestrictionCard = ({ r, lastActivity }) => {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className={`font-semibold text-lg ${ui.title}`}>
-              Restricted — <span className={r.cancelled ? 'line-through decoration-gray-500/60' : ''}>{r.reason}</span>
+              Restricted: <span className={r.cancelled ? 'line-through decoration-gray-500/60' : ''}>{r.reason}</span>
             </p>
             <Badge tone={tone}>{status}</Badge>
           </div>
@@ -138,7 +138,7 @@ const RestrictionCard = ({ r, lastActivity }) => {
                 <Row
                   label="Reason for lifting"
                   value={r.cancelReason || 'Lifted'}
-                  hint="Shown exactly as Embark recorded it. This is the verbatim reason they noted when cancelling the restriction."
+                  hint="The reason Embark noted when they cancelled the restriction, shown verbatim."
                 />
               </>
             ) : (
@@ -158,9 +158,9 @@ const RestrictionCard = ({ r, lastActivity }) => {
 const banSummary = (ban) => {
   const noun = `${ban.count} restrictions on record`;
   if (ban.hasActive) return `${noun}, newest first.`;
-  if (ban.cancelledCount === ban.count) return `${noun} — all since lifted by Embark, newest first.`;
-  if (ban.cancelledCount > 0) return `${noun} — none currently active (${ban.cancelledCount} lifted), newest first.`;
-  return `${noun} — none currently active, newest first.`;
+  if (ban.cancelledCount === ban.count) return `${noun}, all since lifted by Embark, newest first.`;
+  if (ban.cancelledCount > 0) return `${noun}, none currently active (${ban.cancelledCount} lifted), newest first.`;
+  return `${noun}, none currently active, newest first.`;
 };
 
 const REPORTS_PER_PAGE = 10;
@@ -198,7 +198,7 @@ const ReportsPanel = ({ data }) => {
     >
       {count === 0 ? (
         <EmptyState icon={Flag} title="No reports on record">
-          Reports you submit against other players are logged in your audit trail. None were found in this export.
+          Reports you file against other players are logged in your audit file. None are in this export.
         </EmptyState>
       ) : (
         <>
@@ -218,7 +218,7 @@ const ReportsPanel = ({ data }) => {
                   <tr key={start + i} className="border-b border-gray-700/40 last:border-0 align-top">
                     <td className="py-2 px-3 text-gray-300 whitespace-nowrap">{dateTime(r.loggedAt)}</td>
                     <td className="py-2 px-3"><Badge tone={reasonTone[r.reason] || 'gray'}>{r.reason}</Badge></td>
-                    <td className="py-2 px-3 text-gray-300">{r.message || <span className="text-gray-600">— no note added —</span>}</td>
+                    <td className="py-2 px-3 text-gray-300">{r.message || <span className="text-gray-600">no note added</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -242,9 +242,8 @@ const ReportsPanel = ({ data }) => {
             </div>
           )}
           <Note>
-            These are reports <strong>you</strong> filed against other players — Embark keeps the reason and any note you added but
-            anonymises who you reported. Filing a report isn’t the same as action being taken, and it’s separate from any
-            restriction on your own account above.
+            Reports <strong>you</strong> filed. Embark keeps the reason and your note but anonymises who you reported, and
+            records nothing about whether anything came of it. Restrictions on your own account are above, unrelated.
           </Note>
         </>
       )}
@@ -271,8 +270,8 @@ const SocialPanel = ({ social }) => {
       </div>
 
       <div className="mt-4 space-y-1">
-        {friends.total > 0 && <Row label="Friends added" value={`${date(friends.firstMs)} → ${date(friends.lastMs)}`} />}
-        {blocked.total > 0 && <Row label="Blocks made" value={`${date(blocked.firstMs)} → ${date(blocked.lastMs)}`} />}
+        {friends.total > 0 && <Row label="Friends added" value={`${date(friends.firstMs)} to ${date(friends.lastMs)}`} />}
+        {blocked.total > 0 && <Row label="Blocks made" value={`${date(blocked.firstMs)} to ${date(blocked.lastMs)}`} />}
         {club && (
           <>
             <Row label="Club" value={club.tag ? `${club.name} [${club.tag}]` : club.name} />
@@ -287,8 +286,8 @@ const SocialPanel = ({ social }) => {
       </div>
 
       <Note>
-        The export does not name who you are friends with or who you blocked. That is Embark protecting the other player’s data, not a gap in
-        this page, so it can only show counts and dates. In game a clan is called a Club.
+        The export names nobody you are friends with or blocked, so this is counts and dates only. Those are other
+        players’ data, and Embark redacts them.
         {!friends.directionKnown && friends.total > 0 && ' This export does not say how many requests you sent and how many you received.'}
         {social.mayHaveRejoined && ' Your club’s membership log starts before your current join date, so you may have left and rejoined.'}
       </Note>
@@ -312,7 +311,7 @@ export const AccountPage = () => {
         <Panel className="border border-emerald-500/20 bg-emerald-500/5!">
           <div className="flex items-center gap-3">
             <CheckCircle className="w-6 h-6 text-emerald-400" />
-            <p className="text-emerald-300 font-semibold">No restriction on record — account in good standing.</p>
+            <p className="text-emerald-300 font-semibold">No restriction on record. Account in good standing.</p>
           </div>
         </Panel>
       ) : (
@@ -351,11 +350,11 @@ export const AccountPage = () => {
           </div>
         ) : (
           <EmptyState icon={CheckCircle} title="No anti-cheat kicks recorded">
-            Embark’s bans are issued as backend restrictions, so the EAC <code>kicks</code> list is usually empty even for banned accounts. If your export has any, they’ll be listed here verbatim.
+            Embark issues bans as backend restrictions, so the EAC <code>kicks</code> list is usually empty even on a banned account.
           </EmptyState>
         )}
         <Note>
-          The structure of a populated kick entry isn’t known yet — it’s rendered raw above for now. Share one with us if you have one.
+          Nobody has shown us a populated kick entry, so they render raw above. Send us one if you have it.
         </Note>
       </Panel>
 
@@ -390,9 +389,9 @@ export const AccountPage = () => {
             ))}
           </ul>
           <Note>
-            This export bundles {accounts.length} Embark accounts{sharedEmail ? ' that share one email — the likely reason Embark returned them together' : ' linked to your identity'}.
-            Most records (matches, purchases…) carry no account ID, so the other pages show the accounts <strong>combined</strong>;
-            names and emails are tracked per account here.
+            This export bundles {accounts.length} Embark accounts{sharedEmail ? ' that share one email, the likely reason Embark returned them together' : ' linked to your identity'}.
+            Most records carry no account ID, so every other page shows them <strong>combined</strong>. Names and emails
+            are per account here.
           </Note>
         </Panel>
       )}
@@ -464,8 +463,8 @@ export const AccountPage = () => {
             ))}
           </ul>
           <Note>
-            Every distinct address found in your data — your profile plus the game’s email and audit logs, including any
-            you’ve changed away from.
+            Every distinct address in your data: your profile plus the game’s email and audit logs, including any you
+            have changed away from.
             {emails.length > 1 ? ' More than one usually means you changed your email at some point.' : ''}
           </Note>
         </Panel>
@@ -484,7 +483,7 @@ export const AccountPage = () => {
             {nameHistory.embark.has && (
               <div>
                 <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-2">
-                  In-game name (Embark){nameHistory.embark.multi ? ` — ${nameHistory.embark.accounts.length} accounts` : ''}
+                  In-game name (Embark){nameHistory.embark.multi ? ` (${nameHistory.embark.accounts.length} accounts)` : ''}
                 </p>
                 <div className="space-y-3">
                   {nameHistory.embark.accounts.map((acc, i) => (
@@ -547,7 +546,7 @@ export const AccountPage = () => {
         {antiCheat.fingerprintMethods.length > 0 && (
           <Note>
             “Machines” is estimated from anti-cheat device fingerprints (TPM, firmware, disk serial). One PC reports
-            several — and the method changes across game updates — so this is the largest single-method count.
+            several of these, and the method changes across game updates, so the figure is the largest single-method count.
           </Note>
         )}
       </Panel>

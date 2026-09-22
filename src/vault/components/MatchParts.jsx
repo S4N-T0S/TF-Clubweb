@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
   Trophy,
   Sun, Moon, Sunset, CloudFog, CloudLightning, CloudRain, Wind, Snowflake, Sparkles,
 } from 'lucide-react';
-import { Badge } from './ui';
+import { Badge, HoverTip } from './ui';
 import { num, ordinal, cash, compact, scoreValue } from '../lib/format';
 import { SCORE_TIERS } from '../lib/gameMeta';
 
@@ -70,79 +68,38 @@ const KillTile = ({ it }) => (
     <ItemIcon it={it} />
     <span className="flex-1 min-w-0">
       <span className="text-gray-100 block truncate">{it.name}</span>
-      {it.type && it.type !== 'Weapon' && it.type !== 'Event' && (
-        <span className="text-[10px] text-gray-500 uppercase tracking-wide">{it.type}</span>
+      {((it.type && it.type !== 'Weapon' && it.type !== 'Event') || it.damage > 0) && (
+        <span className="text-[10px] text-gray-500 uppercase tracking-wide tabular-nums">
+          {it.type && it.type !== 'Weapon' && it.type !== 'Event' ? it.type : null}
+          {it.type && it.type !== 'Weapon' && it.type !== 'Event' && it.damage > 0 ? ' · ' : null}
+          {it.damage > 0 ? `${compact(it.damage)} dmg` : null}
+        </span>
       )}
     </span>
     <span className="text-white font-semibold tabular-nums">{it.kills}</span>
   </li>
 );
 
-// Hover (or tap) the K/D to see what you got kills with — for a single round or
-// a whole match. Rendered in a portal so the card's overflow-hidden / rounded
-// corners can't clip it.
-const HoverTip = ({ tip, children }) => {
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState(null);
-  const ref = useRef(null);
-  // Kept inside the viewport: a trigger at the card's right edge would push a centred
-  // tip off screen, and one near the top has no room above it.
-  const place = () => {
-    const r = ref.current?.getBoundingClientRect();
-    if (!r) return;
-    const half = 128; // half of w-60, plus a margin
-    const x = Math.min(Math.max(r.left + r.width / 2, half), Math.max(half, window.innerWidth - half));
-    setPos(r.top < 240 ? { x, y: r.bottom + 10, below: true } : { x, y: r.top - 10, below: false });
-  };
-  // Dismiss on scroll / resize / outside tap (the fixed tooltip would otherwise
-  // float away on scroll, and a tap-opened one needs an outside-tap to close).
-  useEffect(() => {
-    if (!open) return undefined;
-    const close = () => setOpen(false);
-    const onDown = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
-    document.addEventListener('pointerdown', onDown);
-    return () => {
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('resize', close);
-      document.removeEventListener('pointerdown', onDown);
-    };
-  }, [open]);
-  return (
-    <div
-      ref={ref}
-      className="cursor-help"
-      onMouseEnter={() => {
-        place();
-        setOpen(true);
-      }}
-      onMouseLeave={() => setOpen(false)}
-      onClick={(e) => {
-        e.stopPropagation();
-        place();
-        setOpen((o) => !o);
-      }}
-    >
-      {children}
-      {open &&
-        pos &&
-        createPortal(
-          <div
-            style={{ position: 'fixed', left: pos.x, top: pos.y, transform: `translate(-50%, ${pos.below ? '0' : '-100%'})`, zIndex: 90 }}
-            className="pointer-events-none w-60 rounded-xl bg-gray-900/98 border border-gray-700 shadow-2xl p-3"
-          >
-            {tip}
-          </div>,
-          document.body
-        )}
-    </div>
-  );
-};
+// Items that did damage without a kill (2026-09+). Capped: a tournament's list can
+// run long, and the tooltip has nowhere to grow but down.
+const DAMAGE_ONLY_CAP = 4;
+const DamageOnlyList = ({ items }) => (
+  <>
+    <p className="text-[10px] uppercase tracking-wider text-gray-400 mt-3 mb-1.5">Also damaged with</p>
+    <ul className="space-y-1">
+      {items.slice(0, DAMAGE_ONLY_CAP).map((it) => (
+        <li key={it.id} className="flex items-center gap-2 text-[11px]">
+          <ItemIcon it={it} className="w-6 h-6" />
+          <span className="flex-1 min-w-0 text-gray-300 truncate">{it.name}</span>
+          <span className="text-gray-400 tabular-nums">{compact(it.damage)} dmg</span>
+        </li>
+      ))}
+    </ul>
+    {items.length > DAMAGE_ONLY_CAP && <p className="text-[10px] text-gray-500 mt-1">+{items.length - DAMAGE_ONLY_CAP} more</p>}
+  </>
+);
 
-export const KillsTooltip = ({ items, label, loadout, children }) => (
+export const KillsTooltip = ({ items, label, loadout, damageOnly, children }) => (
   <HoverTip
     tip={
       <>
@@ -156,6 +113,7 @@ export const KillsTooltip = ({ items, label, loadout, children }) => (
         ) : (
           <p className="text-xs text-gray-500">No kills recorded.</p>
         )}
+        {damageOnly?.length > 0 && <DamageOnlyList items={damageOnly} />}
         {loadout && (
           <>
             <p className="text-[10px] uppercase tracking-wider text-gray-400 mt-3 mb-2">Loadout on record</p>
@@ -242,7 +200,7 @@ export const RankDeltaRow = ({ ru }) => {
         {ru.bonusKind === 'performance' && (
           <span
             className="text-[10px] text-emerald-300/80 border-b border-dotted border-emerald-500/40 cursor-help"
-            title="More than the flat value of your placement. From Season 11 the game tops each result up based on how you personally performed, so this is the part your own play earned rather than where your team finished."
+            title="From Season 11 the game tops each result up based on how you personally performed. This is that top-up, on top of the flat value of your placement."
           >
             incl. {sign(ru.bonus)} for your play
           </span>
@@ -250,7 +208,7 @@ export const RankDeltaRow = ({ ru }) => {
         {ru.bonusKind === 'adjustment' && (
           <span
             className="text-[10px] text-sky-300/80 border-b border-dotted border-sky-500/40 cursor-help"
-            title="Your score moved this much in your favour beyond what the placement alone was worth, outside the seasons and ranks where the performance bonus pays — every case we've seen softened a loss. The game does correct matches a cheater affected, which is the usual reason, but the export never records why, so this is the amount, not the cause."
+            title="Your score moved this much in your favour beyond what the placement was worth, outside the seasons and ranks where the performance bonus pays. Every case we've seen softened a loss. The export never records a reason, so this is the amount, not the cause. Corrections to matches a cheater affected are the usual explanation."
           >
             incl. {sign(ru.bonus)} adjustment
           </span>
@@ -276,7 +234,7 @@ export const RankDeltaRow = ({ ru }) => {
         {!ru.ladder && (
           <span
             className="text-[10px] text-gray-500 border-b border-dotted border-gray-600 cursor-help"
-            title="This match records the points change without what each finishing place was worth. The game only started recording that in Season 6, and the odd later match is missing it too."
+            title="This match records the points change but not what each finishing place was worth. The game started recording that in Season 6, and the odd later match still misses it."
           >
             no placement values
           </span>
@@ -345,7 +303,7 @@ export const RoundRow = ({ r, cardSlot = false }) => (
         <p className="text-[10px] uppercase text-gray-400">Rev</p>
         <p className="text-sm font-semibold text-gray-100 tabular-nums">{r.revives}</p>
       </div>
-      <KillsTooltip items={r.weaponKills} label="Killed with" loadout={r.loadout}>
+      <KillsTooltip items={r.weaponKills} label="Killed with" loadout={r.loadout} damageOnly={r.damageOnly}>
         <div className="w-12 sm:w-14">
           <p className="text-[10px] uppercase text-gray-400">K / D</p>
           <p className="text-sm font-semibold text-gray-100 tabular-nums underline decoration-dotted decoration-gray-500 underline-offset-2">

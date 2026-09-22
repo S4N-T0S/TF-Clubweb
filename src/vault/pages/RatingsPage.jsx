@@ -295,9 +295,8 @@ export const RatingsPage = () => {
       <div className="animate-fade-in-up space-y-5">
         <PageHeader icon={Gauge} title="Skill Rating" subtitle="Hidden matchmaking ratings & ranked history" />
         <EmptyState icon={Gauge} title="No skill-rating data in this export">
-          Neither of the records that hold skill ratings is here: the <code>BucketObject</code> entries that store your hidden
-          MMR and ranked ratings, and the <code>RankUpdate</code> rows that log each ranked match. Those are the names to quote
-          if you ask Embark about it.
+          Neither record is here: the <code>BucketObject</code> entries that hold your hidden MMR and ranked ratings, and
+          the <code>RankUpdate</code> rows that log each ranked match. Those are the names to quote if you ask Embark.
         </EmptyState>
       </div>
     );
@@ -314,15 +313,14 @@ export const RatingsPage = () => {
   const scoreBonusSeasons = ranked.seasons.filter((s) => s.bonusTotal > 0 && s.bonusMatches > 0);
   const casual = hiddenMmr.find((m) => m.ratingId === 'IVKCasualRating');
   const worldTour = hiddenMmr.find((m) => m.ratingId === 'IVKWorldTourRating');
+  // 2026-09+ lifetime World Tour record, beside what the round log holds for the same seasons.
+  const wtRecord = model.worldTour?.has && (model.worldTour.totalEvents > 0 || model.worldTour.seasons.length > 0) ? model.worldTour : null;
+  const wtLogRounds = wtRecord ? wtRecord.seasons.reduce((n, s) => n + s.rounds, 0) : 0;
+  const wtLogTournaments = wtRecord ? wtRecord.seasons.reduce((n, s) => n + s.tournaments, 0) : 0;
 
   return (
     <div className="animate-fade-in-up space-y-5">
       <PageHeader icon={Gauge} title="Skill Rating" subtitle="Hidden matchmaking ratings & ranked history" />
-
-      <p className="text-sm text-gray-400 leading-relaxed">
-        THE FINALS rates your skill in every mode and uses that rating to pick your lobbies. In Ranked you see it as your
-        rank and RankScore. Everywhere else it stays hidden.
-      </p>
 
       {/* Headline standing */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -369,6 +367,77 @@ export const RatingsPage = () => {
         />
       </div>
 
+      {wtRecord && (
+        <Panel title="World Tour record">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+            <div className="bg-gray-900/50 rounded-lg p-3">
+              <p className="text-[11px] uppercase tracking-wider text-gray-500">Total events</p>
+              <p className="text-xl font-bold text-white mt-1 tabular-nums">{num(wtRecord.totalEvents)}</p>
+              {wtRecord.totalEvents != null && wtLogRounds === wtRecord.totalEvents && (
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  That matches {num(wtLogRounds)} World Tour rounds across {num(wtLogTournaments)} tournaments in your match history.
+                </p>
+              )}
+            </div>
+            {wtRecord.streak?.streak > 0 && (
+              <div className="bg-gray-900/50 rounded-lg p-3">
+                <p className="text-[11px] uppercase tracking-wider text-gray-500">Current win streak</p>
+                <p className="text-xl font-bold text-white mt-1 tabular-nums">{num(wtRecord.streak.streak)}</p>
+                {wtRecord.streak.lastWinMs && <p className="text-[11px] text-gray-500 mt-0.5">last win {date(wtRecord.streak.lastWinMs)}</p>}
+              </div>
+            )}
+          </div>
+          <div className="table-container">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-gray-400 border-b border-gray-700">
+                  <th className="text-left py-2 pr-3 font-medium">Season</th>
+                  <th className="text-right py-2 px-3 font-medium">Badge score</th>
+                  <th className="text-right py-2 px-3 font-medium">
+                    <span
+                      className="border-b border-dotted border-gray-500 cursor-help"
+                      title="Embark’s own counter. On the export we checked it equalled the rounds won across World Tour and Ranked Cashout tournaments, counted from Season 11 on, so it runs higher than Tournaments won."
+                    >
+                      Finals won
+                    </span>
+                  </th>
+                  <th className="text-right py-2 px-3 font-medium">Rounds</th>
+                  <th className="text-right py-2 px-3 font-medium">Tournaments</th>
+                  <th className="text-right py-2 pl-3 font-medium">Tournaments won</th>
+                </tr>
+              </thead>
+              <tbody>
+                {wtRecord.seasons.map((s) => (
+                  <tr key={s.seasonId ?? s.label} className="border-b border-gray-700/40 last:border-0">
+                    <td className="py-2 pr-3 text-gray-200 font-medium whitespace-nowrap">{s.label}</td>
+                    <td className="py-2 px-3 text-right tabular-nums text-gray-300 whitespace-nowrap">
+                      {s.badge && (
+                        <span className={`font-semibold mr-2 ${s.badge.text}`}>
+                          <span className="inline-block w-2.5 h-2.5 rounded-full align-middle mr-1.5" style={{ background: s.badge.color }} />
+                          {s.badge.label}
+                        </span>
+                      )}
+                      {num(s.badgeScore)}
+                    </td>
+                    <td className="py-2 px-3 text-right tabular-nums text-gray-300">{num(s.finalsWon)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums text-gray-400 whitespace-nowrap">{s.rounds > 0 ? num(s.rounds) : '0 in log'}</td>
+                    <td className="py-2 px-3 text-right tabular-nums text-gray-400">{s.tournaments > 0 ? num(s.tournaments) : '—'}</td>
+                    <td className="py-2 pl-3 text-right tabular-nums text-gray-400">{s.tournaments > 0 ? num(s.tournamentsWon) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <Note>
+            Total events, badge score and finals won come from the lifetime <code>worldTour</code> summary. From Season 9 the badge score is your World
+            Tour points summed per placement and the badge beside it follows the thresholds on thefinals.wiki. Earlier seasons scored tournament Win Points
+            on a scale the export does not describe, so they show the score alone. Finals won matched the rounds you won across World Tour and Ranked
+            Cashout tournaments from Season 11 on. Rounds, tournaments and tournaments won come from your match log, and the two sources do not always
+            cover the same seasons, so a season can carry a badge score with no rounds beside it, or rounds with no badge score.
+          </Note>
+        </Panel>
+      )}
+
       {/* Within-season progression, from the per-match log */}
       {hasCurve && (
         <Panel
@@ -405,20 +474,17 @@ export const RatingsPage = () => {
               {scoreBonusSeasons
                 .map((s) => `${s.seasonLabel} +${num(s.bonusTotal)} over ${num(s.bonusMatches)} match${s.bonusMatches === 1 ? '' : 'es'}`)
                 .join(' · ')}
-              . From S11 the game adds extra RankScore on top of what your team’s finish paid, based on how you personally
-              played, so this is the part you earned yourself. Match history shows it match by match. It stops once you
-              reach Diamond: in every export we can check, no match starting at or above{' '}
-              {num(PERFORMANCE_BONUS_MAX_SCORE)} RankScore has been given one. The performance score itself isn’t in the
-              export, only the RankScore it was worth.
+              . From S11 the game adds RankScore on top of what your team’s finish paid, based on how you personally
+              played, and Match history shows it match by match. It stops at Diamond: in every export we can check, no
+              match starting at or above {num(PERFORMANCE_BONUS_MAX_SCORE)} RankScore has been given one. The performance
+              score itself isn’t in the export, only the RankScore it was worth.
             </p>
           )}
           <Note>
-            One card per season, running left to right through the ranked matches you played that season. The log only
-            starts at S4, so earlier ranked seasons have no card here, but from S4 on it holds virtually every rated
-            match. From S4 a division is a flat {num(RANKED_POINTS_PER_DIVISION)} points, so all the cards sit on one
-            scale and compare directly. Each season starts you well below where you finished: for most of the game’s
-            life placement matches could not put you above Gold 1 however well you played, and that ceiling has only
-            been raised recently. What these show is the climb, not the starting point.
+            The match log starts at S4, so earlier seasons have no card, and from S4 on it holds virtually every rated
+            match. A division has been a flat {num(RANKED_POINTS_PER_DIVISION)} points since S4, so the cards share one
+            scale. Every card starts low because placement matches could not put you above Gold 1 for most of the game’s
+            life, a ceiling only raised recently.
           </Note>
         </Panel>
       )}
@@ -449,7 +515,7 @@ export const RatingsPage = () => {
                       {/* Native title for the same clipping reason as the Rating system header. */}
                       <span
                         className="border-b border-dotted border-gray-500 cursor-help"
-                        title="The lowest rank you fell to during the season. It comes from the match-by-match log of your ranked games, which only newer exports include, so a season without one shows a dash."
+                        title="The lowest rank you fell to during the season. It comes from the match-by-match log, which only newer exports include, so a season without one shows a dash."
                       >
                         Lowest
                       </span>
@@ -463,7 +529,7 @@ export const RatingsPage = () => {
                         clips and inflates scrollHeight into a phantom scrollbar. */}
                     <span
                       className="border-b border-dotted border-gray-500 cursor-help"
-                      title="Which system the game used to rank you that season. S2 ran on OpenSkill; S3 onwards on IVK, the system behind the rank and RankScore you see in game. Where a season logged both, this is the one that was actually running the ladder."
+                      title="Which system the game used to rank you that season. S2 ran on OpenSkill, S3 onwards on IVK, the system behind the rank and RankScore you see in game. Where a season logged both, this is the one that was running the ladder."
                     >
                       Rating system
                     </span>
@@ -484,7 +550,7 @@ export const RatingsPage = () => {
                         // popover would fall entirely outside the scroll box.
                         <span
                           className="text-gray-500 border-b border-dotted border-gray-600 cursor-help"
-                          title="For this season the export only kept the rating the game ran in the background, not the one it ranked you on. That rating sits on its own point scale and can read well above or below your real rank, so no rank is shown rather than a wrong one."
+                          title="For this season the export kept only the rating the game ran in the background, not the one it ranked you on. That rating sits on its own scale and can read well above or below your real rank, so no rank is shown."
                         >
                           Unknown
                         </span>
@@ -536,20 +602,19 @@ export const RatingsPage = () => {
             </table>
           </div>
           <Note>
-            The rank shown is where you finished each season, with your best rank that season alongside. It comes from the
-            rank the export stores for the season (<code>leagueRankIndex</code>). The rating system behind ranked changed
-            twice: S2 ran on OpenSkill, S3 was the first season on IVK, and S4 onwards uses the IVK tournament ladder. A
-            season that logged both systems keeps only the one that was live, because the other kept running in the
-            background on its own point scale. <strong>RankScore</strong> is the score you saw in game, stored in the export
-            as <code>rankPoints</code>, and it is only there from S3 on. The ladder was rescaled at S4: S3 ran 2,500 points
-            per division up to Platinum 4 and 5,000 per division above that, where S4 onwards is a flat 2,500. So compare a
-            score inside a season, not across S3 and S4. S2’s OpenSkill points were an internal number never shown in game,
-            so they are left out. The chart uses the rank ladder instead, which stays comparable throughout.
-            {hasCurve && ' Newer exports also log every ranked match on its own, which is where the Lowest column comes from: the end-of-season record keeps where you finished and how high you got, never how far you fell.'}
+            End rank comes from the season record in the export (<code>leagueRankIndex</code>), with that season’s peak
+            beside it. The engine changed twice: S2 ran on OpenSkill, S3 was the first IVK season, S4 onwards uses the IVK
+            tournament ladder. Where a season logged both, only the live one is kept, because the other kept running in
+            the background on its own point scale. <strong>RankScore</strong> is the score you saw in game
+            (<code>rankPoints</code>), and it exists only from S3 on. S3 ran 2,500 points per division to Platinum 4 and
+            5,000 above that, S4 onwards a flat 2,500, so compare a score inside a season and not across S3 and S4. S2’s
+            OpenSkill points were internal and never shown in game, so they are left out and the chart uses the rank
+            ladder, which stays comparable throughout.
+            {hasCurve && ' Newer exports log every ranked match on its own, which is where Lowest comes from: the end-of-season record keeps where you finished and how high you got, never how far you fell.'}
             {hasReconstructed &&
               ' This export has no end-of-season records at all, so the ranks above were worked out from that match log. The final scores line up with the published leaderboard, but Ruby is the top 500 players rather than a score, so a rank worked out this way stops at Diamond 1.'}
-            {ranked.seedsDropped > 0 && ' Empty placeholder ratings are ignored, along with a second account’s untouched ratings if your export covers more than one account, so what is left is your own progression.'}
-            {ranked.withheld > 0 && ' A season marked “Unknown” kept only that background rating, so no rank is shown for it rather than a wrong one.'}
+            {ranked.seedsDropped > 0 && ' Empty placeholder ratings are ignored, along with a second account’s untouched ratings where an export covers more than one account.'}
+            {ranked.withheld > 0 && ' A season marked “Unknown” kept only that background rating, so no rank is shown for it.'}
             {ranked.curveParked > 0 && ` ${ranked.curveParked} season${ranked.curveParked === 1 ? '' : 's'} of match history couldn’t be matched to a season we know about, so ${ranked.curveParked === 1 ? 'it is' : 'they are'} left out.`}
           </Note>
         </Panel>
@@ -559,9 +624,8 @@ export const RatingsPage = () => {
       {hiddenMmr.length > 0 && (
         <Panel title="Hidden MMR: casual and other modes">
           <p className="text-sm text-gray-400 leading-relaxed mb-4">
-            Unlike Ranked, these don’t reset each season. Each one is a single rating the game keeps refining across your whole
-            account, so the number is where it stands today (the date shows when it last changed). They’re never shown anywhere
-            in-game.
+            These never reset and are never shown in game. Each is one rating refined across your whole account, so the
+            number is where it stands on the date beside it.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {hiddenMmr.map((m) => (
@@ -577,9 +641,8 @@ export const RatingsPage = () => {
             ))}
           </div>
           <Note>
-            There’s no public scale for these, and no league or badge attached. A higher number just means the game rates
-            you above the average player in that mode, and that’s what it uses to pick who you play with. The number only
-            means anything next to everyone else’s.
+            There is no public scale for these and no league or badge attached, so a number only means something next to
+            everyone else’s.
           </Note>
         </Panel>
       )}
@@ -602,13 +665,12 @@ export const RatingsPage = () => {
           {showAdvanced && (
             <div className="mt-4">
               <p className="text-sm text-gray-400 leading-relaxed mb-4">
-                In earlier seasons THE FINALS rated skill with <strong className="text-gray-200">OpenSkill</strong>, an
-                open-source system (later revised to a “V2”). These values stopped updating once the game moved everyone onto
-                the current ratings above, so they’re a frozen snapshot of the older system. The “last updated” column shows
-                when each was retired. OpenSkill describes your skill as two numbers per mode:{' '}
-                <strong className="text-gray-200">μ (mu)</strong>, its best guess at your skill, and{' '}
-                <strong className="text-gray-200">σ (sigma)</strong>, how unsure it still was. A high σ means few games and an
-                unsettled rating; it shrinks as you play.
+                Earlier seasons rated skill with <strong className="text-gray-200">OpenSkill</strong>, an open-source
+                system, later revised to a “V2”. These stopped updating when the game moved to the ratings above, so
+                “last updated” is the date each was retired. OpenSkill keeps two numbers per mode:{' '}
+                <strong className="text-gray-200">μ (mu)</strong>, its guess at your skill, and{' '}
+                <strong className="text-gray-200">σ (sigma)</strong>, how unsure it was. A high σ means few games, and it
+                shrinks as you play.
               </p>
               <div className="table-container">
                 <table className="w-full text-sm">
@@ -651,10 +713,8 @@ export const RatingsPage = () => {
                 </table>
               </div>
               <Note>
-                A mode can have both an original and a “v2” OpenSkill value, from when the method was revised, and both are
-                listed here. Where the export holds more than one copy of the same rating, the one with the most matches is
-                used. These track the same hidden skill as the ratings above, just with the older system, so read them as
-                history rather than where you stand now.
+                A mode can appear twice, an original and a “v2” from when the method was revised, and both are listed.
+                Where the export holds more than one copy of the same rating, the one with the most matches is used.
               </Note>
             </div>
           )}
@@ -671,10 +731,6 @@ export const RatingsPage = () => {
             </span>
           ))}
         </div>
-        <Note>
-          Each tier except Ruby has four divisions (4 is the lowest, 1 the highest), climbing Bronze 4 → Diamond 1 → Ruby
-          (top 500). This matches the rank colours used across the rest of the site.
-        </Note>
       </Panel>
     </div>
   );

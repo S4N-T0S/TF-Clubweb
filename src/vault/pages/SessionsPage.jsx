@@ -94,7 +94,7 @@ const ActivityStrip = ({ activity }) => {
             key={b.ms}
             className="flex-1 min-w-0.5 bg-emerald-500/70 rounded-sm"
             style={{ height: `${Math.max(b.count ? 6 : 0, (b.count / max) * 100)}%` }}
-            title={`${date(b.ms, 'd MMM yyyy')} — ${b.count} session${b.count === 1 ? '' : 's'}`}
+            title={`${date(b.ms, 'd MMM yyyy')} · ${b.count} session${b.count === 1 ? '' : 's'}`}
           />
         ))}
       </div>
@@ -226,14 +226,14 @@ export const SessionsPage = () => {
                 <div className="flex items-center gap-2">
                   <Badge tone={sourceTone[s.name]}>{s.name}</Badge>
                   <span className="text-white text-sm">{num(s.count)} {s.unit || 'sessions'}</span>
-                  <span className="text-gray-500 text-xs">{date(s.firstMs)} → {date(s.lastMs)}</span>
+                  <span className="text-gray-500 text-xs">{date(s.firstMs)} to {date(s.lastMs)}</span>
                 </div>
                 <span className="text-xs text-gray-500">{s.note}</span>
               </div>
             ))}
           </div>
         )}
-        <Note>EOS records frequent short sessions (it re-checks roughly every ~15–20 min), so its session count reflects heartbeats/reconnects rather than whole play sessions.</Note>
+        <Note>EOS re-checks every 15 to 20 minutes, so its count is heartbeats and reconnects, not whole play sessions.</Note>
       </Panel>
 
       {/* Anybrain input-device fingerprint (peripherals.csv, newer exports only) */}
@@ -254,11 +254,10 @@ export const SessionsPage = () => {
             ))}
           </div>
           <Note>
-            Anybrain also records the USB ids of input devices (keyboards, mice, controllers) connected while the game ran —
-            a hardware fingerprint. Each entry is one device, grouped from its per-interface records. Names are looked up
-            offline in the public{' '}
+            Anybrain records the USB ids of input devices connected while the game ran, a hardware fingerprint. Each
+            entry is one device, grouped from its per-interface records. Names come from the public{' '}
             <a href="http://www.linux-usb.org/usb.ids" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-300">usb.ids</a>{' '}
-            database; a device whose vendor never registered there shows only its raw id.
+            database, looked up on this device, and a vendor that never registered there shows a raw id instead.
           </Note>
         </Panel>
       )}
@@ -303,7 +302,7 @@ export const SessionsPage = () => {
                     </>
                   )}
                   <dt className="text-gray-500">Seen</dt>
-                  <dd className="text-gray-300">{date(d.firstMs)} → {date(d.lastMs)}</dd>
+                  <dd className="text-gray-300">{date(d.firstMs)} to {date(d.lastMs)}</dd>
                 </dl>
                 {d.privileges.length > 0 && (
                   <details className="mt-2 text-xs">
@@ -315,9 +314,9 @@ export const SessionsPage = () => {
             ))}
           </div>
           <Note>
-            When you sign in on a console, the platform hands Embark a token describing the account and the device, and Embark logs it. This is
-            what those {num(antiCheat.console.records)} records say. PC players have none of them. The permission codes are Xbox’s own numeric ids
-            and their meaning is not published, so they are shown as they are.
+            Signing in on a console hands Embark a token describing the account and the device, which it logs. That is
+            what these {num(antiCheat.console.records)} records are. The permission codes are Xbox’s own numeric ids and
+            their meaning is not published, so they are shown raw.
             {antiCheat.console.licenceChecks > 0 && ` Embark also logged ${num(antiCheat.console.licenceChecks)} licence checks for this account.`}
           </Note>
         </Panel>
@@ -331,7 +330,7 @@ export const SessionsPage = () => {
               <KeyRound className="w-4 h-4 text-emerald-400" />
               {num(antiCheat.logins.count)} sign-ins
             </span>
-            <span className="text-gray-500 text-xs">{date(antiCheat.logins.firstMs)} → {date(antiCheat.logins.lastMs)}</span>
+            <span className="text-gray-500 text-xs">{date(antiCheat.logins.firstMs)} to {date(antiCheat.logins.lastMs)}</span>
             <span className="text-gray-500 text-xs">{num(antiCheat.logins.distinctIps)} distinct IP{antiCheat.logins.distinctIps === 1 ? '' : 's'}</span>
             <span className="flex-1" />
             {antiCheat.logins.grantTypes.map((g) => (
@@ -353,9 +352,9 @@ export const SessionsPage = () => {
             </div>
           )}
           <Note>
-            These are the account system’s token grants, not play sessions: interactive sign-ins are you logging in for example on the website,
-            game-client tokens are the game authenticating you in the background when you open it. Their IPs feed the locations below and
-            cover your whole account lifetime, unlike the windowed anti-cheat sources above.
+            Token grants, not play sessions: an interactive sign-in is you logging in somewhere like the website, a
+            game-client token is the game authenticating you in the background. Their IPs feed the locations below and
+            cover your whole account lifetime, where the anti-cheat sources above only cover a window.
           </Note>
         </Panel>
       )}
@@ -365,7 +364,7 @@ export const SessionsPage = () => {
         {ips.length === 0 ? (
           <EmptyState icon={Wifi} title="No usable IP addresses in this export">
             {antiCheat.redactedIpCount > 0
-              ? `${num(antiCheat.redactedIpCount)} records carried a redacted placeholder (e.g. "[REDACTED]") instead of an IP — a real, un-edited export keeps the actual addresses.`
+              ? `${num(antiCheat.redactedIpCount)} records carry a placeholder such as "[REDACTED]" where the IP should be. An unedited export keeps the real addresses.`
               : 'This export did not include client IPs.'}
           </EmptyState>
         ) : geo.status === 'loading' ? (

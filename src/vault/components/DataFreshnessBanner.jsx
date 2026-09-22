@@ -9,13 +9,13 @@ import { date } from '../lib/format';
 function freshnessMessage(snap) {
   const asOf = date(snap.asOfMs);
   if (snap.asOfSource === 'request') {
-    return `Snapshot, not live data — accurate as of your data request (${snap.requestLabel || asOf}).`;
+    return `Snapshot, not live data. Accurate as of your data request (${snap.requestLabel || asOf}).`;
   }
   // Last activity is the more recent bound.
   if (snap.requestLabel) {
-    return `Snapshot, not live data — accurate to your last activity (${asOf}); data requested ${snap.requestLabel}.`;
+    return `Snapshot, not live data. Accurate to your last activity (${asOf}), requested ${snap.requestLabel}.`;
   }
-  return `Snapshot, not live data — accurate as of your last recorded activity (${asOf}).`;
+  return `Snapshot, not live data. Accurate as of your last recorded activity (${asOf}).`;
 }
 
 export const DataFreshnessBanner = () => {

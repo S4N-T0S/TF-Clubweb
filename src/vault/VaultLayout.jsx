@@ -47,7 +47,7 @@ export const VaultLayout = ({ children }) => {
       {isSample ? (
         <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-amber-950/70 border-b border-amber-700/50 text-amber-200 text-xs py-1.5 px-4">
           <FlaskConical className="w-3.5 h-3.5 shrink-0" />
-          <span>Sample data — a fictional player so you can preview the dashboard. The numbers aren’t real.</span>
+          <span>Sample data from a fictional player. None of these numbers are real.</span>
           <button onClick={reset} className="font-semibold underline underline-offset-2 hover:text-amber-100">
             Load your own export
           </button>
@@ -56,7 +56,7 @@ export const VaultLayout = ({ children }) => {
         /* Offline assurance banner — always visible inside the vault. */
         <div className="flex items-center justify-center gap-2 bg-emerald-950/60 border-b border-emerald-800/40 text-emerald-300 text-xs py-1.5 px-4">
           <WifiOff className="w-3.5 h-3.5" />
-          <span>Offline mode — your data stays on this device and is never uploaded.</span>
+          <span>Offline mode. Your data stays on this device and is never uploaded.</span>
         </div>
       )}
 

@@ -46,6 +46,29 @@ export const parseCondition = (ec) => {
   return parts[parts.length - 1] || ec;
 };
 
+// World Tour badge thresholds (thefinals.wiki/wiki/World_Tour, the Season 9+ system where
+// every mode pays points). Within a tier level 4 is the entry step and 1 the top, as in
+// ranked. The badge score in the export is the sum of those points: verified exactly on
+// three seasons of one export.
+export const WORLD_TOUR_BADGES = [
+  { name: 'Bronze', steps: [25, 50, 75, 100], color: '#b45309', text: 'text-amber-700' },
+  { name: 'Silver', steps: [150, 200, 250, 300], color: '#d1d5db', text: 'text-gray-300' },
+  { name: 'Gold', steps: [375, 450, 525, 600], color: '#facc15', text: 'text-yellow-400' },
+  { name: 'Platinum', steps: [700, 800, 900, 1000], color: '#67e8f9', text: 'text-cyan-300' },
+  { name: 'Diamond', steps: [1150, 1300, 1450, 1600], color: '#60a5fa', text: 'text-blue-400' },
+  { name: 'Emerald', steps: [1800, 2000, 2200, 2400], color: '#34d399', text: 'text-emerald-400' },
+];
+export const worldTourBadge = (score) => {
+  if (!Number.isFinite(score)) return null;
+  let best = null;
+  for (const tier of WORLD_TOUR_BADGES) {
+    tier.steps.forEach((min, i) => {
+      if (score >= min) best = { name: tier.name, level: 4 - i, label: `${tier.name} ${4 - i}`, color: tier.color, text: tier.text };
+    });
+  }
+  return best;
+};
+
 // Scorecard tiers, best first, in the ladder's league colours. The export only has a
 // number (Level 0..4, 0 best); the league names are how the game shows them, from the
 // owner's memory of the in-game medals rather than from anything in the data.
@@ -167,8 +190,8 @@ const EMBARK_SCENARIOS = {
   HeavyHitters: { label: 'Heavy Hitters', category: 'LTM', teams: 2 },
   Dragonfall: { label: 'Dragonfall', category: 'LTM', teams: null },
   // New-player onboarding lobbies against bots (FTUE = first-time user experience).
-  CashoutBotsSolo: { label: 'Cashout vs bots', category: 'Other', teams: null },
-  CashoutBotsSoloFTUE: { label: 'Cashout vs bots', category: 'Other', teams: null },
+  CashoutBotsSolo: { label: 'Cashout vs bots', category: 'Other', teams: null, bots: true },
+  CashoutBotsSoloFTUE: { label: 'Cashout vs bots', category: 'Other', teams: null, bots: true },
 };
 
 export const scenarioFromKey = (key) => {
@@ -199,7 +222,7 @@ export const classifyMode = (data, keys = STATIC_KEYS) => {
 
   const key = keys.scenario(scenarioId);
   const viaKey = key ? scenarioFromKey(key) : null;
-  if (viaKey?.translated) return { label: viaKey.label, category: viaKey.category, teams: viaKey.teams, confirmed: true };
+  if (viaKey?.translated) return { label: viaKey.label, category: viaKey.category, teams: viaKey.teams, confirmed: true, ...(viaKey.bots ? { bots: true } : {}) };
 
   // Without hasOwn a "constructor" id spreads a function into the mode, which
   // renders as a blank label while still flagged confirmed.

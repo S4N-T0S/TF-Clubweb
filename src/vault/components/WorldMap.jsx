@@ -34,7 +34,7 @@ export const WorldMap = ({ countries }) => {
         const fill = hit ? `rgba(16,185,129,${(0.4 + 0.6 * (hit.sessions / maxSessions)).toFixed(2)})` : '#1f2937';
         return (
           <path key={i} d={geomPath(f.geometry)} fill={fill} stroke="#374151" strokeWidth="0.3">
-            <title>{f.properties.name}{hit ? ` — ${hit.sessions} session${hit.sessions === 1 ? '' : 's'}` : ''}</title>
+            <title>{f.properties.name}{hit ? `: ${hit.sessions} session${hit.sessions === 1 ? '' : 's'}` : ''}</title>
           </path>
         );
       })}

@@ -148,8 +148,8 @@ export const InventoryBrowser = ({ inventory }) => {
         </div>
 
         <Note>
-          Names and dates come straight from your <code>InventoryItem</code> records. Some names are Embark’s internal labels rather than what the game
-          shows (for example “Type {'{0}'}” or “HoverCar_01”). Those are shown in a smaller grey type, exactly as your export has them.
+          Names and dates come from your <code>InventoryItem</code> records. Some are Embark’s internal labels rather than
+          what the game shows, for example “Type {'{0}'}” or “HoverCar_01”, and those are set in grey monospace.
         </Note>
       </Panel>
     </>

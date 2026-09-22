@@ -115,9 +115,9 @@ export const BreakdownPage = () => {
       )}
 
       <Note>
-        Computed per-round, so K/D here is real per map / mode / class. Per-<em>weapon</em> K/D is not possible — the
-        export records weapon kills but never per-weapon deaths. “Round Win%” counts rounds flagged won (tournament
-        placement is on the Matches page).
+        Computed per round, so K/D here is real per map, mode and class. Per-<em>weapon</em> K/D is not: the export
+        records weapon kills and never per-weapon deaths. Round Win% counts rounds flagged won, not tournament placement,
+        which is on the Matches page.
       </Note>
     </div>
   );

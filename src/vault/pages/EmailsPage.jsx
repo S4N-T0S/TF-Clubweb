@@ -52,8 +52,7 @@ const Funnel = ({ stats }) => {
         ))}
       </div>
       <Note>
-        How far each email got. Embark’s mail provider (Amazon SES) records a “Delivery” when your inbox accepts it, an
-        “Open” when your mail app loads the invisible tracking pixel, and a “Click” when you follow a link.
+        Delivered means your mail server accepted it, not that you saw it.
       </Note>
     </Panel>
   );
@@ -217,8 +216,8 @@ export const EmailsPage = () => {
         <PageHeader icon={Mail} title="Email tracking" subtitle="Marketing & account emails Embark sent you" />
         <EmptyState icon={Inbox} title="No email tracking in this export">
           {meta.hasAudit
-            ? 'Embark’s emails are sent through Amazon SES and the send/open/click events normally live in your audit log — but none were found here. That usually means you’ve had marketing emails turned off, or this audit export was shortened.'
-            : 'This requires the audit log (the file that records account events), which isn’t part of this import. Re-import with your audit file to see which emails Embark sent and which you opened.'}
+            ? 'Send, open and click events normally sit in your audit log, and yours has none. Usually that means marketing email was switched off on your account, or the audit export was shortened.'
+            : 'These events live in the audit log, which isn’t part of this import. Re-import with your audit file to see which emails Embark sent and which you opened.'}
         </EmptyState>
       </div>
     );
@@ -250,11 +249,11 @@ export const EmailsPage = () => {
       {/* What this is — the privacy reveal */}
       <Panel>
         <p className="text-sm text-gray-300 leading-relaxed">
-          Every season and event email Embark sends runs through a tracking system (Amazon SES). It quietly logs not just
-          that an email was <span className="text-white font-medium">delivered</span>, but every time you{' '}
+          Every season and event email Embark sends runs through Amazon SES, which logs more than the{' '}
+          <span className="text-white font-medium">delivery</span>. It records every time you{' '}
           <span className="text-emerald-300 font-medium">open</span> one and every{' '}
-          <span className="text-amber-300 font-medium">link you click</span> — with a timestamp, your device and your IP.
-          Your data request hands that engagement log back to you, so here’s exactly what their marketing team can see.
+          <span className="text-amber-300 font-medium">link you click</span>, with a timestamp, your device and your IP.
+          This is that log, the way their marketing team sees it.
         </p>
       </Panel>
 
@@ -336,9 +335,9 @@ export const EmailsPage = () => {
           {stats.recipients.length > 1
             ? `Sent across ${stats.recipients.length} of your email addresses. `
             : ''}
-          Opens are detected via a 1×1 tracking pixel, so they only register when your mail app loads images — Gmail and
-          other webmail load it through their own proxy, which is why some opens show the provider’s servers instead of
-          your device. Account &amp; security emails (verify / change email) aren’t open-tracked.
+          Opens come from a 1×1 pixel, so they only register when your mail app loads images. Gmail and other webmail
+          load it through their own proxy, which is why some opens show the provider’s servers rather than your device.
+          Account and security mail (verify, change email) isn’t open-tracked.
         </Note>
       </Panel>
     </div>

@@ -23,9 +23,9 @@ export const MultiAccountBanner = () => {
           </p>
           {names.length > 0 && <p className="text-xs text-blue-200 mt-0.5">{names.join('  ·  ')}</p>}
           <p className="text-xs text-blue-200/70 mt-1.5 leading-relaxed">
-            Embark returns every account registered to your email in one package, so this import bundles them together. The
-            stats across the dashboard are the accounts <strong>combined</strong>; the per-account breakdown (names, emails and
-            verification) is on the Account &amp; Bans page.
+            Embark returns every account registered to your email in one package. Stats across the dashboard are those
+            accounts <strong>combined</strong>. Names, emails and verification are listed per account on the Account &amp;
+            Bans page.
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2">

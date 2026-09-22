@@ -206,9 +206,8 @@ const ScorecardsSection = ({ scorecards }) => {
         </div>
 
         <Note>
-          Each round the game grades these from {top.name} down to {SCORE_TIERS[SCORE_TIERS.length - 1].name}. Embark does not publish the cut-offs, and
-          they differ by metric. So compare a metric with itself, not with another. Damage here is Embark’s own score, not the damage total on
-          your match cards.
+          Embark does not publish the tier cut-offs and they differ by metric, so compare a metric against itself rather
+          than against another one. Damage here is Embark’s own score, not the damage total on your match cards.
         </Note>
       </Panel>
     </div>
@@ -263,7 +262,7 @@ export const CareerPage = () => {
           <Ban className="w-6 h-6 text-red-400 shrink-0 mt-0.5" />
           <div>
             <p className="text-red-300 font-semibold">
-              Account restricted — {ban.active.reason}
+              Account restricted: {ban.active.reason}
               {ban.active.permanent && <span className="ml-2"><Badge tone="red">Permanent</Badge></span>}
             </p>
             <p className="text-sm text-red-200/80 mt-0.5">
@@ -271,7 +270,7 @@ export const CareerPage = () => {
               {ban.active.endsAt ? ` · ends ${date(ban.active.endsAt)}` : ' · no end date recorded'}.
             </p>
             <p className="text-xs text-red-200/60 mt-1">
-              {ban.count > 1 ? `${ban.count} restrictions on record — see ` : 'Full details on the '}
+              {ban.count > 1 ? `${ban.count} restrictions on record, see ` : 'Full details on the '}
               Account &amp; Bans page.
             </p>
           </div>
@@ -279,7 +278,7 @@ export const CareerPage = () => {
       )}
 
       {!career.hasSummary && (
-        <Note>No RoundStatSummary snapshot was found, so lifetime totals may be incomplete. Stats below fall back to what is available.</Note>
+        <Note>No <code>RoundStatSummary</code> snapshot in this export, so the lifetime totals below are missing. The modes, records and every other page still come from your round log.</Note>
       )}
 
       {/* Headline stats */}
@@ -313,6 +312,9 @@ export const CareerPage = () => {
           <div className="flex items-center gap-2 mb-3">
             <Medal className="w-4 h-4 text-gray-400" />
             <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Personal records</h2>
+            {records.botsExcluded > 0 && (
+              <span className="text-[11px] text-gray-500 ml-auto">{num(records.botsExcluded)} bot-lobby rounds left out</span>
+            )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {recordCards.map((d) => (

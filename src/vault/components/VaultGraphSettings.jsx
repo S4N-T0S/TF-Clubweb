@@ -84,7 +84,7 @@ export const VaultGraphSettings = ({ settings, onChange, onClose, nameEventCount
             merges several players' timelines, and there's only ever one here. */}
         <p className="text-xs text-gray-500 mt-5 leading-relaxed">
           This season has {nameEventCount} name {nameEventCount === 1 ? 'change' : 'changes'} and {adjustmentCount}{' '}
-          {adjustmentCount === 1 ? 'adjustment' : 'adjustments'}. Hidden types stay off the graph until you turn them back on.
+          {adjustmentCount === 1 ? 'adjustment' : 'adjustments'}.
         </p>
       </div>
     </div>,

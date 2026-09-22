@@ -9,7 +9,7 @@ export const BetaBanner = () => {
     <>
       <FlaskConical className="w-3.5 h-3.5 text-orange-300 shrink-0" />
       <span className="truncate">
-        Beta — found a bug or have feedback?
+        Beta. Found a bug or have feedback?
       </span>
     </>
   );

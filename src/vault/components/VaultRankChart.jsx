@@ -198,8 +198,8 @@ export const VaultRankChart = ({ season, nameEvents, tournaments, settings, view
         if (d.isPenalty) note.textContent = 'This match was penalised, so it paid less than the placement was worth.';
         else
           note.textContent = d.matchMs
-            ? `${d.adjustmentLabel} — the match was played on ${date(d.matchMs)}.`
-            : `${d.adjustmentLabel} — the match it applies to isn’t in this export.`;
+            ? `${d.adjustmentLabel}. The match was played on ${date(d.matchMs)}.`
+            : `${d.adjustmentLabel}. The match it applies to isn’t in this export.`;
         node.appendChild(note);
       }
 

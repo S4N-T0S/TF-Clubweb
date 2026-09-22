@@ -21,9 +21,9 @@ async function collectFilesFromDir(dirHandle) {
 
 // SEO for the public landing page only
 const SEO = {
-  title: 'Your Data Vault — Offline GDPR Explorer | THE FINALS Tracker',
+  title: 'Your Data Vault · Offline GDPR Explorer | THE FINALS Tracker',
   description:
-    'Request your THE FINALS data from Embark (a free GDPR data request) and load it here to explore it as a private dashboard — full match history, hours, K/D, cash-outs, money spent, login sessions and account details. Fully offline: parsed in your browser, never uploaded. Or preview it instantly with sample data.',
+    'Request your THE FINALS data from Embark (a free GDPR data request) and load it here as a private dashboard: full match history, hours, K/D, cash-outs, money spent, login sessions and account details. Fully offline, parsed in your browser, never uploaded. Or preview it with sample data.',
   keywords:
     'the finals gdpr, the finals data request, sar export, embark data export, the finals match history, the finals data vault, offline, privacy, the finals tracker',
   url: `${SITE_URL}${VAULT_BASE}`,
@@ -34,7 +34,7 @@ const EMBARK_PRIVACY_EMAIL = 'privacy@support.embark-studios.com';
 
 // A ready-to-send request
 const EMAIL_TEMPLATE = `To: ${EMBARK_PRIVACY_EMAIL}
-Subject: Data access request (GDPR) — THE FINALS
+Subject: Data access request (GDPR): THE FINALS
 
 Hello Embark Studios,
 
@@ -58,7 +58,7 @@ const SHOWCASE = [
   { icon: User, label: 'Career', sub: VAULT_BASE, desc: 'Lifetime hours, K/D, total cash-outs, kills & revives.' },
   { icon: Gauge, label: 'Skill rating', sub: `${VAULT_BASE}/ratings`, desc: 'Hidden MMR per playlist and your ranked rank every season.' },
   { icon: LineChart, label: 'Trends', sub: `${VAULT_BASE}/trends`, desc: 'Have you improved? K/D, win rate and damage over time, per mode.' },
-  { icon: Swords, label: 'Match history', sub: `${VAULT_BASE}/matches`, desc: 'Every match since launch — ranked tournaments round-by-round.' },
+  { icon: Swords, label: 'Match history', sub: `${VAULT_BASE}/matches`, desc: 'Every match since launch, ranked tournaments round by round.' },
   { icon: Crosshair, label: 'Weapons', sub: `${VAULT_BASE}/weapons`, desc: 'Eliminations per weapon across every class.' },
   { icon: BarChart3, label: 'Breakdown', sub: `${VAULT_BASE}/breakdown`, desc: 'Real K/D and win rate per map, mode and class.' },
   { icon: Layers, label: 'Loadouts', sub: `${VAULT_BASE}/loadouts`, desc: 'How much you played each class and your top weapons.' },
@@ -74,11 +74,11 @@ const INCLUDES = [
   'Your full match history, from the day you started playing',
   'Career stats: K/D, hours played, total kills, revives and cashed-out money',
   'How much real money you’ve spent, and every in-game transaction',
-  'Every login session — when, from which IP address and country',
-  'Your chat logs — in-game text chat and messages to player support',
+  'Every login session: when, from which IP address and country',
+  'Your chat logs: in-game text chat and messages to player support',
   'Anti-cheat records (Embark redacts most of the sensitive detail)',
   'Account basics: email, date of birth, country and creation date',
-  'Linked accounts — Steam, PlayStation, Xbox and others',
+  'Linked accounts: Steam, PlayStation, Xbox and others',
 ];
 
 const Assurance = ({ icon: Icon, title, children }) => (
@@ -190,8 +190,8 @@ export const VaultLanding = () => {
         <ShieldCheck className="w-12 h-12 text-emerald-400 mx-auto mb-2" />
         <h1 className="text-3xl font-bold text-white">Your Data Vault</h1>
         <p className="text-gray-400 max-w-2xl mx-auto mt-3">
-          THE FINALS quietly records <em>everything</em> — every match you’ve ever played, every login, every purchase.
-          The law says you can ask Embark for a copy of all of it. This tool turns that data dump into a clean, readable
+          THE FINALS quietly records <em>everything</em>: every match you’ve ever played, every login, every purchase.
+          The law says you can ask Embark for a copy of all of it. This tool turns that data dump into a readable
           dashboard, entirely on your own device.
         </p>
       </div>
@@ -234,7 +234,7 @@ export const VaultLanding = () => {
             <span className="min-w-0">
               <span className="block text-white font-semibold">New here? How to get your THE FINALS data</span>
               <span className="block text-xs text-gray-400 mt-0.5">
-                What GDPR is, the exact email to send Embark, and what you’ll get back — free, within ~30 days.
+                What GDPR is, the exact email to send Embark, and what comes back. Free, and about 30 days.
               </span>
             </span>
           </span>
@@ -248,16 +248,15 @@ export const VaultLanding = () => {
               <h3 className="text-lg font-bold text-white mb-3">What is this, and why can I do it?</h3>
               <div className="space-y-3 text-sm text-gray-300 leading-relaxed">
                 <p>
-                  THE FINALS is made by <strong>Embark Studios AB</strong>, based in Stockholm, Sweden. Because they’re an
-                  EU company, the <strong>GDPR</strong> applies — and under it (and similar laws like the UK GDPR and
-                  California’s CCPA) you have the right to ask any company for a copy of all the personal data they hold
-                  about you. That request is called a <em>Subject Access Request</em> (SAR), and it’s <strong>free</strong>.
+                  THE FINALS is made by <strong>Embark Studios AB</strong> in Stockholm, so the <strong>GDPR</strong>{' '}
+                  applies. Under it, and under similar laws like the UK GDPR and California’s CCPA, you can ask any
+                  company for a copy of the personal data they hold about you. That request is a{' '}
+                  <em>Subject Access Request</em> (SAR), and it’s <strong>free</strong>.
                 </p>
                 <p>
-                  For THE FINALS, that means Embark will send you a package of files covering your entire account — your
-                  match history going back to the start, your stats, what you’ve spent, where you’ve logged in from, and
-                  more. The files are technical and not meant to be read by hand. <strong>That’s what this page is for:</strong>{' '}
-                  load the package here and it’s parsed into the dashboard you can preview above.
+                  Embark sends back a package of files covering your whole account: match history from the start, your
+                  stats, what you’ve spent, where you’ve logged in from. The files are technical and not meant to be read
+                  by hand, so load the package here and it becomes the dashboard you can preview above.
                 </p>
               </div>
             </div>
@@ -276,7 +275,7 @@ export const VaultLanding = () => {
                   ). There’s a copy-and-paste template below.
                 </Step>
                 <Step n={2} title="Send it from your account email">
-                  Use the <strong>email address linked to your THE FINALS / Embark account</strong> — that’s how they
+                  Use the <strong>email address linked to your THE FINALS / Embark account</strong>. That’s how they
                   confirm the request is really you. Mention your in-game name and platform too.
                 </Step>
                 <Step n={3} title="Wait up to 30 days">
@@ -284,7 +283,7 @@ export const VaultLanding = () => {
                   your data files (often a <code className="text-gray-400">.zip</code>).
                 </Step>
                 <Step n={4} title="Load the files here">
-                  Come back and drop the package into the box below — or click any card above to see that page with sample
+                  Come back and drop the package into the box below. Or click any card above to see that page with sample
                   data right now.
                 </Step>
               </div>
@@ -325,7 +324,7 @@ export const VaultLanding = () => {
       {/* Upload zone */}
       <section className="mb-6">
         <h2 className="text-xl font-bold text-white mb-1">Already have your export?</h2>
-        <p className="text-sm text-gray-400 mb-4">Drop it in — it’s read on your device and never uploaded anywhere.</p>
+        <p className="text-sm text-gray-400 mb-4">Drop it in. It’s read on your device and never uploaded anywhere.</p>
         <div
           onDragOver={(e) => {
             e.preventDefault();
@@ -341,7 +340,7 @@ export const VaultLanding = () => {
             <div className="flex flex-col items-center gap-3 py-4">
               <Loader2 className="w-10 h-10 text-emerald-400 animate-spin" />
               <p className="text-sm text-gray-300">{progress || 'Working…'}</p>
-              <p className="text-xs text-gray-500">Large exports can take a moment — this all happens on your device.</p>
+              <p className="text-xs text-gray-500">Large exports can take a moment. It all happens on your device.</p>
             </div>
           ) : (
             <>
@@ -368,9 +367,8 @@ export const VaultLanding = () => {
               <p className="mx-auto mt-4 max-w-md text-xs text-gray-500 inline-flex items-start gap-1.5 text-left">
                 <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-gray-400" />
                 <span>
-                  Choosing a folder shows a browser permission prompt — it may use the word
-                  “upload”. That’s just how browsers word folder access; nothing is sent anywhere,
-                  and your files are read entirely on your device.
+                  Choosing a folder shows a browser permission prompt that may say “upload”. That’s the browser’s wording
+                  for folder access. Your files are read on this device and nothing is sent anywhere.
                 </span>
               </p>
 
@@ -407,7 +405,7 @@ export const VaultLanding = () => {
       {/* Privacy assurances */}
       <div className="grid sm:grid-cols-3 gap-5 bg-gray-800/40 border border-gray-700 rounded-2xl p-6">
         <Assurance icon={WifiOff} title="Nothing is uploaded">
-          Your files are read in your browser. They never leave your device — no server, no cloud.
+          Your files are read in your browser. They never leave your device: no server, no cloud.
         </Assurance>
         <Assurance icon={Lock} title="Nothing is stored">
           Data lives in memory only. Close or refresh the tab and it’s gone.

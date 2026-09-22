@@ -55,9 +55,21 @@ const newTid = () => {
   return t;
 };
 
+// A third stream for the per-item damage, mastery, moderation, named-purchase and
+// World Tour fields (added 2026-09-22), so the earlier streams' output stays put.
+let rng3 = mulberry32(SEED ^ 0x2026_0922);
+const rf3 = () => rng3();
+const ri3 = (lo, hi) => lo + Math.floor(rng3() * (hi - lo + 1));
+const pick3 = (arr) => arr[Math.floor(rng3() * arr.length)];
+const chance3 = (p) => rng3() < p;
+// Key-file rows the generated records refer to (see buildSampleRaw).
+let keyRows = { items: [], mastery: [] };
+
 const resetGenerator = () => {
   rng = mulberry32(SEED);
   rng2 = mulberry32(SEED ^ 0x2026_0921);
+  rng3 = mulberry32(SEED ^ 0x2026_0922);
+  keyRows = { items: [], mastery: [] };
   usedTids.clear();
 };
 
@@ -431,16 +443,63 @@ function aggregateRoundStats(records) {
   return a;
 }
 
+// Season ids as Embark's key file numbers them, for the World Tour seasonal record.
+const SEASON_IDS = [
+  ['2023-12-08', 371919277], ['2024-03-14', 762104396], ['2024-06-13', 751146294], ['2024-09-26', 814189767],
+  ['2024-12-12', 483101830], ['2025-03-20', 279111264], ['2025-06-12', 607580158], ['2025-09-10', 607608768],
+  ['2025-12-10', 825209376], ['2026-03-26', 965777394], ['2026-07-09', 349883189],
+].map(([d, id]) => [Date.parse(`${d}T00:00:00Z`), id]);
+const seasonIdAt = (ms) => SEASON_IDS.reduce((best, [start, id]) => (start <= ms ? id : best), null);
+
 function buildSummary(rounds) {
   const ranked = rounds.filter((r) => r.Data.ScenarioID === RANKED_ID);
   const casual = rounds.filter((r) => CASUAL_IDS.has(r.Data.ScenarioID));
+  // World Tour: the bucket's own counters are zero on real exports; what it carries
+  // is the per-season badge score and finals won, and the number of rounds played.
+  // The badge score is the wiki's points per placement (Quick Cash 6/4/2, tournament
+  // exits 2/6/14/25, other quickplay 4/2), and finals won counts the round wins in
+  // World Tour and Ranked Cashout tournaments from Season 11 on, as on real exports.
+  // Only the seasons on that system get seasonal stats: the badge existed from Season 4
+  // as a Win Points total on a scale the vault does not know, so inventing those would
+  // be wrong. Earlier seasons keep their rounds from the match log and nothing else.
+  const wt = rounds.filter((r) => WORLD_TOUR_IDS.includes(r.Data.ScenarioID)).sort((a, b) => Date.parse(a.Data.StartTime) - Date.parse(b.Data.StartTime));
+  const WT2_SEASONS = new Set([825209376, 965777394, 349883189]);
+  const seasonal = {};
+  const entry = (s) => (seasonal[s] ||= { BadgeScore: 0, FinalsWon: 0 });
+  const tourneys = new Map();
+  for (const r of rounds) {
+    const d = r.Data;
+    const s = seasonIdAt(Date.parse(d.StartTime));
+    if (s == null || !WT2_SEASONS.has(s)) continue;
+    const tournament = d.ScenarioID === RANKED_ID || WORLD_TOUR_IDS.includes(d.ScenarioID);
+    if (tournament) {
+      const t = tourneys.get(d.TournamentID) || { s, furthest: 9, won: false };
+      t.furthest = Math.min(t.furthest, Number(String(d.MatchID).split('-')[0]));
+      if (d.TournamentWon) t.won = true;
+      tourneys.set(d.TournamentID, t);
+      if (d.RoundWon && s === 349883189) entry(s).FinalsWon += 1;
+    } else if (d.ScenarioID === QUICK_CASH_ID) {
+      entry(s).BadgeScore += d.PlacedAt === 1 ? 6 : d.PlacedAt === 2 ? 4 : d.PlacedAt === 3 ? 2 : 0;
+    } else if (!d.Abandoned) {
+      entry(s).BadgeScore += d.RoundWon ? 4 : 2;
+    }
+  }
+  for (const t of tourneys.values()) entry(t.s).BadgeScore += t.won ? 25 : t.furthest === 0 ? 14 : t.furthest === 1 ? 6 : 2;
+  // Points stop at Emerald 1 (owner's knowledge of the game; the export has not shown a season past it).
+  for (const e of Object.values(seasonal)) e.BadgeScore = Math.min(2400, e.BadgeScore);
+  let streak = 0;
+  for (let i = wt.length - 1; i >= 0 && wt[i].Data.RoundWon; i--) streak++;
+  const lastWin = [...wt].reverse().find((r) => r.Data.RoundWon);
+  const total = aggregateRoundStats(rounds);
+  if (lastWin) total.WinStreakPerMatchmakingScenario = { [String(lastWin.Data.ScenarioID)]: { Streak: streak, LastWin: lastWin.Data.EndTime } };
   return [
     {
       UpdatedAt: iso(SPAN_END),
       Data: {
-        total: aggregateRoundStats(rounds),
+        total,
         casual: aggregateRoundStats(casual),
         ranked: aggregateRoundStats(ranked),
+        worldTour: { ...aggregateRoundStats([]), TotalWorldTourEvents: wt.length, SeasonalStats: seasonal },
       },
     },
   ];
@@ -461,7 +520,8 @@ function buildTransactions() {
   const tx = [];
   // Real-money purchases (the only rows with a price).
   for (const p of PURCHASES) {
-    tx.push({ TransactionType: 'purchase', State: 'granted', Source: 'realmoneytransaction', GameStore: 'steam', GameStorePurchasedAt: p.iso, CreatedAt: p.iso, PricePoint: p.price, CurrencyCode: 'GBP', Country: 'GB', LocalizedPrice: p.localized ?? null });
+    const Items = [multibucks(p.mb), ...(p.dlc ? [purchaseItem('CustomizationItem'), purchaseItem('CustomizationItem'), purchaseItem('WeaponSkin'), purchaseItem('WeaponCharm')] : [])];
+    tx.push({ TransactionType: 'purchase', State: 'granted', Source: 'realmoneytransaction', GameStore: 'steam', GameStorePurchasedAt: p.iso, CreatedAt: p.iso, PricePoint: p.price, CurrencyCode: 'GBP', Country: 'GB', LocalizedPrice: p.localized ?? null, Items });
   }
   // One failed attempt (shown, excluded from the total).
   tx.push({ TransactionType: 'purchase', State: 'failed', Source: 'realmoneytransaction', GameStore: 'steam', GameStorePurchasedAt: '2025-01-08T22:01:00Z', CreatedAt: '2025-01-08T22:01:00Z', PricePoint: 19.99, CurrencyCode: null, Country: 'GB', LocalizedPrice: null });
@@ -470,13 +530,33 @@ function buildTransactions() {
     ['battlepass', 'embark', 40], ['battlepass-historical', 'embark', 8], ['collectionevent', 'embark', 18],
     ['embarkstore', 'embark', 22], ['twitchdrop', 'twitch', 14], ['giveaway', 'giveaway', 6], ['thirdpartysubscription', 'twitch', 4],
   ];
+  // Named contents come with store buys, drops, giveaways and subscription perks; the
+  // battle pass and collection events hand items out without naming them.
+  const NAMED = { twitchdrop: 1, giveaway: 1, thirdpartysubscription: 2 };
   for (const [source, store, n] of SOURCES) {
     for (let i = 0; i < n; i++) {
       const t = lerp(SPAN_START, SPAN_END, (i + 0.5) / n) + ri(-5, 5) * DAY;
-      tx.push({ TransactionType: source === 'embarkstore' ? 'purchase' : 'reward', State: 'granted', Source: source, GameStore: store, GameStorePurchasedAt: iso(t), CreatedAt: iso(t), PricePoint: null, CurrencyCode: null, Country: null, LocalizedPrice: null });
+      const Items = NAMED[source] ? Array.from({ length: NAMED[source] }, () => purchaseItem()) : undefined;
+      tx.push({ TransactionType: source === 'embarkstore' ? 'purchase' : 'reward', State: 'granted', Source: source, GameStore: store, GameStorePurchasedAt: iso(t), CreatedAt: iso(t), PricePoint: null, CurrencyCode: null, Country: null, LocalizedPrice: null, ...(Items && { Items }) });
     }
   }
   return tx;
+}
+
+// Store buys are dated and priced off the ledger's "spent" rows, so each spend can
+// be matched to what it bought, as the model does on real exports. One of them is
+// the season's battle pass, which the export names only by its internal label.
+function nameStorePurchases(tx, ledger) {
+  const spent = ledger.filter((r) => r.LogType === 'spent');
+  const store = tx.filter((t) => t.Source === 'embarkstore').sort((a, b) => Date.parse(a.CreatedAt) - Date.parse(b.CreatedAt));
+  store.forEach((t, i) => {
+    const s = spent[Math.floor((i * spent.length) / store.length)];
+    if (!s) return;
+    t.CreatedAt = s.CreatedAt;
+    t.GameStorePurchasedAt = s.CreatedAt;
+    const granted = i === 3 ? [battlePassItem()] : Array.from({ length: chance3(0.3) ? ri3(2, 4) : 1 }, () => purchaseItem());
+    t.Items = [multibucks(-s.Quantity), ...granted];
+  });
 }
 
 // Coherent Multibucks ledger: events get unique, increasing timestamps and a
@@ -687,8 +767,67 @@ function decorateRounds(rounds) {
         return { GameAssetID: m.id, Score: score, Level: level < 0 ? 4 : level };
       });
     }
+
+    // Per-item damage: the killing items take most of it, a gadget from the loadout
+    // often chips in without a kill, and the sum lands just under DamageDone, as on
+    // real exports.
+    const total = d.DamageDone || 0;
+    if (total > 0) {
+      const parts = Object.entries(d.KillsPerItem).map(([id, k]) => [id, k + 0.5]);
+      if (chance3(0.45)) {
+        const g = build.gadgets.find((id) => !d.KillsPerItem[id]);
+        if (g != null) parts.push([String(g), 0.12 + rf3() * 0.25]);
+      }
+      if (chance3(0.08)) parts.push(['0', 0.03]);
+      if (!parts.length) parts.push([String(weapon), 1]);
+      const W = parts.reduce((s, [, w]) => s + w, 0);
+      const scale = ((0.97 + rf3() * 0.03) * total) / W;
+      d.DamagePerItem = Object.fromEntries(parts.map(([id, w]) => [id, Math.round(w * scale * 1000) / 1000]));
+    }
   }
 }
+
+// Item mastery: one RankBucket row per item the builds and kill tables refer to,
+// with a key-file row naming its track. Levels rise with the item's kills; support
+// items that never kill get their own spread, since that is what mastery is for.
+const MASTERY_STEPS = [10000, 18500, 56000, 108000, 300000];
+function buildMastery(rounds) {
+  const kills = {};
+  for (const r of rounds) for (const [id, k] of Object.entries(r.Data.KillsPerItem)) kills[id] = (kills[id] || 0) + k;
+  const ids = new Set([
+    ...Object.values(PRIMARY).flat(), ...Object.values(GADGET).flat(), ...GLOBAL_GADGET,
+    ...Object.values(BUILDS).flat().flatMap((b) => [b.spec, ...b.gadgets]),
+    ...SAVED_BUILDS.flatMap((b) => b.reserve),
+  ].map(String));
+  const rows = [];
+  let i = 0;
+  for (const id of ids) {
+    const k = kills[id] || 0;
+    const xp = k ? Math.round(k * 40 + rf3() * 6000) : Math.round(rf3() ** 2 * 200000);
+    const bucket = String(-(900_000_000 + i++ * 7919));
+    rows.push({ BucketID: bucket, XP: xp, Rank: 1 + MASTERY_STEPS.filter((s) => xp >= s).length });
+    keyRows.mastery.push({ BucketID: bucket, Category: 'Item mastery', Name: WEAPONS[id]?.name ?? `Item ${id}`, GameAssetID: Number(id), Resolved: true });
+  }
+  return rows;
+}
+
+// Named purchase contents (`TransactionLog.Items`). A store buy costs Multibucks and
+// grants one to three cosmetics; a real-money pack grants its Multibucks plus, for the
+// DLC packs, an outfit set. A few names stay internal, as on real exports.
+const PURCHASE_TYPES = ['WeaponSkin', 'WeaponSkin', 'WeaponCharm', 'CustomizationItem', 'CustomizationItem', 'WeaponSticker', 'Spray', 'Emoticon'];
+const MULTIBUCKS_ID = -1394063900;
+function purchaseItem(type = pick3(PURCHASE_TYPES)) {
+  const id = ri3(-2_000_000_000, 2_000_000_000);
+  const name = chance3(0.08) ? `${pick3(NAME_ADJ)}_0${ri3(1, 3)}` : `${pick3(NAME_ADJ)} ${pick3(NAME_NOUN[type])}`;
+  keyRows.items.push({ GameAssetID: id, Kind: 'Item', Name: name, ItemType: type, Resolved: true });
+  return { GameAssetID: id, Name: name, Amount: 1 };
+}
+function battlePassItem() {
+  const id = ri3(1, 2_000_000_000);
+  keyRows.items.push({ GameAssetID: id, Kind: 'Item', Name: 'Premium', ItemType: 'BattlePass', ItemSubType: 'Premium', Resolved: true });
+  return { GameAssetID: id, Name: 'Premium', Amount: 1 };
+}
+const multibucks = (amount) => ({ GameAssetID: MULTIBUCKS_ID, Name: 'Multibucks', Amount: amount });
 
 // Named inventory. Names are invented; a few are left as the internal labels real
 // exports carry, so the preview shows how those read.
@@ -875,7 +1014,7 @@ function buildPersistence() {
     RoundStat: rounds,
     UserLogin: buildUserLogins(rounds),
     // The BucketID'd row is the 2026-09+ shape: that id is the "Career rank" track in Embark's key file.
-    RankBucket: [{ XP: 184500, Rank: 'Diamond' }, { XP: 92000, Rank: 'Platinum' }, { BucketID: '393268067', XP: 4125000, Rank: 62 }],
+    RankBucket: [{ XP: 184500, Rank: 'Diamond' }, { XP: 92000, Rank: 'Platinum' }, { BucketID: '393268067', XP: 4125000, Rank: 62 }, ...buildMastery(rounds)],
     TransactionLog: buildTransactions(),
     HardCurrencyLog: buildLedger(),
     SteamDLC: buildSteamDlc(),
@@ -883,6 +1022,7 @@ function buildPersistence() {
     ...buildSocial(),
     ...buildInbox(),
   };
+  nameStorePurchases(byType.TransactionLog, byType.HardCurrencyLog);
   const counts = Object.fromEntries(Object.entries(byType).map(([k, v]) => [k, v.length]));
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   // gamePrefixed: the sample stands for an export in the 2026-09 format.
@@ -1111,7 +1251,8 @@ function buildAudit() {
     { logtime: iso(SPAN_END), created_msts: ACCOUNT_CREATED, display_name: 'SAMPLE_PLAYER', display_name_discriminator: '0000', is_spender: true, email_verified_msts: ACCOUNT_CREATED + DAY, email: EMAIL },
   ];
   const { ses, legacy } = buildSesEvents(EMAIL);
-  const byType = { ClientUserLoginDetails: login, AccountNameAudit2: names, PlayerReport: reports, ProfileUpdated3: profileUpdated, AwsSesEvent: ses, EmailStatus: legacy, ChatMessageSent: buildChatMessages(), ...buildConsoleClaims() };
+  const chat = buildChatMessages();
+  const byType = { ClientUserLoginDetails: login, AccountNameAudit2: names, PlayerReport: reports, ProfileUpdated3: profileUpdated, AwsSesEvent: ses, EmailStatus: legacy, ChatMessageSent: chat, ModerationDecisionPII: buildModeration(chat), ...buildConsoleClaims() };
   const counts = Object.fromEntries(Object.entries(byType).map(([k, v]) => [k, v.length]));
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return { byType, counts, total, badLines: 0 };
@@ -1141,7 +1282,35 @@ function buildChatMessages() {
     row('2026-06-12T21:08:56.023Z', 'party', 'one more then im done', 'one more then im done'),
     row('2026-06-12T21:44:12.309Z', 'party', 'that damn turret again', 'that **** turret again'),
     row('2026-06-12T22:01:40.665Z', 'party', 'gn o7'),
+    // Inside the last three weeks, so the moderation verdicts have messages to join.
+    row('2026-07-27T19:12:40.118Z', 'squad', 'push the vault now'),
+    row('2026-07-27T19:13:02.406Z', 'squad', 'nice'),
+    row('2026-08-02T18:19:31.972Z', 'clan', 'club night thursday?'),
+    row('2026-08-05T20:40:15.230Z', 'squad', 'crap i dropped the cashbox', '**** i dropped the cashbox'),
+    row('2026-08-05T20:41:50.611Z', 'squad', 'my bad'),
+    row('2026-08-13T21:30:08.077Z', 'party', 'last one tonight'),
   ];
+}
+
+// Automated moderation verdicts (audit `ModerationDecisionPII`): three checks per
+// message inside the last three weeks, an advisory one then two enforcing ones, and
+// the enforcing ones flag exactly the message the filter censored. One club-name
+// check on the day the club name was set.
+const MODERATION_WINDOW_MS = 21 * DAY;
+function buildModeration(chat) {
+  const out = [];
+  const call = (logtime, call_name, flagged, enforced) => out.push({ logtime, tenancy: 'discovery-live', call_name, flagged, enforced });
+  for (const c of chat) {
+    const t = Date.parse(c.logtime);
+    if (t < SPAN_END - MODERATION_WINDOW_MS) continue;
+    const name = `${c.room_type}-chat-message`;
+    call(iso(t + 4), name, false, false);
+    call(iso(t + 11), name, c.purified, true);
+    call(iso(t + 18), name, c.purified, true);
+  }
+  const named = Date.parse('2026-08-02T18:17:55.400Z');
+  for (const dt of [0, 130, 250]) call(iso(named + dt), 'clan-name', false, dt > 0);
+  return out;
 }
 
 // Support tickets in the FINAL parsed shape (`raw.customerSupportParsed`), so
@@ -1210,6 +1379,8 @@ export function buildSampleRaw() {
   resetGenerator();
   return {
     persistence: buildPersistence(),
+    // Embark's key file, scoped to the ids above (item names and mastery tracks).
+    keys: { byType: { TheFinalsItemKey: [...keyRows.items, { GameAssetID: MULTIBUCKS_ID, Kind: 'Item', Name: 'Multibucks', ItemType: 'Currency', Resolved: true }], TheFinalsMasteryKey: keyRows.mastery } },
     audit: buildAudit(),
     eos: { anticheat: buildEosAnticheat(), linkedAccounts: [] },
     anybrain: buildAnybrain(),

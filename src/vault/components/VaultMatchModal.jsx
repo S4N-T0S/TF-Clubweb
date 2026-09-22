@@ -100,7 +100,7 @@ export const VaultMatchModal = ({ match, onClose }) => {
             {/* Whole-match totals. The K/D carries the weapons tooltip, as it
                 does on the Match history card. */}
             <div className="px-4 pb-4">
-              <KillsTooltip items={m.weaponKills} label="Weapons used" loadout={m.rounds.length === 1 ? m.rounds[0].loadout : null}>
+              <KillsTooltip items={m.weaponKills} label="Weapons used" loadout={m.rounds.length === 1 ? m.rounds[0].loadout : null} damageOnly={m.damageOnly}>
                 <div className="grid grid-cols-5 gap-2 rounded-lg bg-gray-950/45 py-2">
                   <div className="text-center">
                     <p className="text-[10px] uppercase text-gray-300">Kills</p>

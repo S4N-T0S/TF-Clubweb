@@ -177,7 +177,7 @@ export const LoadoutsPage = () => {
               </div>
             ))}
           </div>
-          <p className="text-xs text-gray-500 mt-3">The builds saved on your account when the export was made, with the reserve you can swap in during a match.</p>
+          <p className="text-xs text-gray-500 mt-3">The builds saved on your account the day the export was made.</p>
         </Panel>
       )}
 
@@ -216,8 +216,8 @@ export const LoadoutsPage = () => {
 
       <Note>
         {loadouts.has
-          ? `Your export records one loadout per round, for ${num(loadouts.rounds)} of your ${num(loadouts.totalRounds)} rounds${loadouts.firstMs ? ` (from ${date(loadouts.firstMs)})` : ''}. It is a single snapshot: you can swap items from your reserve during a match, so it is not everything you used.${loadouts.coverage != null ? ` ${pct0(loadouts.coverage)} of your kills in those rounds came from an item in the recorded loadout.` : ''} Win rates are shown from ${MIN_ROUNDS_FOR_WIN_RATE} rounds up, and say how those rounds went, not that the item caused it.`
-          : 'The export doesn’t store loadout configurations — InventoryItem records carry no item IDs, so exact saved loadouts can’t be reconstructed. This page approximates your loadouts from how much you played each class and which weapons you actually got kills with.'}
+          ? `One loadout is recorded per round, for ${num(loadouts.rounds)} of your ${num(loadouts.totalRounds)} rounds${loadouts.firstMs ? ` (from ${date(loadouts.firstMs)})` : ''}. It is one snapshot, not every item used, so mid-match swaps are missing.${loadouts.coverage != null ? ` ${pct0(loadouts.coverage)} of your kills in those rounds came from an item in the recorded loadout.` : ''} Win rates appear from ${MIN_ROUNDS_FOR_WIN_RATE} rounds up and describe those rounds, not the item.`
+          : 'This export stores no loadout configurations: its InventoryItem records carry no item IDs. What is below is inferred from how much you played each class and which weapons you got kills with.'}
       </Note>
     </div>
   );

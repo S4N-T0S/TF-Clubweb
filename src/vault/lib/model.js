@@ -1,7 +1,7 @@
 // Build the view-models the pages consume from raw parsed records.
 // Runs ONCE after parsing; results are memoised in the provider.
 import { resolveWeapon } from './weapons';
-import { archetypeLabel, classifyMode, careerModeGroup, CAREER_MODE_GROUPS, parseMapVariant, parseCondition, roundsRemaining, stageLabel, stageTeams, tournamentPlacement } from './gameMeta';
+import { archetypeLabel, classifyMode, careerModeGroup, CAREER_MODE_GROUPS, parseMapVariant, parseCondition, roundsRemaining, stageLabel, stageTeams, tournamentPlacement, worldTourBadge } from './gameMeta';
 import { resolveMap, resolveLtmBackground, conditionType } from './maps';
 import { resolveDlc, steamAppUrl, STEAM_BASE_GAME_ID, localAmount } from './economy';
 import { buildRealms, REALM, classifyRoundStat, ROUND_KIND } from './realms';
@@ -715,8 +715,9 @@ function buildCareer(byType, keys) {
     kd: div(b.Kills ?? 0, b.Deaths ?? 0),
   });
 
-  // RankBucket carries XP/Rank standings (ambiguous scope; surfaced raw).
-  const ranks = (byType.RankBucket || []).map((rb) => ({ xp: rb.XP ?? null, rank: rb.Rank ?? null }));
+  // RankBucket carries XP/Rank standings (ambiguous scope; surfaced raw). Rows the key
+  // file files under a track (item mastery, battle pass, career rank) are read elsewhere.
+  const ranks = (byType.RankBucket || []).filter((rb) => rb.BucketID == null || !keys.mastery(rb.BucketID)).map((rb) => ({ xp: rb.XP ?? null, rank: rb.Rank ?? null }));
   // 2026-09+ rows name their track (`BucketID`); the key file's "Career rank" one is
   // the account level. Older rows have no BucketID, so theirs stays unknown.
   let level = null;
@@ -835,6 +836,12 @@ function buildMatchesAndWeapons(byType, keys) {
   }
 
   const weaponTotals = new Map(); // id -> kills
+  const killRounds = new Map(); // id -> rounds with >= 1 kill
+  // 2026-09+ `DamagePerItem`: per-item damage, including items that never killed.
+  const damageTotals = new Map(); // id -> damage
+  const damageRounds = new Map(); // id -> rounds with damage
+  let damageRoundCount = 0;
+  let damageFirstMs = null;
   // One record per item id, shared by every round that equipped it.
   const loadoutItems = new Map();
   const loadoutItem = (id) => {
@@ -859,6 +866,8 @@ function buildMatchesAndWeapons(byType, keys) {
     const variant = pmap.variant && pmap.variant !== 'Base' ? pmap.variant : null;
     const layout = variant && flatLabel(variant) !== flatLabel(cond) ? variant : null;
     const kpi = d.KillsPerItem || {};
+    const dpi = d.DamagePerItem && typeof d.DamagePerItem === 'object' ? d.DamagePerItem : null;
+    const startMs = toMs(d.StartTime);
     // Per-round weapon usage. KillsPerItem is kills-only (an item appears only
     // if it got a kill), so this is "what you killed with", not your loadout —
     // but the primary gun gets kills ~99% of rounds, so the top Weapon is a
@@ -870,15 +879,37 @@ function buildMatchesAndWeapons(byType, keys) {
     for (const id in kpi) {
       const k = kpi[id] || 0;
       weaponTotals.set(id, (weaponTotals.get(id) || 0) + k);
+      if (k > 0) killRounds.set(id, (killRounds.get(id) || 0) + 1);
       const bucket = weaponsByArch[archetype] || weaponsByArch.Unknown;
       bucket.set(id, (bucket.get(id) || 0) + k);
       const w = resolveWeapon(id, keys);
-      const rec = { id, kills: k, name: w.name, slug: w.slug, icon: w.icon, type: w.type };
+      const rec = { id, kills: k, damage: dpi ? Math.round(dpi[id] || 0) : null, name: w.name, slug: w.slug, icon: w.icon, type: w.type };
       weaponKills.push(rec);
       if (!topAny || k > topAny.kills) topAny = rec;
       if ((w.type === 'Weapon' || w.type === 'Event') && (!topWeapon || k > topWeapon.kills)) topWeapon = rec;
     }
-    weaponKills.sort((a, b) => b.kills - a.kills);
+    weaponKills.sort((a, b) => b.kills - a.kills || (b.damage ?? 0) - (a.damage ?? 0));
+    // Items that did damage without a kill this round (grenades, mines, the second gun).
+    let damageOnly = null;
+    if (dpi) {
+      damageOnly = [];
+      let any = false;
+      for (const id in dpi) {
+        const dmg = Math.round(dpi[id] || 0);
+        if (dmg <= 0) continue;
+        any = true;
+        damageTotals.set(id, (damageTotals.get(id) || 0) + dpi[id]);
+        damageRounds.set(id, (damageRounds.get(id) || 0) + 1);
+        if (Object.hasOwn(kpi, id)) continue;
+        const w = resolveWeapon(id, keys);
+        damageOnly.push({ id, damage: dmg, name: w.name, slug: w.slug, icon: w.icon, type: w.type });
+      }
+      damageOnly.sort((a, b) => b.damage - a.damage);
+      if (any) {
+        damageRoundCount++;
+        if (startMs != null && (damageFirstMs == null || startMs < damageFirstMs)) damageFirstMs = startMs;
+      }
+    }
     // 2026-09+ only. ONE snapshot of what was equipped: players swap items from their
     // reserve mid-round, so kills often come from items that are not in it.
     const loadoutIds = Array.isArray(d.LoadoutItemAssetIDs) ? d.LoadoutItemAssetIDs.filter((id) => id) : [];
@@ -909,7 +940,8 @@ function buildMatchesAndWeapons(byType, keys) {
     }
     normalized[i] = {
       createdAt: rawRounds[i].CreatedAt,
-      start: toMs(d.StartTime),
+      seasonId: rawRounds[i].SeasonID != null ? String(rawRounds[i].SeasonID) : null, // 2026-09+
+      start: startMs,
       end: toMs(d.EndTime),
       kills: d.Kills || 0,
       deaths: d.Deaths || 0,
@@ -951,6 +983,7 @@ function buildMatchesAndWeapons(byType, keys) {
       mode: classifyMode(d, keys),
       weapon: topWeapon || topAny || null, // primary weapon used this round (kills-based)
       weaponKills, // all items that got a kill this round, desc — for the "also killed with" line
+      damageOnly, // items that did damage but got no kill this round (2026-09+), or null
       loadout, // [spec, weapon, gadgets…] on record for the round, or null
       scorecard, // [{ name, score, tier }] (tier 1 = best) or null
     };
@@ -993,11 +1026,31 @@ function buildMatchesAndWeapons(byType, keys) {
     for (const r of m.rounds) {
       for (const wk of r.weaponKills || []) {
         const e = agg.get(wk.id);
-        if (e) e.kills += wk.kills;
-        else agg.set(wk.id, { ...wk });
+        if (!e) agg.set(wk.id, { ...wk });
+        else {
+          e.kills += wk.kills;
+          if (wk.damage != null) e.damage = (e.damage ?? 0) + wk.damage;
+        }
       }
     }
-    m.weaponKills = [...agg.values()].sort((a, b) => b.kills - a.kills);
+    // Damage-only items likewise; one that killed in another round of the match folds
+    // into its kill entry instead.
+    let dmgAgg = null;
+    for (const r of m.rounds) {
+      if (!r.damageOnly) continue;
+      dmgAgg ??= new Map();
+      for (const it of r.damageOnly) {
+        const k = agg.get(it.id);
+        if (k) k.damage = (k.damage ?? 0) + it.damage;
+        else {
+          const e = dmgAgg.get(it.id);
+          if (e) e.damage += it.damage;
+          else dmgAgg.set(it.id, { ...it });
+        }
+      }
+    }
+    m.weaponKills = [...agg.values()].sort((a, b) => b.kills - a.kills || (b.damage ?? 0) - (a.damage ?? 0));
+    m.damageOnly = dmgAgg ? [...dmgAgg.values()].sort((a, b) => b.damage - a.damage) : null;
     if (m.isTournament) {
       const maxRR = Number.isFinite(m.maxRR) ? m.maxRR : null;
       const furthestRR = Number.isFinite(m.furthestRR) ? m.furthestRR : null;
@@ -1063,10 +1116,22 @@ function buildMatchesAndWeapons(byType, keys) {
   }
   matches.sort((a, b) => (b.start ?? 0) - (a.start ?? 0)); // newest first
 
-  // Weapon view-models.
-  const weapons = [...weaponTotals.entries()]
-    .map(([id, kills]) => ({ id, kills, ...resolveWeapon(id, keys) }))
-    .sort((a, b) => b.kills - a.kills);
+  // Weapon view-models: every item with a kill, plus (2026-09+) every item with damage.
+  const weaponIds = new Set([...weaponTotals.keys(), ...damageTotals.keys()]);
+  const weapons = [...weaponIds]
+    .map((id) => ({
+      id,
+      kills: weaponTotals.get(id) || 0,
+      killRounds: killRounds.get(id) || 0,
+      damage: Math.round(damageTotals.get(id) || 0),
+      damageRounds: damageRounds.get(id) || 0,
+      mastery: null, // filled in by buildMastery
+      ...resolveWeapon(id, keys),
+    }))
+    .sort((a, b) => b.kills - a.kills || b.damage - a.damage);
+  let damageTotal = 0;
+  for (const v of damageTotals.values()) damageTotal += v;
+  const damage = { has: damageRoundCount > 0, rounds: damageRoundCount, totalRounds: rawRounds.length, firstMs: damageFirstMs, total: Math.round(damageTotal) };
 
   const weaponsByArchetype = {};
   for (const arch of ['Light', 'Medium', 'Heavy']) {
@@ -1075,7 +1140,49 @@ function buildMatchesAndWeapons(byType, keys) {
       .sort((a, b) => b.kills - a.kills);
   }
 
-  return { matches, weapons, weaponsByArchetype, roundCount: rawRounds.length, rounds: normalized, otherGameRounds, unknownRounds };
+  return { matches, weapons, weaponsByArchetype, damage, roundCount: rawRounds.length, rounds: normalized, otherGameRounds, unknownRounds };
+}
+
+// --- item mastery (2026-09+ `RankBucket` rows the key file files under "Item mastery") ---
+// One row per weapon, gadget or specialization the player has levelled: the level and
+// XP the export gives, nothing derived (thresholds and the top level are not in the
+// data). Covers items that never score a kill, which is the only place they get a number.
+function buildMastery(byType, keys, weapons) {
+  const byId = new Map();
+  for (const rb of byType.RankBucket || []) {
+    if (rb.BucketID == null) continue;
+    const m = keys.mastery(rb.BucketID);
+    if (m?.category !== 'Item mastery' || m.assetId == null) continue;
+    const level = Number.isInteger(rb.Rank) ? rb.Rank : null;
+    const xp = typeof rb.XP === 'number' ? rb.XP : null;
+    if (level == null && xp == null) continue;
+    const id = String(m.assetId);
+    const prev = byId.get(id);
+    if (prev && prev.xp >= (xp ?? 0)) continue;
+    const w = resolveWeapon(id, keys);
+    byId.set(id, { id, name: w.unknown && m.name ? m.name : w.name, slug: w.slug, icon: w.icon, type: w.type, archetype: w.archetype, level: level ?? 0, xp: xp ?? 0, kills: 0, damage: 0 });
+  }
+  const levelCounts = new Map();
+  let maxLevel = 0;
+  for (const it of byId.values()) {
+    levelCounts.set(it.level, (levelCounts.get(it.level) || 0) + 1);
+    if (it.level > maxLevel) maxLevel = it.level;
+  }
+  for (const w of weapons) {
+    const it = byId.get(w.id);
+    if (!it) continue;
+    it.kills = w.kills;
+    it.damage = w.damage;
+    w.mastery = { level: it.level, xp: it.xp };
+  }
+  const items = [...byId.values()].sort((a, b) => b.xp - a.xp || b.level - a.level || a.name.localeCompare(b.name));
+  return {
+    has: items.length > 0,
+    count: items.length,
+    maxLevel,
+    levelCounts: [...levelCounts.entries()].sort((a, b) => a[0] - b[0]).map(([level, n]) => ({ level, n })),
+    items,
+  };
 }
 
 // --- per-round scorecards (2026-09+ `Data.Scorecards`) ---------------------
@@ -1334,7 +1441,10 @@ function bestStreaks(rounds) {
   };
 }
 
-function buildRecords(rounds, matches) {
+function buildRecords(allRounds, allMatches) {
+  // Bot lobbies (new-player onboarding) would set records nobody earned against players.
+  const rounds = allRounds.filter((r) => !r.mode?.bots);
+  const matches = allMatches.filter((m) => !m.mode?.bots);
   // Most cash in one MATCH = the tournament (multi-round match) with the highest
   // TOTAL cash. The best SINGLE round of cash is its own record, so restrict this
   // to real tournaments to avoid the two cards duplicating each other.
@@ -1344,6 +1454,7 @@ function buildRecords(rounds, matches) {
     if (m.currency > 0 && (payday == null || m.currency > payday.currency)) payday = m;
   }
   return {
+    botsExcluded: allRounds.length - rounds.length,
     kills: bestRound(rounds, 'kills'),
     deaths: bestRound(rounds, 'deaths'),
     damage: bestRound(rounds, 'damage'),
@@ -1439,12 +1550,49 @@ function orderLedger(rows) {
   return out;
 }
 
-function buildEconomy(byType, auditByType) {
+// 2026-09+ `TransactionLog.Items`: what a grant handed over (positive amounts) and
+// what it cost (negative: Multibucks, or an event currency). Battle passes come
+// through as the internal names "Premium" / "Default" and are labelled by type.
+const ITEM_TYPE_LABELS = {
+  CustomizationItem: 'Outfit item', WeaponSkin: 'Weapon skin', WeaponCharm: 'Weapon charm', WeaponSticker: 'Weapon sticker',
+  WeaponAttachment: 'Weapon attachment', PlayerCardCustomization: 'Player card', PlayerCard: 'Player card', AnimationCustomization: 'Animation',
+  Spray: 'Spray', Emoticon: 'Emote', ClansCustomization: 'Club customization', BattlePass: 'Battle pass', GameItem: 'Game item', Currency: 'Currency',
+};
+function transactionItems(rows, keys) {
+  if (!Array.isArray(rows) || !rows.length) return null;
+  const granted = [];
+  const cost = [];
+  for (const it of rows) {
+    if (!it || typeof it !== 'object') continue;
+    const amount = typeof it.Amount === 'number' ? it.Amount : 0;
+    if (amount === 0) continue;
+    const id = it.GameAssetID != null ? String(it.GameAssetID) : null;
+    const k = id != null ? keys.item(id) : null;
+    let name = cleanName(it.Name) || k?.name || (id != null ? `Item ${id}` : 'Unknown item');
+    if (amount < 0) {
+      cost.push({ id, name, amount: -amount });
+      continue;
+    }
+    const type = k?.itemType || null;
+    let internal = INTERNAL_NAME_RE.test(name);
+    if (type === 'BattlePass') {
+      name = k?.subType && k.subType !== 'Default' ? `Battle Pass (${k.subType})` : 'Battle Pass';
+      internal = false;
+    }
+    const label = type ? (Object.hasOwn(ITEM_TYPE_LABELS, type) ? ITEM_TYPE_LABELS[type] : type.replace(/([a-z0-9])([A-Z])/g, '$1 $2')) : null;
+    granted.push({ id, name, label, amount, internal, currency: type === 'Currency' });
+  }
+  if (!granted.length && !cost.length) return null;
+  return { granted, cost };
+}
+
+function buildEconomy(byType, auditByType, keys) {
   // Full grant/purchase feed (newest first). GameStorePurchasedAt is when the
   // purchase happened; fall back to CreatedAt for non-store grants. createdMs is
   // the backend grant time, used to link fiat purchases to what they granted.
   const allTransactions = (byType.TransactionLog || [])
     .map((t) => ({
+      items: transactionItems(t.Items, keys),
       type: t.TransactionType ?? 'unknown',
       state: t.State ?? 'unknown',
       source: t.Source ?? 'unknown',
@@ -1644,6 +1792,23 @@ function buildEconomy(byType, auditByType) {
   const walletCurrencies = [...new Set(fiatGranted.map((t) => t.currency).filter(Boolean))];
   const anyLocalized = fiat.some((t) => t.localizedPrice);
 
+  // Named contents (2026-09+). A charge's granted list joins the timestamp-linked
+  // Multibucks and DLC; the Multibucks line in the list also fills `mb` when no
+  // ledger row was linked.
+  let itemRows = 0;
+  const mbSpends = [];
+  for (const t of allTransactions) {
+    if (!t.items) continue;
+    itemRows++;
+    if (t.isFiat) {
+      const mbLine = t.items.granted.find((g) => g.currency && /multibucks/i.test(g.name));
+      t.contents = { mb: t.contents?.mb ?? (mbLine ? mbLine.amount : null), dlcs: t.contents?.dlcs ?? [], items: t.items.granted };
+    }
+    const mbCost = t.items.cost.find((c) => /multibucks/i.test(c.name));
+    if (mbCost && t.isLive) mbSpends.push({ ms: t.ms, createdMs: t.createdMs, mb: mbCost.amount, source: t.source, items: t.items.granted, claimed: false });
+  }
+  const topMbSpends = [...mbSpends].sort((a, b) => b.mb - a.mb || (b.ms ?? 0) - (a.ms ?? 0)).slice(0, 8).map((s) => ({ ms: s.ms, mb: s.mb, source: s.source, items: s.items }));
+
   // Stubbed-store rows written off-live. Rows that survived into `fiatGranted` are
   // EXCLUDED: fiat is no longer realm-filtered, so an off-live row can legitimately be
   // counted in the spend total, and calling it "set aside" would contradict the money.
@@ -1654,6 +1819,20 @@ function buildEconomy(byType, auditByType) {
   const liveAsc = orderedAsc.filter((r) => r.isLive);
   const ledger = [...liveAsc].reverse();
   const ledgerAll = [...orderedAsc].reverse();
+
+  // A "spent" ledger row and the store purchase it paid for carry the same amount
+  // and are written together, so each spend can say what it bought.
+  if (mbSpends.length) {
+    mbSpends.sort((a, b) => (a.createdMs ?? 0) - (b.createdMs ?? 0));
+    for (const r of orderedAsc) {
+      r.items = null;
+      if (r.logType !== 'spent' || r.ms == null) continue;
+      const hit = mbSpends.find((s) => !s.claimed && s.mb === r.quantity && s.createdMs != null && Math.abs(s.createdMs - r.ms) <= LINK_TOL);
+      if (!hit) continue;
+      hit.claimed = true;
+      r.items = hit.items;
+    }
+  }
 
   // `orderLedger` measured each delta against the previous row in the FILE, which
   // straddles realm boundaries (a playtest's first row reads as a +49,750 inflow, and
@@ -1734,6 +1913,10 @@ function buildEconomy(byType, auditByType) {
     charged,
     walletCurrencies,
     anyLocalized,
+    hasItems: itemRows > 0,
+    itemRows,
+    mbSpendsNamed: mbSpends.length,
+    topMbSpends,
     ledger,
     ledgerAll,
     mb,
@@ -2067,6 +2250,104 @@ function buildConsole(auditByType) {
 const CHAT_CHANNELS = { pl: 'Lobby', party: 'Party', squad: 'Squad', clan: 'Club' }; // squad/clan: 2026-09+ exports
 export const chatChannelLabel = (ch) => (Object.hasOwn(CHAT_CHANNELS, ch) ? CHAT_CHANNELS[ch] : ch || 'Chat');
 
+// Automated moderation verdicts (2026-09+ audit `ModerationDecisionPII`). Every chat
+// verdict lands within 100 ms of one of the player's own messages, three per message:
+// one advisory check, then two enforcing ones. `enforced` is fixed by the check's
+// position and says nothing per message, so only `flagged` is kept. On the export this
+// was verified on, a flagged message is exactly one the game filtered in chat.
+const MODERATION_CALLS = { 'squad-chat-message': 'squad', 'party-chat-message': 'party', 'clan-chat-message': 'clan', 'clan-name': null };
+const MODERATION_JOIN_MS = 2000;
+function buildModeration(rows, chat) {
+  if (!rows?.length) return null;
+  const verdicts = rows.map((v) => ({ ms: toMs(v.logtime), call: v.call_name || '?', flagged: v.flagged === true })).filter((v) => v.ms != null);
+  if (!verdicts.length) return null;
+  let fromMs = Infinity;
+  let toMs_ = -Infinity;
+  for (const v of verdicts) {
+    if (v.ms < fromMs) fromMs = v.ms;
+    if (v.ms > toMs_) toMs_ = v.ms;
+  }
+  // chat is sorted by ms ascending; binary search the nearest message.
+  const nearest = (ms) => {
+    let lo = 0;
+    let hi = chat.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (chat[mid].ms < ms) lo = mid + 1;
+      else hi = mid;
+    }
+    let best = null;
+    for (const i of [lo - 1, lo]) {
+      const c = chat[i];
+      if (c && Math.abs(c.ms - ms) <= MODERATION_JOIN_MS && (!best || Math.abs(c.ms - ms) < Math.abs(best.ms - ms))) best = c;
+    }
+    return best;
+  };
+  const channels = new Map();
+  const channelOf = (call) => (Object.hasOwn(MODERATION_CALLS, call) ? MODERATION_CALLS[call] : call.replace(/-chat-message$/, ''));
+  const nameChecks = { count: 0, flagged: 0, ms: null };
+  const other = new Map();
+  let unmatched = 0;
+  let flaggedVerdicts = 0;
+  for (const v of verdicts) {
+    if (v.flagged) flaggedVerdicts++;
+    if (v.call === 'clan-name') {
+      nameChecks.count++;
+      if (v.flagged) nameChecks.flagged++;
+      if (nameChecks.ms == null || v.ms < nameChecks.ms) nameChecks.ms = v.ms;
+      continue;
+    }
+    if (!/-chat-message$/.test(v.call)) {
+      const o = other.get(v.call) || { name: v.call, count: 0, flagged: 0 };
+      o.count++;
+      if (v.flagged) o.flagged++;
+      other.set(v.call, o);
+      continue;
+    }
+    const c = nearest(v.ms);
+    if (!c) {
+      unmatched++;
+      continue;
+    }
+    if (!c.moderation) c.moderation = { checks: 0, flagged: false };
+    c.moderation.checks++;
+    if (v.flagged) c.moderation.flagged = true;
+    const ch = channelOf(v.call);
+    const e = channels.get(ch) || { channel: ch, label: chatChannelLabel(ch), messages: new Set(), flagged: new Set() };
+    e.messages.add(c);
+    if (v.flagged) e.flagged.add(c);
+    channels.set(ch, e);
+  }
+  let messagesChecked = 0;
+  const checksHist = new Map();
+  const flagged = [];
+  for (const c of chat) {
+    if (!c.moderation) continue;
+    messagesChecked++;
+    checksHist.set(c.moderation.checks, (checksHist.get(c.moderation.checks) || 0) + 1);
+    if (c.moderation.flagged) flagged.push({ ms: c.ms, channel: c.channel, text: c.text, censored: c.censored });
+  }
+  flagged.reverse();
+  let checksPerMessage = 0;
+  let top = 0;
+  for (const [n, count] of checksHist) if (count > top) { top = count; checksPerMessage = n; }
+  return {
+    has: true,
+    fromMs,
+    toMs: toMs_,
+    verdicts: verdicts.length,
+    messagesChecked,
+    checksPerMessage,
+    flaggedMessages: flagged.length,
+    flaggedVerdicts,
+    channels: [...channels.values()].map((e) => ({ channel: e.channel, label: e.label, messages: e.messages.size, flagged: e.flagged.size })).sort((a, b) => b.messages - a.messages),
+    nameChecks: nameChecks.count ? nameChecks : null,
+    other: [...other.values()],
+    unmatched,
+    flagged,
+  };
+}
+
 function buildSupport(raw) {
   const rows = raw.audit?.byType?.ChatMessageSent || [];
   const chat = rows
@@ -2082,6 +2363,7 @@ function buildSupport(raw) {
         censored,
         wasCensored: c.purified === true || text !== censored,
         source: 'audit',
+        moderation: null, // { checks, flagged } once buildModeration has joined the verdicts
       };
     })
     .filter((c) => c.ms != null)
@@ -2115,8 +2397,10 @@ function buildSupport(raw) {
     .map((m) => ({ ms: toMs(m.PublishedAt ?? m.CreatedAt), expiresMs: toMs(m.ExpiredAt), game: m.Game || null, finals: isFinals(m.Game), messageName: m.MessageName || null, seen: m.Seen !== false, deleted: m.Deleted === true }))
     .sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0));
   const inbox = { has: messages.length > 0 || notices.length > 0, messages, notices };
+  const moderation = buildModeration(raw.audit?.byType?.ModerationDecisionPII, chat);
   return {
     inbox,
+    moderation,
     hasAny: chat.length > 0 || !!pdf || !!preParsed || inbox.has,
     chat,
     pdf,
@@ -2302,11 +2586,83 @@ function buildEmailTracking(auditByType) {
 }
 
 /** Build the full set of view-models from parsed raw records. */
+// --- World Tour record (2026-09+ `RoundStatSummary.Data.worldTour`) ---------
+// The bucket's counters are all zero on the export this was verified on; what it
+// does carry is the per-season badge score and "finals won" as Embark counts them,
+// and the number of World Tour rounds played (equal to the log's World Tour rounds).
+// The badge score is the sum of placement points (Quick Cash 6/4/2, tournament exits
+// 2/6/14/25, bot Cashout 12/6), exact on all three seasons checked. `FinalsWon`
+// matched the rounds won in World Tour plus Ranked Cashout tournaments, counted only
+// from Season 11, so it is shown under Embark's name with that reading in the copy.
+function buildWorldTour(byType, keys, matches) {
+  const summaries = byType.RoundStatSummary || [];
+  const seasons = new Map();
+  let totalEvents = null;
+  let streak = null;
+  let has = false;
+  const seasonOf = (id, ms) => {
+    const k = keys.season(id);
+    if (k) return k.n;
+    if (ms == null) return null;
+    let best = null;
+    for (const s of withKeySeasons(keys.seasons())) if (s.startMs <= ms && (!best || s.startMs > best.startMs)) best = s;
+    return best?.n ?? null;
+  };
+  const seasonEntry = (seasonId, n) => {
+    const key = n != null ? `n:${n}` : seasonId;
+    let e = seasons.get(key);
+    if (!e) seasons.set(key, (e = { seasonId, n, label: n != null ? `Season ${n}` : 'Unknown season', badgeScore: null, finalsWon: null, rounds: 0, tournaments: 0, tournamentsWon: 0 }));
+    return e;
+  };
+  for (const s of summaries) {
+    const wt = s.Data?.worldTour;
+    if (!wt || typeof wt !== 'object') continue;
+    has = true;
+    if (typeof wt.TotalWorldTourEvents === 'number') totalEvents = Math.max(totalEvents ?? 0, wt.TotalWorldTourEvents);
+    const stats = wt.SeasonalStats && typeof wt.SeasonalStats === 'object' ? wt.SeasonalStats : {};
+    for (const id in stats) {
+      const v = stats[id];
+      if (!v || typeof v !== 'object') continue;
+      const e = seasonEntry(String(id), seasonOf(id, null));
+      if (typeof v.BadgeScore === 'number') e.badgeScore = Math.max(e.badgeScore ?? 0, v.BadgeScore);
+      if (typeof v.FinalsWon === 'number') e.finalsWon = Math.max(e.finalsWon ?? 0, v.FinalsWon);
+    }
+    const streaks = s.Data?.total?.WinStreakPerMatchmakingScenario;
+    if (streaks && typeof streaks === 'object') {
+      for (const id in streaks) {
+        const v = streaks[id];
+        if (!v || typeof v !== 'object' || classifyMode({ ScenarioID: id }, keys).category !== 'World Tour') continue;
+        const ms = toMs(v.LastWin);
+        if (!streak || (ms ?? 0) > (streak.lastWinMs ?? 0)) streak = { streak: typeof v.Streak === 'number' ? v.Streak : 0, lastWinMs: ms };
+      }
+    }
+  }
+  if (!has) return null;
+  for (const m of matches) {
+    if (m.mode?.category !== 'World Tour') continue;
+    const r0 = m.rounds[0];
+    const e = seasonEntry(r0?.seasonId ?? null, seasonOf(r0?.seasonId, m.start));
+    e.rounds += m.rounds.length;
+    e.tournaments++;
+    if (m.tournamentWon) e.tournamentsWon++;
+  }
+  // The wiki's thresholds describe the Season 9+ system (every mode pays points); older
+  // seasons ran other World Tour formats, so they get the score only.
+  for (const e of seasons.values()) e.badge = e.n != null && e.n >= 9 && e.badgeScore != null ? worldTourBadge(e.badgeScore) : null;
+  return {
+    has: true,
+    totalEvents,
+    streak,
+    seasons: [...seasons.values()].sort((a, b) => (b.n ?? -1) - (a.n ?? -1)),
+  };
+}
+
 export function buildModel(raw) {
   const byType = raw.persistence.byType;
   const keys = createKeys(raw.keys?.byType);
 
-  const { matches, weapons, weaponsByArchetype, roundCount, rounds, otherGameRounds, unknownRounds } = buildMatchesAndWeapons(byType, keys);
+  const { matches, weapons, weaponsByArchetype, damage, roundCount, rounds, otherGameRounds, unknownRounds } = buildMatchesAndWeapons(byType, keys);
+  const mastery = buildMastery(byType, keys, weapons);
   const lastActivity = matches.reduce((mx, m) => Math.max(mx, m.end ?? m.start ?? 0), 0) || null;
 
   // Joined here, not at render: the match list runs to thousands of rows.
@@ -2376,7 +2732,10 @@ export function buildModel(raw) {
     records: buildRecords(rounds, matches),
     weapons,
     weaponsByArchetype,
-    economy: buildEconomy(byType, raw.audit?.byType),
+    damage,
+    mastery,
+    worldTour: buildWorldTour(byType, keys, matches),
+    economy: buildEconomy(byType, raw.audit?.byType, keys),
     antiCheat: buildAntiCheat(raw),
     reports: buildReports(raw),
     support: buildSupport(raw),

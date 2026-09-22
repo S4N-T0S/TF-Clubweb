@@ -31,7 +31,11 @@ const MONTHS = {
 };
 function parseReadmeName(name) {
   const m = name.match(/readme[_ ]+(\d{1,2})[_ ]+([a-z]+)[_ ]+(\d{4})(?:\((\d+)\)|[_ ]+(\d+))?/i);
-  if (!m) return null;
+  if (!m) {
+    // Since 2026-09 the name is `README <id>.pdf`: the request id alone, no date.
+    const bare = name.match(/^readme[_ ]+(\d{3,})(?:[_ ]*\(\d+\))?\.pdf$/i);
+    return bare ? { requestedAtMs: null, requestId: bare[1], label: null } : null;
+  }
   const monthKey = m[2].toLowerCase();
   const month = Object.hasOwn(MONTHS, monthKey) ? MONTHS[monthKey] : null;
   if (month == null) return null;
@@ -156,8 +160,8 @@ export function summarizeFileset(fileset) {
       found: fileset.denuvo.length > 0, powers: 'per-platform session records',
     },
     {
-      key: 'readme', label: 'Request README', file: 'README_<date>(<id>).pdf', required: false,
-      found: !!fileset.readme, powers: 'the “data as of” date',
+      key: 'readme', label: 'Request README', file: 'README <id>.pdf', required: false,
+      found: !!fileset.readme, powers: 'the request id, and on older exports the “data as of” date',
     },
   ];
 

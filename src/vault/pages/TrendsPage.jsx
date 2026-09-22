@@ -288,10 +288,9 @@ export const TrendsPage = () => {
       )}
 
       <Note>
-        Card values are your last 3 active {grain.key === 'season' ? 'seasons' : grain.key + 's'} merged, compared against
-        the 3 before. Hollow dots mark buckets under {grain.lowSample} rounds — treat those swings as noise, not form.
-        Modes are kept separate on purpose: a Team Deathmatch round yields far more kills than a Cashout round, so the
-        blended “All modes” view shifts whenever your mode mix does.
+        Card values are your last 3 active {grain.key === 'season' ? 'seasons' : grain.key + 's'} merged, against the 3
+        before. Hollow dots are buckets under {grain.lowSample} rounds, where a swing is sample size rather than form.
+        The “All modes” view blends modes that score differently, so its line moves when your mode mix does.
       </Note>
     </div>
   );
