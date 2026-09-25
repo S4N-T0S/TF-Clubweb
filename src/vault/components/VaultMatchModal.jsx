@@ -1,7 +1,7 @@
 import { X, Trophy, MapPin } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useVaultModal } from '../hooks/useVaultModal';
-import { MapBg, ConditionTag, KillsTooltip, RankDeltaRow, RoundRow } from './MatchParts';
+import { MapBg, ConditionTag, KillsTooltip, RankDeltaRow, RoundRow, MatchFlags } from './MatchParts';
 import { OVER_PHOTO, categoryTone, ARCH_TONE } from '../lib/matchStyle';
 import { Badge } from './ui';
 import { num, decimal, duration, dateTime, cash, compact } from '../lib/format';
@@ -35,6 +35,7 @@ export const VaultMatchModal = ({ match, onClose }) => {
                   <span className="text-white font-semibold">{m.mode?.label}</span>
                   <Badge tone={tone}>{m.mode?.category}</Badge>
                   {!m.mode?.confirmed && <span className="text-[10px] text-gray-400">heuristic</span>}
+                  <MatchFlags m={m} />
                 </div>
                 <div className="flex items-center gap-3 text-xs text-gray-300 mt-1 flex-wrap">
                   <span>{dateTime(m.start)}</span>

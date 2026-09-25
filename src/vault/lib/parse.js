@@ -19,6 +19,8 @@ const ROUND_STAT_BUCKETS = {
 // bare, it would collide with THE FINALS' own types, as it did in older exports.
 const canonicalType = (type) => {
   if (type === 'ArcRaidersRoundStat') return ROUND_STAT_BUCKETS[ROUND_KIND.ARC];
+  // The Steam DLC row, flat and untyped before 2026-09 (see below).
+  if (type === 'TheFinalsSteamBundleRecord') return 'SteamDLC';
   return type.length > 9 && type.startsWith('TheFinals') ? type.slice(9) : type;
 };
 

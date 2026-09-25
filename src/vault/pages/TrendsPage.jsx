@@ -153,7 +153,8 @@ const Explorer = ({ metric, buckets, grain, lowSample, lifetime, seasons }) => {
 
 export const TrendsPage = () => {
   const { model } = useVaultData();
-  const rounds = model.rounds ?? NO_ROUNDS;
+  // Preview-build and practice rounds count nowhere but match history.
+  const rounds = useMemo(() => (model.rounds ?? NO_ROUNDS).filter((r) => !r.uncounted), [model.rounds]);
   const { seasons } = model;
   const [modePick, setModePick] = useState(null);
   const [grainKey, setGrainKey] = useState('month');

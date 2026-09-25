@@ -112,7 +112,7 @@ const MetricCell = ({ value, caption, bar }) => (
   <div className="hidden @2xl:block text-right">
     <span className="block font-semibold tabular-nums text-white leading-none">{value}</span>
     {bar != null && (
-      <span className="block mt-1 h-[3px] bg-gray-700 rounded-full overflow-hidden">
+      <span className="block mt-1 h-0.75 bg-gray-700 rounded-full overflow-hidden">
         <span className="block h-full bg-emerald-500/70 rounded-full" style={{ width: `${Math.max(2, bar)}%` }} />
       </span>
     )}
@@ -215,6 +215,7 @@ export const WeaponsPage = () => {
     const k = { rounds: 0, first: null, last: null };
     const d = { rounds: 0, first: null, last: null, total: 0 };
     for (const r of all) {
+      if (r.uncounted) continue;
       const hit = r.weaponKills?.length ? r.weaponKills.find((x) => x.id === expanded) : null;
       const dmgHit = hit && hit.damage != null ? hit : r.damageOnly ? r.damageOnly.find((x) => x.id === expanded) : null;
       const dmg = dmgHit ? dmgHit.damage || 0 : 0;

@@ -195,7 +195,7 @@ export const SessionsPage = () => {
 
   const { query, setQuery, filtered } = useListSearch(
     sessions,
-    (s) => [s.os, s.platform, s.ip, s.source],
+    (s) => [s.os, s.platform, s.game, s.ip, s.source],
     () => setPage(1)
   );
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
@@ -233,7 +233,11 @@ export const SessionsPage = () => {
             ))}
           </div>
         )}
-        <Note>EOS re-checks every 15 to 20 minutes, so its count is heartbeats and reconnects, not whole play sessions.</Note>
+        <Note>
+          EOS re-checks every 15 to 20 minutes, so its count is heartbeats and reconnects, not whole play sessions.
+          {antiCheat.denuvo?.multiProduct &&
+            ` This export’s Denuvo file names ${num(antiCheat.denuvo.products.length)} products and no game per session, so we match each session to the nearest sign-in within 15 minutes${antiCheat.denuvo.unattributed > 0 ? `, and ${num(antiCheat.denuvo.unattributed)} of ${num(antiCheat.denuvo.sessions)} had none that close` : ''}.`}
+        </Note>
       </Panel>
 
       {/* Anybrain input-device fingerprint (peripherals.csv, newer exports only) */}
@@ -431,8 +435,24 @@ export const SessionsPage = () => {
                   <td className="py-2 px-3"><Badge tone={sourceTone[s.source]}>{s.source}</Badge></td>
                   <td className="py-2 px-3 text-gray-300">
                     <span className="inline-flex items-center gap-1">
-                      {(s.os || s.platform) && <Cpu className="w-3 h-3 text-gray-500" />}
-                      {s.os || s.platform || '—'}
+                      {(s.os || s.platform || s.game) && <Cpu className="w-3 h-3 text-gray-500" />}
+                      {s.source === 'Denuvo' && s.attribution === 'signin' ? (
+                        <span
+                          className="underline decoration-dotted decoration-gray-600 underline-offset-2 cursor-help"
+                          title="Matched to the nearest account sign-in within 15 minutes. This Denuvo file names no game per session."
+                        >
+                          {s.platform || s.game}
+                        </span>
+                      ) : s.source === 'Denuvo' && !s.platform && !s.game && antiCheat.denuvo?.multiProduct ? (
+                        <span
+                          className="text-gray-500 underline decoration-dotted decoration-gray-600 underline-offset-2 cursor-help"
+                          title="No account sign-in within 15 minutes of this session, and this Denuvo file names no game per session."
+                        >
+                          THE FINALS or ARC Raiders
+                        </span>
+                      ) : (
+                        s.os || s.platform || '—'
+                      )}
                     </span>
                   </td>
                   <td className="py-2 px-3 font-mono text-gray-400">{s.ip || '—'}</td>

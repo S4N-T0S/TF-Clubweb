@@ -32,14 +32,13 @@ export const MAPS = {
   Space_01: { key: 'galaxy', name: 'Galaxy Estates', focus: '50% 62%' },
 };
 
-// An unknown number borrowing _01 is a guess (Arena_01/_02/_04 are three different
-// stadiums), so Embark's key names the map first when it can.
+// An unknown number borrowing _01 is a guess (Arena_01/_02/_04 are three stadiums).
 const lookup = (mv, keys) => {
   const m = /^DA_MV_([A-Za-z]+)_(\d+)/.exec(mv || '');
   if (!m) return null;
-  const exact = MAPS[`${m[1]}_${m[2]}`];
-  if (exact) return exact;
-  const named = keys.map(mv)?.name;
+  const curated = MAPS[`${m[1]}_${m[2]}`];
+  const named = keys.map(mv)?.name ?? keys.map(`DA_MV_${m[1]}_${m[2]}_Base`)?.name;
+  if (curated) return named ? { ...curated, name: named } : curated;
   return named ? { name: named } : MAPS[`${m[1]}_01`] || null;
 };
 
@@ -78,7 +77,7 @@ export const mapImageUrls = () => [...MAP_SLUGS].map((s) => `/vault/maps/${s}.we
 
 // EnvironmentalCondition -> a small icon family the UI renders (time/weather)
 const CONDITION_TYPE = {
-  Afternoon: 'day', Day: 'day', BrightDay: 'day', Morning: 'day', '01': 'day',
+  Afternoon: 'day', Day: 'day', BrightDay: 'day', Morning: 'day',
   Night: 'night', Blackout: 'night',
   Evening: 'sunset', Sunset: 'sunset', Dawn: 'sunset',
   Fog: 'fog', Storm: 'storm', HeavyRain: 'rain', Sandstorm: 'sandstorm', Winter: 'snow',

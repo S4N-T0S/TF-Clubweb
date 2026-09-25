@@ -3,7 +3,7 @@ import {
   Sun, Moon, Sunset, CloudFog, CloudLightning, CloudRain, Wind, Snowflake, Sparkles,
 } from 'lucide-react';
 import { Badge, HoverTip } from './ui';
-import { num, ordinal, cash, compact, scoreValue } from '../lib/format';
+import { num, ordinal, cash, compact, scoreValue, date } from '../lib/format';
 import { SCORE_TIERS } from '../lib/gameMeta';
 
 // The pieces that render one match, shared by MatchesPage and the Skill Rating
@@ -167,6 +167,11 @@ export const ScorecardMark = ({ scorecard, className = 'w-9' }) => {
               </li>
             ))}
           </ul>
+          {scorecard[0].score == null && (
+            <p className="text-[10px] text-gray-500 mt-2 pt-2 border-t border-gray-700">
+              Before Season 10 (26 Mar 2026) the export has <code>Score</code> 0 on every metric. The tiers use the same cut-offs as later cards.
+            </p>
+          )}
         </>
       }
     >
@@ -180,6 +185,31 @@ export const ScorecardMark = ({ scorecard, className = 'w-9' }) => {
     </HoverTip>
   );
 };
+
+// Header flags shared by the match card and the match modal: a later REVERT or
+// UNDO_REVERT on the tournament, and rounds that count nowhere but match history.
+export const MatchFlags = ({ m }) => (
+  <>
+    {m.rankUpdate?.adjustments?.length > 0 && (
+      <Badge tone="gray">
+        <span title="RankUpdate has a later REVERT or UNDO_REVERT row for this tournament, listed on the Rank score line.">Adjusted</span>
+      </Badge>
+    )}
+    {m.uncounted && (
+      <Badge tone="fuchsia">
+        <span
+          title={
+            m.uncounted === 'preview'
+              ? 'Played on a preview build before the season launched. Left out of your records, win rates, weapon totals and trends.'
+              : 'A practice-range round, left out of your records, win rates, career totals, weapon totals and trends.'
+          }
+        >
+          {m.uncounted === 'preview' ? m.preview?.label : 'Not counted'}
+        </span>
+      </Badge>
+    )}
+  </>
+);
 
 // What the tournament moved your ranked score by, and what every other finish
 // would have paid. Ranked only, and only since the log existed, so callers skip
@@ -208,9 +238,9 @@ export const RankDeltaRow = ({ ru }) => {
         {ru.bonusKind === 'adjustment' && (
           <span
             className="text-[10px] text-sky-300/80 border-b border-dotted border-sky-500/40 cursor-help"
-            title="Your score moved this much in your favour beyond what the placement was worth, outside the seasons and ranks where the performance bonus pays. Every case we've seen softened a loss. The export never records a reason, so this is the amount, not the cause. Corrections to matches a cheater affected are the usual explanation."
+            title="Your score moved this much in your favour beyond what the placement was worth, outside the seasons and ranks where the performance bonus pays. The export records no reason for it."
           >
-            incl. {sign(ru.bonus)} adjustment
+            incl. {sign(ru.bonus)} unexplained
           </span>
         )}
         {ru.penalty < 0 && (
@@ -221,11 +251,16 @@ export const RankDeltaRow = ({ ru }) => {
             incl. {num(ru.penalty)} penalty
           </span>
         )}
-        {ru.adjusted === 'reverted' && (
-          <Badge tone="red">
-            <span title="The server later rolled this result back. Your season total already accounts for it.">Reverted</span>
-          </Badge>
-        )}
+        {ru.adjustments?.map((a, i) => (
+          <span key={i} className="inline-flex items-center gap-1">
+            <Badge tone="yellow">
+              <span title={`Adjusted ${date(a.adjustedMs)}, separate from the match's own change.`}>
+                {a.type === 'UNDO_REVERT' ? 'Undo revert' : 'Revert'} {sign(a.rs)}
+              </span>
+            </Badge>
+            {a.undone && <span className="text-[10px] text-gray-500">later undone</span>}
+          </span>
+        ))}
         {ru.adjusted === 'penalty' && (
           <Badge tone="red">
             <span title="A penalty applied to this match, e.g. for leaving early.">Penalty</span>

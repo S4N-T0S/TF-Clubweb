@@ -466,7 +466,7 @@ export const describePoint = (point, tournaments) => {
     bonusKind: played ? ru?.bonusKind ?? null : null,
     penalty: played ? ru?.penalty || 0 : 0,
     isAdjustment: !played,
-    adjustmentLabel: point.type === 'UNDO_REVERT' ? 'Rollback reversed' : point.type === 'REVERT' ? 'Match rolled back' : null,
+    adjustmentLabel: point.type === 'UNDO_REVERT' ? 'This undoes an earlier revert' : point.type === 'REVERT' ? 'This is a revert' : null,
     // A penalised row IS a match the player played, so it keeps its placement
     // and ladder, but it's marked on the chart like a rollback and so needs the
     // note that explains the marker.

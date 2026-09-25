@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Swords, Trophy, MapPin, ChevronDown, Crosshair, X, Check } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Badge, EmptyState, Note } from '../components/ui';
-import { MapBg, ConditionTag, KillsTooltip, RankDeltaRow, RoundRow, ScorecardMark } from '../components/MatchParts';
+import { MapBg, ConditionTag, KillsTooltip, RankDeltaRow, RoundRow, ScorecardMark, MatchFlags } from '../components/MatchParts';
 import { OVER_PHOTO, categoryTone, ARCH_TONE } from '../lib/matchStyle';
 import { ListSearch, SearchEcho } from '../components/ListSearch';
 import { useListSearch } from '../../hooks/useListSearch';
@@ -136,6 +136,7 @@ const MatchCard = ({ m, expanded, onToggle, cardSlot }) => {
                 <span className="text-white font-semibold">{m.mode?.label}</span>
                 <Badge tone={tone}>{m.mode?.category}</Badge>
                 {!m.mode?.confirmed && <span className="text-[10px] text-gray-400">heuristic</span>}
+                <MatchFlags m={m} />
               </div>
               <div className="flex items-center gap-3 text-xs text-gray-300 mt-1 flex-wrap">
                 <span>{dateTime(m.start)}</span>
@@ -282,6 +283,7 @@ const MatchCard = ({ m, expanded, onToggle, cardSlot }) => {
 export const MatchesPage = () => {
   const { model } = useVaultData();
   const { matches } = model;
+  const uncountedRounds = model.meta.uncounted.previewRounds + model.meta.uncounted.practiceRounds;
   const [filter, setFilter] = useState('All'); // mode group, or 'All'
   const [classSel, setClassSel] = useState(() => new Set()); // archetypes to require (Light/Medium/Heavy)
   const [weaponSel, setWeaponSel] = useState(() => new Set()); // content-ids to require a kill with
@@ -504,6 +506,8 @@ export const MatchesPage = () => {
         match id and per-round data. Placement comes from the furthest round you reached and how you finished there, so a
         Round 1 exit gives a tied range (5th–6th or 7th–8th) because the two lobbies run in parallel. A mode label marked
         “heuristic” was inferred from the shape of the match, not from a confirmed ScenarioID.
+        {uncountedRounds > 0 &&
+          ` The ${num(uncountedRounds)} round${uncountedRounds === 1 ? '' : 's'} badged with a preview build or “Not counted” (the practice range) ${uncountedRounds === 1 ? 'is' : 'are'} listed here but left out of records, win rates, weapon totals and trends.`}
       </Note>
 
       {modalOpen && (

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, Fragment } from 'react';
+import { Link } from 'react-router-dom';
 import { MessagesSquare, Bot, Paperclip, Ticket, ChevronDown, Loader2, Monitor, Gamepad2 } from 'lucide-react';
+import { VAULT_BASE } from '../../constants';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, Badge, EmptyState, Note, StatCard, TogglePill } from '../components/ui';
 import { ListSearch, SearchEcho } from '../components/ListSearch';
@@ -134,11 +136,25 @@ const TicketThread = ({ ticket, you }) => {
 
 const INBOX_PER_PAGE = 10;
 
+// Titles for messages that arrive without one (model.js INBOX_KINDS).
+const WEEKLY_RANK_REASON = 'DISCOVERY_RANK_UPDATE_REASON_WEEKLY_SUMMARY';
+const UNTITLED_LABEL = { gift: 'Gift received', reportedBan: 'Reported player banned', friendRequest: 'Friend request' };
+const untitledLabel = (m) => {
+  if (Object.hasOwn(UNTITLED_LABEL, m.kind)) return UNTITLED_LABEL[m.kind];
+  if (m.kind === 'rankUpdate') return m.reason === WEEKLY_RANK_REASON ? 'Weekly rank update' : 'Rank update';
+  if (m.kind === 'rankWelcome') return m.season != null ? `Season ${m.season} rank welcome` : 'Rank welcome';
+  return null;
+};
+const rsSign = (v) => `${v > 0 ? '+' : ''}${num(v)}`;
+const rsTone = (v) => (v > 0 ? 'text-emerald-300' : v < 0 ? 'text-red-300' : 'text-gray-400');
+
 // One-way messages the game showed the player (2026-09+). Embark's two games share
 // the table, so ARC Raiders rows are set aside unless asked for.
 const InboxPanel = ({ inbox }) => {
   const finals = inbox.messages.filter((m) => m.finals);
   const arcCount = inbox.messages.length - finals.length;
+  const paired = finals.some((m) => m.adjustment);
+  const reportedBans = finals.some((m) => m.kind === 'reportedBan');
   const [showArc, setShowArc] = useState(finals.length === 0 && arcCount > 0);
   const [open, setOpen] = useState(null);
   const [page, setPage] = useState(1);
@@ -165,12 +181,16 @@ const InboxPanel = ({ inbox }) => {
       <div id="inbox-list" className="space-y-2">
         {rows.slice(start, start + INBOX_PER_PAGE).map((m, idx) => {
           const i = start + idx;
+          const label = m.title ? null : untitledLabel(m);
           const details = [
             ...m.rewards.map((id) => ({ label: 'Reward id', value: id })),
-            m.season != null && { label: 'Season', value: m.season },
+            m.season != null && m.kind !== 'rankWelcome' && { label: 'Season', value: m.season },
             m.sourceType && { label: 'Source', value: m.sourceType },
+            m.kind === 'rankUpdate' && m.reason && m.reason !== WEEKLY_RANK_REASON && { label: 'Reason', value: m.reason },
           ].filter(Boolean);
-          const expandable = !!m.body || details.length > 0 || !!m.buttonLabel;
+          const gifts = m.kind === 'gift' && m.gifts?.length ? m.gifts : null;
+          const rsChange = m.kind === 'rankUpdate' ? m.rsChange : null;
+          const expandable = !!m.body || details.length > 0 || !!m.buttonLabel || !!gifts || !!m.adjustment;
           const isOpen = open === i && expandable;
           return (
             <div key={i} className="bg-gray-900/50 rounded-lg overflow-hidden ring-1 ring-inset ring-white/5">
@@ -186,9 +206,15 @@ const InboxPanel = ({ inbox }) => {
                   </span>
                 )}
                 <span className="flex-1 min-w-0 truncate text-sm">
-                  {m.title ? <span className="font-medium text-white">{m.title}</span> : <span className="font-mono text-xs text-gray-400">{m.messageName || 'Untitled message'}</span>}
+                  {m.title || label ? (
+                    <span className="font-medium text-white">{m.title || label}</span>
+                  ) : (
+                    <span className="font-mono text-xs text-gray-400">{m.messageName || 'Untitled message'}</span>
+                  )}
                 </span>
                 <span className="flex items-center gap-2 shrink-0 text-[11px] text-gray-500">
+                  {rsChange != null && <span className={`font-semibold tabular-nums ${rsTone(rsChange)}`}>{rsSign(rsChange)} RS</span>}
+                  {gifts && <span className="text-gray-400">{num(gifts.length)} item{gifts.length === 1 ? '' : 's'}</span>}
                   {!m.finals && <Badge tone="purple">{m.game}</Badge>}
                   {m.rewards.length > 0 && <Badge tone="emerald">Reward attached</Badge>}
                   {m.favorited && <Badge tone="yellow">Favourited</Badge>}
@@ -200,6 +226,32 @@ const InboxPanel = ({ inbox }) => {
                 <div className="border-t border-white/10 px-3 py-3 space-y-2">
                   {m.body && <p className="text-sm text-gray-300 whitespace-pre-line wrap-break-word max-h-96 overflow-y-auto">{m.body}</p>}
                   {m.buttonLabel && <p className="text-xs text-gray-500">In game this showed a button: “{m.buttonLabel}”.</p>}
+                  {m.adjustment && (
+                    <p className="text-xs text-gray-400">
+                      Same amount as the {date(m.adjustment.adjustedMs)} revert.{' '}
+                      <Link
+                        to={`${VAULT_BASE}/ratings`}
+                        state={{ adjustment: m.adjustment.key }}
+                        className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2"
+                      >
+                        Show in Rank adjustments
+                      </Link>
+                    </p>
+                  )}
+                  {gifts && (
+                    <ul className="space-y-1">
+                      {gifts.map((g, gi) => (
+                        <li key={gi} className="flex items-start justify-between gap-2 text-xs">
+                          <span className="text-gray-200 min-w-0 wrap-break-word">{g.name ?? <span className="text-gray-600">item not found in this export</span>}</span>
+                          {g.label && (
+                            <span className="shrink-0">
+                              <Badge tone="gray">{g.label}</Badge>
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   {details.length > 0 && (
                     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px] bg-gray-900/50 rounded-lg px-3 py-2">
                       {details.map((r, k) => (
@@ -254,6 +306,8 @@ const InboxPanel = ({ inbox }) => {
       <Note>
         A message carrying a reward shows one was offered, not that you claimed it. Broadcast notices arrive with
         Embark’s internal name and no text.
+        {paired && ' The export does not link a weekly rank update to a revert, so we pair it with one of the same RS recorded in the 7 days before it.'}
+        {reportedBans && ' A “Reported player banned” message does not say which player or which report.'}
         {arcCount > 0 && ' Messages from Embark’s other game are set aside unless you switch them on.'}
       </Note>
     </Panel>

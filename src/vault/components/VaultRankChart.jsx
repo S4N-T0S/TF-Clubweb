@@ -167,7 +167,7 @@ export const VaultRankChart = ({ season, nameEvents, tournaments, settings, view
           el(
             'div',
             { fontSize: '11px', color: '#6ee7b7', marginTop: '3px' },
-            d.bonusKind === 'performance' ? `incl. +${num(d.bonus)} for your own play` : `incl. +${num(d.bonus)} score adjustment`
+            d.bonusKind === 'performance' ? `incl. +${num(d.bonus)} for your own play` : `incl. +${num(d.bonus)} unexplained`
           )
         );
       }

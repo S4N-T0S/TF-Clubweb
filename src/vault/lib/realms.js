@@ -168,6 +168,42 @@ export function tenancyWindows(auditByType) {
   return out;
 }
 
+// --- rounds played on a preview build -------------------------------------
+// The audit logs one `EOSProductUserId` row per round under the build's tenancy, 36 to 74 s
+// before the round starts. From the S9 preview on its `round_id` is the round's `RoundID`;
+// on earlier previews it is not, so the start time decides there.
+const PREVIEW_ROUND_LEAD_MS = 120e3;
+
+export function previewRounds(auditByType) {
+  const ids = new Map();
+  const starts = [];
+  for (const type of ['EOSProductUserId', 'EosProductUserID']) {
+    for (const r of auditByType?.[type] || []) {
+      if (!r?.round_id || typeof r.tenancy !== 'string' || classifyTenancy(r.tenancy) !== REALM.PLAYTEST) continue;
+      const label = tenancyLabel(r.tenancy).replace(/ playtest$/, '');
+      ids.set(String(r.round_id), label);
+      const ms = typeof r.logtime === 'number' ? r.logtime : Date.parse(r.logtime);
+      if (Number.isFinite(ms)) starts.push({ ms, label });
+    }
+  }
+  starts.sort((a, b) => a.ms - b.ms);
+  // The build's label for a round, or null when nothing ties it to a preview.
+  const labelOf = (roundId, startMs) => {
+    if (roundId != null && ids.has(String(roundId))) return ids.get(String(roundId));
+    if (startMs == null || !starts.length) return null;
+    let lo = 0;
+    let hi = starts.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (starts[mid].ms <= startMs) lo = mid + 1;
+      else hi = mid;
+    }
+    const s = starts[lo - 1];
+    return s && startMs - s.ms <= PREVIEW_ROUND_LEAD_MS ? s.label : null;
+  };
+  return { has: starts.length > 0 || ids.size > 0, labelOf };
+}
+
 // --- (B) balance-chain arithmetic ----------------------------------------
 // Lookahead for the reconnection. Real accounts already reach 47.4h between a preview
 // and the next live row, so this needs room.

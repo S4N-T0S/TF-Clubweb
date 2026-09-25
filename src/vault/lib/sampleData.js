@@ -62,14 +62,21 @@ const rf3 = () => rng3();
 const ri3 = (lo, hi) => lo + Math.floor(rng3() * (hi - lo + 1));
 const pick3 = (arr) => arr[Math.floor(rng3() * arr.length)];
 const chance3 = (p) => rng3() < p;
+// A fourth stream for the fields added 2026-09-25 (Deathmatch scorecards).
+let rng4 = mulberry32(SEED ^ 0x2026_0925);
+const ri4 = (lo, hi) => lo + Math.floor(rng4() * (hi - lo + 1));
 // Key-file rows the generated records refer to (see buildSampleRaw).
 let keyRows = { items: [], mastery: [] };
+// The rounds played on a preview build (see pickPreviewRounds), shared with buildAudit.
+let previewRounds = [];
 
 const resetGenerator = () => {
   rng = mulberry32(SEED);
   rng2 = mulberry32(SEED ^ 0x2026_0921);
   rng3 = mulberry32(SEED ^ 0x2026_0922);
+  rng4 = mulberry32(SEED ^ 0x2026_0925);
   keyRows = { items: [], mastery: [] };
+  previewRounds = [];
   usedTids.clear();
 };
 
@@ -78,6 +85,12 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 const iso = (ms) => new Date(ms).toISOString();
 const lerp = (a, b, t) => a + (b - a) * t;
+// The next 09:00:30 UTC after `ms`, when real revert runs write their rows.
+const nextRun = (ms) => {
+  const d = new Date(ms);
+  d.setUTCHours(9, 0, 30, 0);
+  return d.getTime() > ms ? d.getTime() : d.getTime() + DAY;
+};
 
 const ACCOUNT_CREATED = Date.parse('2023-09-25T14:30:00Z'); // closed-beta era veteran
 const SPAN_START = Date.parse('2024-01-20T18:00:00Z');
@@ -341,12 +354,15 @@ function buildRankUpdates(rounds) {
       // = leaver penalty; the S11 grant adds a positive one below.
       const extra = chance(0.02) ? -ri(80, 150) : 0;
       events.push({ t, place, type: extra ? 'PENALTY' : 'NORMAL', at: t.start + ri(20, 40) * 60_000, extra, raw: LADDER_SHAPE[place] + extra + (rf() - 0.5) * 8 });
-      // Real exports log a rollback as a second row on the same tournament,
-      // stamped when the rollback happened, and it can itself be rolled back.
+      // Real exports log a revert as a second row on the same tournament, written by
+      // a 09:00 UTC run one to eight days later. Its amount is recomputed, not the
+      // result mirrored: it lowers a win and raises every other place, and it can
+      // itself be undone.
       if (chance(0.08)) {
-        const at = t.start + ri(2, 30) * HOUR;
-        events.push({ t, place, type: 'REVERT', at, extra: 0, raw: -LADDER_SHAPE[place] * 0.9 });
-        if (chance(0.2)) events.push({ t, place, type: 'UNDO_REVERT', at: at + ri(1, 20) * HOUR, extra: 0, raw: LADDER_SHAPE[place] * 0.9 });
+        const at = nextRun(t.start + ri(20, 160) * HOUR);
+        const raw = place === 0 ? -LADDER_SHAPE[0] * 0.3 : Math.abs(LADDER_SHAPE[place]) * 0.5 + 12;
+        events.push({ t, place, type: 'REVERT', at, extra: 0, raw });
+        if (chance(0.2)) events.push({ t, place, type: 'UNDO_REVERT', at: nextRun(at + ri(1, 3) * DAY), extra: 0, raw: -raw * 0.97 });
       }
     }
     // Chain in timestamp order: a rollback lands on its own stamp, so curves step.
@@ -365,12 +381,14 @@ function buildRankUpdates(rounds) {
         mu += e.raw + dry;
       }
     }
-    // Spread the remainder over every row so no single row jumps to the target.
-    const fix = spread();
+    // Spread the remainder over the played rows so no single row jumps to the target
+    // and a revert keeps its own amount.
+    const isPlayed = (e) => e.type === 'NORMAL' || e.type === 'PENALTY';
+    const fix = (s.endMu - s.startMu - events.reduce((a, e) => a + e.raw, 0)) / events.filter(isPlayed).length;
 
     let mu = s.startMu;
     for (const e of events) {
-      const delta = e.raw + fix;
+      const delta = e.raw + (isPlayed(e) ? fix : 0);
       const before = mu;
       mu += delta;
       // Real rollback rows carry a breakdown too, but it is the original match's
@@ -392,7 +410,7 @@ function buildRankUpdates(rounds) {
         // paid on top of it (or docked from it) comes back out first.
         ...(ladder ? { PositionIndex: e.place, PositionUpdates: ladder } : {}),
         CreatedAt: iso(e.at),
-        ...(e.type === 'REVERT' || e.type === 'UNDO_REVERT' ? { AdjustedAt: iso(e.at - ri(1, 20) * 60_000) } : {}),
+        ...(e.type === 'REVERT' || e.type === 'UNDO_REVERT' ? { AdjustedAt: iso(e.at - ri(20, 40) * 1000) } : {}),
       });
     }
   }
@@ -484,9 +502,37 @@ function buildSummary(rounds) {
       entry(s).BadgeScore += d.RoundWon ? 4 : 2;
     }
   }
-  for (const t of tourneys.values()) entry(t.s).BadgeScore += t.won ? 25 : t.furthest === 0 ? 14 : t.furthest === 1 ? 6 : 2;
-  // Points stop at Emerald 1 (owner's knowledge of the game; the export has not shown a season past it).
-  for (const e of Object.values(seasonal)) e.BadgeScore = Math.min(2400, e.BadgeScore);
+  for (const t of tourneys.values()) {
+    entry(t.s).BadgeScore += t.won ? 25 : t.furthest === 0 ? 14 : t.furthest === 1 ? 6 : 2;
+    // Seasons 9 and 10 count World Tour and Ranked tournaments won (Season 11 counts rounds, above).
+    if (t.won && t.s !== 349883189) entry(t.s).FinalsWon += 1;
+  }
+  // Seasons 3 to 8 scored World Tour tournaments only, a round-1 exit paying 2 from
+  // Season 7. This player never reached Season 3's Finals stage, so FinalsWon stays 0.
+  const OLD_WT = [751146294, 814189767, 483101830, 279111264, 607580158, 607608768];
+  const oldTourneys = new Map();
+  for (const r of rounds) {
+    const d = r.Data;
+    const s = seasonIdAt(Date.parse(d.StartTime));
+    if (!OLD_WT.includes(s) || !WORLD_TOUR_IDS.includes(d.ScenarioID) || !d.TournamentID) continue;
+    const t = oldTourneys.get(d.TournamentID) || { s, furthest: 9, won: false };
+    t.furthest = Math.min(t.furthest, Number(String(d.MatchID).split('-')[0]));
+    if (d.TournamentWon) t.won = true;
+    oldTourneys.set(d.TournamentID, t);
+  }
+  for (const t of oldTourneys.values()) {
+    const r1 = t.s === 607580158 || t.s === 607608768 ? 2 : 0;
+    entry(t.s).BadgeScore += t.won ? 25 : t.furthest === 0 ? 14 : t.furthest === 1 ? 6 : r1;
+  }
+  // The Quickplay badge (Seasons 6 to 8): the wiki's per-result points.
+  const quickplay = {};
+  for (const r of rounds) {
+    const d = r.Data;
+    const s = seasonIdAt(Date.parse(d.StartTime));
+    if (![279111264, 607580158, 607608768].includes(s) || !CASUAL_IDS.has(d.ScenarioID) || d.Abandoned) continue;
+    const pts = d.ScenarioID === QUICK_CASH_ID ? ([10, 6, 5][(d.PlacedAt ?? 9) - 1] ?? 0) : d.RoundWon ? 10 : 5;
+    quickplay[s] = (quickplay[s] || 0) + pts;
+  }
   let streak = 0;
   for (let i = wt.length - 1; i >= 0 && wt[i].Data.RoundWon; i--) streak++;
   const lastWin = [...wt].reverse().find((r) => r.Data.RoundWon);
@@ -500,10 +546,22 @@ function buildSummary(rounds) {
         casual: aggregateRoundStats(casual),
         ranked: aggregateRoundStats(ranked),
         worldTour: { ...aggregateRoundStats([]), TotalWorldTourEvents: wt.length, SeasonalStats: seasonal },
+        scores: { QuickPlayScore: quickplay },
       },
     },
   ];
 }
+
+// The preview build's own summary, which the export emits beside the live one and
+// updates as that build's last round ends.
+function previewSummary(rounds) {
+  if (!rounds.length) return [];
+  const all = aggregateRoundStats(rounds);
+  return [{ UpdatedAt: rounds.at(-1).Data.EndTime, Data: { total: all, casual: all, ranked: aggregateRoundStats([]), scores: {} } }];
+}
+
+// Two Point Break rounds on the S9 preview build (the audit names the build, see buildAudit).
+const pickPreviewRounds = (rounds) => rounds.filter((r) => r.Data.StartTime.startsWith('2025-12-05') && r.Data.ScenarioID === 184486584);
 
 // --- purchases & economy --------------------------------------------------
 // Standalone Multibucks packs must use REAL store pairs
@@ -729,8 +787,10 @@ const BUILDS = {
 const ARCH_OF = Object.fromEntries(Object.entries(ARCH_KEY).map(([name, key]) => [key, name]));
 
 // Scorecard metric ids (the objective-mode set) and cut-offs shaped like the real
-// ones. Level 0 is the TOP tier. Deathmatch modes score other metrics, so TDM gets none.
+// ones. Level 0 is the TOP tier. Before Season 10 the export records the tier but a
+// Score of 0, as on real exports.
 const SCORECARD_FROM = Date.parse('2026-03-05T00:00:00Z');
+const SCORES_FROM = Date.parse('2026-03-26T10:00:00Z');
 const SCORECARD_METRICS = [
   { id: 2096050391, cuts: [3500, 2100, 1100, 250], score: (d) => d.DamageDone * (0.38 + rf2() * 0.22) }, // Damage
   { id: -293567368, cuts: [16, 9, 6, 2], score: (d) => d.Kills }, // Eliminations
@@ -741,7 +801,15 @@ const SCORECARD_METRICS = [
 ];
 const QUICK_CASH_ID = 164312917;
 const TDM_ID = 418401773;
-
+// Deathmatch modes swap Objective and Revives for KillStreak and Assists (Embark's key file ids).
+const DEATHMATCH_METRICS = [
+  { id: 1818371758, cuts: [4200, 3000, 1800, 600], score: (d) => d.DamageDone * (0.8 + rng4() * 0.2) }, // Damage
+  { id: -1177173016, cuts: [22, 15, 9, 4], score: (d) => d.Kills }, // Eliminations
+  { id: 1857931620, cuts: [3, 2, 1.3, 0.8], score: (d) => (d.Deaths ? d.Kills / d.Deaths : d.Kills) }, // KDR
+  { id: -7232501, cuts: [900, 500, 250, 80], score: () => ri4(0, 1100) }, // Support
+  { id: 2018882246, cuts: [8, 5, 3, 2], score: (d) => Math.min(d.Kills, ri4(1, 9)) }, // KillStreak
+  { id: -695442701, cuts: [8, 5, 3, 1], score: () => ri4(0, 9) }, // Assists
+];
 function decorateRounds(rounds) {
   for (const r of rounds) {
     const d = r.Data;
@@ -767,6 +835,14 @@ function decorateRounds(rounds) {
         return { GameAssetID: m.id, Score: score, Level: level < 0 ? 4 : level };
       });
     }
+    if (t >= SCORECARD_FROM && !d.Abandoned && d.ScenarioID === TDM_ID) {
+      d.Scorecards = DEATHMATCH_METRICS.map((m) => {
+        const score = Math.round(m.score(d) * 100) / 100;
+        const level = m.cuts.findIndex((c) => score >= c);
+        return { GameAssetID: m.id, Score: score, Level: level < 0 ? 4 : level };
+      });
+    }
+    if (d.Scorecards && t < SCORES_FROM) for (const s of d.Scorecards) s.Score = 0;
 
     // Per-item damage: the killing items take most of it, a gadget from the loadout
     // often chips in without a kill, and the sum lands just under DamageDone, as on
@@ -917,7 +993,7 @@ function buildSocial() {
     BlockedPlayer: spread(7, SPAN_START, (at) => ({ CreatedAt: at })),
     ClanMembership: [{ ClanName: 'THE OG CLUB', ClanTag: 'OG', Role: 'member', LastLoggedInAt: iso(SPAN_END - 2 * HOUR), CreatedAt: iso(clubJoined) }],
     ClanStats: [{ QuestsCompleted: 41, CreatedAt: iso(clubJoined), UpdatedAt: iso(SPAN_END - 3 * DAY) }],
-    ClanTimelineMessage: spread(6, clubJoined, (at) => ({ PayloadType: 'TYPE_MEMBER_JOINED', CreatedAt: at })),
+    ClanTimelineMessage: spread(6, clubJoined, (at) => ({ PayloadType: 'TYPE_PARTY_UP', CreatedAt: at })),
   };
 }
 
@@ -956,6 +1032,51 @@ function buildInbox() {
   return { InboxMessage: [...finals, ...arc], InboxGlobalMessage: notices };
 }
 
+// Club log rows beyond the joins: "party up" events, a type and a time only.
+const CLUB_PARTY_UPS = ['2025-02-14T20:11:03Z', '2025-03-02T19:40:51Z', '2025-05-18T21:05:12Z', '2025-08-09T18:22:40Z', '2025-11-22T20:48:09Z', '2026-02-07T19:15:33Z', '2026-05-30T21:32:26Z'];
+
+// From Season 9 a ranked revert is followed by a Wednesday inbox notice whose
+// rsChange equals it, as on real exports. The newest five, so the inbox stays varied.
+function rankNotices(rankUpdates) {
+  const from = Date.parse('2025-12-10T00:00:00Z');
+  return rankUpdates
+    .filter((r) => r.UpdateType === 'REVERT' && Date.parse(r.CreatedAt) >= from)
+    .sort((a, b) => a.CreatedAt.localeCompare(b.CreatedAt))
+    .slice(-5)
+    .map((r, i) => {
+      const at = new Date(Date.parse(r.CreatedAt));
+      at.setUTCDate(at.getUTCDate() + ((3 - at.getUTCDay() + 7) % 7));
+      at.setUTCHours(13, 10, 0, 0);
+      return {
+        Game: 'THE FINALS', MessageID: 7_100_000 + i, MessageName: 'DiscoveryRankUpdateMessage',
+        Payload: { reason: 'DISCOVERY_RANK_UPDATE_REASON_WEEKLY_SUMMARY', rsChange: String(Math.round((r.MuAfter - r.MuBefore) * 10)) },
+        Seen: true, Favorited: false, CreatedAt: at.toISOString(),
+      };
+    });
+}
+
+// Inbox messages that carry no title: a gift, reported-player bans, friend requests
+// and a season welcome. Gift items get key rows, as a real export's key file would.
+function untitledInbox() {
+  const gifts = [
+    { GameAssetID: 1999000001, Kind: 'Item', Name: 'Signal Crest', ItemType: 'WeaponSticker', Resolved: true },
+    { GameAssetID: 1999000002, Kind: 'Item', Name: 'Chrome Charm', ItemType: 'WeaponCharm', Resolved: true },
+    { GameAssetID: 1999000003, Kind: 'Item', Name: 'Neon Guard', ItemType: 'WeaponSkin', Resolved: true },
+    { GameAssetID: 1999000004, Kind: 'Item', Name: 'Premium', ItemType: 'BattlePass', ItemSubType: 'Premium', Resolved: true },
+  ];
+  keyRows.items.push(...gifts);
+  const msg = (id, MessageName, CreatedAt, Payload = {}) => ({ Game: 'THE FINALS', MessageID: id, MessageName, Payload, Seen: true, Favorited: false, CreatedAt });
+  return [
+    msg(7_200_001, 'DiscoveryGiftMessage', '2025-12-21T16:44:12Z', { receivedGameAssetIds: [...gifts.map((g) => String(g.GameAssetID)), String(MULTIBUCKS_ID)] }),
+    msg(7_200_002, 'ReportedUserBannedMessage', '2025-10-27T06:00:50Z'),
+    msg(7_200_003, 'ReportedUserBannedMessage', '2026-01-19T06:01:12Z'),
+    msg(7_200_004, 'ReportedUserBannedMessage', '2026-04-02T06:00:31Z'),
+    msg(7_200_005, 'SharedFriendRequestMessage', '2026-02-11T18:40:05Z'),
+    msg(7_200_006, 'SharedFriendRequestMessage', '2026-06-20T20:03:44Z'),
+    msg(7_200_007, 'DiscoveryRankWelcomeMessage', '2026-07-10T19:14:08Z', { season: 11 }),
+  ];
+}
+
 // Console token claims for the linked Xbox account ("Demo Gamer"), which this
 // otherwise-PC player signs in on now and then.
 function buildConsoleClaims() {
@@ -977,6 +1098,8 @@ function buildPersistence() {
   // stay consistent with the actual rounds the dashboard shows.
   const rounds = buildRounds();
   decorateRounds(rounds);
+  previewRounds = pickPreviewRounds(rounds);
+  const live = rounds.filter((r) => !previewRounds.includes(r));
   const byType = {
     // A single Embark account
     EmbarkUser: [
@@ -996,10 +1119,11 @@ function buildPersistence() {
     // scary permanent-ban banner (so the account still reads "in good standing").
     //   1. A permanent "Cheating" flag Embark later REVERSED as a false positive
     //      (CancelReason/CancelledAt) → demonstrates the lifted state + reason.
-    //   2. A temporary matchmaking penalty that has since expired.
+    //   2. A temporary restriction that has since expired. (Matchmaking cooldowns
+    //      are sanctions, not restrictions: see the Sanction inventory row.)
     Restriction: [
       { Reason: 'Cheating', StartsAt: iso(Date.parse('2024-11-02T08:15:00Z')), CreatedAt: iso(Date.parse('2024-11-02T08:15:00Z')), CancelReason: 'Incorrect restriction', CancelledAt: iso(Date.parse('2024-11-09T14:20:00Z')) },
-      { Reason: 'Early match leave (matchmaking penalty)', StartsAt: iso(Date.parse('2025-04-18T19:30:00Z')), CreatedAt: iso(Date.parse('2025-04-18T19:30:00Z')), EndsAt: iso(Date.parse('2025-04-21T19:30:00Z')) },
+      { Reason: 'Exploiting', StartsAt: iso(Date.parse('2025-04-18T19:30:00Z')), CreatedAt: iso(Date.parse('2025-04-18T19:30:00Z')), EndsAt: iso(Date.parse('2025-04-21T19:30:00Z')) },
     ],
     ThirdPartyUser: [
       { ThirdPartyProviderID: 'steam', ThirdPartyUserID: '76561198000000000', LastSeenAccountName: 'SamplePlayer', Enabled: true, CreatedAt: iso(ACCOUNT_CREATED) },
@@ -1010,7 +1134,7 @@ function buildPersistence() {
     InventoryItem: buildInventoryItems(),
     BucketObject: buildRatingBuckets(rankedTournamentCounts(rounds)),
     RankUpdate: buildRankUpdates(rounds),
-    RoundStatSummary: buildSummary(rounds),
+    RoundStatSummary: [...buildSummary(live), ...previewSummary(previewRounds)],
     RoundStat: rounds,
     UserLogin: buildUserLogins(rounds),
     // The BucketID'd row is the 2026-09+ shape: that id is the "Career rank" track in Embark's key file.
@@ -1023,6 +1147,22 @@ function buildPersistence() {
     ...buildInbox(),
   };
   nameStorePurchases(byType.TransactionLog, byType.HardCurrencyLog);
+  // Added after the literal so no random stream above moves.
+  byType.InventoryItem.push({
+    GameAssetID: 4334566052, Name: 'Sanction', InstanceID: '5a3c7100-0000-4000-8000-000000000001', Amount: 1, HasSeen: true, Type: 'Sanction',
+    Properties: { Sanction: { Type: 'tournament_abandon', Tier: 1, TimeOfSanction: '2025-11-08T20:41:12Z', DurationSeconds: 600 } },
+    CreatedAt: '2025-08-13T15:14:42Z', UpdatedAt: '2025-11-08T20:41:12Z',
+  });
+  byType.ClanTimelineMessage.push(...CLUB_PARTY_UPS.map((at) => ({ ClanName: 'THE OG CLUB', ClanTag: 'OG', PayloadType: 'TYPE_PARTY_UP', CreatedAt: at })));
+  // The player's own joins: a first stint, then the current membership (same instant as
+  // ClanMembership.CreatedAt, as on real exports).
+  byType.ClanTimelineMessage.push(
+    { ClanName: 'THE OG CLUB', ClanTag: 'OG', PayloadType: 'TYPE_MEMBER_JOINED', CreatedAt: '2024-06-20T18:05:11Z' },
+    { ClanName: 'THE OG CLUB', ClanTag: 'OG', PayloadType: 'TYPE_MEMBER_JOINED', CreatedAt: byType.ClanMembership[0].CreatedAt },
+  );
+  byType.ClanTimelineMessage.sort((a, b) => a.CreatedAt.localeCompare(b.CreatedAt));
+  byType.ClanInvite = [{ ClanName: 'THE OG CLUB', ClanTag: 'OG', Direction: 'sent', CreatedAt: '2025-06-14T19:02:00Z' }];
+  byType.InboxMessage.push(...rankNotices(byType.RankUpdate), ...untitledInbox());
   const counts = Object.fromEntries(Object.entries(byType).map(([k, v]) => [k, v.length]));
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   // gamePrefixed: the sample stands for an export in the 2026-09 format.
@@ -1091,8 +1231,8 @@ function buildDenuvo() {
     xbox.push({ start: iso(start), end: iso(start + ri(30, 120) * 60_000) });
   }
   return [
-    { gameInfos: [{ name: 'Steam' }], sessionInfos: steam },
-    { gameInfos: [{ name: 'Xbox' }], sessionInfos: xbox },
+    { gameInfos: [{ name: 'The Finals - Steam - Retail - Anti-Cheat' }], sessionInfos: steam },
+    { gameInfos: [{ name: 'The Finals - Microsoft - Retail - Anti-Cheat' }], sessionInfos: xbox },
   ];
 }
 // Reports the player FILED against other players (audit `PlayerReport`). Reason +
@@ -1108,10 +1248,10 @@ const REPORT_NOTES = [
   ['Cheating', 'Saw us through the wall the whole match'],
   ['Cheating', ''],
   ['Cheating', ''],
-  ['Verbal abuse', 'Abusive voice chat the entire match'],
-  ['Verbal abuse', 'Threats in team chat after the round'],
-  ['Offensive name', 'Slur in their display name'],
-  ['Teaming', 'Teaming with the enemy squad in ranked'],
+  ['VerbalAbuse', 'Abusive voice chat the entire match'],
+  ['VerbalAbuse', 'Threats in team chat after the round'],
+  ['OffensiveProfile', 'Slur in their display name'],
+  ['Other', 'Teaming with the enemy squad in ranked'],
 ];
 function buildPlayerReports() {
   const out = [];
@@ -1252,7 +1392,13 @@ function buildAudit() {
   ];
   const { ses, legacy } = buildSesEvents(EMAIL);
   const chat = buildChatMessages();
-  const byType = { ClientUserLoginDetails: login, AccountNameAudit2: names, PlayerReport: reports, ProfileUpdated3: profileUpdated, AwsSesEvent: ses, EmailStatus: legacy, ChatMessageSent: chat, ModerationDecisionPII: buildModeration(chat), ...buildConsoleClaims() };
+  // One row per round played on a preview build, under that build's tenancy, logged
+  // shortly before the round starts (as on real exports).
+  const previewRoundRows = previewRounds.map((r, i) => ({
+    logtime: iso(Date.parse(r.Data.StartTime) - 45_000), tenancy: 'discovery-s9-preview-event',
+    product_user_id: '0002sample0000000000000000000009', round_id: `samplepreview${i}`,
+  }));
+  const byType = { ClientUserLoginDetails: login, AccountNameAudit2: names, PlayerReport: reports, ProfileUpdated3: profileUpdated, AwsSesEvent: ses, EmailStatus: legacy, ChatMessageSent: chat, ModerationDecisionPII: buildModeration(chat), EOSProductUserId: previewRoundRows, ...buildConsoleClaims() };
   const counts = Object.fromEntries(Object.entries(byType).map(([k, v]) => [k, v.length]));
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return { byType, counts, total, badLines: 0 };

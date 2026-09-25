@@ -12,7 +12,7 @@ export const ARCHETYPES = {
 // it reaches a child ("constructor" returns a function and renders blank instead).
 export const archetypeLabel = (raw) => (Object.hasOwn(ARCHETYPES, raw) ? ARCHETYPES[raw] : (raw ? 'Unknown' : '—'));
 
-// Internal map codename -> display name
+// Fallback only: maps.js names a map by code AND number.
 export const MAP_NAMES = {
   Monaco: 'Monaco',
   Seoul: 'Seoul',
@@ -20,17 +20,20 @@ export const MAP_NAMES = {
   Kyoto: 'Kyoto',
   Arena: 'Arena (Stadium)',
   Bernal: 'Bernal',
-  BayCity: 'Bay City',
-  Forest: 'Forest (TDM)',
-  Village: 'Village (TDM)',
-  Playground: 'Practice Range',
+  BayCity: 'Fangwai City',
+  Forest: 'P.E.A.C.E. Center',
+  Village: 'Starlight Hollow',
+  Playground: 'Heavy Hitters',
   HeavyHitters: 'Heavy Hitters',
-  CashBall: 'Cashball',
+  CashBall: 'Ca$hball Stadium',
+  Space: 'Galaxy Estates',
+  PracticeRange: 'Practice Range',
 };
 
 // Parse "DA_MV_Seoul_01_Base" -> { map: 'Seoul', variant: 'Base', display }
 export const parseMapVariant = (mv) => {
-  if (!mv) return { map: null, variant: null, display: '—' };
+  // Practice-range rounds carry the literal string "None".
+  if (!mv || mv === 'None') return { map: null, variant: null, display: '—' };
   const m = /^DA_MV_([A-Za-z]+)_(\d+)_?(.*)$/.exec(mv);
   if (!m) return { map: mv, variant: null, display: mv };
   const code = m[1];
@@ -38,18 +41,16 @@ export const parseMapVariant = (mv) => {
   return { map: code, variant, display: Object.hasOwn(MAP_NAMES, code) ? MAP_NAMES[code] : code };
 };
 
-// Parse "DA_EC_Arena_01_Night" or bare "Night" -> a friendly condition string
+// "DA_EC_Arena_01_Night", "DA_EC_Kyoto_01_Winter_Night", "DA_EC_BayCity_01_Night_01" or bare "Night"
 export const parseCondition = (ec) => {
   if (!ec) return null;
   if (!ec.startsWith('DA_EC_')) return ec; // older bare format e.g. "Night"
-  const parts = ec.split('_');
+  const parts = ec.split('_').filter((p) => !/^\d+$/.test(p));
   return parts[parts.length - 1] || ec;
 };
 
-// World Tour badge thresholds (thefinals.wiki/wiki/World_Tour, the Season 9+ system where
-// every mode pays points). Within a tier level 4 is the entry step and 1 the top, as in
-// ranked. The badge score in the export is the sum of those points: verified exactly on
-// three seasons of one export.
+// World Tour badge thresholds from Season 4 on (thefinals.wiki/wiki/World_Tour; identical in
+// the wiki's Season 4 revision). Level 4 is a tier's entry step, 1 its top. No cap.
 export const WORLD_TOUR_BADGES = [
   { name: 'Bronze', steps: [25, 50, 75, 100], color: '#b45309', text: 'text-amber-700' },
   { name: 'Silver', steps: [150, 200, 250, 300], color: '#d1d5db', text: 'text-gray-300' },
@@ -58,16 +59,30 @@ export const WORLD_TOUR_BADGES = [
   { name: 'Diamond', steps: [1150, 1300, 1450, 1600], color: '#60a5fa', text: 'text-blue-400' },
   { name: 'Emerald', steps: [1800, 2000, 2200, 2400], color: '#34d399', text: 'text-emerald-400' },
 ];
-export const worldTourBadge = (score) => {
+const ladderBadge = (ladder, score) => {
   if (!Number.isFinite(score)) return null;
   let best = null;
-  for (const tier of WORLD_TOUR_BADGES) {
+  for (const tier of ladder) {
     tier.steps.forEach((min, i) => {
       if (score >= min) best = { name: tier.name, level: 4 - i, label: `${tier.name} ${4 - i}`, color: tier.color, text: tier.text };
     });
   }
   return best;
 };
+export const worldTourBadge = (score) => ladderBadge(WORLD_TOUR_BADGES, score);
+// A named tier without the ladder, e.g. Season 3's Emerald (level null when unknown).
+export const worldTourTier = (name, level = null) => {
+  const t = WORLD_TOUR_BADGES.find((x) => x.name === name);
+  return t ? { name, level, label: level ? `${name} ${level}` : name, color: t.color, text: t.text } : null;
+};
+
+// Seasons 6 to 8 only (thefinals.wiki/wiki/Quickplay). Gold 1 is the top.
+export const QUICKPLAY_BADGES = [
+  { ...WORLD_TOUR_BADGES[0], steps: [50, 100, 150, 200] },
+  { ...WORLD_TOUR_BADGES[1], steps: [300, 400, 500, 600] },
+  { ...WORLD_TOUR_BADGES[2], steps: [775, 950, 1125, 1300] },
+];
+export const quickplayBadge = (score) => ladderBadge(QUICKPLAY_BADGES, score);
 
 // Scorecard tiers, best first, in the ladder's league colours. The export only has a
 // number (Level 0..4, 0 best); the league names are how the game shows them, from the
@@ -149,8 +164,10 @@ export const SCENARIO_MODES = {
   // and S6+ (597953832, returns S10) — verified by the S6→gap→S10 date pattern + maps.
   '267894133': { label: 'Bunny Bash', category: 'LTM', teams: 2 }, // confirmed — S2
   '597953832': { label: 'Bunny Bash', category: 'LTM', teams: 2 }, // confirmed, data-verified — S6+
-  '787538704': { label: 'Ranked (S1)', category: 'Ranked', teams: 4 }, // pre-World-Tour ranked
-  '377270267': { label: 'Ranked (S1)', category: 'Ranked', teams: 4 }, // pre-World-Tour ranked
+  // Seasons 1 and 2 ran two bracket playlists side by side. Embark names 787538704
+  // "RankedTournament" (4 rounds) and 377270267 "Tournament" (3 rounds, unranked).
+  '787538704': { label: 'Ranked Cashout', category: 'Ranked', teams: 4 },
+  '377270267': { label: 'Tournament', category: 'Casual', teams: 4 },
   '106717113': { label: 'Snowball Blitz', category: 'LTM', teams: 2 }, // confirmed — winter event, Monaco + Snowball weapon
   // A few S3–S5 World Tour ids (the rest live in WORLD_TOUR_SCENARIOS below).
   '211390302': { label: 'World Tour', category: 'World Tour', teams: 4 },
@@ -192,6 +209,10 @@ const EMBARK_SCENARIOS = {
   // New-player onboarding lobbies against bots (FTUE = first-time user experience).
   CashoutBotsSolo: { label: 'Cashout vs bots', category: 'Other', teams: null, bots: true },
   CashoutBotsSoloFTUE: { label: 'Cashout vs bots', category: 'Other', teams: null, bots: true },
+  Tournament: { label: 'Tournament', category: 'Casual', teams: 4 },
+  SingleRoundCashout: { label: 'Single Round Cashout', category: 'Casual', teams: 4 },
+  SoloBankIt: { label: 'Solo Bank It', category: 'Casual', teams: null },
+  Practice: { label: 'Practice Range', category: 'Other', teams: null, practice: true },
 };
 
 export const scenarioFromKey = (key) => {
@@ -222,7 +243,9 @@ export const classifyMode = (data, keys = STATIC_KEYS) => {
 
   const key = keys.scenario(scenarioId);
   const viaKey = key ? scenarioFromKey(key) : null;
-  if (viaKey?.translated) return { label: viaKey.label, category: viaKey.category, teams: viaKey.teams, confirmed: true, ...(viaKey.bots ? { bots: true } : {}) };
+  if (viaKey?.translated) {
+    return { label: viaKey.label, category: viaKey.category, teams: viaKey.teams, confirmed: true, ...(viaKey.bots ? { bots: true } : {}), ...(viaKey.practice ? { practice: true } : {}) };
+  }
 
   // Without hasOwn a "constructor" id spreads a function into the mode, which
   // renders as a blank label while still flagged confirmed.

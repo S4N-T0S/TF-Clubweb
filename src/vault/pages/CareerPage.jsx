@@ -140,6 +140,7 @@ const ScorecardsSection = ({ scorecards }) => {
         </div>
         <span className="w-full sm:w-auto text-[11px] text-gray-500 tabular-nums">
           {num(scorecards.rounds)} of {num(scorecards.totalRounds)} rounds · since {date(scorecards.firstMs)}
+          {scorecards.unscoredRounds > 0 && ` · ${num(scorecards.unscoredRounds)} without a recorded score`}
         </span>
       </div>
       <Panel>
@@ -208,6 +209,13 @@ const ScorecardsSection = ({ scorecards }) => {
         <Note>
           Embark does not publish the tier cut-offs and they differ by metric, so compare a metric against itself rather
           than against another one. Damage here is Embark’s own score, not the damage total on your match cards.
+          {scorecards.unscoredRounds > 0 && (
+            <>
+              {' '}
+              Cards from before Season 10 carry <code>Score</code> 0 on every metric, so Avg and Best leave them out while the tier bars and Ruby
+              counts include them.
+            </>
+          )}
         </Note>
       </Panel>
     </div>
@@ -222,7 +230,25 @@ export const CareerPage = () => {
 
   const [hoveredMode, setHoveredMode] = useState(null);
   const tournWinRate = meta.tournamentsPlayed ? meta.tournamentsWon / meta.tournamentsPlayed : null;
+  // Counted matches only: preview-build and practice rounds live in match history alone.
   const totalMatches = careerModes.reduce((s, m) => s + m.matches, 0);
+  const unc = meta.uncounted;
+  const uncountedRounds = unc.previewRounds + unc.practiceRounds;
+  // Embark's totals: preview builds wrote their own summaries (left out when found), and
+  // practice-range rounds are subtracted from the live one.
+  const plural = (n, one, many) => `${num(n)} ${n === 1 ? one : many}`;
+  const previewOut = unc.previewRounds > 0 && unc.previewSummaries > 0;
+  const practiceOut = unc.practiceRounds > 0;
+  const summaries = plural(unc.previewSummaries, 'lifetime summary', 'lifetime summaries');
+  const leftOutLine =
+    previewOut && practiceOut
+      ? `The totals above leave out ${num(unc.previewRounds + unc.practiceRounds)} rounds: ${num(unc.previewRounds)} played on preview builds, whose ${summaries} ${unc.previewSummaries === 1 ? 'is' : 'are'} left out too, and ${num(unc.practiceRounds)} on the practice range.`
+      : previewOut
+        ? `The totals above leave out the ${plural(unc.previewRounds, 'round', 'rounds')} you played on preview builds and the ${summaries} those builds wrote.`
+        : practiceOut
+          ? `The totals above leave out the ${plural(unc.practiceRounds, 'practice-range round', 'practice-range rounds')}.`
+          : null;
+  const previewOnlyInLog = unc.previewRounds > 0 && unc.previewSummaries === 0;
   const segments = careerModes
     .map((m) => ({ key: m.key, label: m.label, value: m.matches, color: MODE_COLOR[m.key] || MODE_COLOR.Other }))
     .filter((s) => s.value > 0);
@@ -303,8 +329,15 @@ export const CareerPage = () => {
         <StatCard label="Total cash-out" value={`$${num(t.totalCashOut)}`} accent="text-yellow-400" />
         <StatCard label="Revives" value={num(t.revives)} />
         <StatCard label="Damage dealt" value={num(Math.round(t.damage))} />
-        <StatCard label="Matches" value={num(meta.matchCount)} sub={`${num(meta.roundCount)} rounds logged`} />
+        <StatCard label="Matches" value={num(totalMatches)} sub={`${num(meta.roundCount - unc.previewRounds - unc.practiceRounds)} rounds logged`} />
       </div>
+      {(leftOutLine || previewOnlyInLog) && (
+        <Note>
+          {leftOutLine}
+          {previewOnlyInLog &&
+            ` The Matches and Tournaments won totals above leave out the ${num(unc.previewRounds)} round${unc.previewRounds === 1 ? '' : 's'} you played on preview builds.`}
+        </Note>
+      )}
 
       {/* Personal records — single-game bests + biggest tournament payday */}
       {recordCards.length > 0 && (
@@ -312,8 +345,13 @@ export const CareerPage = () => {
           <div className="flex items-center gap-2 mb-3">
             <Medal className="w-4 h-4 text-gray-400" />
             <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Personal records</h2>
-            {records.botsExcluded > 0 && (
-              <span className="text-[11px] text-gray-500 ml-auto">{num(records.botsExcluded)} bot-lobby rounds left out</span>
+            {(records.botsExcluded > 0 || uncountedRounds > 0) && (
+              <span className="text-[11px] text-gray-500 ml-auto text-right">
+                {[records.botsExcluded > 0 && `${num(records.botsExcluded)} bot-lobby`, uncountedRounds > 0 && `${num(uncountedRounds)} preview or practice`]
+                  .filter(Boolean)
+                  .join(' · ')}{' '}
+                round{records.botsExcluded + uncountedRounds === 1 ? '' : 's'} left out
+              </span>
             )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">

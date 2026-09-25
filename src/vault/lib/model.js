@@ -1,10 +1,10 @@
 // Build the view-models the pages consume from raw parsed records.
 // Runs ONCE after parsing; results are memoised in the provider.
 import { resolveWeapon } from './weapons';
-import { archetypeLabel, classifyMode, careerModeGroup, CAREER_MODE_GROUPS, parseMapVariant, parseCondition, roundsRemaining, stageLabel, stageTeams, tournamentPlacement, worldTourBadge } from './gameMeta';
+import { ARCHETYPES, archetypeLabel, classifyMode, careerModeGroup, CAREER_MODE_GROUPS, parseMapVariant, parseCondition, roundsRemaining, stageLabel, stageTeams, tournamentPlacement, worldTourBadge, worldTourTier, quickplayBadge } from './gameMeta';
 import { resolveMap, resolveLtmBackground, conditionType } from './maps';
 import { resolveDlc, steamAppUrl, STEAM_BASE_GAME_ID, localAmount } from './economy';
-import { buildRealms, REALM, classifyRoundStat, ROUND_KIND } from './realms';
+import { buildRealms, REALM, classifyRoundStat, ROUND_KIND, tenancyLabel, previewRounds } from './realms';
 import { buildRatings } from './ratings';
 import { createKeys, cleanName } from './keys';
 import { withKeySeasons } from './seasons';
@@ -115,8 +115,31 @@ function buildIdentity(byType, auditByType) {
 // "Player contact" / "Incorrect restriction" / "Goodwill") mean the restriction
 // was REVERSED — it no longer applies even when it had no end date, so a
 // cancelled restriction never counts as active.
-function buildBans(byType) {
+function buildBans(byType, auditByType) {
   const nowMs = Date.now();
+  const auditRows = (re) => Object.keys(auditByType || {}).filter((t) => re.test(t)).flatMap((t) => auditByType[t] || []);
+  const created = auditRows(/^TenancyUserRestrictionCreated\d*$/);
+  const viaTool = auditRows(/^PlayerViewAddTenancyUserRestriction\d*$/);
+  // 2026-09+: two audit rows written at the restriction instant. Matched on time and
+  // reason, since `restriction_id` exceeds 2^53 and does not survive JSON.parse.
+  const auditFor = (reason, ms) => {
+    if (ms == null) return null;
+    const near = (rows) => rows.find((a) => a?.reason === reason && Math.abs((toMs(a.logtime) ?? Infinity) - ms) <= 60e3) || null;
+    const c = near(created);
+    const v = near(viaTool);
+    if (!c && !v) return null;
+    const endsAtMs = c?.ends_at_ms ?? v?.ends_at_ms;
+    const tenancy = c?.tenancy ?? v?.tenancy ?? null;
+    return {
+      source: c?.source ?? (v ? 'PLAYER_VIEW' : null),
+      permanent: typeof endsAtMs === 'number' ? endsAtMs === 0 : null,
+      endsMs: typeof endsAtMs === 'number' && endsAtMs > 0 ? endsAtMs : null,
+      steamGameBan: typeof v?.issue_steam_game_ban === 'boolean' ? v.issue_steam_game_ban : null,
+      tenancy,
+      scope: tenancy === 'discovery-live' ? 'THE FINALS live game' : tenancy ? tenancyLabel(tenancy) : null,
+      ms: toMs(c?.logtime ?? v?.logtime),
+    };
+  };
   const all = (byType.Restriction || [])
     .map((r) => {
       const endsAt = r.EndsAt ?? null;
@@ -135,9 +158,15 @@ function buildBans(byType) {
         cancelled,
         permanent,
         active: !cancelled && (permanent || (endsMs != null && endsMs > nowMs)),
+        audit: auditFor(r.Reason, toMs(r.CreatedAt ?? r.StartsAt)),
       };
     })
     .sort((a, b) => (toMs(b.startsAt) ?? 0) - (toMs(a.startsAt) ?? 0)); // newest first
+
+  // Sign-ins refused because of a restriction (2026-09+).
+  const blockedSignIns = (byType.RestrictedLogin || [])
+    .map((l) => ({ ms: toMs(l.CreatedAt), game: l.Game ?? null, provider: l.ThirdPartyProvider ?? null, ip: l.IPAddress ?? null, grantType: l.GrantType ?? null }))
+    .sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0));
 
   const active = all.find((b) => b.active) || null;
   return {
@@ -147,7 +176,53 @@ function buildBans(byType) {
     all, // full lifetime history — for the Account page
     count: all.length,
     cancelledCount: all.filter((b) => b.cancelled).length, // how many were lifted
+    blockedSignIns,
   };
+}
+
+// Matchmaking cooldowns for leaving a tournament, separate from restrictions. Three shapes:
+// the detail on the inventory row (2026-09+), a top-level `Sanction` record (some older
+// exports), or an inventory row with a timestamp only, which equals the latest sanction's
+// time (checked on two accounts).
+const SANCTION_LABELS = { tournament_abandon: 'Left a tournament' };
+function buildSanctions(byType, rounds) {
+  const items = [];
+  const stubs = [];
+  const item = (kind, tier, atMs, durationSec, endsMs, wholeAccount, source) => ({
+    kind,
+    label: kind && Object.hasOwn(SANCTION_LABELS, kind) ? SANCTION_LABELS[kind] : null,
+    tier: Number.isInteger(tier) ? tier : null,
+    atMs,
+    durationSec: Number.isFinite(durationSec) ? durationSec : null,
+    endsMs: endsMs ?? (atMs != null && Number.isFinite(durationSec) ? atMs + durationSec * 1000 : null),
+    wholeAccount: typeof wholeAccount === 'boolean' ? wholeAccount : null,
+    source,
+  });
+  for (const it of byType.InventoryItem || []) {
+    if (it?.Type !== 'Sanction') continue;
+    const s = it.Properties?.Sanction;
+    if (s && typeof s === 'object') items.push(item(s.Type ?? null, s.Tier, toMs(s.TimeOfSanction) ?? toMs(it.UpdatedAt), s.DurationSeconds, null, null, 'inventory'));
+    else stubs.push(toMs(it.UpdatedAt));
+  }
+  for (const s of byType.Sanction || []) {
+    const atMs = toMs(s.CreatedAt);
+    const endsMs = toMs(s.ExpiresAt);
+    const kind = typeof s.Reason === 'string' ? s.Reason.replace(/^SANCTION_REASON_/, '').toLowerCase() : null;
+    items.push(item(kind, s.Tier, atMs, atMs != null && endsMs != null ? (endsMs - atMs) / 1000 : null, endsMs, s.AppliesToWholeAccount, 'record'));
+  }
+  for (const ms of stubs) {
+    if (ms == null || items.some((x) => x.atMs != null && Math.abs(x.atMs - ms) < 60e3)) continue;
+    items.push(item(null, null, ms, null, null, null, 'stub'));
+  }
+  if (!items.length) return null;
+  // The tournament round in progress when the sanction was issued, if the log has it.
+  for (const x of items) {
+    if (x.atMs == null) continue;
+    const r = rounds.find((r) => r.tournamentId && r.start != null && r.end != null && r.start <= x.atMs && x.atMs <= r.end + 2000);
+    x.round = r ? { start: r.start, mode: r.mode?.label ?? null, tournamentId: r.tournamentId, abandoned: r.abandoned } : null;
+  }
+  items.sort((a, b) => (b.atMs ?? 0) - (a.atMs ?? 0));
+  return { has: true, latestMs: items[0].atMs, items };
 }
 
 // Resolve a linked account to a display handle + clickable profile URL.
@@ -535,7 +610,6 @@ const INVENTORY_LABELS = {
   ContestantPack: 'Contestant packs',
   Loadout: 'Loadout slots',
   Fame: 'Fame',
-  Sanction: 'Sanctions',
   PersistentEntity: 'Persistent entities',
 };
 // hasOwn on the export-keyed tables in this file: an InventoryItem Type of
@@ -548,7 +622,8 @@ const INTERNAL_NAME_RE = /[{}_]|^(Default|Premium)$/;
 const PACK_SLOT_LABELS = { IntroPose: 'Intro pose', VictoryPose: 'Victory pose', OutfitPack: 'Outfit', ObjectiveSticker: 'Objective sticker', PlayerCard: 'Player card' };
 
 function buildInventory(byType, keys) {
-  const rows = byType.InventoryItem || [];
+  // A sanction is not an owned item (Account shows it), and its CreatedAt is not when it happened.
+  const rows = (byType.InventoryItem || []).filter((it) => it && it.Type !== 'Sanction');
   const map = new Map();
   // 2026-09+ rows are named; older ones carry a type and nothing else.
   const items = [];
@@ -634,12 +709,31 @@ function buildSocial(byType) {
   const membership = (byType.ClanMembership || [])[0] || null;
   const stats = [...(byType.ClanStats || [])].sort((a, b) => (toMs(b.UpdatedAt) ?? 0) - (toMs(a.UpdatedAt) ?? 0))[0] || null;
   const timeline = byType.ClanTimelineMessage || [];
+  const invites = byType.ClanInvite || [];
   const sent = friends.filter((f) => f.Direction === 'sent').length;
   const received = friends.filter((f) => f.Direction === 'received').length;
   const tl = range(timeline);
+  // The current membership's start: it equals the latest TYPE_MEMBER_JOINED event to the
+  // microsecond on both exports that have one. Earlier joins mean the player left and rejoined.
   const memberSinceMs = toMs(membership?.CreatedAt);
+  // A club log row is a type, a time and the club; no author, target or text.
+  const eventTypes = new Map();
+  const joinsMs = [];
+  for (const t of timeline) {
+    const type = typeof t.PayloadType === 'string' && t.PayloadType ? t.PayloadType : 'TYPE_UNSPECIFIED';
+    eventTypes.set(type, (eventTypes.get(type) || 0) + 1);
+    const ms = toMs(t.CreatedAt);
+    // A join of some other club is not a rejoin of this one (both name and tag differ).
+    const otherClub = membership != null && t.ClanName != null && t.ClanName !== membership.ClanName && t.ClanTag !== membership.ClanTag;
+    if (type === 'TYPE_MEMBER_JOINED' && ms != null && !otherClub) joinsMs.push(ms);
+  }
+  joinsMs.sort((a, b) => a - b);
+  const eventLabel = (type) => {
+    const s = type.replace(/^TYPE_/, '').toLowerCase().replace(/_/g, ' ');
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  };
   return {
-    has: friends.length > 0 || blocked.length > 0 || !!membership || !!stats || timeline.length > 0,
+    has: friends.length > 0 || blocked.length > 0 || !!membership || !!stats || timeline.length > 0 || invites.length > 0,
     // Some older rows have no Direction, so the split is only shown when it adds up.
     friends: { total: friends.length, sent, received, directionKnown: friends.length > 0 && sent + received === friends.length, ...range(friends) },
     blocked: { total: blocked.length, ...range(blocked) },
@@ -647,17 +741,21 @@ function buildSocial(byType) {
       ? { name: membership.ClanName ?? null, tag: membership.ClanTag ?? null, role: membership.Role ?? null, memberSinceMs, lastLoginMs: toMs(membership.LastLoggedInAt) }
       : null,
     questsCompleted: stats && typeof stats.QuestsCompleted === 'number' ? stats.QuestsCompleted : null,
-    timeline: { count: timeline.length, ...tl },
-    // The club log starting well before the current membership suggests a rejoin.
-    mayHaveRejoined: memberSinceMs != null && tl.firstMs != null && memberSinceMs - tl.firstMs > 24 * 3600e3,
+    clubEvents: timeline.length
+      ? { total: timeline.length, byType: [...eventTypes.entries()].map(([type, count]) => ({ type, label: eventLabel(type), count })).sort((a, b) => b.count - a.count), joinsMs, ...tl }
+      : null,
+    clubInvites: invites.length
+      ? { sent: invites.filter((i) => i.Direction === 'sent').length, received: invites.filter((i) => i.Direction === 'received').length, ...range(invites) }
+      : null,
   };
 }
 
 // --- career (aggregated across ALL RoundStatSummary snapshots) ------------
-// An export can carry SEVERAL RoundStatSummary snapshots. They are DISJOINT
-// epochs (successive stat-storage generations), NOT running cumulative totals:
-// on real exports each snapshot's RoundsPlayed sum to at most the RoundStat
-// record count. So lifetime = the per-bucket SUM across every snapshot.
+// An export can carry SEVERAL RoundStatSummary records: one per tenancy the account
+// played on (the live game and each preview build), with no tenancy field. They are
+// disjoint, NOT running cumulative totals: on real exports their RoundsPlayed sum to
+// at most the RoundStat record count. So lifetime = the per-bucket SUM across the
+// live ones (the preview builds' are removed before this, see liveSummaries).
 // The summed total can sit slightly UNDER the record count (0 to 219 rounds
 // across the sample exports) because Embark counts a multi-round Ranked
 // Terminal Attack series once while the log stores every round; the whole
@@ -688,10 +786,35 @@ function aggregateBucket(buckets) {
   return out;
 }
 
-function buildCareer(byType, keys) {
-  const summaries = byType.RoundStatSummary || [];
+// Embark's lifetime totals count practice-range rounds (one export's live summary equals its log
+// exactly with 9 of them in it), so their logged stats come back out of `total`.
+function withoutRounds(b, rounds) {
+  if (!rounds.length) return b;
+  const out = { ...b, TimePlayedByArchetype: b.TimePlayedByArchetype ? Object.assign(Object.create(null), b.TimePlayedByArchetype) : null };
+  for (const r of rounds) {
+    const ms = r.end != null && r.start != null && r.end > r.start ? r.end - r.start : 0;
+    out.Kills -= r.kills;
+    out.Deaths -= r.deaths;
+    out.Dbnos -= r.dbnos;
+    out.DamageDone -= r.damage;
+    out.RevivesDone -= r.revives;
+    out.RoundsPlayed -= 1;
+    if (r.roundWon) out.RoundsWon -= 1;
+    out.TotalCashOut -= r.currency;
+    out.TotalTimePlayed -= ms;
+    if (r.disconnected) out.Disconnects -= 1;
+    const key = Object.keys(ARCHETYPES).find((k) => ARCHETYPES[k] === r.archetype);
+    if (key && out.TimePlayedByArchetype?.[key] != null) out.TimePlayedByArchetype[key] = Math.max(0, out.TimePlayedByArchetype[key] - ms);
+  }
+  for (const f of SUMMARY_COUNTERS) out[f] = Math.max(0, out[f]);
+  out.RoundWinRate = out.RoundsPlayed ? out.RoundsWon / out.RoundsPlayed : null;
+  out.TournamentWinRate = out.TournamentsPlayed ? out.TournamentsWon / out.TournamentsPlayed : null;
+  return out;
+}
+
+function buildCareer(byType, keys, summaries, practiceRounds) {
   const pluck = (key) => aggregateBucket(summaries.map((s) => s.Data?.[key]).filter(Boolean));
-  const total = pluck('total');
+  const total = summaries.length ? withoutRounds(pluck('total'), practiceRounds) : pluck('total');
   const casual = pluck('casual');
   const ranked = pluck('ranked');
 
@@ -741,7 +864,7 @@ function buildCareer(byType, keys) {
     total: wrap(total),
     casual: wrap(casual),
     ranked: wrap(ranked),
-    // total > casual + ranked; the remainder is World Tour + LTM + practice.
+    // total > casual + ranked; the remainder is World Tour and LTM.
     // Surface both its rounds AND its playtime so the three buckets visibly add
     // up to the headline total (otherwise total hours look inflated vs ranked+casual).
     otherRoundsPlayed: Math.max(0, total.RoundsPlayed - casual.RoundsPlayed - ranked.RoundsPlayed),
@@ -782,6 +905,8 @@ function newMatch(r, isTournament) {
     won: false,
     disconnected: false,
     abandoned: false,
+    preview: r.preview,
+    uncounted: r.uncounted,
   };
 }
 
@@ -819,7 +944,7 @@ function addRound(m, r) {
   if (r.abandoned) m.abandoned = true;
 }
 
-function buildMatchesAndWeapons(byType, keys) {
+function buildMatchesAndWeapons(byType, keys, preview) {
   // parse.js already buckets ARC Raiders' identically-named records separately,
   // but re-check here: `byType` is also built by hand (sampleData, harnesses),
   // and one unfiltered ARC row becomes a phantom match that always reads as a loss.
@@ -856,18 +981,29 @@ function buildMatchesAndWeapons(byType, keys) {
   const weaponsByArch = { Light: new Map(), Medium: new Map(), Heavy: new Map(), Unknown: new Map() };
 
   const normalized = new Array(rawRounds.length);
+  let countedRoundCount = 0;
   for (let i = 0; i < rawRounds.length; i++) {
     const d = rawRounds[i].Data || {};
+    const roundId = rawRounds[i].RoundID != null ? String(rawRounds[i].RoundID) : null; // 2026-09+
     const archetype = archetypeLabel(d.CharacterArchetype);
     const pmap = parseMapVariant(d.MapVariant);
     const rmap = resolveMap(d.MapVariant, keys); // precise name + one bg photo + crop focus
     const ltmBg = resolveLtmBackground(d.ScenarioID); // LTM-specific background by gamemode id (overrides the map photo)
     const cond = parseCondition(d.EnvironmentalCondition);
-    const variant = pmap.variant && pmap.variant !== 'Base' ? pmap.variant : null;
+    // Embark's layout name where the key file has one ("Up Down Left Right"), else the codename's.
+    const keyLayout = keys.map(d.MapVariant)?.variant;
+    const variant = keyLayout
+      ? (keyLayout === 'Standard issue' ? null : keyLayout)
+      : pmap.variant && !/^Base(_\d+)?$/.test(pmap.variant) ? pmap.variant.replace(/([a-z])([A-Z])/g, '$1 $2') : null;
     const layout = variant && flatLabel(variant) !== flatLabel(cond) ? variant : null;
     const kpi = d.KillsPerItem || {};
     const dpi = d.DamagePerItem && typeof d.DamagePerItem === 'object' ? d.DamagePerItem : null;
     const startMs = toMs(d.StartTime);
+    const mode = classifyMode(d, keys);
+    // Preview-build and practice rounds stay in match history but count towards nothing else.
+    const previewLabel = preview.labelOf(roundId, startMs);
+    const uncounted = previewLabel ? 'preview' : mode.practice ? 'practice' : null;
+    if (!uncounted) countedRoundCount++;
     // Per-round weapon usage. KillsPerItem is kills-only (an item appears only
     // if it got a kill), so this is "what you killed with", not your loadout —
     // but the primary gun gets kills ~99% of rounds, so the top Weapon is a
@@ -878,10 +1014,12 @@ function buildMatchesAndWeapons(byType, keys) {
     const weaponKills = [];
     for (const id in kpi) {
       const k = kpi[id] || 0;
-      weaponTotals.set(id, (weaponTotals.get(id) || 0) + k);
-      if (k > 0) killRounds.set(id, (killRounds.get(id) || 0) + 1);
-      const bucket = weaponsByArch[archetype] || weaponsByArch.Unknown;
-      bucket.set(id, (bucket.get(id) || 0) + k);
+      if (!uncounted) {
+        weaponTotals.set(id, (weaponTotals.get(id) || 0) + k);
+        if (k > 0) killRounds.set(id, (killRounds.get(id) || 0) + 1);
+        const bucket = weaponsByArch[archetype] || weaponsByArch.Unknown;
+        bucket.set(id, (bucket.get(id) || 0) + k);
+      }
       const w = resolveWeapon(id, keys);
       const rec = { id, kills: k, damage: dpi ? Math.round(dpi[id] || 0) : null, name: w.name, slug: w.slug, icon: w.icon, type: w.type };
       weaponKills.push(rec);
@@ -898,14 +1036,16 @@ function buildMatchesAndWeapons(byType, keys) {
         const dmg = Math.round(dpi[id] || 0);
         if (dmg <= 0) continue;
         any = true;
-        damageTotals.set(id, (damageTotals.get(id) || 0) + dpi[id]);
-        damageRounds.set(id, (damageRounds.get(id) || 0) + 1);
+        if (!uncounted) {
+          damageTotals.set(id, (damageTotals.get(id) || 0) + dpi[id]);
+          damageRounds.set(id, (damageRounds.get(id) || 0) + 1);
+        }
         if (Object.hasOwn(kpi, id)) continue;
         const w = resolveWeapon(id, keys);
         damageOnly.push({ id, damage: dmg, name: w.name, slug: w.slug, icon: w.icon, type: w.type });
       }
       damageOnly.sort((a, b) => b.damage - a.damage);
-      if (any) {
+      if (any && !uncounted) {
         damageRoundCount++;
         if (startMs != null && (damageFirstMs == null || startMs < damageFirstMs)) damageFirstMs = startMs;
       }
@@ -925,22 +1065,30 @@ function buildMatchesAndWeapons(byType, keys) {
     // `Level` is a grade where 0 is the TOP: score and level correlate at -0.73 to
     // -0.91 on every metric, with clean cut-offs (Quick Cash damage 3,500 / 2,100 /
     // 1,100 / 250). Embark's README reads as if higher were better; it is not.
-    // Shown as tier 1 (best) to 5. A card whose scores are all zero is unpopulated
-    // (most such rounds have real kills and damage), so it is dropped.
+    // Shown as tier 1 (best) to 5. Before Season 10 every Score is 0 while the Level is
+    // real, so those keep their tiers with `score: null`; a card at the bottom tier on
+    // every metric with no score is an abandoned round and is dropped.
     let scorecard = null;
-    if (Array.isArray(d.Scorecards) && d.Scorecards.some((s) => s?.Score > 0)) {
-      scorecard = [];
+    if (Array.isArray(d.Scorecards) && d.Scorecards.length) {
+      const entries = [];
       for (const s of d.Scorecards) {
         const name = keys.item(s?.GameAssetID)?.name;
         if (!name || !Number.isFinite(s.Score) || !Number.isInteger(s.Level)) continue;
-        scorecard.push({ name, score: s.Score, tier: Math.min(5, Math.max(1, s.Level + 1)) });
+        entries.push({ name, score: s.Score, tier: Math.min(5, Math.max(1, s.Level + 1)) });
       }
-      scorecard.sort((a, b) => scorecardRank(a.name) - scorecardRank(b.name));
-      if (!scorecard.length) scorecard = null;
+      const scored = entries.some((e) => e.score > 0);
+      if (scored || entries.some((e) => e.tier < 5)) {
+        scorecard = scored ? entries : entries.map((e) => ({ ...e, score: null }));
+        scorecard.sort((a, b) => scorecardRank(a.name) - scorecardRank(b.name));
+      }
     }
     normalized[i] = {
       createdAt: rawRounds[i].CreatedAt,
+      roundId,
       seasonId: rawRounds[i].SeasonID != null ? String(rawRounds[i].SeasonID) : null, // 2026-09+
+      preview: previewLabel ? { label: previewLabel } : null,
+      uncounted, // 'preview' | 'practice' | null
+      finalsStage: d.IsWorldTourFinals === true, // Season 3's World Tour Finals stage (2026-09+ exports)
       start: startMs,
       end: toMs(d.EndTime),
       kills: d.Kills || 0,
@@ -980,12 +1128,12 @@ function buildMatchesAndWeapons(byType, keys) {
       abandoned: !!d.Abandoned, // left and did not come back (2026-09+)
       squadName: d.SquadName ?? null,
       squadId: d.SquadID ?? null,
-      mode: classifyMode(d, keys),
+      mode,
       weapon: topWeapon || topAny || null, // primary weapon used this round (kills-based)
       weaponKills, // all items that got a kill this round, desc — for the "also killed with" line
       damageOnly, // items that did damage but got no kill this round (2026-09+), or null
       loadout, // [spec, weapon, gadgets…] on record for the round, or null
-      scorecard, // [{ name, score, tier }] (tier 1 = best) or null
+      scorecard, // [{ name, score (null = not recorded), tier }] (tier 1 = best) or null
     };
   }
 
@@ -1131,7 +1279,7 @@ function buildMatchesAndWeapons(byType, keys) {
     .sort((a, b) => b.kills - a.kills || b.damage - a.damage);
   let damageTotal = 0;
   for (const v of damageTotals.values()) damageTotal += v;
-  const damage = { has: damageRoundCount > 0, rounds: damageRoundCount, totalRounds: rawRounds.length, firstMs: damageFirstMs, total: Math.round(damageTotal) };
+  const damage = { has: damageRoundCount > 0, rounds: damageRoundCount, totalRounds: countedRoundCount, firstMs: damageFirstMs, total: Math.round(damageTotal) };
 
   const weaponsByArchetype = {};
   for (const arch of ['Light', 'Medium', 'Heavy']) {
@@ -1141,6 +1289,19 @@ function buildMatchesAndWeapons(byType, keys) {
   }
 
   return { matches, weapons, weaponsByArchetype, damage, roundCount: rawRounds.length, rounds: normalized, otherGameRounds, unknownRounds };
+}
+
+// A preview build's own RoundStatSummary is updated as its last round ends, so it is the
+// summary whose UpdatedAt falls within a few seconds of a preview round's end.
+const SUMMARY_END_TOL_MS = 10e3;
+function liveSummaries(summaries, rounds) {
+  const ends = rounds.filter((r) => r.uncounted === 'preview' && r.end != null).map((r) => r.end);
+  if (!ends.length) return { live: summaries, preview: 0 };
+  const live = summaries.filter((s) => {
+    const t = toMs(s.UpdatedAt);
+    return t == null || !ends.some((e) => Math.abs(e - t) <= SUMMARY_END_TOL_MS);
+  });
+  return { live, preview: summaries.length - live.length };
 }
 
 // --- item mastery (2026-09+ `RankBucket` rows the key file files under "Item mastery") ---
@@ -1198,10 +1359,12 @@ const scorecardRank = (name) => {
 function buildScorecards(rounds) {
   const groups = new Map();
   let count = 0;
+  let unscored = 0;
   let firstMs = null;
   for (const r of rounds) {
     if (!r.scorecard) continue;
     count++;
+    if (r.scorecard[0].score == null) unscored++;
     if (r.start != null && (firstMs == null || r.start < firstMs)) firstMs = r.start;
     const key = r.scorecard.map((m) => m.name).join('|');
     let g = groups.get(key);
@@ -1209,10 +1372,13 @@ function buildScorecards(rounds) {
     g.rounds++;
     for (const m of r.scorecard) {
       let e = g.metrics.get(m.name);
-      if (!e) g.metrics.set(m.name, (e = { name: m.name, rounds: 0, sum: 0, bestScore: 0, tierCounts: [0, 0, 0, 0, 0] }));
+      if (!e) g.metrics.set(m.name, (e = { name: m.name, rounds: 0, scoredRounds: 0, sum: 0, bestScore: null, tierCounts: [0, 0, 0, 0, 0] }));
       e.rounds++;
-      e.sum += m.score;
-      if (m.score > e.bestScore) e.bestScore = m.score;
+      if (m.score != null) {
+        e.scoredRounds++;
+        e.sum += m.score;
+        if (e.bestScore == null || m.score > e.bestScore) e.bestScore = m.score;
+      }
       e.tierCounts[m.tier - 1]++;
     }
   }
@@ -1222,10 +1388,17 @@ function buildScorecards(rounds) {
       key: g.key,
       label: g.metrics.has('KillStreak') || g.metrics.has('Assists') ? 'Deathmatch modes' : g.metrics.has('Objective') ? 'Objective modes' : 'Other modes',
       rounds: g.rounds,
-      // tierCounts[0] is tier 1, the best
-      metrics: [...g.metrics.values()].map((e) => ({ name: e.name, rounds: e.rounds, avgScore: div(e.sum, e.rounds), bestScore: e.bestScore, tierCounts: e.tierCounts })),
+      // tierCounts[0] is tier 1, the best. Average and best cover scored rounds only.
+      metrics: [...g.metrics.values()].map((e) => ({
+        name: e.name,
+        rounds: e.rounds,
+        scoredRounds: e.scoredRounds,
+        avgScore: e.scoredRounds ? e.sum / e.scoredRounds : null,
+        bestScore: e.bestScore,
+        tierCounts: e.tierCounts,
+      })),
     }));
-  return { has: count > 0, rounds: count, totalRounds: rounds.length, firstMs, groups: out };
+  return { has: count > 0, rounds: count, unscoredRounds: unscored, totalRounds: rounds.length, firstMs, groups: out };
 }
 
 // --- equipped loadouts (2026-09+ `LoadoutItemAssetIDs`) --------------------
@@ -1646,8 +1819,8 @@ function buildEconomy(byType, auditByType, keys) {
   const testTransactions = allTransactions.filter((t) => !t.isLive);
   const grantedCount = transactions.filter((t) => t.granted).length;
 
-  // Steam DLC ownership — rows are duplicated (≈4× per DLC), so dedup on DLCID
-  // and keep the earliest CreatedAt as the "owned since" date.
+  // Steam DLC ownership. Each DLC repeats as identical rows (4 to 9 copies seen), so
+  // dedup on DLCID and keep the earliest CreatedAt as the "owned since" date.
   const dlcMap = new Map();
   for (const d of byType.SteamDLC || []) {
     const id = d.DLCID;
@@ -1954,9 +2127,40 @@ const ipVersion = (s) => (s.includes(':') ? 6 : 4);
 const RETENTION = {
   EOS: 'EOS keeps a windowed snapshot of recent sessions.',
   Anybrain: 'Anybrain logs begin at the integration go-live (2025-07-24).',
-  Denuvo: 'Denuvo keeps a rolling ~6-month window ending at the ban (active platform).',
-  Logins: 'Backend account sign-ins (token grants) — kept for the whole account lifetime.',
+  Denuvo: 'How far back this goes varies by account and can start after your first logged match.',
+  Logins: 'Backend account sign-ins (token grants), kept for the whole account lifetime.',
 };
+
+// Which game a Denuvo product name or a sign-in's `UserLogin.Game` belongs to. `discovery`
+// and `pioneer` are Embark's codenames for THE FINALS and ARC Raiders.
+const gameOfProduct = (name) => (/^the finals/i.test(name || '') ? 'THE FINALS' : /^arc raiders/i.test(name || '') ? 'ARC Raiders' : null);
+const gameOfSignIn = (g) => (/^(the finals|discovery)/i.test(g || '') ? 'THE FINALS' : /^(arc raiders|pioneer)/i.test(g || '') ? 'ARC Raiders' : null);
+const DENUVO_SIGNIN_MS = 15 * 60e3;
+
+// A Denuvo file naming one product covers only that product. The newer single file names
+// both games and says nothing per session, so a session takes the game of the nearest
+// sign-in within 15 minutes, or none.
+function denuvoAttributor(raw) {
+  const signIns = (raw.persistence?.byType?.UserLogin || [])
+    .map((l) => ({ ms: toMs(l.CreatedAt), game: gameOfSignIn(l.Game) }))
+    .filter((l) => l.ms != null && l.game)
+    .sort((a, b) => a.ms - b.ms);
+  return (ms) => {
+    if (ms == null || !signIns.length) return null;
+    let lo = 0;
+    let hi = signIns.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (signIns[mid].ms < ms) lo = mid + 1;
+      else hi = mid;
+    }
+    let best = null;
+    for (const s of [signIns[lo - 1], signIns[lo]]) {
+      if (s && Math.abs(s.ms - ms) <= DENUVO_SIGNIN_MS && (!best || Math.abs(s.ms - ms) < Math.abs(best.ms - ms))) best = s;
+    }
+    return best?.game ?? null;
+  };
+}
 
 // Flatten every anti-cheat source into one comparable session list.
 function collectSessions(raw) {
@@ -1977,10 +2181,17 @@ function collectSessions(raw) {
   for (const r of raw.anybrain.sessions || []) {
     sessions.push({ source: 'Anybrain', start: toMs(r.sessionStart), end: toMs(r.sessionEnd), os: null, ip: r.ipAddress || null, build: null, platform: null });
   }
+  let attribute = null;
   for (const d of raw.denuvo) {
-    const platform = d?.gameInfos?.[0]?.name || null;
+    const products = (Array.isArray(d?.gameInfos) ? d.gameInfos : []).map((g) => g?.name).filter(Boolean);
+    const single = products.length <= 1;
+    if (!single) attribute ??= denuvoAttributor(raw);
     for (const s of d?.sessionInfos || []) {
-      sessions.push({ source: 'Denuvo', start: toMs(s.start), end: toMs(s.end), os: null, ip: null, build: null, platform });
+      const start = toMs(s.start);
+      const game = single ? gameOfProduct(products[0]) : attribute(start);
+      const platform = single ? products[0] || null : products.find((p) => gameOfProduct(p) === game) || null;
+      const attribution = single ? (products[0] ? 'file' : null) : game ? 'signin' : null;
+      sessions.push({ source: 'Denuvo', start, end: toMs(s.end), os: null, ip: null, build: null, platform, game, attribution });
     }
   }
   for (const s of sessions) s.durationMs = s.start != null && s.end != null && s.end > s.start ? s.end - s.start : null;
@@ -2015,6 +2226,17 @@ function buildAntiCheat(raw) {
 
   const sessions = collectSessions(raw);
   const countBy = (name) => sessions.filter((s) => s.source === name).length;
+  const denuvoProducts = [...new Set(raw.denuvo.flatMap((d) => (Array.isArray(d?.gameInfos) ? d.gameInfos : []).map((g) => g?.name).filter(Boolean)))];
+  const denuvoSessions = sessions.filter((s) => s.source === 'Denuvo');
+  const denuvo = raw.denuvo.length
+    ? {
+        products: denuvoProducts,
+        sessions: denuvoSessions.length,
+        attributed: denuvoSessions.filter((s) => s.attribution === 'signin').length,
+        unattributed: denuvoSessions.filter((s) => !s.attribution).length,
+        multiProduct: raw.denuvo.some((d) => Array.isArray(d?.gameInfos) && d.gameInfos.length > 1),
+      }
+    : null;
 
   // Per-source active range + count, for the retention display.
   const sources = ['EOS', 'Anybrain', 'Denuvo']
@@ -2186,7 +2408,8 @@ function buildAntiCheat(raw) {
     // the old "distinct TPM ids" count, which conflated fingerprint methods.
     machineEstimate,
     fingerprintMethods,
-    denuvoPlatforms: raw.denuvo.length,
+    denuvoPlatforms: denuvoProducts.length,
+    denuvo,
   };
 }
 
@@ -2348,7 +2571,17 @@ function buildModeration(rows, chat) {
   };
 }
 
-function buildSupport(raw) {
+// Inbox messages that carry no Title, by MessageName.
+const INBOX_KINDS = {
+  DiscoveryRankUpdateMessage: 'rankUpdate',
+  DiscoveryGiftMessage: 'gift',
+  ReportedUserBannedMessage: 'reportedBan',
+  SharedFriendRequestMessage: 'friendRequest',
+  DiscoveryRankWelcomeMessage: 'rankWelcome',
+  PioneerCompensationMessage: 'compensation',
+};
+
+function buildSupport(raw, keys) {
   const rows = raw.audit?.byType?.ChatMessageSent || [];
   const chat = rows
     .map((c) => {
@@ -2377,6 +2610,16 @@ function buildSupport(raw) {
     .map((m) => {
       const pl = m.Payload && typeof m.Payload === 'object' ? m.Payload : {};
       const rewards = [pl.compensationId, ...(Array.isArray(pl.attachments) ? pl.attachments.map((a) => a?.compensation?.id) : [])].filter(Boolean);
+      // `rsChange` arrives as a string ("798").
+      const rs = pl.rsChange != null && pl.rsChange !== '' ? Number(pl.rsChange) : NaN;
+      const gifts = Array.isArray(pl.receivedGameAssetIds)
+        ? pl.receivedGameAssetIds.map((id) => {
+            const k = keys.item(id);
+            const type = k?.itemType || null;
+            const name = type === 'BattlePass' ? (k.subType && k.subType !== 'Default' ? `Battle Pass (${k.subType})` : 'Battle Pass') : k?.name ?? null;
+            return { id: String(id), name, label: type && Object.hasOwn(ITEM_TYPE_LABELS, type) ? ITEM_TYPE_LABELS[type] : null };
+          })
+        : null;
       return {
         ms: toMs(m.CreatedAt),
         game: m.Game || null,
@@ -2385,6 +2628,11 @@ function buildSupport(raw) {
         body: m.Body || null,
         buttonLabel: m.ButtonLabel || null,
         messageName: m.MessageName || null,
+        kind: Object.hasOwn(INBOX_KINDS, m.MessageName) ? INBOX_KINDS[m.MessageName] : m.Title ? 'text' : 'other',
+        rsChange: Number.isFinite(rs) ? rs : null,
+        reason: typeof pl.reason === 'string' ? pl.reason : null,
+        gifts,
+        adjustment: null, // the ranked revert a weekly rank update reports, joined in buildModel
         rewards: [...new Set(rewards)],
         season: pl.season ?? null,
         sourceType: pl.sourceType ?? null,
@@ -2587,15 +2835,13 @@ function buildEmailTracking(auditByType) {
 
 /** Build the full set of view-models from parsed raw records. */
 // --- World Tour record (2026-09+ `RoundStatSummary.Data.worldTour`) ---------
-// The bucket's counters are all zero on the export this was verified on; what it
-// does carry is the per-season badge score and "finals won" as Embark counts them,
-// and the number of World Tour rounds played (equal to the log's World Tour rounds).
-// The badge score is the sum of placement points (Quick Cash 6/4/2, tournament exits
-// 2/6/14/25, bot Cashout 12/6), exact on all three seasons checked. `FinalsWon`
-// matched the rounds won in World Tour plus Ranked Cashout tournaments, counted only
-// from Season 11, so it is shown under Embark's name with that reading in the copy.
-function buildWorldTour(byType, keys, matches) {
-  const summaries = byType.RoundStatSummary || [];
+// S3 and S4-S8 scored World Tour tournaments only, S9+ every mode (all stored on today's
+// point scale). S3's points ladder stopped at Gold 1; its Emerald came from tournament wins in
+// the Finals stage (`IsWorldTourFinals`), which S3's FinalsWon equals exactly (3.10.0: Emerald 4
+// at 3 wins, Emerald 1 at 63). FinalsWon counts different things by era, so each season records
+// which log count, if any, reproduces it.
+const WT_SYSTEM = (n) => (n == null || n < 3 ? null : n === 3 ? 's3' : n <= 8 ? 'tournaments' : 'allModes');
+function buildWorldTour(summaries, keys, matches) {
   const seasons = new Map();
   let totalEvents = null;
   let streak = null;
@@ -2608,10 +2854,16 @@ function buildWorldTour(byType, keys, matches) {
     for (const s of withKeySeasons(keys.seasons())) if (s.startMs <= ms && (!best || s.startMs > best.startMs)) best = s;
     return best?.n ?? null;
   };
-  const seasonEntry = (seasonId, n) => {
+  const seasonEntry = (seasonId, n, create = true) => {
     const key = n != null ? `n:${n}` : seasonId;
     let e = seasons.get(key);
-    if (!e) seasons.set(key, (e = { seasonId, n, label: n != null ? `Season ${n}` : 'Unknown season', badgeScore: null, finalsWon: null, rounds: 0, tournaments: 0, tournamentsWon: 0 }));
+    if (!e && create) {
+      seasons.set(key, (e = {
+        seasonId, n, label: n != null ? `Season ${n}` : 'Unknown season', badgeScore: null, finalsWon: null, rounds: 0, tournaments: 0, tournamentsWon: 0,
+        finalsStageRounds: 0,
+        logCounts: { finalsStageWins: 0, tournamentsWon: 0, roundsWon: 0 }, // World Tour + Ranked
+      }));
+    }
     return e;
   };
   for (const s of summaries) {
@@ -2638,17 +2890,47 @@ function buildWorldTour(byType, keys, matches) {
     }
   }
   if (!has) return null;
-  for (const m of matches) {
-    if (m.mode?.category !== 'World Tour') continue;
-    const r0 = m.rounds[0];
-    const e = seasonEntry(r0?.seasonId ?? null, seasonOf(r0?.seasonId, m.start));
-    e.rounds += m.rounds.length;
-    e.tournaments++;
-    if (m.tournamentWon) e.tournamentsWon++;
+  // World Tour first (it creates a season's row), then Ranked, which only adds counts.
+  for (const category of ['World Tour', 'Ranked']) {
+    for (const m of matches) {
+      if (m.mode?.category !== category) continue;
+      const r0 = m.rounds[0];
+      const n = seasonOf(r0?.seasonId, m.start);
+      if (n != null && n < 3) continue; // World Tour began in Season 3
+      const e = seasonEntry(r0?.seasonId ?? null, n, category === 'World Tour');
+      if (!e) continue;
+      if (category === 'World Tour') {
+        e.rounds += m.rounds.length;
+        e.tournaments++;
+        if (m.tournamentWon) e.tournamentsWon++;
+        e.finalsStageRounds += m.rounds.filter((r) => r.finalsStage).length;
+        if (m.rounds.some((r) => r.tournamentWon && r.finalsStage)) e.logCounts.finalsStageWins++;
+      }
+      if (m.tournamentWon) e.logCounts.tournamentsWon++;
+      e.logCounts.roundsWon += m.rounds.filter((r) => r.roundWon).length;
+    }
   }
-  // The wiki's thresholds describe the Season 9+ system (every mode pays points); older
-  // seasons ran other World Tour formats, so they get the score only.
-  for (const e of seasons.values()) e.badge = e.n != null && e.n >= 9 && e.badgeScore != null ? worldTourBadge(e.badgeScore) : null;
+  for (const e of seasons.values()) {
+    e.system = WT_SYSTEM(e.n);
+    const fw = e.finalsWon;
+    const c = e.logCounts;
+    if (e.n === 3) {
+      // Emerald 3 and 2 were never published, so between 3 and 62 wins the level is unknown.
+      const wins = fw ?? c.finalsStageWins;
+      e.badge = wins >= 63 ? { ...worldTourTier('Emerald', 1), basis: 'finalsWins' }
+        : wins >= 3 ? { ...worldTourTier('Emerald'), basis: 'finalsWins' }
+        : e.finalsStageRounds > 0 ? { ...worldTourTier('Gold', 1), basis: 'finalsStage' }
+        : null;
+    } else {
+      const b = e.n != null && e.n >= 4 ? worldTourBadge(e.badgeScore) : null;
+      e.badge = b ? { ...b, basis: 'points' } : null;
+    }
+    e.finalsWonMatch = !(fw > 0) ? null
+      : e.n === 3 && c.finalsStageWins === fw ? 'finalsStageWins'
+      : c.tournamentsWon === fw ? 'tournamentsWon'
+      : c.roundsWon === fw ? 'roundsWon'
+      : null;
+  }
   return {
     has: true,
     totalEvents,
@@ -2657,11 +2939,55 @@ function buildWorldTour(byType, keys, matches) {
   };
 }
 
+// --- Quickplay badge, Seasons 6 to 8 (2026-09+ `RoundStatSummary.Data.scores`) -------
+// A separate ladder that never fed World Tour. The wiki's per-result points do not
+// rebuild the stored scores from the log, so only the score and its tier are shown.
+function buildQuickplay(summaries, keys) {
+  const bySeason = new Map();
+  for (const s of summaries) {
+    const qp = s.Data?.scores?.QuickPlayScore;
+    if (!qp || typeof qp !== 'object') continue;
+    for (const id in qp) {
+      const v = qp[id];
+      if (typeof v === 'number' && Number.isFinite(v) && !(bySeason.get(id) >= v)) bySeason.set(id, v);
+    }
+  }
+  if (!bySeason.size) return null;
+  const seasons = [...bySeason.entries()]
+    .map(([seasonId, score]) => {
+      const n = keys.season(seasonId)?.n ?? null;
+      return { seasonId, n, label: n != null ? `Season ${n}` : 'Unknown season', score, badge: quickplayBadge(score) };
+    })
+    .sort((a, b) => (b.n ?? -1) - (a.n ?? -1));
+  return { has: true, seasons };
+}
+
+// A weekly rank-update message reports one ranked revert: the amounts are equal and the
+// message follows within a week (4 of 4 on the export checked). Sums are not attempted.
+const RANK_NOTICE_WINDOW_MS = 7 * 86_400_000;
+function linkRankNotices(adjustments, inbox) {
+  if (!adjustments?.rows.length || !inbox?.messages.length) return;
+  const free = adjustments.rows.filter((r) => r.type === 'REVERT');
+  for (const m of [...inbox.messages].sort((a, b) => (a.ms ?? 0) - (b.ms ?? 0))) {
+    if (m.kind !== 'rankUpdate' || m.reason !== 'DISCOVERY_RANK_UPDATE_REASON_WEEKLY_SUMMARY' || m.rsChange == null || m.ms == null) continue;
+    const i = free.findIndex((r) => r.rs === m.rsChange && m.ms > r.adjustedMs && m.ms - r.adjustedMs <= RANK_NOTICE_WINDOW_MS);
+    if (i < 0) continue;
+    const [r] = free.splice(i, 1);
+    r.notifiedMs = m.ms;
+    m.adjustment = { adjustedMs: r.adjustedMs, rs: r.rs, key: r.key };
+  }
+}
+
 export function buildModel(raw) {
   const byType = raw.persistence.byType;
   const keys = createKeys(raw.keys?.byType);
 
-  const { matches, weapons, weaponsByArchetype, damage, roundCount, rounds, otherGameRounds, unknownRounds } = buildMatchesAndWeapons(byType, keys);
+  const preview = previewRounds(raw.audit?.byType);
+  const { matches, weapons, weaponsByArchetype, damage, roundCount, rounds, otherGameRounds, unknownRounds } = buildMatchesAndWeapons(byType, keys, preview);
+  // Everything but the match list counts only these.
+  const countedRounds = rounds.filter((r) => !r.uncounted);
+  const countedMatches = matches.filter((m) => !m.uncounted);
+  const summaries = liveSummaries(byType.RoundStatSummary || [], rounds);
   const mastery = buildMastery(byType, keys, weapons);
   const lastActivity = matches.reduce((mx, m) => Math.max(mx, m.end ?? m.start ?? 0), 0) || null;
 
@@ -2683,10 +3009,12 @@ export function buildModel(raw) {
   // per won tournament). So derive both from the grouped matches.
   let tournamentsPlayed = 0;
   let tournamentsWon = 0;
-  for (const m of matches) {
+  for (const m of countedMatches) {
     if (m.isTournament) tournamentsPlayed++;
     if (m.tournamentWon) tournamentsWon++;
   }
+  const support = buildSupport(raw, keys);
+  linkRankNotices(ratings.adjustments, support.inbox);
 
   // "Data as of" date, so users don't mistake a snapshot for live data. The SAR
   // README filename carries the request date (parsed in ingest.js); the data
@@ -2715,30 +3043,32 @@ export function buildModel(raw) {
     accounts,
     multiAccount: accounts.length > 1,
     emails: collectEmails(byType, raw.audit?.byType),
-    ban: buildBans(byType),
+    ban: buildBans(byType, raw.audit?.byType),
+    sanctions: buildSanctions(byType, rounds),
     linkedAccounts: buildLinkedAccounts(byType),
     nameHistory: buildNameHistory(raw, accounts),
     inventory: buildInventory(byType, keys),
     social: buildSocial(byType),
-    career: buildCareer(byType, keys),
+    career: buildCareer(byType, keys, summaries.live, rounds.filter((r) => r.uncounted === 'practice')),
     ratings,
     matches,
-    rounds, // chronological normalized rounds (already retained via matches[].rounds)
+    rounds, // chronological normalized rounds, preview and practice ones included (`uncounted`)
     modeBreakdown: buildModeBreakdown(matches),
-    careerModes: buildCareerModes(matches),
-    breakdowns: buildBreakdowns(rounds),
-    loadouts: buildLoadouts(rounds),
-    scorecards: buildScorecards(rounds),
-    records: buildRecords(rounds, matches),
+    careerModes: buildCareerModes(countedMatches),
+    breakdowns: buildBreakdowns(countedRounds),
+    loadouts: buildLoadouts(countedRounds),
+    scorecards: buildScorecards(countedRounds),
+    records: buildRecords(countedRounds, countedMatches),
     weapons,
     weaponsByArchetype,
     damage,
     mastery,
-    worldTour: buildWorldTour(byType, keys, matches),
+    worldTour: buildWorldTour(summaries.live, keys, countedMatches),
+    quickplay: buildQuickplay(summaries.live, keys),
     economy: buildEconomy(byType, raw.audit?.byType, keys),
     antiCheat: buildAntiCheat(raw),
     reports: buildReports(raw),
-    support: buildSupport(raw),
+    support,
     emailTracking: buildEmailTracking(raw.audit?.byType),
     seasons: withKeySeasons(keys.seasons()), // for the time-axis markers
     meta: {
@@ -2747,6 +3077,13 @@ export function buildModel(raw) {
       // ARC Raiders rows, and rows of unrecognised shape. Excluded from every figure above.
       otherGameRounds,
       unknownRounds,
+      // In match history only: rounds played on a preview build or the practice range, and
+      // the preview builds' own summaries (left out of Career totals).
+      uncounted: {
+        previewRounds: rounds.filter((r) => r.uncounted === 'preview').length,
+        practiceRounds: rounds.filter((r) => r.uncounted === 'practice').length,
+        previewSummaries: summaries.preview,
+      },
       tournamentsPlayed,
       tournamentsWon,
       counts: raw.persistence.counts,

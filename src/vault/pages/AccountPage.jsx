@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ShieldAlert, ShieldCheck, Ban, CheckCircle, Link2, Cpu, Monitor, ExternalLink, Flag, BadgeCheck, AlertTriangle, Fingerprint, History } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
-import { PageHeader, Panel, Badge, StatCard, Note, EmptyState, Tooltip } from '../components/ui';
+import { PageHeader, Panel, Badge, StatCard, Note, EmptyState, Tooltip, TogglePill } from '../components/ui';
 import { ListSearch } from '../components/ListSearch';
 import { useListSearch } from '../../hooks/useListSearch';
 import { Pagination } from '../../components/Pagination';
@@ -11,7 +11,7 @@ const Row = ({ label, value, mono, hint }) => (
   <div className="flex justify-between gap-4 py-1.5 border-b border-gray-700/50 last:border-0 text-sm">
     <span className="text-gray-400 shrink-0">
       {hint ? (
-        <Tooltip label={hint}>
+        <Tooltip label={hint} align="start">
           <span className="underline decoration-dotted decoration-gray-600 underline-offset-2 cursor-help">{label}</span>
         </Tooltip>
       ) : (
@@ -32,13 +32,13 @@ const EMAIL_SOURCE_LABEL = { profile: 'Profile', audit: 'Profile log', sent: 'Se
 
 // Green check when the email is verified (tooltip shows when), amber warning when
 // it isn't. `at` is Profile.EmailVerifiedAt (null/absent ⇒ unverified).
-const EmailVerifiedMark = ({ at }) =>
+const EmailVerifiedMark = ({ at, align }) =>
   at ? (
-    <Tooltip side="bottom" label={`Email verified ${dateTime(at)}`}>
+    <Tooltip side="bottom" align={align} label={`Email verified ${dateTime(at)}`}>
       <BadgeCheck className="w-4 h-4 text-emerald-400 shrink-0" aria-label={`Email verified ${dateTime(at)}`} />
     </Tooltip>
   ) : (
-    <Tooltip side="bottom" label="Email not verified">
+    <Tooltip side="bottom" align={align} label="Email not verified">
       <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" aria-label="Email not verified" />
     </Tooltip>
   );
@@ -74,7 +74,7 @@ const NameTimeline = ({ span }) => {
               </span>
               <span className="text-xs text-gray-500 whitespace-nowrap">
                 {date(s.firstMs)}
-                {s.lastMs && s.lastMs !== s.firstMs ? ` – ${date(s.lastMs)}` : ''}
+                {s.lastMs && s.lastMs !== s.firstMs ? ` to ${date(s.lastMs)}` : ''}
               </span>
             </li>
           );
@@ -148,8 +148,138 @@ const RestrictionCard = ({ r, lastActivity }) => {
               </>
             )}
           </div>
+          {r.audit && (r.audit.source || r.audit.tenancy || r.audit.steamGameBan != null) && (
+            <div className="mt-3 pt-3 border-t border-gray-700/50">
+              <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-1">From the audit file</p>
+              <div className="grid sm:grid-cols-2 gap-x-8">
+                {r.audit.source && (
+                  <Row
+                    label="Created from"
+                    value={r.audit.source}
+                    mono
+                    hint={
+                      r.audit.source === 'PLAYER_VIEW' ? (
+                        <>
+                          Inferred from the name, not documented: <code>PLAYER_VIEW</code> points to a staff screen for viewing one player, so a manual action
+                          rather than an automated flag.
+                        </>
+                      ) : undefined
+                    }
+                  />
+                )}
+                {(r.audit.scope || r.audit.tenancy) && (
+                  <Row
+                    label="Scope"
+                    value={r.audit.scope || r.audit.tenancy}
+                    hint={r.audit.scope && r.audit.tenancy ? <>From the audit record’s <code>tenancy</code>, <code>{r.audit.tenancy}</code>.</> : undefined}
+                  />
+                )}
+                {r.audit.steamGameBan != null && (
+                  <Row label="Steam game ban" value={r.audit.steamGameBan ? 'Issued' : 'Not issued'} hint={<>From <code>issue_steam_game_ban</code> on the audit record.</>} />
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
+    </Panel>
+  );
+};
+
+// Sign-ins the backend refused because of a restriction (2026-09+ `RestrictedLogin`).
+const SIGNINS_PER_PAGE = 10;
+const BlockedSignIns = ({ rows }) => {
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(rows.length / SIGNINS_PER_PAGE));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * SIGNINS_PER_PAGE;
+  return (
+    <Panel title={`Blocked sign-ins (${num(rows.length)})`}>
+      <ul className="space-y-2">
+        {rows.slice(start, start + SIGNINS_PER_PAGE).map((s, i) => (
+          <li key={start + i} className="flex flex-wrap items-center gap-x-3 gap-y-1 bg-gray-900/50 rounded-lg px-3 py-2 text-sm">
+            <span className="text-gray-300 tabular-nums">{dateTime(s.ms)}</span>
+            {s.provider && <Badge tone="blue">{providerLabel(s.provider)}</Badge>}
+            {s.game && <span className="text-xs text-gray-400">{s.game}</span>}
+            <span className="ml-auto font-mono text-xs text-gray-400">{s.ip || '—'}</span>
+          </li>
+        ))}
+      </ul>
+      {totalPages > 1 && (
+        <div className="mt-4">
+          <Pagination currentPage={safePage} totalPages={totalPages} startIndex={start} endIndex={start + SIGNINS_PER_PAGE} totalItems={rows.length} onPageChange={setPage} edgeScroll={false} variant="compact" />
+        </div>
+      )}
+      <Note>
+        <code>RestrictedLogin</code> rows: sign-ins refused because the account was restricted at the time.
+      </Note>
+    </Panel>
+  );
+};
+
+// Matchmaking cooldowns for leaving a tournament, separate from restrictions.
+const SANCTIONS_SHOWN = 8;
+const SanctionsPanel = ({ sanctions }) => {
+  const [showAll, setShowAll] = useState(false);
+  const items = showAll ? sanctions.items : sanctions.items.slice(0, SANCTIONS_SHOWN);
+  const hasTier = sanctions.items.some((it) => it.tier != null);
+  const hasStub = sanctions.items.some((it) => it.source === 'stub');
+  const hasRow = sanctions.items.some((it) => it.source === 'inventory');
+  return (
+    <Panel title="Matchmaking sanctions">
+      <ul className="space-y-2">
+        {items.map((it, i) => (
+          <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm border-b border-gray-700/40 last:border-0 pb-2 last:pb-0">
+            <span className="text-gray-400 text-xs tabular-nums w-36 shrink-0">{dateTime(it.atMs)}</span>
+            {it.source === 'stub' ? (
+              <span className="text-gray-300">Latest sanction</span>
+            ) : (
+              <>
+                {it.tier != null && <Badge tone="yellow">Tier {it.tier}</Badge>}
+                <span className="text-gray-200">
+                  {it.label || 'Matchmaking sanction'}
+                  {it.round?.mode && (
+                    <span className="text-gray-500" title="The tournament round in your match log at this time.">
+                      {' '}
+                      ({it.round.mode})
+                    </span>
+                  )}
+                </span>
+                {it.durationSec != null && <span className="text-gray-500 text-xs">{num(Math.round(it.durationSec / 60))} min cooldown</span>}
+                {it.wholeAccount === true && <Badge tone="gray">Whole account</Badge>}
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+      {sanctions.items.length > SANCTIONS_SHOWN && (
+        <div className="mt-3">
+          <TogglePill on={showAll} onChange={setShowAll}>
+            {showAll ? 'Show fewer' : `Show all ${num(sanctions.items.length)}`}
+          </TogglePill>
+        </div>
+      )}
+      {(hasTier || hasStub || hasRow) && (
+        <Note>
+          {hasTier && (
+            <>
+              <code>Tier</code> is, per Embark’s README, “the step on an escalating scale that decays over time”.
+            </>
+          )}
+          {hasRow && (
+            <>
+              {' '}
+              This export keeps one <code>InventoryItem</code> row for sanctions, holding only the latest.
+            </>
+          )}
+          {hasStub && (
+            <>
+              {' '}
+              Some exports keep only the time of the latest sanction, on an <code>InventoryItem</code> row with no reason, tier or duration.
+            </>
+          )}
+        </Note>
+      )}
     </Panel>
   );
 };
@@ -164,7 +294,15 @@ const banSummary = (ban) => {
 };
 
 const REPORTS_PER_PAGE = 10;
-const reasonTone = { Cheating: 'red', 'Verbal abuse': 'yellow', 'Offensive name': 'purple', Teaming: 'blue' };
+// `PlayerReport.reason` is Embark's enum value.
+const REPORT_REASONS = {
+  Cheating: ['Cheating', 'red'],
+  VerbalAbuse: ['Verbal abuse', 'yellow'],
+  OffensiveProfile: ['Offensive profile', 'purple'],
+  Exploiting: ['Exploiting', 'fuchsia'],
+  Spamming: ['Spamming', 'blue'],
+};
+const reasonBadge = (reason) => (Object.hasOwn(REPORT_REASONS, reason) ? REPORT_REASONS[reason] : [String(reason).replace(/([a-z])([A-Z])/g, '$1 $2'), 'gray']);
 
 // Reports the player FILED against other players
 const ReportsPanel = ({ data }) => {
@@ -172,7 +310,7 @@ const ReportsPanel = ({ data }) => {
   const { count, reports } = data;
   const { query, setQuery, filtered } = useListSearch(
     reports,
-    (r) => [r.message, r.reason],
+    (r) => [r.message, reasonBadge(r.reason)[0]],
     () => setPage(1)
   );
   const totalPages = Math.max(1, Math.ceil(filtered.length / REPORTS_PER_PAGE));
@@ -217,7 +355,7 @@ const ReportsPanel = ({ data }) => {
                 {slice.map((r, i) => (
                   <tr key={start + i} className="border-b border-gray-700/40 last:border-0 align-top">
                     <td className="py-2 px-3 text-gray-300 whitespace-nowrap">{dateTime(r.loggedAt)}</td>
-                    <td className="py-2 px-3"><Badge tone={reasonTone[r.reason] || 'gray'}>{r.reason}</Badge></td>
+                    <td className="py-2 px-3"><Badge tone={reasonBadge(r.reason)[1]}>{reasonBadge(r.reason)[0]}</Badge></td>
                     <td className="py-2 px-3 text-gray-300">{r.message || <span className="text-gray-600">no note added</span>}</td>
                   </tr>
                 ))}
@@ -253,7 +391,11 @@ const ReportsPanel = ({ data }) => {
 
 // Friends, blocks and club. The export never says who, so this is counts and dates.
 const SocialPanel = ({ social }) => {
-  const { friends, blocked, club } = social;
+  const { friends, blocked, club, clubEvents, clubInvites } = social;
+  const joins = clubEvents?.joinsMs ?? [];
+  const invites = clubInvites
+    ? [clubInvites.sent > 0 && `${num(clubInvites.sent)} sent`, clubInvites.received > 0 && `${num(clubInvites.received)} received`].filter(Boolean)
+    : [];
   return (
     <Panel title="Social">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -276,20 +418,32 @@ const SocialPanel = ({ social }) => {
           <>
             <Row label="Club" value={club.tag ? `${club.name} [${club.tag}]` : club.name} />
             <Row label="Club role" value={club.role} />
-            <Row label="Member since" value={date(club.memberSinceMs)} />
+            <Row label="Member since" value={date(club.memberSinceMs)} hint={<>From <code>ClanMembership.CreatedAt</code>, when your current membership began.</>} />
+            {joins.length > 1 && (
+              <Row
+                label="Joined"
+                value={joins.length === 2 ? `${date(joins[0])} and ${date(joins[1])}` : `${num(joins.length)} times, ${date(joins[0])} to ${date(joins.at(-1))}`}
+                hint={<>From the <code>TYPE_MEMBER_JOINED</code> club events.</>}
+              />
+            )}
           </>
         )}
         {social.questsCompleted != null && <Row label="Club quests completed" value={num(social.questsCompleted)} />}
-        {social.timeline.count > 0 && (
-          <Row label="Club membership events" value={`${num(social.timeline.count)}, ${date(social.timeline.firstMs)} → ${date(social.timeline.lastMs)}`} />
+        {clubEvents && (
+          <Row
+            label="Club events"
+            value={`${num(clubEvents.total)}, ${date(clubEvents.firstMs)} to ${date(clubEvents.lastMs)}`}
+            hint={<>From <code>ClanTimelineMessage</code>: {clubEvents.byType.map((t) => `${num(t.count)} ${t.label.toLowerCase()}`).join(', ')}.</>}
+          />
         )}
+        {invites.length > 0 && <Row label="Club invites" value={invites.join(', ')} hint={<>From <code>ClanInvite</code> records, each a direction and a date.</>} />}
       </div>
 
       <Note>
         The export names nobody you are friends with or blocked, so this is counts and dates only. Those are other
         players’ data, and Embark redacts them.
         {!friends.directionKnown && friends.total > 0 && ' This export does not say how many requests you sent and how many you received.'}
-        {social.mayHaveRejoined && ' Your club’s membership log starts before your current join date, so you may have left and rejoined.'}
+        {clubEvents && ' Club events carry no text, author or target.'}
       </Note>
     </Panel>
   );
@@ -329,15 +483,18 @@ export const AccountPage = () => {
           {ban.all.map((r, i) => (
             <RestrictionCard key={i} r={r} lastActivity={meta.lastActivity} />
           ))}
+          {ban.blockedSignIns.length > 0 && <BlockedSignIns rows={ban.blockedSignIns} />}
         </div>
       )}
+
+      {model.sanctions?.has && <SanctionsPanel sanctions={model.sanctions} />}
 
       {/* Anti-cheat kicks */}
       <Panel title="Anti-cheat kicks">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
           <StatCard label="EAC kicks" value={num(antiCheat.kickCount)} accent={antiCheat.kickCount ? 'text-red-400' : 'text-white'} />
           <StatCard label="EOS sessions" value={num(antiCheat.eosSessionCount)} />
-          <StatCard label="Denuvo platforms" value={num(antiCheat.denuvoPlatforms)} />
+          <StatCard label="Denuvo products" value={num(antiCheat.denuvoPlatforms)} />
           <StatCard label="Anybrain sessions" value={num(antiCheat.anybrainSessionCount)} />
         </div>
         {antiCheat.kickCount > 0 ? (
@@ -406,7 +563,7 @@ export const AccountPage = () => {
             <span className="text-gray-400 shrink-0">Email</span>
             <span className="text-white font-medium inline-flex items-center gap-1.5 min-w-0 justify-end">
               <span className="truncate">{identity.email ?? '—'}</span>
-              {identity.email && <EmailVerifiedMark at={identity.emailVerifiedAt} />}
+              {identity.email && <EmailVerifiedMark at={identity.emailVerifiedAt} align="end" />}
             </span>
           </div>
           <Row label="Country" value={identity.countryCode} />

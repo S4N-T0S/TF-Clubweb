@@ -205,6 +205,7 @@ function parseRankUpdates(byType, keys) {
     clean.push({
       seasonId,
       ms,
+      adjustedMs: toMs(r?.AdjustedAt), // 2026-09+, adjustment rows only: when that run started
       tournamentId: r.TournamentID != null && r.TournamentID !== '' ? String(r.TournamentID) : null,
       updateType: typeof r.UpdateType === 'string' ? r.UpdateType : 'NORMAL',
       before,
@@ -271,6 +272,7 @@ function parseRankUpdates(byType, keys) {
   // Per-tournament summary for the match card, rounded here so the UI adds up.
   const byTournament = new Map();
   const matchMsByTid = new Map();
+  const adjustmentRows = [];
   for (const [tid, list] of tourneyRows) {
     const primary = list.find((r) => r.updateType === 'NORMAL') || list[0];
     // Only a row for the match itself dates the match. `primary` falls back to
@@ -320,6 +322,23 @@ function parseRankUpdates(byType, keys) {
         s.bonusMatches++;
       }
     }
+    // Each REVERT / UNDO_REVERT as its own event. Its amount is not the tournament's
+    // change reversed: 1 of 18 mirrors it on the export checked.
+    const events = adjustments.map((r, i) => ({
+      tournamentId: tid,
+      type: r.updateType,
+      seasonId: r.seasonId,
+      seasonN,
+      matchMs: playedRow ? primary.ms : null,
+      adjustedMs: r.ms,
+      runMs: r.adjustedMs,
+      lagMs: playedRow ? r.ms - primary.ms : null,
+      rs: Math.round((r.after - r.before) * RP_PER_MU),
+      originalRs: playedRow ? delta : null,
+      placement: playedRow && primary.positionIndex != null ? primary.positionIndex + 1 : null,
+      undone: r.updateType === 'REVERT' && adjustments.slice(i + 1).some((x) => x.updateType === 'UNDO_REVERT'),
+    }));
+    adjustmentRows.push(...events);
     byTournament.set(tid, {
       before,
       after,
@@ -331,6 +350,7 @@ function parseRankUpdates(byType, keys) {
       penalty,
       ladder,
       adjusted: lastAdjust?.updateType === 'REVERT' ? 'reverted' : penalised ? 'penalty' : null,
+      adjustments: events.map(({ type, rs, adjustedMs, undone }) => ({ type, rs, adjustedMs, undone })),
     });
   }
 
@@ -346,7 +366,7 @@ function parseRankUpdates(byType, keys) {
     }
   }
 
-  return { bySeason, byTournament, rowCount: clean.length, dropped };
+  return { bySeason, byTournament, adjustmentRows, rowCount: clean.length, dropped };
 }
 
 // --- ranked, per season ----------------------------------------------------
@@ -683,6 +703,41 @@ function buildOpenSkill(records) {
   return list;
 }
 
+// REVERT / UNDO_REVERT across the whole log. Embark's README: a revert undoes an earlier
+// rating change, most often because a cheater was found in the match, and can raise or
+// lower the rating. The runs start at one hour of the day (09:00 UTC on the export checked).
+function summarizeAdjustments(rows) {
+  if (!rows.length) return null;
+  const reverts = rows.filter((r) => r.type === 'REVERT');
+  const sum = (xs) => xs.reduce((s, r) => s + r.rs, 0);
+  const lags = reverts.map((r) => r.lagMs).filter((v) => v != null).sort((a, b) => a - b);
+  const mid = lags.length >> 1;
+  const hours = new Map();
+  for (const r of rows) {
+    if (r.runMs == null) continue;
+    const h = new Date(r.runMs).getUTCHours();
+    hours.set(h, (hours.get(h) || 0) + 1);
+  }
+  let runHourUtc = null;
+  let top = 0;
+  for (const [h, n] of hours) if (n > top) [top, runHourUtc] = [n, h];
+  return {
+    count: rows.length,
+    reverts: reverts.length,
+    undos: rows.length - reverts.length,
+    netRs: sum(rows),
+    revertRs: sum(reverts),
+    raised: reverts.filter((r) => r.rs > 0).length,
+    lowered: reverts.filter((r) => r.rs < 0).length,
+    unchanged: reverts.filter((r) => r.rs === 0).length,
+    lagMs: lags.length ? { min: lags[0], median: lags.length % 2 ? lags[mid] : (lags[mid - 1] + lags[mid]) / 2, max: lags.at(-1) } : null,
+    runHourUtc,
+    rows: [...rows]
+      .sort((a, b) => b.adjustedMs - a.adjustedMs)
+      .map((r) => ({ ...r, key: `${r.tournamentId}:${r.adjustedMs}`, seasonLabel: r.seasonN != null ? `S${r.seasonN}` : null, notifiedMs: null })),
+  };
+}
+
 // --- public entry ----------------------------------------------------------
 export function buildRatings(byType, keys = STATIC_KEYS) {
   const records = parseRatingRecords(byType);
@@ -698,6 +753,7 @@ export function buildRatings(byType, keys = STATIC_KEYS) {
     recordCount: records.length,
     // tournamentId → per-match rank change, for the match cards.
     rankedTournaments: rankUpdates.byTournament,
+    adjustments: summarizeAdjustments(rankUpdates.adjustmentRows),
     rankUpdateRows: rankUpdates.rowCount,
     rankUpdateDropped: rankUpdates.dropped,
   };

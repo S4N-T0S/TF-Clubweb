@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react';
-import { Gauge, Trophy, TrendingUp, ChevronDown, Crown, Swords, Target, Maximize2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { Gauge, Trophy, TrendingUp, ChevronDown, ChevronRight, Crown, Swords, Target, Maximize2 } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, StatCard, Badge, Note, EmptyState } from '../components/ui';
 import { VaultGraphModal } from '../components/VaultGraphModal';
+import { VaultMatchModal } from '../components/VaultMatchModal';
+import { Pagination } from '../../components/Pagination';
 import { DEFAULT_GRAPH_SETTINGS } from '../lib/rankChart';
-import { num, decimal, date } from '../lib/format';
+import { num, decimal, date, ordinal } from '../lib/format';
 import { leagueAbbrev, RANK_TIERS, RANKED_POINTS_PER_DIVISION, PERFORMANCE_BONUS_MAX_SCORE } from '../lib/ratings';
 
 // Coloured rank name (Bronze..Ruby), with a swatch dot.
@@ -142,6 +145,164 @@ const RankedChart = ({ seasons }) => {
 // flatten the longest histories. The y-scale is shared so panels compare.
 const CURVE_W = 120;
 const CURVE_H = 56;
+
+// World Tour record: where a Season 3 badge was read from, and which log count a
+// season's FinalsWon matches.
+const s3BadgeTip = (b) => {
+  if (b.basis === 'finalsWins') {
+    return b.level === 1
+      ? 'Read from Finals won: 63 tournament wins in the World Tour Finals stage made Emerald 1 in Season 3 (Update 3.10.0).'
+      : 'Read from Finals won: 3 tournament wins in the World Tour Finals stage made Emerald 4 and 63 made Emerald 1 (Update 3.10.0), and the steps between were never published.';
+  }
+  if (b.basis === 'finalsStage') return 'Read from your rounds in the World Tour Finals stage, which opened at Gold 1, the top of Season 3’s points ladder.';
+  return undefined;
+};
+const finalsWonTitle = (s) => {
+  const n = s.logCounts[s.finalsWonMatch];
+  const plural = n === 1 ? '' : 's';
+  if (s.finalsWonMatch === 'finalsStageWins') return `Matches the ${num(n)} World Tour tournament${plural} your log shows you won in the Finals stage.`;
+  if (s.finalsWonMatch === 'tournamentsWon') return `Matches the ${num(n)} World Tour and Ranked tournament${plural} your log shows you won.`;
+  return `Matches the ${num(n)} World Tour and Ranked round${plural} your log shows you won, not tournaments.`;
+};
+
+// REVERT / UNDO_REVERT rows (model.ratings.adjustments). Its own component so the
+// page's early return above can't split the hooks.
+const ADJ_PER_PAGE = 10;
+const lagText = (ms) => (ms < 48 * 3_600_000 ? `${decimal(ms / 3_600_000, 1)} hours` : `${decimal(ms / 86_400_000, 1)} days`);
+const RankAdjustments = ({ adj, matchesByTournament }) => {
+  // The Support inbox links here with router state `adjustment` (a row's `key`). Read once, so a
+  // later navigation to this page cannot cancel the highlight's timer.
+  const location = useLocation();
+  const [focusKey] = useState(() => location.state?.adjustment ?? null);
+  const [page, setPage] = useState(() => {
+    const i = focusKey ? adj.rows.findIndex((r) => r.key === focusKey) : -1;
+    return i >= 0 ? Math.floor(i / ADJ_PER_PAGE) + 1 : 1;
+  });
+  const [focus, setFocus] = useState(focusKey);
+  const [openMatch, setOpenMatch] = useState(null);
+  const listRef = useRef(null);
+  useEffect(() => {
+    if (!focusKey) return undefined;
+    const raf = requestAnimationFrame(() => {
+      const li = listRef.current?.querySelector(`[data-adj="${CSS.escape(focusKey)}"]`);
+      li?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      li?.querySelector('button')?.focus({ preventScroll: true });
+    });
+    const t = setTimeout(() => setFocus(null), 2500);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, [focusKey]);
+  const sign = (v) => `${v > 0 ? '+' : ''}${num(v || 0)}`;
+  const tone = (v) => (v > 0 ? 'text-emerald-300' : v < 0 ? 'text-red-300' : 'text-gray-400');
+  const totalPages = Math.max(1, Math.ceil(adj.rows.length / ADJ_PER_PAGE));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * ADJ_PER_PAGE;
+  const notified = adj.rows.some((r) => r.notifiedMs != null);
+  return (
+    <Panel title="Rank adjustments">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+        <div className="bg-gray-900/50 rounded-lg p-3">
+          <p className="text-[11px] uppercase tracking-wider text-gray-500">Reverts</p>
+          <p className="text-xl font-bold text-white mt-1 tabular-nums">{num(adj.reverts)}</p>
+          {adj.reverts > 0 && (
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {num(adj.raised)} raised, {num(adj.lowered)} lowered{adj.unchanged > 0 ? `, ${num(adj.unchanged)} unchanged` : ''}
+            </p>
+          )}
+        </div>
+        <div className="bg-gray-900/50 rounded-lg p-3">
+          <p className="text-[11px] uppercase tracking-wider text-gray-500">Net effect</p>
+          <p className={`text-xl font-bold mt-1 tabular-nums ${adj.netRs > 0 ? 'text-emerald-400' : adj.netRs < 0 ? 'text-red-400' : 'text-white'}`}>{sign(adj.netRs)} RS</p>
+          {adj.undos > 0 && (
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              reverts {sign(adj.revertRs)}, undos {sign(adj.netRs - adj.revertRs)}
+            </p>
+          )}
+        </div>
+        {adj.lagMs && (
+          <div className="bg-gray-900/50 rounded-lg p-3">
+            <p className="text-[11px] uppercase tracking-wider text-gray-500">Typical delay</p>
+            <p className="text-xl font-bold text-white mt-1 tabular-nums">{lagText(adj.lagMs.median)}</p>
+            {adj.lagMs.min !== adj.lagMs.max && (
+              <p className="text-[11px] text-gray-500 mt-0.5">
+                {lagText(adj.lagMs.min)} to {lagText(adj.lagMs.max)}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      <ul ref={listRef} className="space-y-1.5">
+        {adj.rows.slice(start, start + ADJ_PER_PAGE).map((r, i) => {
+          const match = matchesByTournament.get(r.tournamentId);
+          const result = [r.placement != null && `${ordinal(r.placement)} of 8`, r.originalRs != null && `${sign(r.originalRs)} RS`].filter(Boolean).join(', ');
+          const parts = [
+            r.matchMs != null ? `Played ${date(r.matchMs)}` : match ? `Played ${date(match.start)}` : 'Tournament not in this export',
+            result,
+            r.lagMs != null ? `adjusted ${lagText(r.lagMs)} later` : `adjusted ${date(r.adjustedMs)}`,
+            r.notifiedMs != null && `in your inbox ${date(r.notifiedMs)}`,
+          ].filter(Boolean);
+          const body = (
+            <>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                {r.seasonLabel && <span className="text-sm font-semibold text-gray-100">{r.seasonLabel}</span>}
+                <Badge tone="yellow">{r.type === 'UNDO_REVERT' ? 'Undo revert' : 'Revert'}</Badge>
+                {r.undone && <span className="text-[10px] text-gray-500">later undone</span>}
+                <span className={`ml-auto text-sm font-bold tabular-nums ${tone(r.rs)}`}>{sign(r.rs)} RS</span>
+                {match && <ChevronRight className="w-4 h-4 text-gray-500 shrink-0" aria-hidden="true" />}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">{parts.join(' · ')}</p>
+            </>
+          );
+          return (
+            <li key={`${r.key}:${start + i}`} data-adj={r.key} className={`rounded-lg bg-gray-950/45 transition-shadow ${focus === r.key ? 'ring-1 ring-emerald-400/70' : ''}`}>
+              {match ? (
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  onClick={() => setOpenMatch(match)}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-700/30 transition-colors"
+                >
+                  {body}
+                </button>
+              ) : (
+                <div className="px-3 py-2">{body}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {openMatch && <VaultMatchModal match={openMatch} onClose={() => setOpenMatch(null)} />}
+      {adj.rows.length > ADJ_PER_PAGE && (
+        <div className="mt-3">
+          <Pagination
+            currentPage={safePage}
+            totalPages={totalPages}
+            startIndex={start}
+            endIndex={start + ADJ_PER_PAGE}
+            totalItems={adj.rows.length}
+            onPageChange={setPage}
+            edgeScroll={false}
+            variant="compact"
+          />
+        </div>
+      )}
+      <Note>
+        Each row is a <code>REVERT</code> or <code>UNDO_REVERT</code> entry in <code>RankUpdate</code>, tied to the tournament it adjusts by{' '}
+        <code>TournamentID</code>, and your season totals already include it. Embark’s README says most reverts come from a cheater found in the
+        match and that a revert can raise or lower a rating. Its amount usually differs from the tournament’s own change.
+        {notified && ' An inbox date marks the weekly rank-update message that reported that exact amount.'}
+        {adj.runHourUtc != null && (
+          <>
+            {' '}
+            Rows written in the same run share one <code>AdjustedAt</code>, most often {String(adj.runHourUtc).padStart(2, '0')}:00 UTC in this export.
+          </>
+        )}
+      </Note>
+    </Panel>
+  );
+};
 
 const SeasonCurves = ({ seasons, onOpen }) => {
   const panels = useMemo(() => {
@@ -394,10 +555,7 @@ export const RatingsPage = () => {
                   <th className="text-left py-2 pr-3 font-medium">Season</th>
                   <th className="text-right py-2 px-3 font-medium">Badge score</th>
                   <th className="text-right py-2 px-3 font-medium">
-                    <span
-                      className="border-b border-dotted border-gray-500 cursor-help"
-                      title="Embark’s own counter. On the export we checked it equalled the rounds won across World Tour and Ranked Cashout tournaments, counted from Season 11 on, so it runs higher than Tournaments won."
-                    >
+                    <span className="border-b border-dotted border-gray-500 cursor-help" title="Embark’s own FinalsWon counter, which counted different things in different seasons.">
                       Finals won
                     </span>
                   </th>
@@ -412,14 +570,39 @@ export const RatingsPage = () => {
                     <td className="py-2 pr-3 text-gray-200 font-medium whitespace-nowrap">{s.label}</td>
                     <td className="py-2 px-3 text-right tabular-nums text-gray-300 whitespace-nowrap">
                       {s.badge && (
-                        <span className={`font-semibold mr-2 ${s.badge.text}`}>
+                        <span
+                          className={`font-semibold mr-2 ${s.badge.text} ${s.badge.basis !== 'points' ? 'border-b border-dotted border-gray-500 cursor-help' : ''}`}
+                          title={s3BadgeTip(s.badge)}
+                        >
                           <span className="inline-block w-2.5 h-2.5 rounded-full align-middle mr-1.5" style={{ background: s.badge.color }} />
-                          {s.badge.label}
+                          {s.badge.level == null && s.badge.name === 'Emerald' ? 'Emerald 4 to 2' : s.badge.label}
                         </span>
                       )}
                       {num(s.badgeScore)}
+                      {s.system && (
+                        <span className="block sm:inline text-[10px] font-normal text-gray-500 sm:ml-1.5">
+                          {s.system === 'allModes' ? 'every mode' : 'tournaments only'}
+                          {s.badge?.basis === 'finalsWins' && ' · badge from Finals won'}
+                          {s.badge?.basis === 'finalsStage' && ' · badge from Finals stage'}
+                        </span>
+                      )}
                     </td>
-                    <td className="py-2 px-3 text-right tabular-nums text-gray-300">{num(s.finalsWon)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums text-gray-300">
+                      {s.finalsWonMatch ? (
+                        <span className="border-b border-dotted border-gray-600 cursor-help" title={finalsWonTitle(s)}>
+                          {num(s.finalsWon)}
+                        </span>
+                      ) : s.finalsWon === 0 && s.tournamentsWon > 0 && s.n !== 3 ? (
+                        <span
+                          className="border-b border-dotted border-gray-600 cursor-help"
+                          title={`Embark’s counter reads 0 although your log shows ${num(s.tournamentsWon)} World Tour tournament win${s.tournamentsWon === 1 ? '' : 's'} this season.`}
+                        >
+                          0
+                        </span>
+                      ) : (
+                        num(s.finalsWon)
+                      )}
+                    </td>
                     <td className="py-2 px-3 text-right tabular-nums text-gray-400 whitespace-nowrap">{s.rounds > 0 ? num(s.rounds) : '0 in log'}</td>
                     <td className="py-2 px-3 text-right tabular-nums text-gray-400">{s.tournaments > 0 ? num(s.tournaments) : '—'}</td>
                     <td className="py-2 pl-3 text-right tabular-nums text-gray-400">{s.tournaments > 0 ? num(s.tournamentsWon) : '—'}</td>
@@ -429,11 +612,41 @@ export const RatingsPage = () => {
             </table>
           </div>
           <Note>
-            Total events, badge score and finals won come from the lifetime <code>worldTour</code> summary. From Season 9 the badge score is your World
-            Tour points summed per placement and the badge beside it follows the thresholds on thefinals.wiki. Earlier seasons scored tournament Win Points
-            on a scale the export does not describe, so they show the score alone. Finals won matched the rounds you won across World Tour and Ranked
-            Cashout tournaments from Season 11 on. Rounds, tournaments and tournaments won come from your match log, and the two sources do not always
-            cover the same seasons, so a season can carry a badge score with no rounds beside it, or rounds with no badge score.
+            Total events, badge score and Finals won come from the lifetime <code>worldTour</code> summary, and rounds, tournaments and tournaments won
+            from your match log. The two do not always cover the same seasons. What counts toward the badge score is labelled with each score, and
+            scores under different labels do not compare. From Season 4 the badge is worked out from the score.
+            {wtRecord.seasons.some((s) => s.n === 3) &&
+              ' Season 3’s score is stored on today’s point scale rather than the one its own tiers used, so its badge is read from the World Tour Finals stage (Gold 1 to enter, Emerald from 3 wins) and is left blank below that.'}
+            {' Finals won is Embark’s own counter and counted different things in different seasons'}
+            {wtRecord.seasons.some((s) => s.n >= 4 && s.n <= 8) &&
+              wtRecord.seasons.every((s) => !(s.n >= 4 && s.n <= 8) || s.finalsWon === 0) &&
+              ', reading 0 for Seasons 4 to 8 on every export checked'}
+            .
+          </Note>
+        </Panel>
+      )}
+
+      {model.quickplay?.has && model.quickplay.seasons.length > 0 && (
+        <Panel title="Quickplay badge">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {model.quickplay.seasons.map((s) => (
+              <div key={s.seasonId} className="bg-gray-900/50 rounded-lg p-3">
+                <p className="text-[11px] uppercase tracking-wider text-gray-500">{s.label}</p>
+                <p className="text-xl font-bold text-white mt-1 tabular-nums">{num(s.score)}</p>
+                {s.badge ? (
+                  <p className={`text-xs font-semibold mt-0.5 ${s.badge.text}`}>
+                    <span className="inline-block w-2 h-2 rounded-full align-middle mr-1.5" style={{ background: s.badge.color }} />
+                    {s.badge.label}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-0.5">no badge</p>
+                )}
+              </div>
+            ))}
+          </div>
+          <Note>
+            Scores come from <code>QuickPlayScore</code>, which the export holds only for Seasons 6 to 8, and each badge is worked out from its score.
+            The Quickplay badge never counted toward World Tour.
           </Note>
         </Panel>
       )}
@@ -488,6 +701,8 @@ export const RatingsPage = () => {
           </Note>
         </Panel>
       )}
+
+      {ratings.adjustments && <RankAdjustments adj={ratings.adjustments} matchesByTournament={matchesByTournament} />}
 
       {/* Ranked history */}
       {ranked.seasons.length > 0 && (
