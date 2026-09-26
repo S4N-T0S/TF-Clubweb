@@ -58,6 +58,7 @@ const matchDebugText = (m) => {
     'THE FINALS — match debug',
     `mode:        ${m.mode?.label ?? '—'} (${m.mode?.category ?? '—'})${m.mode?.confirmed ? '' : ' [heuristic]'}`,
     `scenarioId:  ${scenarios.join(', ') || '—'}`,
+    ...(m.wtEvent ? [`wtEvent:     ${m.wtEvent.internal ?? '—'} · ${m.wtEvent.label}`] : []),
     `tournament:  ${m.tournamentId ? `${m.tournamentId}${m.isBracket ? ' · bracket' : ''}` : 'no'}`,
     `map:         ${m.mapName ?? m.map?.display ?? '—'}`,
     `class:       ${m.archetypes?.join(' / ') || '—'}`,
@@ -133,7 +134,9 @@ const MatchCard = ({ m, expanded, onToggle, cardSlot }) => {
             {/* Mode + context */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-white font-semibold">{m.mode?.label}</span>
+                <span className="text-white font-semibold" title={m.wtEvent?.stop != null ? m.wtEvent.stopName : undefined}>
+                  {m.wtEvent?.label ?? m.mode?.label}
+                </span>
                 <Badge tone={tone}>{m.mode?.category}</Badge>
                 {!m.mode?.confirmed && <span className="text-[10px] text-gray-400">heuristic</span>}
                 <MatchFlags m={m} />
@@ -284,6 +287,10 @@ export const MatchesPage = () => {
   const { model } = useVaultData();
   const { matches } = model;
   const uncountedRounds = model.meta.uncounted.previewRounds + model.meta.uncounted.practiceRounds;
+  const wtSeasons = model.worldTour?.seasons ?? [];
+  const wtLabelled = wtSeasons.some((s) => s.stops.some((st) => st.tournaments > 0 && (st.stopName || st.weeks.some((w) => w.weekNameSource === 'wiki'))));
+  const wtExportWeek = wtSeasons.some((s) => s.stops.some((st) => st.weeks.some((w) => w.weekNameSource === 'export')));
+  const wtShared = wtSeasons.some((s) => s.n >= 9 && s.unlabelled.tournaments > 0);
   const [filter, setFilter] = useState('All'); // mode group, or 'All'
   const [classSel, setClassSel] = useState(() => new Set()); // archetypes to require (Light/Medium/Heavy)
   const [weaponSel, setWeaponSel] = useState(() => new Set()); // content-ids to require a kill with
@@ -331,6 +338,9 @@ export const MatchesPage = () => {
       m.map?.display,
       m.mode?.label,
       m.mode?.category,
+      m.wtEvent?.label,
+      m.wtEvent?.stopName,
+      ...(m.wtEvent?.sponsors ?? []),
       ...(m.weaponKills || []).map((wk) => wk.name),
     ],
     () => setPage(1)
@@ -379,7 +389,7 @@ export const MatchesPage = () => {
           <ListSearch
             value={query}
             onChange={setQuery}
-            placeholder="Search map, mode or weapon…"
+            placeholder="Search map, mode, stop or weapon…"
             matched={shown.length}
             total={filtered.length}
             className="w-full sm:w-72"
@@ -508,6 +518,9 @@ export const MatchesPage = () => {
         “heuristic” was inferred from the shape of the match, not from a confirmed ScenarioID.
         {uncountedRounds > 0 &&
           ` The ${num(uncountedRounds)} round${uncountedRounds === 1 ? '' : 's'} badged with a preview build or “Not counted” (the practice range) ${uncountedRounds === 1 ? 'is' : 'are'} listed here but left out of records, win rates, weapon totals and trends.`}
+        {wtLabelled && ' The stop and week names shown on World Tour matches come from thefinals.wiki, checked against Embark’s patch notes and videos.'}
+        {wtExportWeek && ' A week that neither thefinals.wiki nor Embark’s patch notes name shows the internal name from the export.'}
+        {wtShared && ' From Update 9.8.0 (5 Feb 2026) nearly every World Tour tournament shares one scenario id, so those matches show no stop or week.'}
       </Note>
 
       {modalOpen && (

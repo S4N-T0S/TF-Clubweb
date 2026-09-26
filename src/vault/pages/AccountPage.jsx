@@ -493,7 +493,11 @@ export const AccountPage = () => {
       <Panel title="Anti-cheat kicks">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
           <StatCard label="EAC kicks" value={num(antiCheat.kickCount)} accent={antiCheat.kickCount ? 'text-red-400' : 'text-white'} />
-          <StatCard label="EOS sessions" value={num(antiCheat.eosSessionCount)} />
+          <StatCard
+            label="EOS sessions"
+            value={num(antiCheat.eosSessionCount)}
+            sub={antiCheat.eos?.byGame.some((g) => g.game === 'ARC Raiders') ? `${num(antiCheat.eos.byGame.find((g) => g.game === 'ARC Raiders').count)} from ARC Raiders` : undefined}
+          />
           <StatCard label="Denuvo products" value={num(antiCheat.denuvoPlatforms)} />
           <StatCard label="Anybrain sessions" value={num(antiCheat.anybrainSessionCount)} />
         </div>

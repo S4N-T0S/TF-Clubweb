@@ -1,7 +1,7 @@
 // Build the view-models the pages consume from raw parsed records.
 // Runs ONCE after parsing; results are memoised in the provider.
 import { resolveWeapon } from './weapons';
-import { ARCHETYPES, archetypeLabel, classifyMode, careerModeGroup, CAREER_MODE_GROUPS, parseMapVariant, parseCondition, roundsRemaining, stageLabel, stageTeams, tournamentPlacement, worldTourBadge, worldTourTier, quickplayBadge } from './gameMeta';
+import { ARCHETYPES, archetypeLabel, classifyMode, careerModeGroup, CAREER_MODE_GROUPS, parseMapVariant, parseCondition, roundsRemaining, stageLabel, stageTeams, tournamentPlacement, worldTourBadge, worldTourTier, quickplayBadge, worldTourEvent, worldTourStop, WT_STOP_IDS, sponsorName } from './gameMeta';
 import { resolveMap, resolveLtmBackground, conditionType } from './maps';
 import { resolveDlc, steamAppUrl, STEAM_BASE_GAME_ID, localAmount } from './economy';
 import { buildRealms, REALM, classifyRoundStat, ROUND_KIND, tenancyLabel, previewRounds } from './realms';
@@ -21,6 +21,19 @@ const toMs = (v) => {
   return null;
 };
 const div = (a, b) => (b ? a / b : 0);
+
+// Season number of a record: Embark's SeasonID where it has one (2026-09+ rounds), else the date.
+const seasonResolver = (keys) => {
+  const starts = withKeySeasons(keys.seasons());
+  return (seasonId, ms) => {
+    const k = seasonId != null ? keys.season(seasonId) : null;
+    if (k) return k.n;
+    if (ms == null) return null;
+    let n = null;
+    for (const s of starts) if (s.startMs <= ms) n = s.n;
+    return n;
+  };
+};
 const flatLabel = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 const SPENDER_KEY_RE = /^is[_-]?spender$/i;
@@ -815,7 +828,7 @@ function withoutRounds(b, rounds) {
 function buildCareer(byType, keys, summaries, practiceRounds) {
   const pluck = (key) => aggregateBucket(summaries.map((s) => s.Data?.[key]).filter(Boolean));
   const total = summaries.length ? withoutRounds(pluck('total'), practiceRounds) : pluck('total');
-  const casual = pluck('casual');
+  const casual = summaries.length ? withoutRounds(pluck('casual'), practiceRounds) : pluck('casual');
   const ranked = pluck('ranked');
 
   const wrap = (b) => ({
@@ -864,9 +877,8 @@ function buildCareer(byType, keys, summaries, practiceRounds) {
     total: wrap(total),
     casual: wrap(casual),
     ranked: wrap(ranked),
-    // total > casual + ranked; the remainder is World Tour and LTM.
-    // Surface both its rounds AND its playtime so the three buckets visibly add
-    // up to the headline total (otherwise total hours look inflated vs ranked+casual).
+    // The rest of `total` is World Tour from Seasons 3 to 8, which 2026-09+ exports also
+    // carry as a `worldTour` bucket.
     otherRoundsPlayed: Math.max(0, total.RoundsPlayed - casual.RoundsPlayed - ranked.RoundsPlayed),
     otherTimePlayedMs: Math.max(0, total.TotalTimePlayed - casual.TotalTimePlayed - ranked.TotalTimePlayed),
     ranks,
@@ -907,6 +919,7 @@ function newMatch(r, isTournament) {
     abandoned: false,
     preview: r.preview,
     uncounted: r.uncounted,
+    ...(r.wtEvent ? { wtEvent: r.wtEvent } : {}),
   };
 }
 
@@ -979,6 +992,14 @@ function buildMatchesAndWeapons(byType, keys, preview) {
   };
   const LOADOUT_ORDER = { Spec: 0, Weapon: 1 };
   const weaponsByArch = { Light: new Map(), Medium: new Map(), Heavy: new Map(), Unknown: new Map() };
+  const seasonAt = seasonResolver(keys);
+  const launchMs = new Map(keys.seasons().map((k) => [k.n, k.startMs]));
+  const wtEvents = new Map();
+  const wtEventOf = (scenarioId, season) => {
+    const k = `${scenarioId}:${season}`;
+    if (!wtEvents.has(k)) wtEvents.set(k, worldTourEvent(scenarioId, season, keys));
+    return wtEvents.get(k);
+  };
 
   const normalized = new Array(rawRounds.length);
   let countedRoundCount = 0;
@@ -1000,6 +1021,13 @@ function buildMatchesAndWeapons(byType, keys, preview) {
     const dpi = d.DamagePerItem && typeof d.DamagePerItem === 'object' ? d.DamagePerItem : null;
     const startMs = toMs(d.StartTime);
     const mode = classifyMode(d, keys);
+    let wtEvent = null;
+    if (mode.category === 'World Tour') {
+      const n = seasonAt(rawRounds[i].SeasonID, startMs);
+      wtEvent = wtEventOf(d.ScenarioID, n);
+      // Dated seasons start at midnight, launches hours later: a launch-morning round is the old season's.
+      if (!wtEvent && rawRounds[i].SeasonID == null && n != null && startMs < (launchMs.get(n) ?? -Infinity)) wtEvent = wtEventOf(d.ScenarioID, n - 1);
+    }
     // Preview-build and practice rounds stay in match history but count towards nothing else.
     const previewLabel = preview.labelOf(roundId, startMs);
     const uncounted = previewLabel ? 'preview' : mode.practice ? 'practice' : null;
@@ -1129,6 +1157,7 @@ function buildMatchesAndWeapons(byType, keys, preview) {
       squadName: d.SquadName ?? null,
       squadId: d.SquadID ?? null,
       mode,
+      ...(wtEvent ? { wtEvent } : {}), // World Tour stop and week, when known
       weapon: topWeapon || topAny || null, // primary weapon used this round (kills-based)
       weaponKills, // all items that got a kill this round, desc — for the "also killed with" line
       damageOnly, // items that did damage but got no kill this round (2026-09+), or null
@@ -2125,9 +2154,9 @@ const isRealIp = (s) => typeof s === 'string' && (IPV4_RE.test(s) || (s.includes
 const ipVersion = (s) => (s.includes(':') ? 6 : 4);
 
 const RETENTION = {
-  EOS: 'EOS keeps a windowed snapshot of recent sessions.',
+  EOS: 'Holds about the year before the export was requested, and can end months before your last match.',
   Anybrain: 'Anybrain logs begin at the integration go-live (2025-07-24).',
-  Denuvo: 'How far back this goes varies by account and can start after your first logged match.',
+  Denuvo: 'Embark rolled Denuvo out in stages from September to November 2025, so it starts on different dates on different accounts.',
   Logins: 'Backend account sign-ins (token grants), kept for the whole account lifetime.',
 };
 
@@ -2162,10 +2191,29 @@ function denuvoAttributor(raw) {
   };
 }
 
+// EOS ships one archive per product user id, ARC Raiders' beside THE FINALS'. Its linked-
+// accounts file names the product; without one, the audit logs the id under a game's tenancy.
+const EOS_PRODUCTS = { b5adc328432e4883a396eba3d9c05133: 'THE FINALS', '9e8b37541e614575b4de303d2c2e44cf': 'ARC Raiders' };
+function eosGames(raw) {
+  const byPuid = new Map();
+  for (const la of raw.eos.linkedAccounts || []) {
+    if (la?.productUserId && Object.hasOwn(EOS_PRODUCTS, la.productId ?? '')) byPuid.set(la.productUserId, EOS_PRODUCTS[la.productId]);
+  }
+  for (const type of ['EOSProductUserId', 'EosProductUserID']) {
+    for (const r of raw.audit?.byType?.[type] || []) {
+      const game = gameOfSignIn(r?.tenancy);
+      if (r?.product_user_id && game && !byPuid.has(r.product_user_id)) byPuid.set(r.product_user_id, game);
+    }
+  }
+  return byPuid;
+}
+
 // Flatten every anti-cheat source into one comparable session list.
 function collectSessions(raw) {
   const sessions = [];
+  const eosGame = raw.eos.anticheat.length ? eosGames(raw) : null;
   for (const ac of raw.eos.anticheat) {
+    const game = eosGame.get(ac?.productUserId) ?? null;
     for (const s of ac?.sessions || []) {
       sessions.push({
         source: 'EOS',
@@ -2175,6 +2223,7 @@ function collectSessions(raw) {
         ip: s.eacClient?.ClientIP || null,
         build: s.gameClient?.ClientBuildTime || null,
         platform: null,
+        game,
       });
     }
   }
@@ -2410,8 +2459,16 @@ function buildAntiCheat(raw) {
     fingerprintMethods,
     denuvoPlatforms: denuvoProducts.length,
     denuvo,
+    eos: eosSummary(sessions),
   };
 }
+
+const eosSummary = (sessions) => {
+  const byGame = new Map();
+  for (const s of sessions) if (s.source === 'EOS') byGame.set(s.game, (byGame.get(s.game) || 0) + 1);
+  if (!byGame.size) return null;
+  return { sessions: [...byGame.values()].reduce((a, n) => a + n, 0), byGame: [...byGame].map(([game, count]) => ({ game, count })).sort((a, b) => b.count - a.count) };
+};
 
 // --- console device facts (audit `XboxTokenClaims*`, console players only) ----
 const CONSOLE_TYPES = { Scarlett: 'Xbox Series X|S', XboxOne: 'Xbox One' };
@@ -2834,26 +2891,21 @@ function buildEmailTracking(auditByType) {
 }
 
 /** Build the full set of view-models from parsed raw records. */
-// --- World Tour record (2026-09+ `RoundStatSummary.Data.worldTour`) ---------
+// --- World Tour record ---------------------------------------------------------
 // S3 and S4-S8 scored World Tour tournaments only, S9+ every mode (all stored on today's
 // point scale). S3's points ladder stopped at Gold 1; its Emerald came from tournament wins in
 // the Finals stage (`IsWorldTourFinals`), which S3's FinalsWon equals exactly (3.10.0: Emerald 4
 // at 3 wins, Emerald 1 at 63). FinalsWon counts different things by era, so each season records
 // which log count, if any, reproduces it.
 const WT_SYSTEM = (n) => (n == null || n < 3 ? null : n === 3 ? 's3' : n <= 8 ? 'tournaments' : 'allModes');
-function buildWorldTour(summaries, keys, matches) {
+// `TotalWorldTourEvents` = Season 3 events + Season 4 to 8 stops with a World Tour tournament
+// + Season 9+ stops with `sponsor_journey` fans (any mode), exact on every export that has it.
+function buildWorldTour(summaries, keys, matches, journey, seasonAt) {
   const seasons = new Map();
+  const s3Unlabelled = new Set();
   let totalEvents = null;
   let streak = null;
-  let has = false;
-  const seasonOf = (id, ms) => {
-    const k = keys.season(id);
-    if (k) return k.n;
-    if (ms == null) return null;
-    let best = null;
-    for (const s of withKeySeasons(keys.seasons())) if (s.startMs <= ms && (!best || s.startMs > best.startMs)) best = s;
-    return best?.n ?? null;
-  };
+  let hasSummary = false;
   const seasonEntry = (seasonId, n, create = true) => {
     const key = n != null ? `n:${n}` : seasonId;
     let e = seasons.get(key);
@@ -2862,20 +2914,33 @@ function buildWorldTour(summaries, keys, matches) {
         seasonId, n, label: n != null ? `Season ${n}` : 'Unknown season', badgeScore: null, finalsWon: null, rounds: 0, tournaments: 0, tournamentsWon: 0,
         finalsStageRounds: 0,
         logCounts: { finalsStageWins: 0, tournamentsWon: 0, roundsWon: 0 }, // World Tour + Ranked
+        stops: new Map(),
+        unlabelled: { tournaments: 0, rounds: 0 },
       }));
     }
     return e;
   };
+  const stopEntry = (e, stop, event, key) => {
+    let s = e.stops.get(key);
+    if (!s) {
+      const meta = worldTourStop(e.n, stop ?? event);
+      e.stops.set(key, (s = {
+        stop, event, stopName: meta?.name ?? null, sponsors: meta?.sponsors ?? [], startMs: meta?.startMs ?? null, endMs: meta?.endMs ?? null,
+        weeks: new Map(), tournaments: 0, tournamentsWon: 0, rounds: 0, fans: null,
+      }));
+    }
+    return s;
+  };
   for (const s of summaries) {
     const wt = s.Data?.worldTour;
     if (!wt || typeof wt !== 'object') continue;
-    has = true;
+    hasSummary = true;
     if (typeof wt.TotalWorldTourEvents === 'number') totalEvents = Math.max(totalEvents ?? 0, wt.TotalWorldTourEvents);
     const stats = wt.SeasonalStats && typeof wt.SeasonalStats === 'object' ? wt.SeasonalStats : {};
     for (const id in stats) {
       const v = stats[id];
       if (!v || typeof v !== 'object') continue;
-      const e = seasonEntry(String(id), seasonOf(id, null));
+      const e = seasonEntry(String(id), seasonAt(id, null));
       if (typeof v.BadgeScore === 'number') e.badgeScore = Math.max(e.badgeScore ?? 0, v.BadgeScore);
       if (typeof v.FinalsWon === 'number') e.finalsWon = Math.max(e.finalsWon ?? 0, v.FinalsWon);
     }
@@ -2889,13 +2954,12 @@ function buildWorldTour(summaries, keys, matches) {
       }
     }
   }
-  if (!has) return null;
   // World Tour first (it creates a season's row), then Ranked, which only adds counts.
   for (const category of ['World Tour', 'Ranked']) {
     for (const m of matches) {
       if (m.mode?.category !== category) continue;
       const r0 = m.rounds[0];
-      const n = seasonOf(r0?.seasonId, m.start);
+      const n = (category === 'World Tour' ? m.wtEvent?.season : null) ?? seasonAt(r0?.seasonId, m.start);
       if (n != null && n < 3) continue; // World Tour began in Season 3
       const e = seasonEntry(r0?.seasonId ?? null, n, category === 'World Tour');
       if (!e) continue;
@@ -2905,13 +2969,56 @@ function buildWorldTour(summaries, keys, matches) {
         if (m.tournamentWon) e.tournamentsWon++;
         e.finalsStageRounds += m.rounds.filter((r) => r.finalsStage).length;
         if (m.rounds.some((r) => r.tournamentWon && r.finalsStage)) e.logCounts.finalsStageWins++;
+        const ev = m.wtEvent;
+        if (ev) {
+          const s = stopEntry(e, ev.stop, ev.event, ev.event != null ? `e${ev.event}` : `s${ev.stop}`);
+          let w = null;
+          if (ev.weeks.length) {
+            const wk = ev.weeks.join('-');
+            w = s.weeks.get(wk);
+            if (!w) s.weeks.set(wk, (w = { weeks: ev.weeks, weekName: ev.weekName, weekNameSource: ev.weekNameSource, tournaments: 0, tournamentsWon: 0, rounds: 0 }));
+          }
+          for (const x of w ? [s, w] : [s]) {
+            x.tournaments++;
+            if (m.tournamentWon) x.tournamentsWon++;
+            x.rounds += m.rounds.length;
+          }
+        } else {
+          e.unlabelled.tournaments++;
+          e.unlabelled.rounds += m.rounds.length;
+          if (n === 3) s3Unlabelled.add(String(r0?.scenarioId));
+        }
       }
       if (m.tournamentWon) e.logCounts.tournamentsWon++;
       e.logCounts.roundsWon += m.rounds.filter((r) => r.roundWon).length;
     }
   }
+  // Season 9 on: fans earned during each stop, any mode.
+  const fansBySeason = journey?.gainedFans && typeof journey.gainedFans === 'object' ? journey.gainedFans : {};
+  for (const sid in fansBySeason) {
+    const n = seasonAt(sid, null);
+    const stops = fansBySeason[sid];
+    if (n == null || n < 9 || !stops || typeof stops !== 'object') continue;
+    for (const stopId in stops) {
+      const fans = Number(stops[stopId]) || 0;
+      if (fans <= 0) continue;
+      const stop = Object.hasOwn(WT_STOP_IDS, stopId) ? WT_STOP_IDS[stopId] : null;
+      const s = stopEntry(seasonEntry(String(sid), n), stop, null, stop != null ? `s${stop}` : `x${stopId}`);
+      s.fans = (s.fans ?? 0) + fans;
+    }
+  }
+  if (!hasSummary && !seasons.size) return null;
+
+  const bySeason = [];
   for (const e of seasons.values()) {
     e.system = WT_SYSTEM(e.n);
+    e.stops = [...e.stops.values()]
+      .map((s) => ({ ...s, weeks: [...s.weeks.values()].sort((a, b) => (a.weeks[0] ?? 99) - (b.weeks[0] ?? 99)) }))
+      .sort((a, b) => (a.event ?? a.stop ?? 99) - (b.event ?? b.stop ?? 99));
+    if (e.n != null && e.n >= 3) {
+      const count = e.n >= 9 ? e.stops.filter((s) => s.fans > 0).length : e.n === 3 ? e.stops.length + s3Unlabelled.size : e.stops.length;
+      if (count > 0) bySeason.push({ n: e.n, count, source: e.n >= 9 ? 'fans' : 'log' });
+    }
     const fw = e.finalsWon;
     const c = e.logCounts;
     if (e.n === 3) {
@@ -2931,11 +3038,115 @@ function buildWorldTour(summaries, keys, matches) {
       : c.roundsWon === fw ? 'roundsWon'
       : null;
   }
+  bySeason.sort((a, b) => a.n - b.n);
+  const fromLog = bySeason.filter((b) => b.source === 'log').reduce((a, b) => a + b.count, 0);
+  const fromFans = bySeason.filter((b) => b.source === 'fans').reduce((a, b) => a + b.count, 0);
   return {
     has: true,
+    hasSummary,
     totalEvents,
+    events: { counted: fromLog + fromFans, fromLog, fromFans, bySeason },
     streak,
     seasons: [...seasons.values()].sort((a, b) => (b.n ?? -1) - (a.n ?? -1)),
+  };
+}
+
+// `player_career` (Seasons 4 to 8) and `sponsor_journey` (9 on) repeat per preview build and per
+// account in one export, and the live main copy holds the most fans.
+const fanSum = (o) => Object.values(o && typeof o === 'object' ? o : {}).reduce((a, f) => a + (Number(f) || 0), 0);
+function readSponsorRecords(byType) {
+  const best = {};
+  for (const row of byType.BucketObject || []) {
+    const key = row?.ObjectKey;
+    if (key !== 'player_career' && key !== 'sponsor_journey') continue;
+    let v = row.Value;
+    if (typeof v === 'string') {
+      try {
+        v = JSON.parse(v);
+      } catch {
+        continue;
+      }
+    }
+    if (!v || typeof v !== 'object') continue;
+    const fans = key === 'player_career'
+      ? (Array.isArray(v.seasonalRecords) ? v.seasonalRecords : []).reduce((a, r) => a + (Number(r?.totalFans) || 0), 0)
+      : Object.values(v.sponsorProgress && typeof v.sponsorProgress === 'object' ? v.sponsorProgress : {}).reduce((a, p) => a + fanSum(p?.fansPerSeason), 0);
+    if (!best[key] || fans > best[key].fans) best[key] = { value: v, fans };
+  }
+  return { career: best.player_career?.value ?? null, journey: best.sponsor_journey?.value ?? null };
+}
+
+function buildSponsors({ career, journey }, keys) {
+  if (!career && !journey) return null;
+  const seasonN = (id) => keys.season(id)?.n ?? null;
+  const isSponsor = (id) => id != null && String(id) !== '0';
+  const named = (id) => ({ id: String(id), name: sponsorName(id) });
+  const tracks = new Map();
+  const track = (id) => {
+    let t = tracks.get(id);
+    if (!t) tracks.set(id, (t = { ...named(id), level: null, nextLevelProgress: null, fans: 0, seasons: [], signed: false }));
+    return t;
+  };
+  const progress = journey?.sponsorProgress && typeof journey.sponsorProgress === 'object' ? journey.sponsorProgress : {};
+  for (const id in progress) {
+    const p = progress[id];
+    if (!isSponsor(id) || !p || typeof p !== 'object') continue;
+    const t = track(String(id));
+    t.level = Number.isFinite(p.sponsorLevel) ? p.sponsorLevel : null;
+    t.nextLevelProgress = Number.isFinite(p.nextLevelProgress) ? p.nextLevelProgress : null;
+    const per = p.fansPerSeason && typeof p.fansPerSeason === 'object' ? p.fansPerSeason : {};
+    for (const sid in per) {
+      const fans = Number(per[sid]) || 0;
+      if (fans <= 0) continue;
+      t.seasons.push({ n: seasonN(sid), seasonId: String(sid), fans });
+      t.fans += fans;
+    }
+  }
+
+  const seasons = new Map();
+  for (const r of Array.isArray(career?.seasonalRecords) ? career.seasonalRecords : []) {
+    const n = seasonN(r?.seasonId);
+    if (n == null) continue;
+    const selected = isSponsor(r.selectedSponsor) ? named(r.selectedSponsor) : null;
+    const fans = Number(r.totalFans) || 0;
+    const level = Number.isFinite(r.sponsorLevel) ? r.sponsorLevel : null;
+    seasons.set(n, { n, seasonId: String(r.seasonId), era: 'career', selected, level, fans, bySponsor: selected ? [{ ...selected, fans }] : [], stopCount: null });
+    // An export from before Season 9 has no journey record, so its tracks come from here.
+    if (!journey && selected) {
+      const t = track(selected.id);
+      t.fans += fans;
+      t.seasons.push({ n, seasonId: String(r.seasonId), fans });
+      if (level != null) t.level = Math.max(t.level ?? 0, level);
+    }
+  }
+  const fromCareer = new Set(seasons.keys());
+  for (const t of tracks.values()) {
+    t.seasons.sort((a, b) => (a.n ?? 0) - (b.n ?? 0));
+    for (const s of t.seasons) {
+      if (s.n == null || fromCareer.has(s.n)) continue;
+      let e = seasons.get(s.n);
+      if (!e) seasons.set(s.n, (e = { n: s.n, seasonId: s.seasonId, era: s.n >= 9 ? 'journey' : 'career', selected: null, level: null, fans: 0, bySponsor: [], stopCount: s.n >= 9 ? 0 : null }));
+      e.fans += s.fans;
+      e.bySponsor.push({ id: t.id, name: t.name, fans: s.fans });
+    }
+  }
+  const gained = journey?.gainedFans && typeof journey.gainedFans === 'object' ? journey.gainedFans : {};
+  for (const sid in gained) {
+    const e = seasons.get(seasonN(sid));
+    if (e?.era === 'journey') e.stopCount = Object.values(gained[sid] || {}).filter((f) => Number(f) > 0).length;
+  }
+  for (const e of seasons.values()) e.bySponsor.sort((a, b) => b.fans - a.fans);
+  const signed = isSponsor(journey?.signedSponsor) ? named(journey.signedSponsor) : null;
+  if (signed && tracks.has(signed.id)) tracks.get(signed.id).signed = true;
+  // Some exports hold tracks at level 0 with no fans at all.
+  const shown = [...tracks.values()].filter((t) => t.signed || t.fans > 0 || t.level > 0);
+  const list = [...seasons.values()].sort((a, b) => b.n - a.n);
+  return {
+    has: shown.length > 0 || list.length > 0,
+    signed,
+    totalFans: list.reduce((a, e) => a + e.fans, 0),
+    sponsors: shown.sort((a, b) => b.fans - a.fans),
+    seasons: list,
   };
 }
 
@@ -2988,6 +3199,7 @@ export function buildModel(raw) {
   const countedRounds = rounds.filter((r) => !r.uncounted);
   const countedMatches = matches.filter((m) => !m.uncounted);
   const summaries = liveSummaries(byType.RoundStatSummary || [], rounds);
+  const sponsorRecords = readSponsorRecords(byType);
   const mastery = buildMastery(byType, keys, weapons);
   const lastActivity = matches.reduce((mx, m) => Math.max(mx, m.end ?? m.start ?? 0), 0) || null;
 
@@ -3063,8 +3275,9 @@ export function buildModel(raw) {
     weaponsByArchetype,
     damage,
     mastery,
-    worldTour: buildWorldTour(summaries.live, keys, countedMatches),
+    worldTour: buildWorldTour(summaries.live, keys, countedMatches, sponsorRecords.journey, seasonResolver(keys)),
     quickplay: buildQuickplay(summaries.live, keys),
+    sponsors: buildSponsors(sponsorRecords, keys),
     economy: buildEconomy(byType, raw.audit?.byType, keys),
     antiCheat: buildAntiCheat(raw),
     reports: buildReports(raw),

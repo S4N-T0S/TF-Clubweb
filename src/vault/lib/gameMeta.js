@@ -76,6 +76,251 @@ export const worldTourTier = (name, level = null) => {
   return t ? { name, level, label: level ? `${name} ${level}` : name, color: t.color, text: t.text } : null;
 };
 
+// World Tour stop and week names as the game showed them (thefinals.wiki), matched to
+// Embark's weekly scenario names (`WT_S07_S02E03_Lockout`) by what each week did.
+// [name, sponsors, start, end] per stop; Season 3's seven events stand in for stops.
+const WT_STOPS = {
+  3: [
+    ['ENGIMO OPEN', ['ENGIMO'], '2024-06-13', '2024-06-27'],
+    ['OSPUZE EXPO', ['OSPUZE'], '2024-06-27', '2024-07-11'],
+    ['ISEUL-T CUP', ['ISEUL-T'], '2024-07-11', '2024-07-25'],
+    ['VOLPE CHAMPIONSHIP', ['VOLPE'], '2024-07-25', '2024-08-08'],
+    ['DISSUN CHALLENGE', ['DISSUN'], '2024-08-08', '2024-08-22'],
+    ['VAIIYA INTERNATIONAL', ['VAIIYA'], '2024-08-22', '2024-09-05'],
+    ['HOLTOW CLASSIC', ['HOLTOW'], '2024-09-05', '2024-09-26'],
+  ],
+  4: [
+    ['ENGIMO OPEN', ['ENGIMO'], '2024-09-26', '2024-10-17'],
+    ['HOLTOW CLASSIC', ['HOLTOW'], '2024-10-17', '2024-11-07'],
+    ['ISEUL-T CUP', ['ISEUL-T'], '2024-11-07', '2024-11-28'],
+    ['THE FINALS', ['HOLTOW', 'ISEUL-T', 'ENGIMO'], '2024-11-28', '2024-12-12'],
+  ],
+  5: [
+    ['VAIIYA INTERNATIONAL', ['VAIIYA'], '2024-12-12', '2025-01-02'],
+    ['ISEUL-T CUP', ['ISEUL-T'], '2025-01-02', '2025-01-23'],
+    ['DISSUN CHALLENGE', ['DISSUN'], '2025-01-23', '2025-02-14'],
+    ['//SYS$WT.CNS', ['CNS'], '2025-02-14', '2025-03-06'],
+    ['SPONSOR SHOWDOWN', ['ISEUL-T', 'DISSUN', 'VAIIYA'], '2025-03-06', '2025-03-20'],
+  ],
+  6: [
+    ['ALFA ACTA OPEN', ['ALFA ACTA'], '2025-03-20', '2025-04-10'],
+    ['ENGIMO OPEN', ['ENGIMO'], '2025-04-10', '2025-05-01'],
+    ['OSPUZE EXPO', ['OSPUZE'], '2025-05-01', '2025-05-22'],
+    ['SPONSOR SHOWDOWN', ['ALFA ACTA', 'ENGIMO', 'OSPUZE'], '2025-05-22', '2025-06-12'],
+  ],
+  7: [
+    ['VAIIYA INTERNATIONAL', ['VAIIYA'], '2025-06-12', '2025-07-03'],
+    ['CNS OVERRIDE', ['CNS'], '2025-07-03', '2025-07-24'],
+    ['VAIIYA DIRECTIVE', ['VAIIYA'], '2025-07-24', '2025-08-14'],
+    ['CNS ECHO', ['CNS'], '2025-08-14', '2025-09-10'],
+    ['SPONSOR SHOWDOWN', ['VAIIYA', 'CNS'], '2025-08-28', '2025-09-04'],
+  ],
+  8: [
+    ['TRENTILA INVITATIONAL', ['TRENTILA'], '2025-09-10', '2025-10-02'],
+    ['HOLTOW CUP', ['HOLTOW'], '2025-10-02', '2025-10-23'],
+    ['HOLTOW OPEN', ['HOLTOW'], '2025-10-23', '2025-11-13'],
+    ['TRENTILA MASTERS', ['TRENTILA'], '2025-11-13', '2025-12-04'],
+    ['SPONSOR SHOWDOWN', ['TRENTILA', 'HOLTOW'], '2025-12-04', '2025-12-10'],
+  ],
+  9: [
+    ['VOLPE CHAMPIONSHIP', ['VOLPE'], '2025-12-10', '2026-01-01'],
+    ['OSPUZE EXPO', ['OSPUZE'], '2026-01-01', '2026-01-22'],
+    ['VOLPE MASTERS', ['VOLPE'], '2026-01-22', '2026-02-12'],
+    ['OSPUZE INTERNATIONAL', ['OSPUZE'], '2026-02-12', '2026-03-05'],
+    ['SPONSOR SHOWDOWN', ['OSPUZE', 'VOLPE'], '2026-03-05', '2026-03-26'],
+  ],
+  10: [
+    ['ALFA ACTA OPEN', ['ALFA ACTA'], '2026-03-26', '2026-04-16'],
+    ['ISEUL-T CUP', ['ISEUL-T'], '2026-04-16', '2026-05-07'],
+    ['ALFA ACTA OPEN', ['ALFA ACTA'], '2026-05-07', '2026-05-28'],
+    ['ISEUL-T CUP', ['ISEUL-T'], '2026-05-28', '2026-06-18'],
+    ['SPONSOR SHOWDOWN', ['ISEUL-T', 'ALFA ACTA'], '2026-06-18', '2026-07-09'],
+  ],
+  11: [
+    ['COMETA LAUNCH CUP', ['COMETA'], '2026-07-09', '2026-07-30'],
+    ['COMETA MASTERS', ['COMETA'], '2026-07-30', '2026-08-20'],
+    ['ENGIMO INVITATIONAL', ['ENGIMO'], '2026-08-20', '2026-09-10'],
+    ['ENGIMO OPEN', ['ENGIMO'], '2026-09-10', '2026-10-01'],
+    ['SPONSOR SHOWDOWN', ['COMETA', 'ENGIMO'], '2026-10-01', '2026-10-20'],
+  ],
+};
+const WT_WEEKS = {
+  'WorldTour_S4_Stop1Event1_24_Players_Cashout': 'OPENING WEEK',
+  'WorldTour_S4_Stop1Event2_24_Players_Cashout': 'FRIENDS & FAMILY',
+  'WorldTour_S4_Stop1Event3_24_Players_Cashout': 'PRIMETIME BUFF',
+  'WorldTour_S4_Stop2Event1_24_Players_Cashout': 'OPENING WEEK',
+  'WorldTour_S4_Stop2Event2_24_Players_Cashout': 'COSMIC LIABILITY',
+  'WorldTour_S4_Stop2Event3_24_Players_Cashout': 'TRICK OR TREAT',
+  'WorldTour_S4_Stop3Event1_24_Players_Cashout': 'OPENING WEEK',
+  'WorldTour_S4_Stop3Event2_24_Players_Cashout': 'FASHION WEEK',
+  'WorldTour_S4_Stop3Event3_24_Players_Cashout': 'HIGH-FASHION HAVOC',
+  'WorldTour_S4_Stop4Event1_24_Players_Cashout': 'SPONSOR SHOWDOWN',
+  'WT_S05_S01E01_OpeningWeek': 'OPENING WEEK',
+  'WT_S05_S01E02_Christmas': 'MERRY MAYHEM',
+  'WT_S05_S01E03_Vaiiya': 'BOOST PROTOCOL',
+  'WT_S05_S02E01_OpeningWeek': 'OPENING WEEK',
+  'WT_S05_S02E02_Limelight': 'TIME TO SHINE',
+  'WT_S05_S03E01_Lunar': 'LIGHT THE WAY',
+  'WT_S05_S03E02_NormalWeek': 'CLASSIC CASHOUT',
+  'WT_S05_S03E03_Valentines': 'LOVE HURTS',
+  'WT_S05_S04E01_OpeningWeek': '..::[C]::..',
+  'WT_S05_S04E03_CNS': '..::[S]::..',
+  'WT_S05_S05E01-02_SponsorShowdown': 'SPONSOR SHOWDOWN',
+  'WT_S06_S01E01_OpeningWeek': 'OPENING WEEK',
+  'WT_S06_S01E02_RiskReward': 'RISK & REWARD',
+  'WT_S06_S01E03_HeadHunter': 'HEAD HUNTER',
+  'WT_S06_S02E01_OpeningWeek': 'OPENING WEEK',
+  'WT_S06_S02E02_SequentialGSEs': 'PROTOCOL OVERDRIVE',
+  'WT_S06_S02E03_StrikeAPose': 'STRIKE A POSE 2.0',
+  'WT_S06_S03E01_OpeningWeek': 'OPENING WEEK',
+  'WT_S06_S03E02_DeadGoBoomV2': 'LAST DROP',
+  'WT_S06_S03E03_ConcurrentGSEs': 'DOUBLE DOSE',
+  'WT_S06_S04E01-03_SponsorShowdown': 'SPONSOR SHOWDOWN',
+  'WT_S06_S04E02_SponsorShowdown': 'SPONSOR SHOWDOWN',
+  'WT_S06_S04E03_SponsorShowdown': 'SPONSOR SHOWDOWN',
+  'WT_S07_S01E01_OpeningWeek': 'OPENING WEEK',
+  'WT_S07_S02E01_OpeningWeek': 'OPENING WEEK',
+  'WT_S07_S02E02_StandardWeek': 'STANDARD CASHOUT',
+  'WT_S07_S02E03_Lockout': 'LOCK.PHASE()',
+  'WT_S07_S03E01_OpeningWeek': 'OPENING WEEK',
+  'WT_S07_S03E02_StandardWeek': 'STANDARD CASHOUT',
+  'WT_S07_S04E01_OpeningWeek': 'OPENING WEEK',
+  'WT_S07_S04E02_StandardWeek': 'STANDARD CASHOUT',
+  'WT_S07_S04E03_DanceFloor': 'CNS.SYNC',
+  'WT_S07_S05E01_SponsorShowdown': 'SPONSOR SHOWDOWN',
+  'WT_S08_S01E01_OpeningWeek': 'OPENING WEEK',
+  'WT_S08_S01E02_StandardWeek': 'STANDARD CASHOUT',
+  'WT_S08_S01E03_SuperJump': 'VERTIGO!',
+  'WT_S08_S02E02_StandardWeek': 'STANDARD CASHOUT',
+  'WT_S08_S04E02_StandardWeek': 'STANDARD CASHOUT',
+  'WT_S09_S01E03_StandardWeek': 'STANDARD CASHOUT',
+  'WT_S09_S02E01_StandardWeek': 'STANDARD CASHOUT',
+  'WT_S09_S02E02_StandardWeek': 'STANDARD CASHOUT',
+  'WT_S09_S02E03_SuperJumpRerun': 'VERTIGO!',
+  'WT_S09_S03E01_StandardWeek': 'STANDARD CASHOUT',
+  'WT_S09_S03E02_ConcurrentGSEs_Hackout_OrbitalLasers': 'ORBITAL BREACH',
+  973907767: 'STRIKE A POSE',
+  863388693: '..::[N]::..',
+  375377587: 'STANDARD CASHOUT',
+  465304560: 'PROTOCOL: XPOSE',
+  472521555: 'RISK & REWARD',
+  202759954: 'OPENING WEEK',
+  262477207: 'RUSHDOWN',
+  146323197: 'OPENING WEEK',
+  146663231: 'STANDARD CASHOUT',
+  961176664: 'HEAD HUNTER',
+  205691223: 'OPENING WEEK',
+  950590405: 'DEAD GO TOXIC',
+  812906781: 'STANDARD CASHOUT',
+  796922784: 'STANDARD CASHOUT',
+  232142677: 'ARENA DEBUT',
+};
+// Ids that ran other weeks than their `E01-03` form says.
+const WT_WEEK_SPANS = {
+  'WorldTour_S4_Stop4Event1_24_Players_Cashout': [1, 2],
+  'WT_S06_S04E01-03_SponsorShowdown': [1],
+};
+// Ids no key file names, and ids reused across seasons (keyed `id:season`), placed by the
+// week their first rounds fall in: every other week of the calendar has its own named id.
+const wtWeek = (season, stop, week) => ({ season, stop, from: week, to: week, theme: null });
+const WT_IDS = {
+  520946128: { season: 3, event: 1 },
+  '425956530:3': { season: 3, event: 2 },
+  973907767: wtWeek(5, 2, 3),
+  863388693: wtWeek(5, 4, 2),
+  375377587: wtWeek(7, 1, 2),
+  465304560: wtWeek(7, 1, 3),
+  472521555: wtWeek(7, 3, 3),
+  202759954: wtWeek(8, 2, 1),
+  262477207: wtWeek(8, 2, 3),
+  146323197: wtWeek(8, 3, 1),
+  146663231: wtWeek(8, 3, 2),
+  961176664: wtWeek(8, 3, 3),
+  205691223: wtWeek(8, 4, 1),
+  950590405: wtWeek(8, 4, 3),
+  812906781: wtWeek(9, 1, 1),
+  796922784: wtWeek(9, 1, 2),
+  232142677: wtWeek(11, 1, 1),
+};
+const WT_NAME_FORMS = [
+  [/^WT_S(\d+)_S(\d+)E(\d+)(?:-(\d+))?_(.+)$/, (m) => ({ season: +m[1], stop: +m[2], from: +m[3], to: +(m[4] ?? m[3]), theme: m[5] })],
+  [/^WorldTour_S(\d+)_Stop(\d+)Event(\d+)_/, (m) => ({ season: +m[1], stop: +m[2], from: +m[3], to: +m[3], theme: null })],
+  [/^WorldTour_S(\d+)Event(\d+)_/, (m) => ({ season: +m[1], event: +m[2] })],
+];
+const own = (o, k) => (k != null && Object.hasOwn(o, k) ? o[k] : null);
+const parseWtName = (name) => {
+  for (const [re, f] of WT_NAME_FORMS) {
+    const m = re.exec(name || '');
+    if (m) return f(m);
+  }
+  return null;
+};
+const humanTheme = (t) => t.split('_').map((p) => p.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z]{2,})/g, '$1 $2')).join(', ');
+const weeksLabel = (w) => (w.length > 1 ? `Weeks ${w[0]} to ${w[w.length - 1]}` : `Week ${w[0]}`);
+
+// A reused id only counts for the season its name, or a curated entry, gives.
+export const worldTourEvent = (scenarioId, season, keys = STATIC_KEYS) => {
+  if (season == null) return null;
+  const id = String(scenarioId);
+  const internal = keys.scenario(id)?.internalName ?? null;
+  let p = parseWtName(internal);
+  if (!p || p.season !== season) {
+    const c = own(WT_IDS, `${id}:${season}`) ?? own(WT_IDS, id);
+    p = c && c.season === season ? c : null;
+  }
+  if (!p) return null;
+  if (p.event != null) {
+    const ev = worldTourStop(season, p.event);
+    return { season, stop: null, event: p.event, weeks: [], stopName: ev?.name ?? null, sponsors: ev?.sponsors ?? [], weekName: null, weekNameSource: null, internal, label: [`Event ${p.event}`, ev?.name].filter(Boolean).join(' · ') };
+  }
+  let weeks = own(WT_WEEK_SPANS, internal);
+  if (!weeks) {
+    weeks = [];
+    for (let w = p.from; w <= p.to; w++) weeks.push(w);
+  }
+  const stop = worldTourStop(season, p.stop);
+  const curated = own(WT_WEEKS, internal) ?? own(WT_WEEKS, id) ?? null;
+  const weekName = curated ?? (p.theme ? humanTheme(p.theme) : null);
+  return {
+    season,
+    stop: p.stop,
+    event: null,
+    weeks,
+    stopName: stop?.name ?? null,
+    sponsors: stop?.sponsors ?? [],
+    weekName,
+    weekNameSource: curated ? 'wiki' : weekName ? 'export' : null,
+    internal,
+    label: [`Stop ${p.stop}`, weeks.length ? weeksLabel(weeks) : null, weekName].filter(Boolean).join(' · '),
+  };
+};
+const dayMs = (d) => Date.parse(`${d}T00:00:00Z`);
+// A season's stop (Season 3: event) by number, with its sponsors and dates.
+export const worldTourStop = (season, n) => {
+  const s = n != null ? WT_STOPS[season]?.[n - 1] : null;
+  return s ? { name: s[0], sponsors: s[1], startMs: dayMs(s[2]), endMs: dayMs(s[3]) } : null;
+};
+
+// From Season 9 every season's stops reuse these five ids, in this order (dated by
+// the stops each export reached before it was requested).
+export const WT_STOP_IDS = { 754316888: 1, 883498882: 2, 858581427: 3, 958846313: 4, 419510279: 5 };
+
+// Sponsor ids are named nowhere in the export: solved from each season's sponsors and the
+// ids seasons share, confirmed by a player. VOLPE is the one id first seen in Season 9.
+const SPONSORS = {
+  '-712450515': 'ISEUL-T',
+  318896507: 'VAIIYA',
+  '-23170714': 'CNS',
+  694448565: 'HOLTOW',
+  1789104437: 'TRENTILA',
+  '-36016083': 'ENGIMO',
+  '-1229618176': 'DISSUN',
+  '-234554384': 'OSPUZE',
+  '-1450283644': 'ALFA ACTA',
+  '-1916700347': 'VOLPE',
+};
+export const sponsorName = (id) => (Object.hasOwn(SPONSORS, String(id)) ? SPONSORS[String(id)] : null);
+
 // Seasons 6 to 8 only (thefinals.wiki/wiki/Quickplay). Gold 1 is the top.
 export const QUICKPLAY_BADGES = [
   { ...WORLD_TOUR_BADGES[0], steps: [50, 100, 150, 200] },
@@ -195,6 +440,7 @@ const WORLD_TOUR_SCENARIOS = new Set([
   // Confirmed 4-team acrossa
   '852907964', '294854036', '405873674', '960388364', '262477207', '472521555', '812906781', '961176664',
   '688748083', '193786221', '205691223', '961608855', '609953292', '769621951',
+  '232142677', // Season 11's opening week on Galaxy Estates, the one weekly id after Update 9.8.0
 ]);
 
 // Embark's scenario names (key file `Name`) -> the mode as players know it. Outranks

@@ -32,7 +32,9 @@ export const VaultMatchModal = ({ match, onClose }) => {
             <div className="p-4 pr-14 flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-white font-semibold">{m.mode?.label}</span>
+                  <span className="text-white font-semibold" title={m.wtEvent?.stop != null ? m.wtEvent.stopName : undefined}>
+                    {m.wtEvent?.label ?? m.mode?.label}
+                  </span>
                   <Badge tone={tone}>{m.mode?.category}</Badge>
                   {!m.mode?.confirmed && <span className="text-[10px] text-gray-400">heuristic</span>}
                   <MatchFlags m={m} />

@@ -13,6 +13,7 @@
 
 import { PERFORMANCE_BONUS_MAX_SCORE } from './ratings';
 import { WEAPONS } from './weapons';
+import { worldTourEvent } from './gameMeta';
 
 // --- deterministic RNG ----------------------------------------------------
 function mulberry32(seed) {
@@ -225,6 +226,25 @@ function casualMatch(rounds, mode, startT) {
 
 const RANKED_ID = 498553443;
 const WORLD_TOUR_IDS = [211390302, 465304560, 308426432];
+// The World Tour scenario each week ran on, by the week's first round on real exports.
+// From Update 9.8.0 every week shares one id, apart from Season 11's opening week.
+const WT_WEEK_IDS = [
+  ['2024-06-13', 520946128], ['2024-06-27', 425956530], ['2024-07-11', 896067198], ['2024-07-25', 201724873], ['2024-08-08', 380601982], ['2024-08-22', 598537342], ['2024-09-05', 211390302],
+  ['2024-09-26', 425956530], ['2024-10-03', 134128679], ['2024-10-10', 704216536], ['2024-10-17', 408400623], ['2024-10-24', 803397762], ['2024-10-31', 791733099], ['2024-11-07', 526555163], ['2024-11-14', 572195019], ['2024-11-21', 769062689], ['2024-11-28', 159466872],
+  ['2024-12-12', 785620432], ['2024-12-19', 517351037], ['2024-12-26', 540904715], ['2025-01-02', 970363916], ['2025-01-09', 308426432], ['2025-01-16', 973907767], ['2025-01-23', 976473257], ['2025-01-30', 657258550], ['2025-02-06', 994677702], ['2025-02-13', 619195988], ['2025-02-20', 863388693], ['2025-02-27', 609953292], ['2025-03-06', 776552271],
+  ['2025-03-20', 972819353], ['2025-03-27', 572258369], ['2025-04-03', 372967157], ['2025-04-10', 974012321], ['2025-04-17', 688748083], ['2025-04-24', 251023268], ['2025-05-01', 326545039], ['2025-05-08', 722407850], ['2025-05-15', 648075701], ['2025-05-22', 578592227], ['2025-05-29', 193786221], ['2025-06-05', 769621951],
+  ['2025-06-12', 741843420], ['2025-06-19', 375377587], ['2025-06-26', 465304560], ['2025-07-03', 525513529], ['2025-07-10', 198101066], ['2025-07-17', 897735170], ['2025-07-24', 416583905], ['2025-07-31', 960388364], ['2025-08-07', 472521555], ['2025-08-14', 516835794], ['2025-08-21', 328125031], ['2025-08-28', 503132740], ['2025-09-04', 917842285],
+  ['2025-09-10', 496014728], ['2025-09-18', 269727098], ['2025-09-25', 907722781], ['2025-10-02', 202759954], ['2025-10-09', 294854036], ['2025-10-16', 262477207], ['2025-10-23', 146323197], ['2025-10-30', 146663231], ['2025-11-06', 961176664], ['2025-11-13', 205691223], ['2025-11-20', 852907964], ['2025-11-27', 950590405],
+  ['2025-12-10', 812906781], ['2025-12-18', 796922784], ['2025-12-25', 858837033], ['2026-01-01', 405873674], ['2026-01-08', 709035454], ['2026-01-15', 987755586], ['2026-01-22', 961608855], ['2026-01-29', 790343144],
+  ['2026-02-05', 732865891], ['2026-07-09', 232142677], ['2026-07-16', 732865891],
+].map(([d, id]) => [Date.parse(`${d}T00:00:00Z`), id]);
+// Before World Tour began the pick stands, so the history keeps its old mix there.
+const sampleWtId = (t, picked) => {
+  let id = picked;
+  for (const [start, x] of WT_WEEK_IDS) if (start <= t) id = x;
+  return id;
+};
+const SAMPLE_WT_IDS = new Set([...WORLD_TOUR_IDS, ...WT_WEEK_IDS.map(([, id]) => id)]);
 const CASUAL_MODES = [
   { id: 164312917, winChance: 0.4 }, // Quick Cash
   { id: 545190106, winChance: 0.5 }, // Power Shift
@@ -261,7 +281,7 @@ function buildRounds() {
       // past ~31). Too few and each match has to move the score so far that a
       // whole placement ladder goes positive, which never happens for real.
       if (roll < 0.62) t = tournament(rounds, RANKED_ID, t, skill);
-      else if (roll < 0.72) t = tournament(rounds, pick(WORLD_TOUR_IDS), t, skill);
+      else if (roll < 0.72) t = tournament(rounds, sampleWtId(t, pick(WORLD_TOUR_IDS)), t, skill);
       else if (roll < 0.9) t = casualMatch(rounds, pick(CASUAL_MODES), t);
       else t = casualMatch(rounds, pick(LTM_MODES), t);
       t += ri(4, 30) * 60_000;
@@ -469,18 +489,98 @@ const SEASON_IDS = [
 ].map(([d, id]) => [Date.parse(`${d}T00:00:00Z`), id]);
 const seasonIdAt = (ms) => SEASON_IDS.reduce((best, [start, id]) => (start <= ms ? id : best), null);
 
-function buildSummary(rounds) {
+// Sponsors: one per season through Season 8, then switched by stop. Fans follow the rounds played.
+const SPONSOR = { HOLTOW: 694448565, VAIIYA: 318896507, ALFA_ACTA: -1450283644, TRENTILA: 1789104437, OSPUZE: -234554384, VOLPE: -1916700347, ISEUL_T: -712450515, ENGIMO: -36016083 };
+const CAREER_SPONSORS = [[814189767, SPONSOR.HOLTOW], [483101830, SPONSOR.VAIIYA], [279111264, SPONSOR.ALFA_ACTA], [607580158, SPONSOR.VAIIYA], [607608768, SPONSOR.TRENTILA]];
+const JOURNEY_SPONSORS = {
+  825209376: [SPONSOR.OSPUZE, SPONSOR.OSPUZE, SPONSOR.OSPUZE, SPONSOR.VOLPE, SPONSOR.VOLPE],
+  965777394: [SPONSOR.ALFA_ACTA, SPONSOR.ALFA_ACTA, SPONSOR.ISEUL_T, SPONSOR.ISEUL_T, SPONSOR.ISEUL_T],
+  349883189: [SPONSOR.ENGIMO, SPONSOR.ENGIMO, SPONSOR.ENGIMO, SPONSOR.ENGIMO, SPONSOR.ENGIMO],
+};
+const STOP_IDS = [754316888, 883498882, 858581427, 958846313, 419510279];
+const STOP_MS = 21 * DAY;
+const fansOf = (d) => 300 + (d.RoundWon ? 500 : 150) + (d.Kills || 0) * 25;
+
+function buildSponsorRecords(rounds) {
+  const seasonStart = new Map(SEASON_IDS.map(([ms, id]) => [id, ms]));
+  const bySeason = new Map();
+  const gained = {};
+  for (const { Data: d } of rounds) {
+    const t = Date.parse(d.StartTime);
+    const s = seasonIdAt(t);
+    if (s == null) continue;
+    bySeason.set(s, (bySeason.get(s) || 0) + fansOf(d));
+    if (!JOURNEY_SPONSORS[s]) continue;
+    const stop = Math.min(4, Math.floor((t - seasonStart.get(s)) / STOP_MS));
+    const g = (gained[s] ||= {});
+    g[STOP_IDS[stop]] = (g[STOP_IDS[stop]] || 0) + fansOf(d);
+  }
+  const progress = {};
+  const levelUp = (id, fans, perLevel) => {
+    const p = (progress[id] ||= { sponsorLevel: 0, nextLevelProgress: 0, fansPerSeason: {} });
+    const gain = Math.min(20, Math.floor(fans / perLevel));
+    p.sponsorLevel += gain;
+    p.nextLevelProgress = gain === 20 ? 0 : fans % perLevel;
+    return p;
+  };
+  const firstSeason = new Map();
+  const seasonalRecords = CAREER_SPONSORS.filter(([s]) => bySeason.has(s)).map(([s, id]) => {
+    const fans = bySeason.get(s);
+    const p = levelUp(id, fans, 7500);
+    p.fansPerSeason[s] = fans;
+    if (!firstSeason.has(id)) firstSeason.set(id, s);
+    return { totalFans: fans, selectedSponsor: id, sponsorLevel: p.sponsorLevel, seasonId: s, sponsorTrackSeasonId: firstSeason.get(id), nextLevelProgress: p.nextLevelProgress };
+  });
+  for (const [s, stops] of Object.entries(gained)) {
+    const perSponsor = new Map();
+    STOP_IDS.forEach((stopId, i) => {
+      if (stops[stopId]) perSponsor.set(JOURNEY_SPONSORS[s][i], (perSponsor.get(JOURNEY_SPONSORS[s][i]) || 0) + stops[stopId]);
+    });
+    for (const [id, fans] of perSponsor) levelUp(id, fans, 9000).fansPerSeason[s] = fans;
+  }
+  const last = seasonalRecords.at(-1);
+  const lastSeason = Object.keys(gained).map(Number).sort((a, b) => seasonStart.get(a) - seasonStart.get(b)).at(-1);
+  const lastStops = lastSeason ? STOP_IDS.map((id, i) => [id, i]).filter(([id]) => gained[lastSeason][id]) : [];
+  return {
+    stopsWithFans: Object.values(gained).reduce((a, g) => a + Object.keys(g).length, 0),
+    lastStopId: lastStops.at(-1)?.[0] ?? 0,
+    rows: [
+      {
+        ObjectKey: 'player_career',
+        Value: JSON.stringify({ fans: last?.totalFans ?? 0, selectedSponsor: last?.selectedSponsor ?? 0, sponsorLevel: last?.sponsorLevel ?? 0, season: last?.seasonId ?? 0, isMigrated: true, seasonalRecords }),
+        CreatedAt: '2024-09-26T11:00:00Z',
+        UpdatedAt: '2025-12-10T00:20:00Z',
+      },
+      {
+        ObjectKey: 'sponsor_journey',
+        Value: JSON.stringify({ bufferedFans: 0, gainedFans: gained, sponsorProgress: progress, signedSponsor: lastStops.length ? JOURNEY_SPONSORS[lastSeason][lastStops.at(-1)[1]] : 0 }),
+        CreatedAt: '2025-12-10T16:30:00Z',
+        UpdatedAt: iso(SPAN_END),
+      },
+    ],
+  };
+}
+
+// Counted the way Embark counts TotalWorldTourEvents.
+function worldTourEventCount(rounds, stopsWithFans) {
+  const seasonN = new Map(SEASON_IDS.map(([, id], i) => [id, i + 1]));
+  const seen = new Set();
+  for (const { Data: d } of rounds) {
+    if (!SAMPLE_WT_IDS.has(d.ScenarioID) || !d.TournamentID) continue;
+    const n = seasonN.get(seasonIdAt(Date.parse(d.StartTime)));
+    if (n == null || n < 3 || n > 8) continue;
+    const ev = worldTourEvent(d.ScenarioID, n);
+    if (n === 3) seen.add(`3:${ev?.event ?? d.ScenarioID}`);
+    else if (ev) seen.add(`${n}:${ev.stop}`);
+  }
+  return seen.size + stopsWithFans;
+}
+
+function buildSummary(rounds, sponsors) {
   const ranked = rounds.filter((r) => r.Data.ScenarioID === RANKED_ID);
   const casual = rounds.filter((r) => CASUAL_IDS.has(r.Data.ScenarioID));
-  // World Tour: the bucket's own counters are zero on real exports; what it carries
-  // is the per-season badge score and finals won, and the number of rounds played.
-  // The badge score is the wiki's points per placement (Quick Cash 6/4/2, tournament
-  // exits 2/6/14/25, other quickplay 4/2), and finals won counts the round wins in
-  // World Tour and Ranked Cashout tournaments from Season 11 on, as on real exports.
-  // Only the seasons on that system get seasonal stats: the badge existed from Season 4
-  // as a Win Points total on a scale the vault does not know, so inventing those would
-  // be wrong. Earlier seasons keep their rounds from the match log and nothing else.
-  const wt = rounds.filter((r) => WORLD_TOUR_IDS.includes(r.Data.ScenarioID)).sort((a, b) => Date.parse(a.Data.StartTime) - Date.parse(b.Data.StartTime));
+  // World Tour: per-season badge score and finals won, scored by era as real exports store them.
+  const wt = rounds.filter((r) => SAMPLE_WT_IDS.has(r.Data.ScenarioID)).sort((a, b) => Date.parse(a.Data.StartTime) - Date.parse(b.Data.StartTime));
   const WT2_SEASONS = new Set([825209376, 965777394, 349883189]);
   const seasonal = {};
   const entry = (s) => (seasonal[s] ||= { BadgeScore: 0, FinalsWon: 0 });
@@ -489,7 +589,7 @@ function buildSummary(rounds) {
     const d = r.Data;
     const s = seasonIdAt(Date.parse(d.StartTime));
     if (s == null || !WT2_SEASONS.has(s)) continue;
-    const tournament = d.ScenarioID === RANKED_ID || WORLD_TOUR_IDS.includes(d.ScenarioID);
+    const tournament = d.ScenarioID === RANKED_ID || SAMPLE_WT_IDS.has(d.ScenarioID);
     if (tournament) {
       const t = tourneys.get(d.TournamentID) || { s, furthest: 9, won: false };
       t.furthest = Math.min(t.furthest, Number(String(d.MatchID).split('-')[0]));
@@ -514,7 +614,7 @@ function buildSummary(rounds) {
   for (const r of rounds) {
     const d = r.Data;
     const s = seasonIdAt(Date.parse(d.StartTime));
-    if (!OLD_WT.includes(s) || !WORLD_TOUR_IDS.includes(d.ScenarioID) || !d.TournamentID) continue;
+    if (!OLD_WT.includes(s) || !SAMPLE_WT_IDS.has(d.ScenarioID) || !d.TournamentID) continue;
     const t = oldTourneys.get(d.TournamentID) || { s, furthest: 9, won: false };
     t.furthest = Math.min(t.furthest, Number(String(d.MatchID).split('-')[0]));
     if (d.TournamentWon) t.won = true;
@@ -545,7 +645,7 @@ function buildSummary(rounds) {
         total,
         casual: aggregateRoundStats(casual),
         ranked: aggregateRoundStats(ranked),
-        worldTour: { ...aggregateRoundStats([]), TotalWorldTourEvents: wt.length, SeasonalStats: seasonal },
+        worldTour: { ...aggregateRoundStats([]), TotalWorldTourEvents: worldTourEventCount(rounds, sponsors.stopsWithFans), LastWorldTourEventIdentifier: sponsors.lastStopId, SeasonalStats: seasonal },
         scores: { QuickPlayScore: quickplay },
       },
     },
@@ -1100,6 +1200,7 @@ function buildPersistence() {
   decorateRounds(rounds);
   previewRounds = pickPreviewRounds(rounds);
   const live = rounds.filter((r) => !previewRounds.includes(r));
+  const sponsors = buildSponsorRecords(live);
   const byType = {
     // A single Embark account
     EmbarkUser: [
@@ -1132,9 +1233,9 @@ function buildPersistence() {
       { ThirdPartyProviderID: 'discord', ThirdPartyUserID: 'disc_000', LastSeenAccountName: 'sampleplayer#0', Enabled: true, CreatedAt: iso(ACCOUNT_CREATED + 5 * DAY) },
     ],
     InventoryItem: buildInventoryItems(),
-    BucketObject: buildRatingBuckets(rankedTournamentCounts(rounds)),
+    BucketObject: [...buildRatingBuckets(rankedTournamentCounts(rounds)), ...sponsors.rows],
     RankUpdate: buildRankUpdates(rounds),
-    RoundStatSummary: [...buildSummary(live), ...previewSummary(previewRounds)],
+    RoundStatSummary: [...buildSummary(live, sponsors), ...previewSummary(previewRounds)],
     RoundStat: rounds,
     UserLogin: buildUserLogins(rounds),
     // The BucketID'd row is the 2026-09+ shape: that id is the "Career rank" track in Embark's key file.
@@ -1193,7 +1294,7 @@ function buildEosAnticheat() {
   const sessions = [];
   const BUILDS = ['2024-03-12T09:00:00Z', '2024-09-26T09:00:00Z', '2025-06-12T09:00:00Z', '2026-03-26T09:00:00Z'];
   for (let i = 0; i < 90; i++) {
-    const start = lerp(SPAN_START, SPAN_END, (i + rf() * 0.6) / 90);
+    const start = lerp(Date.parse('2025-08-18T00:00:00Z'), SPAN_END, (i + rf() * 0.6) / 90);
     sessions.push({
       timeStart: iso(start), timeEnd: iso(start + ri(15, 24) * 60_000),
       eacClient: { OperatingSystem: 'Windows 11', ClientIP: pick(IPS) },
@@ -1222,12 +1323,12 @@ function buildAnybrain() {
 function buildDenuvo() {
   const steam = [];
   for (let i = 0; i < 26; i++) {
-    const start = lerp(SPAN_START, SPAN_END, (i + rf() * 0.6) / 26);
+    const start = lerp(Date.parse('2025-09-11T00:00:00Z'), SPAN_END, (i + rf() * 0.6) / 26);
     steam.push({ start: iso(start), end: iso(start + ri(30, 150) * 60_000) });
   }
   const xbox = [];
   for (let i = 0; i < 6; i++) {
-    const start = lerp(Date.parse('2024-10-01T00:00:00Z'), SPAN_END, (i + 0.5) / 6);
+    const start = lerp(Date.parse('2025-10-25T00:00:00Z'), SPAN_END, (i + 0.5) / 6);
     xbox.push({ start: iso(start), end: iso(start + ri(30, 120) * 60_000) });
   }
   return [

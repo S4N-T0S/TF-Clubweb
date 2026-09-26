@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Gauge, Trophy, TrendingUp, ChevronDown, ChevronRight, Crown, Swords, Target, Maximize2 } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
@@ -163,6 +163,191 @@ const finalsWonTitle = (s) => {
   if (s.finalsWonMatch === 'finalsStageWins') return `Matches the ${num(n)} World Tour tournament${plural} your log shows you won in the Finals stage.`;
   if (s.finalsWonMatch === 'tournamentsWon') return `Matches the ${num(n)} World Tour and Ranked tournament${plural} your log shows you won.`;
   return `Matches the ${num(n)} World Tour and Ranked round${plural} your log shows you won, not tournaments.`;
+};
+
+const WtStopRow = ({ st }) => (
+  <div className="rounded-lg bg-gray-950/45 px-3 py-2">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3">
+      <div className="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+        <span className="font-semibold text-gray-100 break-words">
+          {st.stop != null ? `Stop ${st.stop}` : st.event != null ? `Event ${st.event}` : 'Unknown stop'}
+          {st.stopName && <span className="font-normal text-gray-300"> · {st.stopName}</span>}
+        </span>
+        {st.sponsors.map((sp) => (
+          <Badge key={sp} tone="gray">
+            {sp}
+          </Badge>
+        ))}
+      </div>
+      <div className="flex items-center justify-between sm:justify-end gap-2 gap-y-1 sm:gap-6 flex-wrap shrink-0 text-right">
+        {st.tournaments > 0 && (
+          <>
+            <div className="w-14">
+              <p className="text-[10px] uppercase text-gray-400">Rounds</p>
+              <p className="text-sm font-semibold text-gray-100 tabular-nums">{num(st.rounds)}</p>
+            </div>
+            <div className="w-20">
+              <p className="text-[10px] uppercase text-gray-400">Tournaments</p>
+              <p className="text-sm font-semibold text-gray-100 tabular-nums">{num(st.tournaments)}</p>
+            </div>
+            <div className="w-10">
+              <p className="text-[10px] uppercase text-gray-400">Won</p>
+              <p className="text-sm font-semibold text-gray-100 tabular-nums">{num(st.tournamentsWon)}</p>
+            </div>
+          </>
+        )}
+        {st.fans != null && (
+          <div className="min-w-16">
+            <p className="text-[10px] uppercase text-gray-400">Fans</p>
+            <p className="text-sm font-semibold text-gray-100 tabular-nums">{num(st.fans)}</p>
+          </div>
+        )}
+      </div>
+    </div>
+    {st.weeks.length > 0 && (
+      <ul className="mt-1.5 pl-3 border-l border-gray-700 space-y-1">
+        {st.weeks.map((w, i) => (
+          <li key={i} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-3 text-xs">
+            <span className="min-w-0 break-words text-gray-300">
+              {w.weeks.length > 1 ? `Weeks ${w.weeks[0]} to ${w.weeks.at(-1)}` : `Week ${w.weeks[0]}`}
+              {w.weekName && ` · ${w.weekName}`}
+            </span>
+            <span className="shrink-0 tabular-nums text-gray-400">
+              {num(w.tournaments)} tournament{w.tournaments === 1 ? '' : 's'} · {num(w.tournamentsWon)} won
+            </span>
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+);
+
+const SponsorChip = ({ sponsor, fans }) => (
+  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gray-800 px-2.5 py-1 text-xs">
+    <span className="font-medium text-gray-100">
+      {sponsor.name ?? 'Unnamed sponsor'}
+      {!sponsor.name && <span className="block font-mono text-[10px] leading-none text-gray-500 mt-0.5">{sponsor.id}</span>}
+    </span>
+    {fans != null && <span className="tabular-nums text-gray-400">{num(fans)}</span>}
+  </span>
+);
+
+const SponsorsPanel = ({ sponsors, wtRecord }) => {
+  const { seasons, sponsors: tracks, signed } = sponsors;
+  const hasCareer = seasons.some((s) => s.era === 'career');
+  const hasJourney = seasons.some((s) => s.era === 'journey');
+  const signedTrack = tracks.find((t) => t.signed);
+  const hasProgress = tracks.some((t) => t.nextLevelProgress > 0);
+  const hasUnnamed = [signed, ...tracks, ...seasons.flatMap((s) => s.bySponsor)].some((x) => x && !x.name);
+  const stopFans = new Map((wtRecord?.seasons ?? []).map((w) => [w.n, w.stops.reduce((a, x) => a + (x.fans ?? 0), 0)]));
+  const addsUp = hasJourney && wtRecord != null && seasons.every((s) => s.era !== 'journey' || stopFans.get(s.n) === s.fans);
+  const newest = seasons[0]?.n;
+  const oldest = seasons.at(-1)?.n;
+
+  return (
+    <Panel title="Sponsors">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+        {(signed || hasJourney) && (
+          <div className="bg-gray-900/50 rounded-lg p-3">
+            <p className="text-[11px] uppercase tracking-wider text-gray-500">Currently signed</p>
+            <p className="text-xl font-bold text-white mt-1">{signed ? (signed.name ?? 'Unnamed sponsor') : <span className="text-gray-500">None</span>}</p>
+            {signedTrack?.level != null && <p className="text-[11px] text-gray-500 mt-0.5 tabular-nums">Level {num(signedTrack.level)}</p>}
+          </div>
+        )}
+        <div className="bg-gray-900/50 rounded-lg p-3">
+          <p className="text-[11px] uppercase tracking-wider text-gray-500">Total fans</p>
+          <p className="text-xl font-bold text-white mt-1 tabular-nums">{num(sponsors.totalFans)}</p>
+          {newest != null && <p className="text-[11px] text-gray-500 mt-0.5">{oldest === newest ? `Season ${newest}` : `Seasons ${oldest} to ${newest}`}</p>}
+        </div>
+      </div>
+
+      {seasons.length > 0 && (
+        <>
+          <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-2">By season</p>
+          <ul className="space-y-2 mb-5">
+            {seasons.map((s) => (
+              <li key={s.n} className="rounded-lg bg-gray-900/50 px-3 py-2">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
+                  <span className="font-semibold text-gray-100 whitespace-nowrap sm:w-20 sm:shrink-0">Season {s.n}</span>
+                  <span className="ml-auto sm:order-last font-bold text-white tabular-nums whitespace-nowrap">{num(s.fans)} fans</span>
+                  <div className="basis-full sm:flex-1 min-w-0 flex flex-wrap items-center gap-1.5">
+                    {s.bySponsor.length === 0 ? (
+                      <span className="text-xs text-gray-500">No sponsor chosen</span>
+                    ) : (
+                      s.bySponsor.map((b) => <SponsorChip key={b.id} sponsor={b} fans={s.bySponsor.length > 1 ? b.fans : null} />)
+                    )}
+                    {s.level != null && s.bySponsor.length > 0 && <span className="text-xs text-gray-500">Level {num(s.level)}</span>}
+                    {s.stopCount > 0 && (
+                      <span className="text-xs text-gray-500">
+                        {num(s.stopCount)} stop{s.stopCount === 1 ? '' : 's'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {tracks.length > 0 && (
+        <>
+          <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-2">By sponsor</p>
+          <div className="table-container">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-gray-400 border-b border-gray-700">
+                  <th className="text-left py-2 pr-3 font-medium">Sponsor</th>
+                  <th className="text-right py-2 px-3 font-medium">Level</th>
+                  <th className="text-right py-2 pl-3 font-medium">Fans</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tracks.map((t) => (
+                  <tr key={t.id} className="border-b border-gray-700/40 last:border-0">
+                    <td className="py-2 pr-3">
+                      <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-medium text-gray-100 whitespace-nowrap">{t.name ?? 'Unnamed sponsor'}</span>
+                        {t.signed && <Badge tone="emerald">Signed</Badge>}
+                      </span>
+                      {!t.name && <span className="block font-mono text-[10px] text-gray-500 mt-0.5">{t.id}</span>}
+                    </td>
+                    <td className="py-2 px-3 text-right tabular-nums text-gray-200">
+                      {num(t.level)}
+                      {t.nextLevelProgress > 0 && <span className="block text-[10px] text-gray-500 mt-0.5">+{num(t.nextLevelProgress)} toward next level</span>}
+                    </td>
+                    <td className="py-2 pl-3 text-right tabular-nums font-medium text-white">{num(t.fans)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      <Note>
+        {hasCareer && (
+          <>
+            Seasons 4 to 8 come from <code>player_career</code>, which records the level the chosen sponsor had reached by the end of each season.{' '}
+          </>
+        )}
+        {hasJourney && (
+          <>
+            {hasCareer ? 'Later seasons' : 'Every season'} and the By sponsor table come from <code>sponsor_journey</code>.{' '}
+          </>
+        )}
+        The export stores sponsors as ids, and the names come from a list the vault keeps.
+        {hasUnnamed && ' An id missing from that list shows as Unnamed sponsor.'}
+        {hasProgress && (
+          <>
+            {' '}
+            Fans toward the next level come from <code>nextLevelProgress</code>, and the export does not say how many fans a level needs.
+          </>
+        )}
+        {addsUp && ' From Season 9, a season’s fans by sponsor add up to its fans per stop in the World Tour record above.'}
+      </Note>
+    </Panel>
+  );
 };
 
 // REVERT / UNDO_REVERT rows (model.ratings.adjustments). Its own component so the
@@ -450,6 +635,14 @@ export const RatingsPage = () => {
     for (const m of model.matches || []) if (m.tournamentId) map.set(m.tournamentId, m);
     return map;
   }, [model.matches]);
+  const [openWtSeasons, setOpenWtSeasons] = useState(() => new Set());
+  const toggleWtSeason = (key) =>
+    setOpenWtSeasons((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   if (!ratings?.has) {
     return (
@@ -474,10 +667,13 @@ export const RatingsPage = () => {
   const scoreBonusSeasons = ranked.seasons.filter((s) => s.bonusTotal > 0 && s.bonusMatches > 0);
   const casual = hiddenMmr.find((m) => m.ratingId === 'IVKCasualRating');
   const worldTour = hiddenMmr.find((m) => m.ratingId === 'IVKWorldTourRating');
-  // 2026-09+ lifetime World Tour record, beside what the round log holds for the same seasons.
   const wtRecord = model.worldTour?.has && (model.worldTour.totalEvents > 0 || model.worldTour.seasons.length > 0) ? model.worldTour : null;
-  const wtLogRounds = wtRecord ? wtRecord.seasons.reduce((n, s) => n + s.rounds, 0) : 0;
-  const wtLogTournaments = wtRecord ? wtRecord.seasons.reduce((n, s) => n + s.tournaments, 0) : 0;
+  const wtStops = wtRecord ? wtRecord.seasons.flatMap((s) => s.stops) : [];
+  const eventsAddUp = wtRecord?.totalEvents > 0 && wtRecord.events.counted === wtRecord.totalEvents;
+  const wtNamed = wtStops.some((st) => st.stopName || st.weeks.some((w) => w.weekNameSource === 'wiki'));
+  const wtExportWeek = wtStops.some((st) => st.weeks.some((w) => w.weekNameSource === 'export'));
+  const wtFans = wtStops.some((st) => st.fans != null);
+  const wtShared = wtRecord?.seasons.some((s) => s.n >= 9 && s.unlabelled.tournaments > 0);
 
   return (
     <div className="animate-fade-in-up space-y-5">
@@ -530,101 +726,186 @@ export const RatingsPage = () => {
 
       {wtRecord && (
         <Panel title="World Tour record">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-            <div className="bg-gray-900/50 rounded-lg p-3">
-              <p className="text-[11px] uppercase tracking-wider text-gray-500">Total events</p>
-              <p className="text-xl font-bold text-white mt-1 tabular-nums">{num(wtRecord.totalEvents)}</p>
-              {wtRecord.totalEvents != null && wtLogRounds === wtRecord.totalEvents && (
-                <p className="text-[11px] text-gray-500 mt-0.5">
-                  That matches {num(wtLogRounds)} World Tour rounds across {num(wtLogTournaments)} tournaments in your match history.
-                </p>
+          {(wtRecord.totalEvents != null || wtRecord.streak?.streak > 0) && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+              {wtRecord.totalEvents != null && (
+                <div className="bg-gray-900/50 rounded-lg p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-gray-500">Total events</p>
+                  <p className="text-xl font-bold text-white mt-1 tabular-nums">{num(wtRecord.totalEvents)}</p>
+                  {eventsAddUp && (
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      {[
+                        wtRecord.events.fromLog > 0 && `${num(wtRecord.events.fromLog)} from your match log`,
+                        wtRecord.events.fromFans > 0 && `${num(wtRecord.events.fromFans)} from sponsor fans`,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  )}
+                </div>
+              )}
+              {wtRecord.streak?.streak > 0 && (
+                <div className="bg-gray-900/50 rounded-lg p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-gray-500">Current win streak</p>
+                  <p className="text-xl font-bold text-white mt-1 tabular-nums">{num(wtRecord.streak.streak)}</p>
+                  {wtRecord.streak.lastWinMs && <p className="text-[11px] text-gray-500 mt-0.5">last win {date(wtRecord.streak.lastWinMs)}</p>}
+                </div>
               )}
             </div>
-            {wtRecord.streak?.streak > 0 && (
-              <div className="bg-gray-900/50 rounded-lg p-3">
-                <p className="text-[11px] uppercase tracking-wider text-gray-500">Current win streak</p>
-                <p className="text-xl font-bold text-white mt-1 tabular-nums">{num(wtRecord.streak.streak)}</p>
-                {wtRecord.streak.lastWinMs && <p className="text-[11px] text-gray-500 mt-0.5">last win {date(wtRecord.streak.lastWinMs)}</p>}
-              </div>
-            )}
-          </div>
-          <div className="table-container">
+          )}
+          <div className="table-container @container">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-gray-400 border-b border-gray-700">
                   <th className="text-left py-2 pr-3 font-medium">Season</th>
-                  <th className="text-right py-2 px-3 font-medium">Badge score</th>
-                  <th className="text-right py-2 px-3 font-medium">
-                    <span className="border-b border-dotted border-gray-500 cursor-help" title="Embark’s own FinalsWon counter, which counted different things in different seasons.">
-                      Finals won
-                    </span>
-                  </th>
+                  {wtRecord.hasSummary && (
+                    <>
+                      <th className="text-right py-2 px-3 font-medium">Badge score</th>
+                      <th className="text-right py-2 px-3 font-medium">
+                        <span className="border-b border-dotted border-gray-500 cursor-help" title="Embark’s own FinalsWon counter, which counted different things in different seasons.">
+                          Finals won
+                        </span>
+                      </th>
+                    </>
+                  )}
                   <th className="text-right py-2 px-3 font-medium">Rounds</th>
                   <th className="text-right py-2 px-3 font-medium">Tournaments</th>
                   <th className="text-right py-2 pl-3 font-medium">Tournaments won</th>
                 </tr>
               </thead>
               <tbody>
-                {wtRecord.seasons.map((s) => (
-                  <tr key={s.seasonId ?? s.label} className="border-b border-gray-700/40 last:border-0">
-                    <td className="py-2 pr-3 text-gray-200 font-medium whitespace-nowrap">{s.label}</td>
-                    <td className="py-2 px-3 text-right tabular-nums text-gray-300 whitespace-nowrap">
-                      {s.badge && (
-                        <span
-                          className={`font-semibold mr-2 ${s.badge.text} ${s.badge.basis !== 'points' ? 'border-b border-dotted border-gray-500 cursor-help' : ''}`}
-                          title={s3BadgeTip(s.badge)}
-                        >
-                          <span className="inline-block w-2.5 h-2.5 rounded-full align-middle mr-1.5" style={{ background: s.badge.color }} />
-                          {s.badge.level == null && s.badge.name === 'Emerald' ? 'Emerald 4 to 2' : s.badge.label}
-                        </span>
+                {wtRecord.seasons.map((s) => {
+                  const key = s.seasonId ?? s.label;
+                  const canOpen = s.stops.length > 0 || s.unlabelled.tournaments > 0;
+                  const open = canOpen && openWtSeasons.has(key);
+                  return (
+                    <Fragment key={key}>
+                      <tr className="border-b border-gray-700/40 last:border-0">
+                        <td className="py-2 pr-3 text-gray-200 font-medium whitespace-nowrap">
+                          {canOpen ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleWtSeason(key)}
+                              aria-expanded={open}
+                              className="inline-flex items-center gap-1.5 -my-1 py-1 hover:text-white"
+                            >
+                              <ChevronDown aria-hidden="true" className={`w-3.5 h-3.5 shrink-0 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+                              {s.label}
+                            </button>
+                          ) : (
+                            s.label
+                          )}
+                        </td>
+                        {wtRecord.hasSummary && (
+                          <>
+                            <td className="py-2 px-3 text-right tabular-nums text-gray-300 whitespace-nowrap">
+                              {s.badge && (
+                                <span
+                                  className={`font-semibold mr-2 ${s.badge.text} ${s.badge.basis !== 'points' ? 'border-b border-dotted border-gray-500 cursor-help' : ''}`}
+                                  title={s3BadgeTip(s.badge)}
+                                >
+                                  <span className="inline-block w-2.5 h-2.5 rounded-full align-middle mr-1.5" style={{ background: s.badge.color }} />
+                                  {s.badge.level == null && s.badge.name === 'Emerald' ? 'Emerald 4 to 2' : s.badge.label}
+                                </span>
+                              )}
+                              {num(s.badgeScore)}
+                              {s.system && (
+                                <span className="block sm:inline text-[10px] font-normal text-gray-500 sm:ml-1.5">
+                                  {s.system === 'allModes' ? 'every mode' : 'tournaments only'}
+                                  {s.badge?.basis === 'finalsWins' && ' · badge from Finals won'}
+                                  {s.badge?.basis === 'finalsStage' && ' · badge from Finals stage'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2 px-3 text-right tabular-nums text-gray-300">
+                              {s.finalsWonMatch ? (
+                                <span className="border-b border-dotted border-gray-600 cursor-help" title={finalsWonTitle(s)}>
+                                  {num(s.finalsWon)}
+                                </span>
+                              ) : s.finalsWon === 0 && s.tournamentsWon > 0 && s.n !== 3 ? (
+                                <span
+                                  className="border-b border-dotted border-gray-600 cursor-help"
+                                  title={`Embark’s counter reads 0 although your log shows ${num(s.tournamentsWon)} World Tour tournament win${s.tournamentsWon === 1 ? '' : 's'} this season.`}
+                                >
+                                  0
+                                </span>
+                              ) : (
+                                num(s.finalsWon)
+                              )}
+                            </td>
+                          </>
+                        )}
+                        <td className="py-2 px-3 text-right tabular-nums text-gray-400 whitespace-nowrap">{s.rounds > 0 ? num(s.rounds) : '0 in log'}</td>
+                        <td className="py-2 px-3 text-right tabular-nums text-gray-400">{s.tournaments > 0 ? num(s.tournaments) : '—'}</td>
+                        <td className="py-2 pl-3 text-right tabular-nums text-gray-400">{s.tournaments > 0 ? num(s.tournamentsWon) : '—'}</td>
+                      </tr>
+                      {open && (
+                        <tr className="border-b border-gray-700/40 last:border-0">
+                          <td colSpan={wtRecord.hasSummary ? 6 : 4} className="pt-1 pb-3">
+                            <div className="sticky left-0 w-[100cqw] space-y-1.5">
+                              {s.stops.map((st, i) => (
+                                <WtStopRow key={i} st={st} />
+                              ))}
+                              {s.unlabelled.tournaments > 0 && (
+                                <div className="rounded-lg border border-dashed border-gray-700 px-3 py-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+                                  <span className="text-sm text-gray-400">No stop or week</span>
+                                  <span className="text-xs text-gray-400 tabular-nums">
+                                    {`${num(s.unlabelled.tournaments)} tournament${s.unlabelled.tournaments === 1 ? '' : 's'} · ${num(s.unlabelled.rounds)} round${s.unlabelled.rounds === 1 ? '' : 's'}`}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                      {num(s.badgeScore)}
-                      {s.system && (
-                        <span className="block sm:inline text-[10px] font-normal text-gray-500 sm:ml-1.5">
-                          {s.system === 'allModes' ? 'every mode' : 'tournaments only'}
-                          {s.badge?.basis === 'finalsWins' && ' · badge from Finals won'}
-                          {s.badge?.basis === 'finalsStage' && ' · badge from Finals stage'}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 px-3 text-right tabular-nums text-gray-300">
-                      {s.finalsWonMatch ? (
-                        <span className="border-b border-dotted border-gray-600 cursor-help" title={finalsWonTitle(s)}>
-                          {num(s.finalsWon)}
-                        </span>
-                      ) : s.finalsWon === 0 && s.tournamentsWon > 0 && s.n !== 3 ? (
-                        <span
-                          className="border-b border-dotted border-gray-600 cursor-help"
-                          title={`Embark’s counter reads 0 although your log shows ${num(s.tournamentsWon)} World Tour tournament win${s.tournamentsWon === 1 ? '' : 's'} this season.`}
-                        >
-                          0
-                        </span>
-                      ) : (
-                        num(s.finalsWon)
-                      )}
-                    </td>
-                    <td className="py-2 px-3 text-right tabular-nums text-gray-400 whitespace-nowrap">{s.rounds > 0 ? num(s.rounds) : '0 in log'}</td>
-                    <td className="py-2 px-3 text-right tabular-nums text-gray-400">{s.tournaments > 0 ? num(s.tournaments) : '—'}</td>
-                    <td className="py-2 pl-3 text-right tabular-nums text-gray-400">{s.tournaments > 0 ? num(s.tournamentsWon) : '—'}</td>
-                  </tr>
-                ))}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <Note>
-            Total events, badge score and Finals won come from the lifetime <code>worldTour</code> summary, and rounds, tournaments and tournaments won
-            from your match log. The two do not always cover the same seasons. What counts toward the badge score is labelled with each score, and
-            scores under different labels do not compare. From Season 4 the badge is worked out from the score.
-            {wtRecord.seasons.some((s) => s.n === 3) &&
-              ' Season 3’s score is stored on today’s point scale rather than the one its own tiers used, so its badge is read from the World Tour Finals stage (Gold 1 to enter, Emerald from 3 wins) and is left blank below that.'}
-            {' Finals won is Embark’s own counter and counted different things in different seasons'}
-            {wtRecord.seasons.some((s) => s.n >= 4 && s.n <= 8) &&
-              wtRecord.seasons.every((s) => !(s.n >= 4 && s.n <= 8) || s.finalsWon === 0) &&
-              ', reading 0 for Seasons 4 to 8 on every export checked'}
-            .
+            {wtRecord.hasSummary ? (
+              <>
+                Total events, badge score and Finals won come from Embark’s <code>worldTour</code> summary, and rounds, tournaments and
+                tournaments won from your match log. The two do not always cover the same seasons. What counts toward the badge score is
+                labelled with each score, and scores under different labels do not compare. From Season 4 the badge is worked out from the score.
+                {wtRecord.seasons.some((s) => s.n === 3) &&
+                  ' Season 3’s score is stored on today’s point scale rather than the one its own tiers used, so its badge is read from the World Tour Finals stage (Gold 1 to enter, Emerald from 3 wins) and is left blank below that.'}
+                {' Finals won is Embark’s own counter and counted different things in different seasons'}
+                {wtRecord.seasons.some((s) => s.n >= 4 && s.n <= 8) &&
+                  wtRecord.seasons.every((s) => !(s.n >= 4 && s.n <= 8) || s.finalsWon === 0) &&
+                  ', reading 0 for Seasons 4 to 8 on every export checked'}
+                .
+              </>
+            ) : (
+              <>
+                Rounds, tournaments and tournaments won come from your match log. This export has no <code>worldTour</code> summary, so it has no
+                total events, badge score or Finals won.
+              </>
+            )}
+            {eventsAddUp && (
+              <>
+                {' '}
+                Total events is Embark’s <code>TotalWorldTourEvents</code>, which equals the Season 3 events and Season 4 to 8 stops with a World
+                Tour tournament in your match log, plus the stops from Season 9 where you earned sponsor fans.
+              </>
+            )}
+            {wtNamed && ' Stop and week names and each stop’s sponsors come from thefinals.wiki, checked against Embark’s patch notes and videos.'}
+            {wtExportWeek && ' A week that neither thefinals.wiki nor Embark’s patch notes name shows the internal name from the export.'}
+            {wtFans && (
+              <>
+                {' '}
+                Fans per stop, from Season 9, come from <code>sponsor_journey.gainedFans</code> and count fans earned in any mode, so a stop can
+                have fans and no tournaments.
+              </>
+            )}
+            {wtShared && ' From Update 9.8.0 (5 Feb 2026) nearly every World Tour tournament shares one scenario id, so those tournaments have no stop or week.'}
           </Note>
         </Panel>
       )}
+
+      {model.sponsors?.has && <SponsorsPanel sponsors={model.sponsors} wtRecord={wtRecord} />}
 
       {model.quickplay?.has && model.quickplay.seasons.length > 0 && (
         <Panel title="Quickplay badge">

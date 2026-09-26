@@ -189,13 +189,15 @@ export const SessionsPage = () => {
   const peripherals = usePeripheralNames(antiCheat.peripherals || []);
   const sessionSearchRef = useRef(null);
 
+  const eosMixed = (antiCheat.eos?.byGame.length ?? 0) > 1;
+  const eosArc = antiCheat.eos?.byGame.find((g) => g.game === 'ARC Raiders')?.count ?? 0;
   const countryCount = geo.countries.filter((c) => c.iso).length;
   const countriesValue = geo.status === 'loading' ? '…' : geo.status === 'none' ? '—' : num(countryCount);
   const countriesAccent = geo.status === 'ready' ? (countryCount > 1 ? 'text-orange-400' : 'text-emerald-400') : 'text-white';
 
   const { query, setQuery, filtered } = useListSearch(
     sessions,
-    (s) => [s.os, s.platform, s.game, s.ip, s.source],
+    (s) => [s.os, s.platform, s.source === 'EOS' && !eosMixed ? null : s.game, s.ip, s.source],
     () => setPage(1)
   );
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
@@ -235,6 +237,7 @@ export const SessionsPage = () => {
         )}
         <Note>
           EOS re-checks every 15 to 20 minutes, so its count is heartbeats and reconnects, not whole play sessions.
+          {eosArc > 0 && ` ${num(eosArc)} of the ${num(antiCheat.eos.sessions)} EOS sessions come from this export’s ARC Raiders archive.`}
           {antiCheat.denuvo?.multiProduct &&
             ` This export’s Denuvo file names ${num(antiCheat.denuvo.products.length)} products and no game per session, so we match each session to the nearest sign-in within 15 minutes${antiCheat.denuvo.unattributed > 0 ? `, and ${num(antiCheat.denuvo.unattributed)} of ${num(antiCheat.denuvo.sessions)} had none that close` : ''}.`}
         </Note>
@@ -450,6 +453,8 @@ export const SessionsPage = () => {
                         >
                           THE FINALS or ARC Raiders
                         </span>
+                      ) : s.source === 'EOS' && s.game && eosMixed ? (
+                        `${s.os ? `${s.os} · ` : ''}${s.game}`
                       ) : (
                         s.os || s.platform || '—'
                       )}
