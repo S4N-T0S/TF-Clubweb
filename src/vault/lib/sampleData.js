@@ -13,7 +13,7 @@
 
 import { PERFORMANCE_BONUS_MAX_SCORE } from './ratings';
 import { WEAPONS } from './weapons';
-import { worldTourEvent } from './gameMeta';
+import { worldTourEvent, sponsorName, sponsorTrackLength, sponsorLevelFans, sponsorAddedLevels } from './gameMeta';
 
 // --- deterministic RNG ----------------------------------------------------
 function mulberry32(seed) {
@@ -225,7 +225,9 @@ function casualMatch(rounds, mode, startT) {
 }
 
 const RANKED_ID = 498553443;
-const WORLD_TOUR_IDS = [211390302, 465304560, 308426432];
+// Before World Tour: the unranked Tournament playlist until its last day on real exports, then Ranked.
+const UNRANKED_TOURNAMENT_ID = 377270267;
+const UNRANKED_TOURNAMENT_END = Date.parse('2024-03-26T00:00:00Z');
 // The World Tour scenario each week ran on, by the week's first round on real exports.
 // From Update 9.8.0 every week shares one id, apart from Season 11's opening week.
 const WT_WEEK_IDS = [
@@ -238,13 +240,12 @@ const WT_WEEK_IDS = [
   ['2025-12-10', 812906781], ['2025-12-18', 796922784], ['2025-12-25', 858837033], ['2026-01-01', 405873674], ['2026-01-08', 709035454], ['2026-01-15', 987755586], ['2026-01-22', 961608855], ['2026-01-29', 790343144],
   ['2026-02-05', 732865891], ['2026-07-09', 232142677], ['2026-07-16', 732865891],
 ].map(([d, id]) => [Date.parse(`${d}T00:00:00Z`), id]);
-// Before World Tour began the pick stands, so the history keeps its old mix there.
-const sampleWtId = (t, picked) => {
-  let id = picked;
+const sampleWtId = (t) => {
+  let id = t < UNRANKED_TOURNAMENT_END ? UNRANKED_TOURNAMENT_ID : RANKED_ID;
   for (const [start, x] of WT_WEEK_IDS) if (start <= t) id = x;
   return id;
 };
-const SAMPLE_WT_IDS = new Set([...WORLD_TOUR_IDS, ...WT_WEEK_IDS.map(([, id]) => id)]);
+const SAMPLE_WT_IDS = new Set(WT_WEEK_IDS.map(([, id]) => id));
 const CASUAL_MODES = [
   { id: 164312917, winChance: 0.4 }, // Quick Cash
   { id: 545190106, winChance: 0.5 }, // Power Shift
@@ -281,7 +282,10 @@ function buildRounds() {
       // past ~31). Too few and each match has to move the score so far that a
       // whole placement ladder goes positive, which never happens for real.
       if (roll < 0.62) t = tournament(rounds, RANKED_ID, t, skill);
-      else if (roll < 0.72) t = tournament(rounds, sampleWtId(t, pick(WORLD_TOUR_IDS)), t, skill);
+      else if (roll < 0.72) {
+        rf(); // the id draw this history was generated with, so the random stream stays put
+        t = tournament(rounds, sampleWtId(t), t, skill);
+      }
       else if (roll < 0.9) t = casualMatch(rounds, pick(CASUAL_MODES), t);
       else t = casualMatch(rounds, pick(LTM_MODES), t);
       t += ri(4, 30) * 60_000;
@@ -490,7 +494,7 @@ const SEASON_IDS = [
 const seasonIdAt = (ms) => SEASON_IDS.reduce((best, [start, id]) => (start <= ms ? id : best), null);
 
 // Sponsors: one per season through Season 8, then switched by stop. Fans follow the rounds played.
-const SPONSOR = { HOLTOW: 694448565, VAIIYA: 318896507, ALFA_ACTA: -1450283644, TRENTILA: 1789104437, OSPUZE: -234554384, VOLPE: -1916700347, ISEUL_T: -712450515, ENGIMO: -36016083 };
+const SPONSOR = { HOLTOW: 694448565, VAIIYA: 318896507, ALFA_ACTA: -1450283644, TRENTILA: 1789104437, OSPUZE: -234554384, VOLPE: -1916700347, ISEUL_T: -712450515, ENGIMO: -36016083, DISSUN: -1229618176 };
 const CAREER_SPONSORS = [[814189767, SPONSOR.HOLTOW], [483101830, SPONSOR.VAIIYA], [279111264, SPONSOR.ALFA_ACTA], [607580158, SPONSOR.VAIIYA], [607608768, SPONSOR.TRENTILA]];
 const JOURNEY_SPONSORS = {
   825209376: [SPONSOR.OSPUZE, SPONSOR.OSPUZE, SPONSOR.OSPUZE, SPONSOR.VOLPE, SPONSOR.VOLPE],
@@ -515,28 +519,42 @@ function buildSponsorRecords(rounds) {
     const g = (gained[s] ||= {});
     g[STOP_IDS[stop]] = (g[STOP_IDS[stop]] || 0) + fansOf(d);
   }
-  const progress = {};
-  const levelUp = (id, fans, perLevel) => {
+  const seasonN = new Map(SEASON_IDS.map(([, id], i) => [id, i + 1]));
+  // An empty track (level 0, no fans), as two real exports hold.
+  const progress = { [SPONSOR.DISSUN]: { sponsorLevel: 0, nextLevelProgress: 0, fansPerSeason: {} } };
+  // The game's own level costs. Through Season 8 a season could only finish the track it started on.
+  const levelUp = (id, fans, s) => {
     const p = (progress[id] ||= { sponsorLevel: 0, nextLevelProgress: 0, fansPerSeason: {} });
-    const gain = Math.min(20, Math.floor(fans / perLevel));
-    p.sponsorLevel += gain;
-    p.nextLevelProgress = gain === 20 ? 0 : fans % perLevel;
+    const n = seasonN.get(s);
+    const released = sponsorTrackLength(n, sponsorName(id));
+    const cap = n <= 8 ? Math.min(released, 20 * (Math.floor(p.sponsorLevel / 20) + 1)) : released;
+    let left = p.nextLevelProgress + fans;
+    let cost = sponsorLevelFans(n, p.sponsorLevel + 1);
+    while (p.sponsorLevel < cap && cost != null && left >= cost) {
+      left -= cost;
+      p.sponsorLevel += 1;
+      cost = sponsorLevelFans(n, p.sponsorLevel + 1);
+    }
+    p.nextLevelProgress = p.sponsorLevel >= cap ? 0 : left;
+    p.fansPerSeason[s] = fans;
     return p;
   };
-  const firstSeason = new Map();
+  const trackSeasonId = (id, level, s) => {
+    const name = sponsorName(id);
+    const added = SEASON_IDS.filter(([, sid]) => seasonN.get(sid) <= seasonN.get(s) && sponsorAddedLevels(seasonN.get(sid), name)).map(([, sid]) => sid);
+    return added[Math.max(0, Math.ceil(level / 20) - 1)] ?? s;
+  };
   const seasonalRecords = CAREER_SPONSORS.filter(([s]) => bySeason.has(s)).map(([s, id]) => {
     const fans = bySeason.get(s);
-    const p = levelUp(id, fans, 7500);
-    p.fansPerSeason[s] = fans;
-    if (!firstSeason.has(id)) firstSeason.set(id, s);
-    return { totalFans: fans, selectedSponsor: id, sponsorLevel: p.sponsorLevel, seasonId: s, sponsorTrackSeasonId: firstSeason.get(id), nextLevelProgress: p.nextLevelProgress };
+    const p = levelUp(id, fans, s);
+    return { totalFans: fans, selectedSponsor: id, sponsorLevel: p.sponsorLevel, seasonId: s, sponsorTrackSeasonId: trackSeasonId(id, p.sponsorLevel, s), nextLevelProgress: p.nextLevelProgress };
   });
-  for (const [s, stops] of Object.entries(gained)) {
+  for (const [s, stops] of Object.entries(gained).sort(([a], [b]) => seasonStart.get(Number(a)) - seasonStart.get(Number(b)))) {
     const perSponsor = new Map();
     STOP_IDS.forEach((stopId, i) => {
       if (stops[stopId]) perSponsor.set(JOURNEY_SPONSORS[s][i], (perSponsor.get(JOURNEY_SPONSORS[s][i]) || 0) + stops[stopId]);
     });
-    for (const [id, fans] of perSponsor) levelUp(id, fans, 9000).fansPerSeason[s] = fans;
+    for (const [id, fans] of perSponsor) levelUp(id, fans, Number(s));
   }
   const last = seasonalRecords.at(-1);
   const lastSeason = Object.keys(gained).map(Number).sort((a, b) => seasonStart.get(a) - seasonStart.get(b)).at(-1);
@@ -1290,6 +1308,9 @@ function buildUserLogins(rounds) {
 }
 
 // --- anti-cheat / sessions ------------------------------------------------
+// One EOS archive per product, told apart by LinkedAccounts, as real exports ship them.
+const EOS_TF = { productId: 'b5adc328432e4883a396eba3d9c05133', productUserId: '0002a1c0e6b54f0d9a1e3c5b7d9f1a2b' };
+const EOS_ARC = { productId: '9e8b37541e614575b4de303d2c2e44cf', productUserId: '0002e7f1a3c54b6d8e0f2a4c6e8a0b1c' };
 function buildEosAnticheat() {
   const sessions = [];
   const BUILDS = ['2024-03-12T09:00:00Z', '2024-09-26T09:00:00Z', '2025-06-12T09:00:00Z', '2026-03-26T09:00:00Z'];
@@ -1301,7 +1322,17 @@ function buildEosAnticheat() {
       gameClient: { ClientBuildTime: pick(BUILDS) },
     });
   }
-  return [{ sessions, kicks: [] }];
+  // ARC Raiders from its launch, on fixed times so no random stream moves.
+  const arc = [];
+  for (let i = 0; i < 16; i++) {
+    const start = Date.parse('2025-10-30T18:00:00Z') + i * 11 * DAY + (i % 3) * 3_600_000;
+    arc.push({
+      timeStart: iso(start), timeEnd: iso(start + (40 + (i % 4) * 15) * 60_000),
+      eacClient: { OperatingSystem: 'Windows 11', ClientIP: IPS[i % IPS.length] },
+      gameClient: { ClientBuildTime: '2025-10-28T09:00:00Z' },
+    });
+  }
+  return [{ productUserId: EOS_TF.productUserId, sessions, kicks: [] }, { productUserId: EOS_ARC.productUserId, sessions: arc, kicks: [] }];
 }
 function buildAnybrain() {
   const sessions = [];
@@ -1629,7 +1660,7 @@ export function buildSampleRaw() {
     // Embark's key file, scoped to the ids above (item names and mastery tracks).
     keys: { byType: { TheFinalsItemKey: [...keyRows.items, { GameAssetID: MULTIBUCKS_ID, Kind: 'Item', Name: 'Multibucks', ItemType: 'Currency', Resolved: true }], TheFinalsMasteryKey: keyRows.mastery } },
     audit: buildAudit(),
-    eos: { anticheat: buildEosAnticheat(), linkedAccounts: [] },
+    eos: { anticheat: buildEosAnticheat(), linkedAccounts: [EOS_TF, EOS_ARC] },
     anybrain: buildAnybrain(),
     denuvo: buildDenuvo(),
     // Request "worked on" a few days after the last session — demonstrates the

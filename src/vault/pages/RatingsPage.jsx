@@ -9,6 +9,7 @@ import { Pagination } from '../../components/Pagination';
 import { DEFAULT_GRAPH_SETTINGS } from '../lib/rankChart';
 import { num, decimal, date, ordinal } from '../lib/format';
 import { leagueAbbrev, RANK_TIERS, RANKED_POINTS_PER_DIVISION, PERFORMANCE_BONUS_MAX_SCORE } from '../lib/ratings';
+import { sponsorLogo } from '../lib/gameMeta';
 
 // Coloured rank name (Bronze..Ruby), with a swatch dot.
 const RankName = ({ info, className = '' }) => (
@@ -173,11 +174,15 @@ const WtStopRow = ({ st }) => (
           {st.stop != null ? `Stop ${st.stop}` : st.event != null ? `Event ${st.event}` : 'Unknown stop'}
           {st.stopName && <span className="font-normal text-gray-300"> · {st.stopName}</span>}
         </span>
-        {st.sponsors.map((sp) => (
-          <Badge key={sp} tone="gray">
-            {sp}
-          </Badge>
-        ))}
+        {st.sponsors.map((sp) => {
+          const logo = sponsorLogo(sp);
+          return (
+            <Badge key={sp} tone="gray">
+              {logo && <img src={logo} alt="" className="h-3 w-auto max-w-[56px] object-contain" />}
+              {sp}
+            </Badge>
+          );
+        })}
       </div>
       <div className="flex items-center justify-between sm:justify-end gap-2 gap-y-1 sm:gap-6 flex-wrap shrink-0 text-right">
         {st.tournaments > 0 && (
@@ -222,23 +227,32 @@ const WtStopRow = ({ st }) => (
   </div>
 );
 
-const SponsorChip = ({ sponsor, fans }) => (
-  <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gray-800 px-2.5 py-1 text-xs">
-    <span className="font-medium text-gray-100">
-      {sponsor.name ?? 'Unnamed sponsor'}
-      {!sponsor.name && <span className="block font-mono text-[10px] leading-none text-gray-500 mt-0.5">{sponsor.id}</span>}
-    </span>
-    {fans != null && <span className="tabular-nums text-gray-400">{num(fans)}</span>}
+const SponsorTag = ({ id, name, logo, fans, official = false, noLevels = false }) => (
+  <span
+    className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs whitespace-nowrap ${
+      official ? 'text-gray-400' : 'bg-gray-700 font-medium text-gray-100'
+    }`}
+  >
+    {logo && <img src={logo} alt="" className="h-3.5 w-auto max-w-[64px] object-contain" />}
+    {name ?? 'Unnamed sponsor'}
+    {name == null && id && <span className="font-mono text-[10px] font-normal text-gray-400">{id}</span>}
+    {fans != null && <span className="font-normal tabular-nums text-gray-400">{num(fans)}</span>}
+    {noLevels && <span className="text-gray-500">no new levels</span>}
   </span>
 );
 
 const SponsorsPanel = ({ sponsors, wtRecord }) => {
-  const { seasons, sponsors: tracks, signed } = sponsors;
+  const { seasons, sponsors: tracks, signed, ratesSeason } = sponsors;
   const hasCareer = seasons.some((s) => s.era === 'career');
   const hasJourney = seasons.some((s) => s.era === 'journey');
   const signedTrack = tracks.find((t) => t.signed);
-  const hasProgress = tracks.some((t) => t.nextLevelProgress > 0);
+  const sized = tracks.filter((t) => t.length > 0);
+  const completeCount = sized.filter((t) => t.complete).length;
+  const emptyCount = tracks.filter((t) => t.empty).length;
   const hasUnnamed = [signed, ...tracks, ...seasons.flatMap((s) => s.bySponsor)].some((x) => x && !x.name);
+  const hasOfficial = seasons.some((s) => s.official.length > 0);
+  const hasCovered = tracks.some((t) => t.nextLevelCovered);
+  const hasComplete = tracks.some((t) => t.complete);
   const stopFans = new Map((wtRecord?.seasons ?? []).map((w) => [w.n, w.stops.reduce((a, x) => a + (x.fans ?? 0), 0)]));
   const addsUp = hasJourney && wtRecord != null && seasons.every((s) => s.era !== 'journey' || stopFans.get(s.n) === s.fans);
   const newest = seasons[0]?.n;
@@ -250,8 +264,29 @@ const SponsorsPanel = ({ sponsors, wtRecord }) => {
         {(signed || hasJourney) && (
           <div className="bg-gray-900/50 rounded-lg p-3">
             <p className="text-[11px] uppercase tracking-wider text-gray-500">Currently signed</p>
-            <p className="text-xl font-bold text-white mt-1">{signed ? (signed.name ?? 'Unnamed sponsor') : <span className="text-gray-500">None</span>}</p>
-            {signedTrack?.level != null && <p className="text-[11px] text-gray-500 mt-0.5 tabular-nums">Level {num(signedTrack.level)}</p>}
+            {signed ? (
+              <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                {signed.logo && <img src={signed.logo} alt="" className="h-6 w-auto max-w-[100px] object-contain" />}
+                <span className="text-xl font-bold text-white">{signed.name ?? 'Unnamed sponsor'}</span>
+              </p>
+            ) : (
+              <p className="text-xl font-bold text-gray-500 mt-1">None</p>
+            )}
+            {signedTrack?.level != null && (
+              <p className="text-[11px] text-gray-500 mt-0.5 tabular-nums">
+                Level {num(signedTrack.level)}
+                {signedTrack.length > 0 && ` of ${num(signedTrack.length)}`}
+              </p>
+            )}
+          </div>
+        )}
+        {sized.length > 0 && (
+          <div className="bg-gray-900/50 rounded-lg p-3">
+            <p className="text-[11px] uppercase tracking-wider text-gray-500">Tracks complete</p>
+            <p className="text-xl font-bold text-white mt-1 tabular-nums">
+              {num(completeCount)} of {num(sized.length)}
+            </p>
+            {emptyCount > 0 && <p className="text-[11px] text-gray-500 mt-0.5">{num(emptyCount)} with no fans</p>}
           </div>
         )}
         <div className="bg-gray-900/50 rounded-lg p-3">
@@ -261,20 +296,67 @@ const SponsorsPanel = ({ sponsors, wtRecord }) => {
         </div>
       </div>
 
+      {tracks.length > 0 && (
+        <>
+          <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-2">By sponsor</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+            {tracks.map((t) => {
+              const next = (t.level ?? 0) + 1;
+              return (
+                <div key={t.id} className={`rounded-lg p-3 ${t.empty ? 'bg-gray-900/30' : 'bg-gray-900/50'}`}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {t.logo && <img src={t.logo} alt="" className="h-6 w-auto max-w-[110px] object-contain shrink-0" />}
+                    <span className="font-semibold text-gray-100">{t.name ?? 'Unnamed sponsor'}</span>
+                    {t.signed && <Badge tone="emerald">Signed</Badge>}
+                    {t.complete && <Badge tone="blue">Complete</Badge>}
+                    {t.empty && <Badge tone="gray">No fans</Badge>}
+                    {t.level != null && (
+                      <span className="ml-auto text-xs font-semibold text-gray-300 tabular-nums whitespace-nowrap">
+                        Level {num(t.level)}
+                        {t.length > 0 && ` of ${num(t.length)}`}
+                      </span>
+                    )}
+                  </div>
+                  {!t.name && <p className="mt-0.5 font-mono text-[10px] text-gray-500">{t.id}</p>}
+                  {t.length > 0 ? (
+                    <div className="mt-2 h-1.5 rounded-full bg-gray-700/50 overflow-hidden" aria-hidden="true">
+                      <div className={`h-full rounded-full ${t.complete ? 'bg-blue-400/70' : 'bg-gray-400'}`} style={{ width: `${Math.min(100, ((t.level ?? 0) / t.length) * 100)}%` }} />
+                    </div>
+                  ) : (
+                    t.length == null && <p className="mt-2 text-[11px] text-gray-500">Track length unknown</p>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs tabular-nums">
+                    {!t.empty && <span className="text-gray-400">{num(t.fans)} fans</span>}
+                    {t.nextLevelCovered ? (
+                      <span className="text-gray-400">Banked fans already cover level {num(next)}</span>
+                    ) : (
+                      t.toNext != null && <span className="text-gray-400">{num(t.toNext)} fans to level {num(next)}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
       {seasons.length > 0 && (
         <>
           <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-2">By season</p>
           <ul className="space-y-2 mb-5">
             {seasons.map((s) => (
-              <li key={s.n} className="rounded-lg bg-gray-900/50 px-3 py-2">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
-                  <span className="font-semibold text-gray-100 whitespace-nowrap sm:w-20 sm:shrink-0">Season {s.n}</span>
-                  <span className="ml-auto sm:order-last font-bold text-white tabular-nums whitespace-nowrap">{num(s.fans)} fans</span>
-                  <div className="basis-full sm:flex-1 min-w-0 flex flex-wrap items-center gap-1.5">
+              <li key={s.n} className="rounded-lg bg-gray-900/50 px-3 py-2.5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="font-semibold text-gray-100 whitespace-nowrap">Season {s.n}</span>
+                  <span className="ml-auto font-bold text-white tabular-nums whitespace-nowrap">{num(s.fans)} fans</span>
+                </div>
+                <div className="mt-1.5 flex items-baseline gap-1.5">
+                  <span className="w-16 shrink-0 text-[10px] uppercase tracking-wider text-gray-500">You</span>
+                  <div className="min-w-0 flex flex-wrap items-center gap-1.5">
                     {s.bySponsor.length === 0 ? (
                       <span className="text-xs text-gray-500">No sponsor chosen</span>
                     ) : (
-                      s.bySponsor.map((b) => <SponsorChip key={b.id} sponsor={b} fans={s.bySponsor.length > 1 ? b.fans : null} />)
+                      s.bySponsor.map((b) => <SponsorTag key={b.id} id={b.id} name={b.name} logo={b.logo} fans={s.bySponsor.length > 1 ? b.fans : null} />)
                     )}
                     {s.level != null && s.bySponsor.length > 0 && <span className="text-xs text-gray-500">Level {num(s.level)}</span>}
                     {s.stopCount > 0 && (
@@ -284,44 +366,19 @@ const SponsorsPanel = ({ sponsors, wtRecord }) => {
                     )}
                   </div>
                 </div>
+                {s.official.length > 0 && (
+                  <div className="mt-1 flex items-baseline gap-1.5">
+                    <span className="w-16 shrink-0 text-[10px] uppercase tracking-wider text-gray-500">Official</span>
+                    <div className="min-w-0 flex flex-wrap items-center gap-y-0.5">
+                      {s.official.map((o) => (
+                        <SponsorTag key={o.name} name={o.name} logo={o.logo} official noLevels={!o.addedLevels} />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
-        </>
-      )}
-
-      {tracks.length > 0 && (
-        <>
-          <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-2">By sponsor</p>
-          <div className="table-container">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
-                  <th className="text-left py-2 pr-3 font-medium">Sponsor</th>
-                  <th className="text-right py-2 px-3 font-medium">Level</th>
-                  <th className="text-right py-2 pl-3 font-medium">Fans</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tracks.map((t) => (
-                  <tr key={t.id} className="border-b border-gray-700/40 last:border-0">
-                    <td className="py-2 pr-3">
-                      <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="font-medium text-gray-100 whitespace-nowrap">{t.name ?? 'Unnamed sponsor'}</span>
-                        {t.signed && <Badge tone="emerald">Signed</Badge>}
-                      </span>
-                      {!t.name && <span className="block font-mono text-[10px] text-gray-500 mt-0.5">{t.id}</span>}
-                    </td>
-                    <td className="py-2 px-3 text-right tabular-nums text-gray-200">
-                      {num(t.level)}
-                      {t.nextLevelProgress > 0 && <span className="block text-[10px] text-gray-500 mt-0.5">+{num(t.nextLevelProgress)} toward next level</span>}
-                    </td>
-                    <td className="py-2 pl-3 text-right tabular-nums font-medium text-white">{num(t.fans)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </>
       )}
 
@@ -333,17 +390,17 @@ const SponsorsPanel = ({ sponsors, wtRecord }) => {
         )}
         {hasJourney && (
           <>
-            {hasCareer ? 'Later seasons' : 'Every season'} and the By sponsor table come from <code>sponsor_journey</code>.{' '}
+            {hasCareer ? 'Later seasons' : 'Every season'} and the By sponsor list come from <code>sponsor_journey</code>.{' '}
           </>
         )}
         The export stores sponsors as ids, and the names come from a list the vault keeps.
-        {hasUnnamed && ' An id missing from that list shows as Unnamed sponsor.'}
-        {hasProgress && (
-          <>
-            {' '}
-            Fans toward the next level come from <code>nextLevelProgress</code>, and the export does not say how many fans a level needs.
-          </>
-        )}
+        {hasUnnamed && ' An id missing from that list shows as Unnamed sponsor, with no known track length.'}
+        {hasOfficial && ' Each season’s official sponsors, and whether they added levels, come from thefinals.wiki and Embark’s patch notes.'}
+        {sized.length > 0 &&
+          ratesSeason != null &&
+          ` Track lengths${tracks.some((t) => t.nextLevelFans != null) ? ' and level costs' : ''} come from tables the vault keeps, as of Season ${ratesSeason}.`}
+        {hasCovered && ' Progress banked under an older season’s costs is not recalculated until the track next earns fans, so it can already cover more than the next level now costs.'}
+        {hasComplete && ' Fans keep counting after a track is complete, so a complete track’s fans can be far more than its levels cost.'}
         {addsUp && ' From Season 9, a season’s fans by sponsor add up to its fans per stop in the World Tour record above.'}
       </Note>
     </Panel>
@@ -670,6 +727,7 @@ export const RatingsPage = () => {
   const wtRecord = model.worldTour?.has && (model.worldTour.totalEvents > 0 || model.worldTour.seasons.length > 0) ? model.worldTour : null;
   const wtStops = wtRecord ? wtRecord.seasons.flatMap((s) => s.stops) : [];
   const eventsAddUp = wtRecord?.totalEvents > 0 && wtRecord.events.counted === wtRecord.totalEvents;
+  const eventsCounted = !!wtRecord && !wtRecord.hasSummary && wtRecord.events.counted > 0;
   const wtNamed = wtStops.some((st) => st.stopName || st.weeks.some((w) => w.weekNameSource === 'wiki'));
   const wtExportWeek = wtStops.some((st) => st.weeks.some((w) => w.weekNameSource === 'export'));
   const wtFans = wtStops.some((st) => st.fans != null);
@@ -726,13 +784,13 @@ export const RatingsPage = () => {
 
       {wtRecord && (
         <Panel title="World Tour record">
-          {(wtRecord.totalEvents != null || wtRecord.streak?.streak > 0) && (
+          {(wtRecord.totalEvents != null || eventsCounted || wtRecord.streak?.streak > 0) && (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-              {wtRecord.totalEvents != null && (
+              {(wtRecord.totalEvents != null || eventsCounted) && (
                 <div className="bg-gray-900/50 rounded-lg p-3">
-                  <p className="text-[11px] uppercase tracking-wider text-gray-500">Total events</p>
-                  <p className="text-xl font-bold text-white mt-1 tabular-nums">{num(wtRecord.totalEvents)}</p>
-                  {eventsAddUp && (
+                  <p className="text-[11px] uppercase tracking-wider text-gray-500">{eventsCounted ? 'Total events (vault count)' : 'Total events'}</p>
+                  <p className="text-xl font-bold text-white mt-1 tabular-nums">{num(eventsCounted ? wtRecord.events.counted : wtRecord.totalEvents)}</p>
+                  {(eventsAddUp || eventsCounted) && (
                     <p className="text-[11px] text-gray-500 mt-0.5">
                       {[
                         wtRecord.events.fromLog > 0 && `${num(wtRecord.events.fromLog)} from your match log`,
@@ -881,7 +939,7 @@ export const RatingsPage = () => {
             ) : (
               <>
                 Rounds, tournaments and tournaments won come from your match log. This export has no <code>worldTour</code> summary, so it has no
-                total events, badge score or Finals won.
+                {eventsCounted ? ' badge score or Finals won.' : ' total events, badge score or Finals won.'}
               </>
             )}
             {eventsAddUp && (
@@ -889,6 +947,14 @@ export const RatingsPage = () => {
                 {' '}
                 Total events is Embark’s <code>TotalWorldTourEvents</code>, which equals the Season 3 events and Season 4 to 8 stops with a World
                 Tour tournament in your match log, plus the stops from Season 9 where you earned sponsor fans.
+              </>
+            )}
+            {eventsCounted && (
+              <>
+                {' '}
+                Total events is the vault’s own count of the Season 3 events and Season 4 to 8 stops with a World Tour tournament in your match
+                log, plus the stops from Season 9 where you earned sponsor fans. Counted this way it equals Embark’s{' '}
+                <code>TotalWorldTourEvents</code> on every export checked that has one.
               </>
             )}
             {wtNamed && ' Stop and week names and each stop’s sponsors come from thefinals.wiki, checked against Embark’s patch notes and videos.'}

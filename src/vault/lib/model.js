@@ -1,9 +1,9 @@
 // Build the view-models the pages consume from raw parsed records.
 // Runs ONCE after parsing; results are memoised in the provider.
 import { resolveWeapon } from './weapons';
-import { ARCHETYPES, archetypeLabel, classifyMode, careerModeGroup, CAREER_MODE_GROUPS, parseMapVariant, parseCondition, roundsRemaining, stageLabel, stageTeams, tournamentPlacement, worldTourBadge, worldTourTier, quickplayBadge, worldTourEvent, worldTourStop, WT_STOP_IDS, sponsorName } from './gameMeta';
+import { ARCHETYPES, archetypeLabel, classifyMode, careerModeGroup, CAREER_MODE_GROUPS, parseMapVariant, parseCondition, roundsRemaining, stageLabel, stageTeams, tournamentPlacement, worldTourBadge, worldTourTier, quickplayBadge, worldTourEvent, worldTourStop, WT_STOP_IDS, sponsorName, sponsorLogo, SEASON_SPONSORS, sponsorAddedLevels, sponsorLevelFans } from './gameMeta';
 import { resolveMap, resolveLtmBackground, conditionType } from './maps';
-import { resolveDlc, steamAppUrl, STEAM_BASE_GAME_ID, localAmount } from './economy';
+import { resolveDlc, steamAppUrl, STEAM_BASE_GAME_ID, localAmount, resolveMsProduct } from './economy';
 import { buildRealms, REALM, classifyRoundStat, ROUND_KIND, tenancyLabel, previewRounds } from './realms';
 import { buildRatings } from './ratings';
 import { createKeys, cleanName } from './keys';
@@ -1789,11 +1789,28 @@ function transactionItems(rows, keys) {
 }
 
 function buildEconomy(byType, auditByType, keys) {
+  // Xbox purchases: the Microsoft order row carries the purchase's exact GameStorePurchasedAt.
+  // Multibucks packs' rows carry no date (0001-01-01), so they match nothing.
+  const msOrders = new Map();
+  for (const [rows, arcRaiders] of [[byType.MicrosoftOrderAttributes, false], [byType.ArcRaidersMicrosoftOrderAttributes, true]]) {
+    for (const a of rows || []) {
+      const at = a?.MicrosoftAcquiredDate;
+      if (!a?.MicrosoftProductID || typeof at !== 'string' || at.startsWith('0001-')) continue;
+      const e = msOrders.get(at) || { ids: new Set(), arcRaiders };
+      e.ids.add(a.MicrosoftProductID);
+      msOrders.set(at, e);
+    }
+  }
+  const msProductAt = (t) => {
+    const e = t.GameStore === 'microsoft' ? msOrders.get(t.GameStorePurchasedAt) : null;
+    return e?.ids.size === 1 ? { ...resolveMsProduct([...e.ids][0]), arcRaiders: e.arcRaiders } : null;
+  };
   // Full grant/purchase feed (newest first). GameStorePurchasedAt is when the
   // purchase happened; fall back to CreatedAt for non-store grants. createdMs is
   // the backend grant time, used to link fiat purchases to what they granted.
   const allTransactions = (byType.TransactionLog || [])
     .map((t) => ({
+      msProduct: msProductAt(t),
       items: transactionItems(t.Items, keys),
       type: t.TransactionType ?? 'unknown',
       state: t.State ?? 'unknown',
@@ -1863,6 +1880,22 @@ function buildEconomy(byType, auditByType, keys) {
   const dlc = [...dlcMap.values()]
     .map((d) => ({ ...d, ownedSinceMs: Number.isFinite(d.ownedSinceMs) ? d.ownedSinceMs : null, ...resolveDlc(d.dlcId) }))
     .sort((a, b) => (a.ownedSinceMs ?? 0) - (b.ownedSinceMs ?? 0));
+
+  // Xbox bundle rows end in a Microsoft product id, so far always a Game Pass tier. One per id.
+  const msBundleMap = new Map();
+  for (const b of byType.MicrosoftBundleRecord || []) {
+    const id = /-([A-Z0-9]{12})$/.exec(b?.BundleTransactionID ?? '')?.[1];
+    if (!id) continue;
+    const ms = toMs(b.CreatedAt);
+    const rec = msBundleMap.get(id) || { ...resolveMsProduct(id), firstMs: null, lastMs: null, copies: 0 };
+    rec.copies += 1;
+    if (ms != null) {
+      rec.firstMs = Math.min(rec.firstMs ?? ms, ms);
+      rec.lastMs = Math.max(rec.lastMs ?? ms, ms);
+    }
+    msBundleMap.set(id, rec);
+  }
+  const msBundles = [...msBundleMap.values()].sort((a, b) => (a.firstMs ?? 0) - (b.firstMs ?? 0));
 
   // Link each real-money purchase to what it granted. The backend stamps the
   // fiat tx, the Multibucks "bought" ledger row and any Steam DLC row with the
@@ -2095,7 +2128,7 @@ function buildEconomy(byType, auditByType, keys) {
     .sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0));
 
   return {
-    has: allTransactions.length > 0 || ledgerAll.length > 0 || dlc.length > 0,
+    has: allTransactions.length > 0 || ledgerAll.length > 0 || dlc.length > 0 || msBundles.length > 0,
     transactions,
     transactionsAll: allTransactions,
     transactionCount: transactions.length,
@@ -2125,6 +2158,8 @@ function buildEconomy(byType, auditByType, keys) {
     currentBalance,
     balanceSeries,
     dlc,
+    msBundles,
+    msNamed: allTransactions.filter((t) => t.msProduct).length,
     baseGameUrl: steamAppUrl(STEAM_BASE_GAME_ID),
     offers,
     // `sessions`/`windows` = what was REMOVED from the figures above.
@@ -3076,11 +3111,14 @@ function readSponsorRecords(byType) {
   return { career: best.player_career?.value ?? null, journey: best.sponsor_journey?.value ?? null };
 }
 
-function buildSponsors({ career, journey }, keys) {
+function buildSponsors({ career, journey }, keys, asOfSeason) {
   if (!career && !journey) return null;
   const seasonN = (id) => keys.season(id)?.n ?? null;
   const isSponsor = (id) => id != null && String(id) !== '0';
-  const named = (id) => ({ id: String(id), name: sponsorName(id) });
+  const named = (id) => {
+    const name = sponsorName(id);
+    return { id: String(id), name, logo: sponsorLogo(name) };
+  };
   const tracks = new Map();
   const track = (id) => {
     let t = tracks.get(id);
@@ -3104,6 +3142,7 @@ function buildSponsors({ career, journey }, keys) {
   }
 
   const seasons = new Map();
+  const careerLatest = new Map();
   for (const r of Array.isArray(career?.seasonalRecords) ? career.seasonalRecords : []) {
     const n = seasonN(r?.seasonId);
     if (n == null) continue;
@@ -3117,6 +3156,10 @@ function buildSponsors({ career, journey }, keys) {
       t.fans += fans;
       t.seasons.push({ n, seasonId: String(r.seasonId), fans });
       if (level != null) t.level = Math.max(t.level ?? 0, level);
+      if (Number.isFinite(r.nextLevelProgress) && !(careerLatest.get(selected.id) > n)) {
+        careerLatest.set(selected.id, n);
+        t.nextLevelProgress = r.nextLevelProgress;
+      }
     }
   }
   const fromCareer = new Set(seasons.keys());
@@ -3127,7 +3170,7 @@ function buildSponsors({ career, journey }, keys) {
       let e = seasons.get(s.n);
       if (!e) seasons.set(s.n, (e = { n: s.n, seasonId: s.seasonId, era: s.n >= 9 ? 'journey' : 'career', selected: null, level: null, fans: 0, bySponsor: [], stopCount: s.n >= 9 ? 0 : null }));
       e.fans += s.fans;
-      e.bySponsor.push({ id: t.id, name: t.name, fans: s.fans });
+      e.bySponsor.push({ id: t.id, name: t.name, logo: t.logo, fans: s.fans });
     }
   }
   const gained = journey?.gainedFans && typeof journey.gainedFans === 'object' ? journey.gainedFans : {};
@@ -3135,17 +3178,36 @@ function buildSponsors({ career, journey }, keys) {
     const e = seasons.get(seasonN(sid));
     if (e?.era === 'journey') e.stopCount = Object.values(gained[sid] || {}).filter((f) => Number(f) > 0).length;
   }
-  for (const e of seasons.values()) e.bySponsor.sort((a, b) => b.fans - a.fans);
+  for (const e of seasons.values()) {
+    e.bySponsor.sort((a, b) => b.fans - a.fans);
+    e.official = (SEASON_SPONSORS[e.n] ?? []).map((name) => ({ name, logo: sponsorLogo(name), addedLevels: sponsorAddedLevels(e.n, name) }));
+  }
   const signed = isSponsor(journey?.signedSponsor) ? named(journey.signedSponsor) : null;
   if (signed && tracks.has(signed.id)) tracks.get(signed.id).signed = true;
-  // Some exports hold tracks at level 0 with no fans at all.
-  const shown = [...tracks.values()].filter((t) => t.signed || t.fans > 0 || t.level > 0);
+  // Track lengths and level costs as of the export's season.
+  const ratesSeason = Math.max(asOfSeason ?? 0, ...seasons.keys(), ...[...tracks.values()].flatMap((t) => t.seasons.map((s) => s.n ?? 0))) || null;
+  for (const t of tracks.values()) {
+    const trackSeasons = t.name ? Object.keys(SEASON_SPONSORS).map(Number).filter((n) => n <= ratesSeason && sponsorAddedLevels(n, t.name)) : [];
+    t.length = t.name ? trackSeasons.length * 20 : null;
+    t.trackSeasons = trackSeasons;
+    t.complete = t.length > 0 && t.level >= t.length;
+    // Seasons 4 to 8 finished one 20-level block at most, so a block ended in the export's own season opens no level yet.
+    const blockEnded = !journey && t.level > 0 && t.level % 20 === 0 && careerLatest.get(t.id) === ratesSeason;
+    t.nextLevelFans = t.length != null && !t.complete && !blockEnded && Number.isFinite(t.level) ? sponsorLevelFans(ratesSeason, t.level + 1) : null;
+    // Progress banked under Season 10's costs can exceed what the next level costs in Season 11:
+    // the game re-levels a track only when it next earns fans.
+    const left = t.nextLevelFans != null && t.nextLevelProgress != null ? t.nextLevelFans - t.nextLevelProgress : null;
+    t.toNext = left > 0 ? left : null;
+    t.nextLevelCovered = left != null && left <= 0;
+    t.empty = !t.signed && t.fans === 0 && !(t.level > 0);
+  }
   const list = [...seasons.values()].sort((a, b) => b.n - a.n);
   return {
-    has: shown.length > 0 || list.length > 0,
+    has: tracks.size > 0 || list.length > 0,
     signed,
     totalFans: list.reduce((a, e) => a + e.fans, 0),
-    sponsors: shown.sort((a, b) => b.fans - a.fans),
+    ratesSeason,
+    sponsors: [...tracks.values()].sort((a, b) => b.fans - a.fans),
     seasons: list,
   };
 }
@@ -3277,7 +3339,7 @@ export function buildModel(raw) {
     mastery,
     worldTour: buildWorldTour(summaries.live, keys, countedMatches, sponsorRecords.journey, seasonResolver(keys)),
     quickplay: buildQuickplay(summaries.live, keys),
-    sponsors: buildSponsors(sponsorRecords, keys),
+    sponsors: buildSponsors(sponsorRecords, keys, seasonResolver(keys)(null, snapshot.asOfMs)),
     economy: buildEconomy(byType, raw.audit?.byType, keys),
     antiCheat: buildAntiCheat(raw),
     reports: buildReports(raw),

@@ -174,3 +174,63 @@ export const resolveDlc = (id) => {
   const known = Object.hasOwn(DLC_NAMES, id);
   return { name: known ? DLC_NAMES[id] : `Steam DLC #${id}`, known, url: steamAppUrl(id) };
 };
+
+// Microsoft Store product ids: `MicrosoftOrderAttributes.MicrosoftProductID` and the id that
+// ends `MicrosoftBundleRecord.BundleTransactionID`. Titles from Microsoft's public catalogue.
+export const MS_PRODUCT_NAMES = {
+  '9PGD71CMDS0Z': 'THE FINALS',
+  '9P8MCNKJ09GL': 'Year 1 Deluxe Edition',
+  '9N538V3HQT4H': 'Bank Rabbit Set',
+  '9N28WJC4359B': 'Crown That Remains Set',
+  '9P8NRJ7KZ7MP': 'Data Crusader Set',
+  '9PMPKR974GW7': 'Depth Charger Set',
+  '9PH3L3X7D7T2': 'Eyecaster Pack',
+  '9NF33TQBL11G': 'FUNKOMATIC 2000 Set',
+  '9NF2PLLDXJNM': 'Glitch Prowler Set',
+  '9PGBHBPPJF2B': 'Hedge Hunter Set',
+  '9NS2HWTF36KD': 'IVADA Cataclysm Set',
+  '9P0FK9C9DBJ0': 'Legacy Battle Pass Season 2',
+  '9MTV5QLG371L': 'Legacy Battle Pass Season 3',
+  '9NKPLJKZXNGM': 'Legacy Battle Pass Season 4',
+  '9NJN8Q8VM643': 'Lotus Reaper Set',
+  '9NKP9XF3CZ84': 'Metro Drifter Set',
+  '9PJBDN787NJ7': 'Morrígans Call Set',
+  '9NZGJGVCDVML': 'New Contestant Pack',
+  '9P7RW0Q86DXZ': 'NTMR TGM25 CHAMPIONS SET',
+  '9MZHXFZD6PJF': 'Ops Override Set',
+  '9MV38KQ8S6QR': 'Permafang Prowler Set',
+  '9PC4L8SK7DX0': 'Project Hú Set',
+  '9NBN44WJF4RH': 'Seas The Day Set',
+  '9P6TQ1Q65G9V': 'Season 10 Starter Pack',
+  '9PCZCJ74Z80Z': 'Season 10 Ultimate Battle Pass Bundle',
+  '9PMH0KSWRRMN': 'Season 11 Starter Pack',
+  '9NHTFK76N769': 'Season 11 Ultimate Battle Pass Bundle',
+  '9P022SNQFLJJ': 'Season 8 Starter Pack',
+  '9NZC1SZSRL6F': 'Season 9 Ultimate Battle Pass Bundle',
+  '9PFNTN69GZQN': 'Silent Cypher Set',
+  '9PLVZBZLF8LP': 'Sugar Crasher Set',
+  '9NFL43WSHP5R': 'Sugar Shocker Set',
+  '9MZ11CFR42D1': 'The Apothecarion Set',
+  '9MZ5J0VT09MH': 'The Chirurgeon Set',
+  '9N08ZZZRT4NH': 'Wavereaver Set',
+  '9NLG2JRJXSFV': 'Year 1 Deluxe Edition',
+  '9P9CWG84M9TS': 'Year 1 Deluxe Exclusives',
+  '9N8V4KQN7V30': 'Zero-G Menace Set',
+  '9NFHDG3JN65T': 'Örf Tactical Pack',
+  '9NMTP7DRL90M': '1,150 Multibucks',
+  '9P3FGLQ1878B': '13,000 Multibucks',
+  '9NHNVJ5ZBMSN': '2,400 Multibucks',
+  '9NMZ0X2D8D5D': '500 Multibucks',
+  '9PDVC55H15JR': '6,250 Multibucks',
+  CFQ7TTC0KGQ8: 'PC Game Pass',
+  CFQ7TTC0K5DJ: 'Xbox Game Pass Essential',
+  CFQ7TTC0P85B: 'Xbox Game Pass Premium',
+  CFQ7TTC0KHS0: 'Xbox Game Pass Ultimate',
+  // Not a THE FINALS product: buying Embark's other game on Xbox granted items here too.
+  '9NDF1F263RZ4': 'ARC Raiders',
+};
+export const msStoreUrl = (id) => `https://www.xbox.com/games/store/_/${id}`;
+export const resolveMsProduct = (id) => {
+  const known = Object.hasOwn(MS_PRODUCT_NAMES, id);
+  return { id, name: known ? MS_PRODUCT_NAMES[id] : `Store product ${id}`, known, url: msStoreUrl(id) };
+};

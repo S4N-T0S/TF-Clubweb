@@ -37,6 +37,7 @@ export const WEAPONS = {
   '780830895': { name: 'Glitch Grenade', archetype: 'Light', type: 'Gadget', unlisted: true },
   '569743774': { name: 'Gravity Vortex', archetype: 'Light', type: 'Gadget', unlisted: true },
   '911049848': { name: 'Nullifier', archetype: 'Light', type: 'Gadget', unlisted: true },
+  '-657063493': { name: 'Thermal Vision', archetype: 'Light', type: 'Gadget', unlisted: true },
 
   // Medium
   '473278792': { name: 'AKM', archetype: 'Medium', type: 'Weapon' },
@@ -127,7 +128,7 @@ const ICON_SLUGS = new Set([
   'barricade', 'cloaking-device', 'data-reshaper', 'dematerializer', 'dome-shield', 'evasive-dash', 'flashbang',
   'glitch-grenade', 'glitch-trap', 'goo-grenade', 'goo-gun', 'grappling-hook', 'gravity-vortex', 'healing-beam',
   'healing-emitter', 'mesh-shield', 'nullifier', 'proximity-sensor', 'shockwave', 'smoke-grenade', 'sonar-grenade',
-  'vanishing-bomb', 'zipline',
+  'thermal-vision', 'vanishing-bomb', 'zipline',
 ]);
 
 // Weapon display-name -> filename slug (matches the bundled icon files).

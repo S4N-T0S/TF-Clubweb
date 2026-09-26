@@ -522,7 +522,7 @@ function parseExportTicketBlock(ticketId, lines, ctx) {
     let body = text;
     if (firstFromYou && text.length <= 120 && text.split('->').length === 2) {
       const menu = /^([^.,!?]{1,40}?)\s*->\s*(.+)$/.exec(text);
-      if (menu && menu[1].trim().split(/\s+/).every((w) => /^[A-Z0-9]/.test(w))) {
+      if (menu && menu[1].trim().split(/\s+/).every((w, i) => /^[A-Z0-9]/.test(w) || (i > 0 && /^(a|an|and|or|of|the|to|for|in|on|with)$/.test(w)))) {
         ticket.intent = menu[1].trim();
         body = menu[2].trim();
       }

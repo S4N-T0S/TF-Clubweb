@@ -263,6 +263,20 @@ const GrantedItems = ({ items, lead = null, typed = false, title = 'What you got
   );
 };
 
+const MsProductLink = ({ p }) => (
+  <a
+    href={p.url}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="inline-flex items-center gap-1 min-w-0 max-w-full text-emerald-400 hover:text-emerald-300 hover:underline"
+    title={`Open the Microsoft Store page (${p.id})`}
+  >
+    <Store className="w-3.5 h-3.5 shrink-0" />
+    <span className={`truncate ${p.known ? '' : 'font-mono text-xs'}`}>{p.name}</span>
+    <ExternalLink className="w-3 h-3 shrink-0" />
+  </a>
+);
+
 // What a real-money charge actually granted: the named list when the export has one
 // (a pack's Multibucks stays visible, the cosmetics fold behind the count), else
 // matched by timestamp in the model (Multibucks top-up and/or a Steam DLC; DLC packs bundle both)
@@ -303,7 +317,7 @@ export const PurchasesPage = () => {
   const {
     transactions, transactionsAll, transactionCount, grantedCount, bySource, byStore,
     fiat, fiatGrantedCount, fiatFailedCount, fiatUnpricedCount, spendBaseTotal, charged, walletCurrencies,
-    ledger, ledgerAll, mb, currentBalance, balanceSeries, dlc, offers,
+    ledger, ledgerAll, mb, currentBalance, balanceSeries, dlc, msBundles, msNamed, offers,
     realms, testTransactionCount, testLedgerCount, testFiatCount, mbTest,
     duplicateChargeCount, duplicateChargeTotal, topMbSpends, mbSpendsNamed,
   } = economy;
@@ -579,7 +593,16 @@ export const PurchasesPage = () => {
                         <tr key={fiStart + i} className="border-b border-gray-700/40 last:border-0">
                           <td className="py-2 px-3 text-gray-300"><TxDate t={t} fmt={dateTime} /></td>
                           <td className="py-2 px-3 text-right"><PriceCell t={t} /></td>
-                          <td className="py-2 px-3"><Contents c={t.contents} /></td>
+                          <td className="py-2 px-3">
+                            {t.msProduct ? (
+                              <span className="flex flex-col items-start gap-0.5">
+                                <MsProductLink p={t.msProduct} />
+                                {(t.contents?.items?.length > 0 || t.contents?.mb != null || t.contents?.dlcs?.length > 0) && <Contents c={t.contents} />}
+                              </span>
+                            ) : (
+                              <Contents c={t.contents} />
+                            )}
+                          </td>
                           <td className="py-2 px-3 text-gray-400">{storeLabel(t.store)}</td>
                           <td className="py-2 px-3">
                             <span className="inline-flex flex-wrap items-center gap-1.5">
@@ -655,6 +678,21 @@ export const PurchasesPage = () => {
                       </p>
                     )}
                   </div>
+                )}
+                {msNamed > 0 && (
+                  <Note>
+                    Xbox purchases are named from <code>MicrosoftOrderAttributes</code>, matched by purchase time, with titles from the
+                    Microsoft Store.
+                    {fiat.some((t) => t.store === 'microsoft' && !t.msProduct && t.contents?.items?.length > 0 && t.contents.items.every((it) => it.currency)) &&
+                      ' Multibucks packs have no purchase time in that record, so they carry no store link.'}
+                    {fiat.some((t) => t.msProduct?.arcRaiders) && (
+                      <>
+                        {' '}
+                        The ARC Raiders row is Embark’s other game: its order is in <code>ArcRaidersMicrosoftOrderAttributes</code>, and it granted
+                        THE FINALS items with no price recorded.
+                      </>
+                    )}
+                  </Note>
                 )}
               </>
             )}
@@ -941,69 +979,96 @@ export const PurchasesPage = () => {
           </Panel>
 
           {/* Steam DLC ownership */}
-          <Panel title={`Owned Steam DLC (${num(dlc.length)})`}>
-            {dlc.length === 0 ? (
-              <EmptyState icon={Store} title="No Steam DLC recorded">
-                Ownership rows only appear for Steam accounts that own a paid DLC pack.
-              </EmptyState>
-            ) : (
-              <>
-                <ul className="space-y-2" style={dlTotalPages > 1 ? { minHeight: PER_PAGE * 44 } : undefined}>
-                  {dlSlice.map((d) => (
-                    <li key={d.dlcId} className="flex items-center justify-between gap-3 bg-gray-900/50 rounded-lg px-3 py-2 text-sm">
-                      <a
-                        href={d.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-emerald-400 hover:text-emerald-300 hover:underline inline-flex items-center gap-1.5 min-w-0"
-                        title={`Open Steam store page (App ID ${d.dlcId})`}
-                      >
-                        <Store className="w-4 h-4 shrink-0" />
-                        <span className={`truncate ${d.known ? '' : 'font-mono text-xs'}`}>{d.name}</span>
-                        <ExternalLink className="w-3 h-3 shrink-0" />
-                      </a>
-                      <span
-                        className="text-gray-500 text-xs whitespace-nowrap"
-                        title={d.ownedSinceMs && !d.dateIsPurchase
-                          ? (d.dateNote === 'rerecord'
-                            ? 'When Embark last wrote this ownership row. It matches a purchase in this export but was written long after it, so it is a re-record, not the day you bought it.'
-                            : 'When Embark last wrote this ownership row. Nothing here ties it to a purchase, so it is not necessarily when you got it.')
-                          : undefined}
-                      >
-                        {d.ownedSinceMs
-                          ? (d.dateIsPurchase ? `since ${date(d.ownedSinceMs)}` : `recorded ${date(d.ownedSinceMs)}`)
-                          : '—'}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                {dlTotalPages > 1 && (
-                  <div className="mt-4">
-                    <Pagination
-                      currentPage={dlSafePage}
-                      totalPages={dlTotalPages}
-                      startIndex={dlStart}
-                      endIndex={dlStart + PER_PAGE}
-                      totalItems={dlc.length}
-                      onPageChange={setDlcPage}
-                      edgeScroll={false}
-                      variant="compact"
-                    />
-                  </div>
-                )}
-                <Note>
-                  {dlc.some((d) => d.ownedSinceMs && !d.dateIsPurchase) && (
-                    <>
-                      A date marked <em>recorded</em> is when Embark last wrote that ownership row, not necessarily when
-                      you got it: re-provisioning your entitlements overwrites the timestamp, so it can be months late.
-                      Steam’s own library has the real purchase date.{' '}
-                    </>
+          {(dlc.length > 0 || !(msBundles.length > 0 || transactionsAll.some((t) => t.store === 'microsoft'))) && (
+            <Panel title={`Owned Steam DLC (${num(dlc.length)})`}>
+              {dlc.length === 0 ? (
+                <EmptyState icon={Store} title="No Steam DLC recorded">
+                  Ownership rows only appear for Steam accounts that own a paid DLC pack.
+                </EmptyState>
+              ) : (
+                <>
+                  <ul className="space-y-2" style={dlTotalPages > 1 ? { minHeight: PER_PAGE * 44 } : undefined}>
+                    {dlSlice.map((d) => (
+                      <li key={d.dlcId} className="flex items-center justify-between gap-3 bg-gray-900/50 rounded-lg px-3 py-2 text-sm">
+                        <a
+                          href={d.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-emerald-400 hover:text-emerald-300 hover:underline inline-flex items-center gap-1.5 min-w-0"
+                          title={`Open Steam store page (App ID ${d.dlcId})`}
+                        >
+                          <Store className="w-4 h-4 shrink-0" />
+                          <span className={`truncate ${d.known ? '' : 'font-mono text-xs'}`}>{d.name}</span>
+                          <ExternalLink className="w-3 h-3 shrink-0" />
+                        </a>
+                        <span
+                          className="text-gray-500 text-xs whitespace-nowrap"
+                          title={d.ownedSinceMs && !d.dateIsPurchase
+                            ? (d.dateNote === 'rerecord'
+                              ? 'When Embark last wrote this ownership row. It matches a purchase in this export but was written long after it, so it is a re-record, not the day you bought it.'
+                              : 'When Embark last wrote this ownership row. Nothing here ties it to a purchase, so it is not necessarily when you got it.')
+                            : undefined}
+                        >
+                          {d.ownedSinceMs
+                            ? (d.dateIsPurchase ? `since ${date(d.ownedSinceMs)}` : `recorded ${date(d.ownedSinceMs)}`)
+                            : '—'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {dlTotalPages > 1 && (
+                    <div className="mt-4">
+                      <Pagination
+                        currentPage={dlSafePage}
+                        totalPages={dlTotalPages}
+                        startIndex={dlStart}
+                        endIndex={dlStart + PER_PAGE}
+                        totalItems={dlc.length}
+                        onPageChange={setDlcPage}
+                        edgeScroll={false}
+                        variant="compact"
+                      />
+                    </div>
                   )}
-                  The export stores each owned DLC’s Steam App ID and no name or price, which is why some rows show an id.
-                </Note>
-              </>
-            )}
-          </Panel>
+                  <Note>
+                    {dlc.some((d) => d.ownedSinceMs && !d.dateIsPurchase) && (
+                      <>
+                        A date marked <em>recorded</em> is when Embark last wrote that ownership row, not necessarily when
+                        you got it: re-provisioning your entitlements overwrites the timestamp, so it can be months late.
+                        Steam’s own library has the real purchase date.{' '}
+                      </>
+                    )}
+                    The export stores each owned DLC’s Steam App ID and no name or price, which is why some rows show an id.
+                  </Note>
+                </>
+              )}
+            </Panel>
+          )}
+
+          {msBundles.length > 0 && (
+            <Panel title={`Microsoft bundle records (${num(msBundles.reduce((a, b) => a + b.copies, 0))})`}>
+              <ul className="space-y-2">
+                {msBundles.map((b) => (
+                  <li key={b.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-3 bg-gray-900/50 rounded-lg px-3 py-2 text-sm">
+                    <MsProductLink p={b} />
+                    <span className="text-gray-500 text-xs sm:whitespace-nowrap">
+                      {b.firstMs == null
+                        ? '—'
+                        : b.copies === 1
+                          ? `recorded ${date(b.firstMs)}`
+                          : b.copies === 2
+                            ? `2 records · ${date(b.firstMs)} and ${date(b.lastMs)}`
+                            : `${num(b.copies)} records · first ${date(b.firstMs)}, last ${date(b.lastMs)}`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <Note>
+                Each row is the product id that ends <code>MicrosoftBundleRecord.BundleTransactionID</code>, and each date is when Embark wrote a
+                record. The export does not say which of these products the account had.
+              </Note>
+            </Panel>
+          )}
 
           {/* Limited-time offers (impressions, not purchases) */}
           {offers.length > 0 && (

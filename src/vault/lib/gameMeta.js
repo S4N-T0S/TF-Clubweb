@@ -321,6 +321,40 @@ const SPONSORS = {
 };
 export const sponsorName = (id) => (Object.hasOwn(SPONSORS, String(id)) ? SPONSORS[String(id)] : null);
 
+// Each season's official sponsors (thefinals.wiki/wiki/Sponsorships). Each added 20 levels to
+// its track that season, except the pairs in NO_NEW_LEVELS. COMETA never had a track.
+export const SEASON_SPONSORS = {
+  4: ['HOLTOW', 'ISEUL-T', 'ENGIMO'],
+  5: ['VAIIYA', 'DISSUN', 'ISEUL-T'],
+  6: ['ALFA ACTA', 'OSPUZE', 'ENGIMO'],
+  7: ['VAIIYA', 'CNS'],
+  8: ['HOLTOW', 'TRENTILA'],
+  9: ['OSPUZE', 'VOLPE'],
+  10: ['ALFA ACTA', 'ISEUL-T'],
+  11: ['COMETA', 'ENGIMO'],
+};
+const NO_NEW_LEVELS = new Set(['10:ISEUL-T', '11:COMETA', '11:ENGIMO']);
+export const sponsorAddedLevels = (season, name) => !!SEASON_SPONSORS[season]?.includes(name) && !NO_NEW_LEVELS.has(`${season}:${name}`);
+// Levels a sponsor's track had by the end of a season.
+export const sponsorTrackLength = (season, name) =>
+  Object.keys(SEASON_SPONSORS).reduce((a, s) => a + (Number(s) <= season && sponsorAddedLevels(Number(s), name) ? 20 : 0), 0);
+
+// Fans each level cost: 800 x its place in a 20-level track through Season 10, then Season
+// 11's cheaper table (patch 11.0.0, thefinals.wiki).
+const S11_LEVEL_FANS = [
+  300, 600, 900, 1200, 1500, 1800, 2100, 2400, 2700, 3000, 3000, 3000, 3000, 3000, 3000, 3000, 3000, 3000, 3000, 3300,
+  3600, 3900, 4200, 4500, 4800, 5100, 5400, 5700, 6000, 6000, 6000, 6000, 6000, 6000, 6000, 6000, 6000, 6000, 6000, 6000,
+];
+export const sponsorLevelFans = (season, level) =>
+  season == null || season < 4 || level < 1 ? null : season <= 10 ? 800 * (((level - 1) % 20) + 1) : season === 11 ? (S11_LEVEL_FANS[level - 1] ?? null) : null;
+
+// Logos from thefinals.wiki, trimmed to their artwork.
+const SPONSOR_LOGOS = {
+  'ALFA ACTA': 'alfa-acta.svg', CNS: 'cns.webp', COMETA: 'cometa.webp', DISSUN: 'dissun.svg', ENGIMO: 'engimo.svg', HOLTOW: 'holtow.svg',
+  'ISEUL-T': 'iseul-t.svg', OSPUZE: 'ospuze.svg', TRENTILA: 'trentila.svg', VAIIYA: 'vaiiya.svg', VOLPE: 'volpe.svg',
+};
+export const sponsorLogo = (name) => (name != null && Object.hasOwn(SPONSOR_LOGOS, name) ? `/vault/sponsors/${SPONSOR_LOGOS[name]}` : null);
+
 // Seasons 6 to 8 only (thefinals.wiki/wiki/Quickplay). Gold 1 is the top.
 export const QUICKPLAY_BADGES = [
   { ...WORLD_TOUR_BADGES[0], steps: [50, 100, 150, 200] },
