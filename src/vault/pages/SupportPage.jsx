@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { Link } from 'react-router-dom';
-import { MessagesSquare, Bot, Paperclip, Ticket, ChevronDown, Loader2, Monitor, Gamepad2 } from 'lucide-react';
+import { MessagesSquare, Bot, Paperclip, Ticket, ChevronDown, ChevronRight, Loader2, Monitor, Gamepad2 } from 'lucide-react';
 import { VAULT_BASE } from '../../constants';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, Badge, EmptyState, Note, StatCard, TogglePill } from '../components/ui';
 import { ListSearch, SearchEcho } from '../components/ListSearch';
 import { useListSearch } from '../../hooks/useListSearch';
 import { Pagination } from '../../components/Pagination';
+import { VaultMatchModal } from '../components/VaultMatchModal';
 import { chatChannelLabel } from '../lib/model';
-import { num, date, dateTime } from '../lib/format';
+import { num, date, dateTime, duration } from '../lib/format';
 
 const QUEUE_TONE = { General: 'blue', 'Cheater Reports': 'red', 'Ban Appeals': 'yellow' };
 const CHANNEL_TONE = { party: 'purple', pl: 'blue' };
@@ -411,6 +412,96 @@ const ModerationPanel = ({ moderation }) => {
   );
 };
 
+const SURVEYS_SHOWN = 8;
+const afterMatch = (ms) => (!(ms >= 0) ? null : ms < 60000 ? `${Math.round(ms / 1000)}s` : duration(ms));
+
+const SurveyPanel = ({ surveys }) => {
+  const [showAll, setShowAll] = useState(false);
+  const [openMatch, setOpenMatch] = useState(null);
+  const shown = showAll ? surveys : surveys.slice(0, SURVEYS_SHOWN);
+  const hasGap = surveys.some((s) => s.match && afterMatch(s.ms - s.match.end));
+  const hasArc = surveys.some((s) => s.game === 'ARC Raiders');
+  const hasIds = surveys.some((s) => s.announcementId != null || s.templateId != null);
+  return (
+    <Panel title={`Survey answers (${num(surveys.length)})`}>
+      <ul className="space-y-2">
+        {shown.map((s, i) => {
+          const gap = s.match ? afterMatch(s.ms - s.match.end) : null;
+          return (
+            <li key={i} className="bg-gray-900/50 rounded-lg px-3 py-2.5 text-sm space-y-1.5">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="text-xs text-gray-500 tabular-nums">{dateTime(s.ms)}</span>
+                {s.score != null && <Badge tone="gray">Score {s.score}</Badge>}
+                {s.game === 'ARC Raiders' && <Badge tone="purple">ARC Raiders</Badge>}
+              </div>
+              {s.text ? (
+                <p className="text-gray-200 whitespace-pre-line wrap-break-word max-h-96 overflow-y-auto">{s.text}</p>
+              ) : (
+                <p className="text-gray-600">{s.score == null ? 'No score or text recorded.' : 'no text written'}</p>
+              )}
+              {s.match ? (
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  onClick={() => setOpenMatch(s.match)}
+                  className="w-full flex items-center gap-2 rounded-lg bg-gray-800/60 hover:bg-gray-700/50 transition-colors px-2.5 py-2 text-left"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs text-gray-200 truncate">
+                      <span className="font-medium">{s.match.wtEvent?.label ?? s.match.mode?.label ?? 'Match'}</span>
+                      {s.match.mapName ? ` · ${s.match.mapName}` : ''}
+                    </span>
+                    <span className="block text-[11px] text-gray-500">
+                      {date(s.match.start)}
+                      {gap && ` · logged ${gap} after it ended`}
+                    </span>
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-gray-500 shrink-0" aria-hidden="true" />
+                </button>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  {s.roundId ? (
+                    <>
+                      Round <span className="font-mono text-gray-400">{s.roundId}</span> is not in this export’s match log.
+                    </>
+                  ) : (
+                    'No round recorded with this answer.'
+                  )}
+                </p>
+              )}
+              {(s.announcementId != null || s.templateId != null) && (
+                <p className="flex flex-wrap gap-x-3 font-mono text-[10px] text-gray-500">
+                  <span>announcement_id {s.announcementId ?? '—'}</span>
+                  <span>template_id {s.templateId ?? '—'}</span>
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {surveys.length > SURVEYS_SHOWN && (
+        <div className="mt-3">
+          <TogglePill on={showAll} onChange={setShowAll}>
+            {showAll ? 'Show fewer' : `Show all ${num(surveys.length)}`}
+          </TogglePill>
+        </div>
+      )}
+      {openMatch && <VaultMatchModal match={openMatch} onClose={() => setOpenMatch(null)} />}
+      <Note>
+        Scores are the <code>answer</code> field of <code>NpsSurveyFreeText</code> audit rows, and the export never states their scale. The type name
+        suggests a Net Promoter Score, which runs 0 to 10.
+        {hasGap && ' The time after a match is the survey’s log time minus the match’s end.'}
+        {hasArc && ' ARC Raiders rounds are never in this export’s match log.'}
+        {hasIds && (
+          <>
+            {' '}We have not found what <code>announcement_id</code> and <code>template_id</code> refer to.
+          </>
+        )}
+      </Note>
+    </Panel>
+  );
+};
+
 export const SupportPage = () => {
   const { model } = useVaultData();
   const support = model.support;
@@ -531,11 +622,12 @@ export const SupportPage = () => {
 
       <div className="grid grid-cols-3 gap-3">
         <StatCard label="Chat messages" value={num(chat.length)} />
-        <StatCard label="Support tickets" value={status === 'done' ? num(tickets.length) : '…'} />
-        <StatCard label="Ticket attachments" value={status === 'done' ? num(attachments) : '…'} />
+        <StatCard label="Support tickets" value={status === 'done' ? num(tickets.length) : status === 'loading' ? '…' : '—'} />
+        <StatCard label="Ticket attachments" value={status === 'done' ? num(attachments) : status === 'loading' ? '…' : '—'} />
       </div>
 
       {support.inbox.has && <InboxPanel inbox={support.inbox} />}
+      {support.surveys.length > 0 && <SurveyPanel surveys={support.surveys} />}
       {support.moderation && <ModerationPanel moderation={support.moderation} />}
 
       <Panel
@@ -678,7 +770,7 @@ export const SupportPage = () => {
                   >
                     {/* Newer exports drop Helpshift's queues and number tickets instead. */}
                     <Badge tone={QUEUE_TONE[t.queue] || 'gray'}>{t.queue || (t.ticketId ? `#${t.ticketId}` : 'Ticket')}</Badge>
-                    <span className="font-medium text-white text-sm flex-1 min-w-0 truncate">
+                    <span className="font-medium text-white text-sm flex-1 min-w-28 truncate">
                       {t.intent || 'Support ticket'}
                     </span>
                     <span className="text-[11px] text-gray-500 flex items-center gap-2 shrink-0">

@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Gauge, Trophy, TrendingUp, ChevronDown, ChevronRight, Crown, Swords, Target, Maximize2 } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
-import { PageHeader, Panel, StatCard, Badge, Note, EmptyState } from '../components/ui';
+import { PageHeader, Panel, StatCard, Badge, Note, EmptyState, TogglePill } from '../components/ui';
 import { VaultGraphModal } from '../components/VaultGraphModal';
 import { VaultMatchModal } from '../components/VaultMatchModal';
 import { Pagination } from '../../components/Pagination';
@@ -170,7 +170,7 @@ const WtStopRow = ({ st }) => (
   <div className="rounded-lg bg-gray-950/45 px-3 py-2">
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3">
       <div className="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-        <span className="font-semibold text-gray-100 break-words">
+        <span className="font-semibold text-gray-100 wrap-break-word">
           {st.stop != null ? `Stop ${st.stop}` : st.event != null ? `Event ${st.event}` : 'Unknown stop'}
           {st.stopName && <span className="font-normal text-gray-300"> · {st.stopName}</span>}
         </span>
@@ -178,7 +178,7 @@ const WtStopRow = ({ st }) => (
           const logo = sponsorLogo(sp);
           return (
             <Badge key={sp} tone="gray">
-              {logo && <img src={logo} alt="" className="h-3 w-auto max-w-[56px] object-contain" />}
+              {logo && <img src={logo} alt="" className="h-3 w-auto max-w-14 object-contain" />}
               {sp}
             </Badge>
           );
@@ -213,7 +213,7 @@ const WtStopRow = ({ st }) => (
       <ul className="mt-1.5 pl-3 border-l border-gray-700 space-y-1">
         {st.weeks.map((w, i) => (
           <li key={i} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-3 text-xs">
-            <span className="min-w-0 break-words text-gray-300">
+            <span className="min-w-0 wrap-break-word text-gray-300">
               {w.weeks.length > 1 ? `Weeks ${w.weeks[0]} to ${w.weeks.at(-1)}` : `Week ${w.weeks[0]}`}
               {w.weekName && ` · ${w.weekName}`}
             </span>
@@ -233,7 +233,7 @@ const SponsorTag = ({ id, name, logo, fans, official = false, noLevels = false }
       official ? 'text-gray-400' : 'bg-gray-700 font-medium text-gray-100'
     }`}
   >
-    {logo && <img src={logo} alt="" className="h-3.5 w-auto max-w-[64px] object-contain" />}
+    {logo && <img src={logo} alt="" className="h-3.5 w-auto max-w-16 object-contain" />}
     {name ?? 'Unnamed sponsor'}
     {name == null && id && <span className="font-mono text-[10px] font-normal text-gray-400">{id}</span>}
     {fans != null && <span className="font-normal tabular-nums text-gray-400">{num(fans)}</span>}
@@ -266,7 +266,7 @@ const SponsorsPanel = ({ sponsors, wtRecord }) => {
             <p className="text-[11px] uppercase tracking-wider text-gray-500">Currently signed</p>
             {signed ? (
               <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                {signed.logo && <img src={signed.logo} alt="" className="h-6 w-auto max-w-[100px] object-contain" />}
+                {signed.logo && <img src={signed.logo} alt="" className="h-6 w-auto max-w-25 object-contain" />}
                 <span className="text-xl font-bold text-white">{signed.name ?? 'Unnamed sponsor'}</span>
               </p>
             ) : (
@@ -305,7 +305,7 @@ const SponsorsPanel = ({ sponsors, wtRecord }) => {
               return (
                 <div key={t.id} className={`rounded-lg p-3 ${t.empty ? 'bg-gray-900/30' : 'bg-gray-900/50'}`}>
                   <div className="flex flex-wrap items-center gap-2">
-                    {t.logo && <img src={t.logo} alt="" className="h-6 w-auto max-w-[110px] object-contain shrink-0" />}
+                    {t.logo && <img src={t.logo} alt="" className="h-6 w-auto max-w-27.5 object-contain shrink-0" />}
                     <span className="font-semibold text-gray-100">{t.name ?? 'Unnamed sponsor'}</span>
                     {t.signed && <Badge tone="emerald">Signed</Badge>}
                     {t.complete && <Badge tone="blue">Complete</Badge>}
@@ -402,6 +402,158 @@ const SponsorsPanel = ({ sponsors, wtRecord }) => {
         {hasCovered && ' Progress banked under an older season’s costs is not recalculated until the track next earns fans, so it can already cover more than the next level now costs.'}
         {hasComplete && ' Fans keep counting after a track is complete, so a complete track’s fans can be far more than its levels cost.'}
         {addsUp && ' From Season 9, a season’s fans by sponsor add up to its fans per stop in the World Tour record above.'}
+      </Note>
+    </Panel>
+  );
+};
+
+const BP_GRID = 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3';
+
+const BpCard = ({ t, label, mono = false, sub, badges }) => {
+  const xp = t.xp > 0 && t.xp !== t.xpTotal ? `${num(t.xp)}${t.xpTotal != null ? ` of ${num(t.xpTotal)}` : ''} XP` : null;
+  return (
+    <div className={`rounded-lg p-3 ${mono ? 'border border-dashed border-gray-700' : t.level === 0 ? 'bg-gray-900/30' : 'bg-gray-900/50'}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={mono ? 'font-mono text-xs text-gray-400' : 'font-semibold text-gray-100'}>{label}</span>
+        {badges}
+      </div>
+      {sub}
+      {t.levels != null ? (
+        <div className="mt-2 h-1.5 rounded-full bg-gray-700/50 overflow-hidden" aria-hidden="true">
+          <div className={`h-full rounded-full ${t.complete ? 'bg-blue-400/70' : 'bg-gray-400'}`} style={{ width: `${Math.min(100, (t.level / t.levels) * 100)}%` }} />
+        </div>
+      ) : (
+        <p className="mt-2 text-[11px] text-gray-500">Track length unknown</p>
+      )}
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs tabular-nums">
+        <span className="font-semibold text-gray-300 whitespace-nowrap">
+          Level {num(t.level)}
+          {t.levels != null && ` of ${num(t.levels)}`}
+        </span>
+        {xp && <span className="text-gray-400 whitespace-nowrap">{xp}</span>}
+      </div>
+    </div>
+  );
+};
+
+const BattlePassPanel = ({ battlePass, asOfMs }) => {
+  const { seasons, events, unknown, played, completed } = battlePass;
+  const [showZero, setShowZero] = useState(false);
+  let lead = 0;
+  while (lead < seasons.length && seasons[lead].level === 0 && !seasons[lead].ongoing) lead++;
+  const folded = lead >= 3 ? seasons.slice(0, lead) : [];
+  const shown = folded.length > 0 && !showZero ? seasons.slice(lead) : seasons;
+  const current = seasons.find((s) => s.ongoing);
+  const eventsComplete = events.filter((e) => e.complete).length;
+  const xpApart = [...shown, ...events].some((t) => t.xpTotal != null && t.xp > 0 && t.xp !== t.xpTotal);
+
+  return (
+    <Panel title="Battle pass">
+      {(seasons.length > 0 || events.length > 0) && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+          {seasons.length > 0 && (
+            <div className="bg-gray-900/50 rounded-lg p-3">
+              <p className="text-[11px] uppercase tracking-wider text-gray-500">Seasons complete</p>
+              <p className="text-xl font-bold text-white mt-1 tabular-nums">
+                {num(completed)} of {num(seasons.length)}
+              </p>
+              <p className="text-[11px] text-gray-500 mt-0.5">{num(played)} above level 0</p>
+            </div>
+          )}
+          {current && (
+            <div className="bg-gray-900/50 rounded-lg p-3">
+              <p className="text-[11px] uppercase tracking-wider text-gray-500">Current season</p>
+              <p className="text-xl font-bold text-white mt-1">S{current.season}</p>
+              <p className="text-[11px] text-gray-500 mt-0.5 tabular-nums">
+                Level {num(current.level)} of {num(current.levels)}
+              </p>
+            </div>
+          )}
+          {events.length > 0 && (
+            <div className="bg-gray-900/50 rounded-lg p-3">
+              <p className="text-[11px] uppercase tracking-wider text-gray-500">Event passes</p>
+              <p className="text-xl font-bold text-white mt-1 tabular-nums">
+                {num(eventsComplete)} of {num(events.length)}
+              </p>
+              <p className="text-[11px] text-gray-500 mt-0.5">complete</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {seasons.length > 0 && (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-2">
+            <p className="text-[11px] uppercase tracking-wider text-gray-500">By season</p>
+            {folded.length > 0 && (
+              <TogglePill on={showZero} onChange={setShowZero} controls="bp-seasons">
+                {showZero ? 'Hide' : 'Show'} S{folded[0].season} to S{folded.at(-1).season} at level 0
+              </TogglePill>
+            )}
+          </div>
+          <div id="bp-seasons" className={`${BP_GRID} mb-5`}>
+            {shown.map((s) => (
+              <BpCard
+                key={s.id}
+                t={s}
+                label={`S${s.season}`}
+                badges={
+                  <>
+                    {s.ongoing && <Badge tone="emerald">Ongoing</Badge>}
+                    {s.complete && <Badge tone="blue">Complete</Badge>}
+                    {s.inferred && <Badge tone="gray">Inferred</Badge>}
+                  </>
+                }
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {events.length > 0 && (
+        <>
+          <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-2">Event passes</p>
+          <div className={`${BP_GRID} mb-5`}>
+            {events.map((e) => (
+              <BpCard
+                key={e.id}
+                t={e}
+                label={e.name ?? 'Unnamed event pass'}
+                sub={e.name == null && <p className="mt-0.5 font-mono text-[10px] text-gray-500">{e.id}</p>}
+                badges={e.complete && <Badge tone="blue">Complete</Badge>}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {unknown.length > 0 && (
+        <>
+          <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-2">Unrecognised tracks</p>
+          <div className={`${BP_GRID} mb-5`}>
+            {unknown.map((u) => (
+              <BpCard key={u.id} t={u} label={`Track ${u.id}`} mono />
+            ))}
+          </div>
+        </>
+      )}
+
+      <Note>
+        Levels and XP come from the <code>RankBucket</code> rows your export’s key file lists under Battle pass, and each level is
+        the row’s <code>Rank</code> minus one. The export stores each track as an id, and its season or event pass comes from a list
+        the vault keeps. The rows do not record your pass tier, which rewards you claimed or whether a level was bought.
+        {seasons.some((s) => s.level === 0) && ' Level 0 does not tell a season you did not play from one where you unlocked no level.'}
+        {seasons.some((s) => s.level === 0 && !s.ongoing) &&
+          ' Unlocking an old season’s rewards later through a Legacy Pass does not move that season’s level.'}
+        {shown.some((s) => s.season === 1) && ' Season 1’s track has no bonus levels, so it ends at level 96.'}
+        {xpApart && ' Levels do not all cost the same XP, so a track’s XP and level do not rise in step.'}
+        {shown.some((s) => s.inferred) &&
+          ' Seasons 3 and 5, marked Inferred, are told apart only by the XP each finished track stops at, matched to players’ reports of Season 3’s bonus-level costs.'}
+        {current && asOfMs != null && ` Ongoing marks the season running on ${date(asOfMs)}, the date this export is accurate to.`}
+        {events.some((e) => e.name == null) && ' An event pass the vault could not match to one thefinals.wiki lists shows as Unnamed event pass.'}
+        {events.some((e) => e.either) && ' Nothing in the export says which track is Safehouse Standard and which is Right to Strike, so both names show.'}
+        {unknown.length > 0 &&
+          ' An unrecognised track is one the key file lists under Battle pass that the vault’s list does not have yet, such as a season released since the vault was last updated.'}
       </Note>
     </Panel>
   );
@@ -972,6 +1124,8 @@ export const RatingsPage = () => {
       )}
 
       {model.sponsors?.has && <SponsorsPanel sponsors={model.sponsors} wtRecord={wtRecord} />}
+
+      {model.battlePass?.has && <BattlePassPanel battlePass={model.battlePass} asOfMs={model.meta.snapshot?.asOfMs} />}
 
       {model.quickplay?.has && model.quickplay.seasons.length > 0 && (
         <Panel title="Quickplay badge">

@@ -118,6 +118,7 @@ export const BreakdownPage = () => {
         Computed per round, so K/D here is real per map, mode and class. Per-<em>weapon</em> K/D is not: the export
         records weapon kills and never per-weapon deaths. Round Win% counts rounds flagged won, not tournament placement,
         which is on the Matches page.
+        {model.meta.uncounted.botRounds > 0 && ' Bot-lobby rounds count only in their own row under Modes.'}
       </Note>
     </div>
   );

@@ -106,6 +106,7 @@ export const WEAPONS = {
   '-1157104516': { name: 'Snowball', archetype: 'Global', type: 'Event' },
   '-2046791033': { name: 'Blast Off! RPG-7', archetype: 'Medium', type: 'Event' },
   '-1430355108': { name: "Heavy Hitters Charge 'n' Slam", archetype: 'Heavy', type: 'Event' }, // asset ..._Sumo, only ever equipped in Heavy Hitters
+  '-984984444': { name: "Dragon's Claim Banner", archetype: 'Global', type: 'Event' }, // S10 LTM item, swung like a Sledgehammer
 
   // 0 is Embark's "no game content" id: a kill no item was credited with.
   '0': { name: 'No item recorded', archetype: 'Global', type: 'Other' },
@@ -119,7 +120,7 @@ export const WEAPONS = {
 const ICON_SLUGS = new Set([
   '50-akimbo', '93r', 'akm', 'anti-gravity-cube', 'aps-turret', 'arn-220', 'bfr-titan', 'blast-off-rpg-7', 'breach-charge', 'breach-drill',
   'c4', 'cb-01-repeater', 'cerberus-12ga', 'charge-n-slam', 'chimera-xb', 'cl-40', 'dagger', 'defibrillator',
-  'dual-blades', 'explosive-mine', 'famas', 'fcar', 'flamethrower', 'frag-grenade', 'gas-grenade', 'gas-mine',
+  'dragon-s-claim-banner', 'dual-blades', 'explosive-mine', 'famas', 'fcar', 'flamethrower', 'frag-grenade', 'gas-grenade', 'gas-mine',
   'gateway', 'guardian-turret', 'h-infuser', 'heavy-hitters-charge-n-slam', 'jump-pad', 'ks-23', 'lewis-gun', 'lh1', 'lockbolt', 'm11', 'm134-minigun', 'm26-matter', 'm60',
   'mgl32', 'model-1887', 'p90', 'pike-556', 'pyro-grenade', 'pyro-mine', 'r-357', 'recurve-bow', 'riot-shield',
   'rpg-7', 'sa1216', 'sh1900', 'shak-50', 'sledgehammer', 'spear', 'sr-84', 'sword', 'thermal-bore',

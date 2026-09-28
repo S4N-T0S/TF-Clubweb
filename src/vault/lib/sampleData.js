@@ -66,18 +66,26 @@ const chance3 = (p) => rng3() < p;
 // A fourth stream for the fields added 2026-09-25 (Deathmatch scorecards).
 let rng4 = mulberry32(SEED ^ 0x2026_0925);
 const ri4 = (lo, hi) => lo + Math.floor(rng4() * (hi - lo + 1));
+// A fifth for the per-round figures redrawn 2026-09-26 to match real exports (see settleCombat).
+let rng5 = mulberry32(SEED ^ 0x2026_0926);
+const rf5 = () => rng5();
+const ri5 = (lo, hi) => lo + Math.floor(rng5() * (hi - lo + 1));
 // Key-file rows the generated records refer to (see buildSampleRaw).
 let keyRows = { items: [], mastery: [] };
 // The rounds played on a preview build (see pickPreviewRounds), shared with buildAudit.
 let previewRounds = [];
+// The round the in-game survey followed (see buildPersistence), shared with buildAudit.
+let surveyRound = null;
 
 const resetGenerator = () => {
   rng = mulberry32(SEED);
   rng2 = mulberry32(SEED ^ 0x2026_0921);
   rng3 = mulberry32(SEED ^ 0x2026_0922);
   rng4 = mulberry32(SEED ^ 0x2026_0925);
+  rng5 = mulberry32(SEED ^ 0x2026_0926);
   keyRows = { items: [], mastery: [] };
   previewRounds = [];
+  surveyRound = null;
   usedTids.clear();
 };
 
@@ -114,6 +122,22 @@ const GADGET = {
   Heavy: ['1042541498', '-455578974', '1647891907'], // RPG-7, C4, Pyro Mine
 };
 const GLOBAL_GADGET = ['1082327915', '-351094439', '81925953']; // Frag, Explosive Mine, Pyro Grenade
+// Real exports lean on one or two guns per class. Weights follow PRIMARY's order.
+const MAIN_WEIGHTS = { Light: [0.2, 0.24, 0.34, 0.06, 0.08, 0.08], Medium: [0.18, 0.38, 0.1, 0.12, 0.14, 0.08], Heavy: [0.12, 0.24, 0.1, 0.34, 0.14, 0.06] };
+// Gadget and specialization kills come only from damaging items a build of the class carries (see BUILDS),
+// at each class's real share: rare on Light, mostly Frag on Medium, RPG-7 first on Heavy. `null` keeps the
+// kills on the gun, and GADGET_SHARE lets Heavy and Medium gadget rounds score several.
+const KILL_GADGETS = {
+  Light: [[null, 0.88], ['207168914', 0.06], ['81925953', 0.04], ['432758549', 0.02]], // Gas Grenade, Pyro Grenade, Breach Charge
+  Medium: [[null, 0.35], ['1082327915', 0.38], ['-351094439', 0.12], ['1886362451', 0.11], ['-21077747', 0.04]], // Frag, Explosive Mine, Guardian Turret, Gas Mine
+  Heavy: [[null, 0.2], ['1042541498', 0.44], ['520836765', 0.2], ['-455578974', 0.12], ['1647891907', 0.04]], // RPG-7, Charge 'n' Slam, C4, Pyro Mine
+};
+const GADGET_SHARE = { Light: 1, Medium: 1.5, Heavy: 3 };
+const weighted = (pairs, x) => {
+  let acc = 0;
+  for (const [v, w] of pairs) if (x < (acc += w)) return v;
+  return pairs.at(-1)[0];
+};
 
 const TOURNEY_MAPS = [
   'DA_MV_Arena_01_Base', 'DA_MV_Arena_02_Base', 'DA_MV_Arena_04_Base', 'DA_MV_Seoul_01_Base',
@@ -126,27 +150,38 @@ const SQUADS = ['THE OG CLUB', 'Iron Vultures', 'Night Shift', 'Vault Runners', 
 
 const archetypeRoll = () => (chance(0.3) ? 'Light' : chance(0.685) ? 'Medium' : 'Heavy');
 
-// kills -> KillsPerItem (primary gun gets most; a gadget/grenade chips in ~45%)
+// kills -> KillsPerItem, and the gun drawn for them. The draws are the ones the sample always made,
+// so nothing drawn after them moves.
 function killsPerItem(arch, kills) {
   const kpi = {};
-  if (kills <= 0) return kpi;
+  if (kills <= 0) return { kpi, gun: null };
   let gadget = chance(0.45) ? Math.min(kills, ri(1, 2)) : 0;
-  const prim = kills - gadget;
-  if (prim > 0) kpi[pick(PRIMARY[arch])] = prim;
-  if (gadget > 0) kpi[pick([...GADGET[arch], ...GLOBAL_GADGET])] = gadget;
-  return kpi;
+  let prim = kills - gadget;
+  const gun = prim > 0 ? weighted(PRIMARY[arch].map((id, i) => [id, MAIN_WEIGHTS[arch][i]]), rf()) : null;
+  const tool = gadget > 0 ? weighted(KILL_GADGETS[arch], rf()) : null;
+  if (tool) {
+    const more = Math.max(0, Math.min(prim - 1, Math.round(gadget * (GADGET_SHARE[arch] - 1))));
+    kpi[tool] = gadget + more;
+    prim -= more;
+  } else prim += gadget;
+  if (prim > 0) kpi[gun ?? PRIMARY[arch][MAIN_WEIGHTS[arch].indexOf(Math.max(...MAIN_WEIGHTS[arch]))]] = prim;
+  return { kpi, gun };
 }
+
+// The gun each round drew (see killsPerItem), which decorateRounds keys its rng2 draws on.
+const drawnGuns = new WeakMap();
 
 // One round record (the { CreatedAt, Data } the parser yields per RoundStat).
 function roundRecord({ arch, map, scenarioId, t, dur, combat, tournamentId = null, tier = null, matchId = null, position = null, roundWon = false, tournamentWon = false, backfill = false, disconnected = false }) {
   const cond = pick(CONDS);
-  return {
+  const { kpi, gun } = killsPerItem(arch, combat.kills);
+  const rec = {
     CreatedAt: iso(t),
     Data: {
       CharacterArchetype: ARCH_KEY[arch],
       MapVariant: map,
       EnvironmentalCondition: cond,
-      KillsPerItem: killsPerItem(arch, combat.kills),
+      KillsPerItem: kpi,
       StartTime: iso(t),
       EndTime: iso(t + dur),
       Kills: combat.kills,
@@ -169,6 +204,8 @@ function roundRecord({ arch, map, scenarioId, t, dur, combat, tournamentId = nul
       SquadID: `sq_${ri(100000, 999999)}`,
     },
   };
+  drawnGuns.set(rec, gun);
+  return rec;
 }
 
 function combat(kLo, kHi, dLo, dHi, cashLo, cashHi) {
@@ -445,8 +482,8 @@ function buildRankUpdates(rounds) {
 // Derived from the generated match history so every career total reconciles with
 // the rounds the dashboard actually shows. (Real exports store these buckets
 // separately, but a real RoundStatSummary ≈ the player's RoundStat history.)
-// ranked = the ranked playlist, casual = the core casual modes, total =
-// everything (World Tour + LTM live only in the total, never in ranked/casual).
+// ranked = the ranked playlist, worldTour = Seasons 3 to 8's World Tour, casual =
+// the rest, total = all three.
 const CASUAL_IDS = new Set(CASUAL_MODES.map((m) => m.id));
 
 function aggregateRoundStats(records) {
@@ -596,7 +633,12 @@ function worldTourEventCount(rounds, stopsWithFans) {
 
 function buildSummary(rounds, sponsors) {
   const ranked = rounds.filter((r) => r.Data.ScenarioID === RANKED_ID);
-  const casual = rounds.filter((r) => CASUAL_IDS.has(r.Data.ScenarioID));
+  // World Tour kept its own bucket through Season 8 and froze when Season 9 folded it into
+  // every mode. Everything else outside Ranked, LTMs included, is `casual`, so total =
+  // casual + ranked + worldTour, as on real 2026-09+ exports.
+  const OLD_WT = [751146294, 814189767, 483101830, 279111264, 607580158, 607608768];
+  const oldWt = new Set(rounds.filter((r) => SAMPLE_WT_IDS.has(r.Data.ScenarioID) && OLD_WT.includes(seasonIdAt(Date.parse(r.Data.StartTime)))));
+  const casual = rounds.filter((r) => r.Data.ScenarioID !== RANKED_ID && !oldWt.has(r));
   // World Tour: per-season badge score and finals won, scored by era as real exports store them.
   const wt = rounds.filter((r) => SAMPLE_WT_IDS.has(r.Data.ScenarioID)).sort((a, b) => Date.parse(a.Data.StartTime) - Date.parse(b.Data.StartTime));
   const WT2_SEASONS = new Set([825209376, 965777394, 349883189]);
@@ -627,7 +669,6 @@ function buildSummary(rounds, sponsors) {
   }
   // Seasons 3 to 8 scored World Tour tournaments only, a round-1 exit paying 2 from
   // Season 7. This player never reached Season 3's Finals stage, so FinalsWon stays 0.
-  const OLD_WT = [751146294, 814189767, 483101830, 279111264, 607580158, 607608768];
   const oldTourneys = new Map();
   for (const r of rounds) {
     const d = r.Data;
@@ -663,7 +704,14 @@ function buildSummary(rounds, sponsors) {
         total,
         casual: aggregateRoundStats(casual),
         ranked: aggregateRoundStats(ranked),
-        worldTour: { ...aggregateRoundStats([]), TotalWorldTourEvents: worldTourEventCount(rounds, sponsors.stopsWithFans), LastWorldTourEventIdentifier: sponsors.lastStopId, SeasonalStats: seasonal },
+        worldTour: {
+          ...aggregateRoundStats([...oldWt]),
+          WorldTourBadgeScore: OLD_WT.reduce((a, s) => a + (seasonal[s]?.BadgeScore ?? 0), 0),
+          WorldTourFinalsWon: seasonal[OLD_WT[0]]?.FinalsWon ?? 0,
+          TotalWorldTourEvents: worldTourEventCount(rounds, sponsors.stopsWithFans),
+          LastWorldTourEventIdentifier: sponsors.lastStopId,
+          SeasonalStats: seasonal,
+        },
         scores: { QuickPlayScore: quickplay },
       },
     },
@@ -884,22 +932,23 @@ const pseudoUuid = () => {
   return `${hex(8)}-${hex(4)}-4${hex(3)}-a${hex(3)}-${hex(12)}`;
 };
 
-// spec + three gadgets per class, most-played first; the weapon is picked per round.
+// spec + three gadgets per class, most-played first, after the builds real exports use most; the weapon
+// is picked per round.
 const BUILDS = {
   Light: [
-    { spec: -1873247082, gadgets: [1458504064, -660720463, 1948814529] }, // Evasive Dash: Vanishing Bomb, Sonar Grenade, Gateway
+    { spec: -1926332066, gadgets: [-660720463, -657063493, 1948814529] }, // Cloaking Device: Sonar Grenade, Thermal Vision, Gateway
+    { spec: -1873247082, gadgets: [988268619, 780830895, 1948814529] }, // Evasive Dash: H+ Infuser, Glitch Grenade, Gateway
     { spec: -1107836742, gadgets: [432758549, 207168914, 81925953] }, // Grappling Hook: Breach Charge, Gas Grenade, Pyro Grenade
-    { spec: -1926332066, gadgets: [780830895, -578452692, -1360814459] }, // Cloaking Device: Glitch Grenade, Thermal Bore, Smoke Grenade
   ],
   Medium: [
-    { spec: 782876493, gadgets: [-2146518365, -1356235903, 1884976108] }, // Healing Beam: Defibrillator, Jump Pad, Goo Grenade
-    { spec: 1886362451, gadgets: [-21077747, -351094439, 1082327915] }, // Guardian Turret: Gas Mine, Explosive Mine, Frag Grenade
-    { spec: -1652494848, gadgets: [-862944950, -1356235903, -430504418] }, // Dematerializer: Zipline, Jump Pad, Glitch Trap
+    { spec: 782876493, gadgets: [-2146518365, -1356235903, 1082327915] }, // Healing Beam: Defibrillator, Jump Pad, Frag Grenade
+    { spec: 1886362451, gadgets: [-351094439, 1082327915, -1356235903] }, // Guardian Turret: Explosive Mine, Frag Grenade, Jump Pad
+    { spec: -1652494848, gadgets: [-21077747, -1356235903, 1884976108] }, // Dematerializer: Gas Mine, Jump Pad, Goo Grenade
   ],
   Heavy: [
     { spec: -1790216799, gadgets: [534956297, -455578974, 1042541498] }, // Winch Claw: Dome Shield, C4, RPG-7
-    { spec: 520836765, gadgets: [1647891907, 1042541498, 2124147649] }, // Charge 'n' Slam: Pyro Mine, RPG-7, Barricade
-    { spec: 31490805, gadgets: [534956297, 1166704846, 917919559] }, // Mesh Shield: Dome Shield, Healing Emitter, Anti-Gravity Cube
+    { spec: 520836765, gadgets: [1042541498, 2124147649, 534956297] }, // Charge 'n' Slam: RPG-7, Barricade, Dome Shield
+    { spec: 31490805, gadgets: [534956297, 1647891907, 1042541498] }, // Mesh Shield: Dome Shield, Pyro Mine, RPG-7
   ],
 };
 const ARCH_OF = Object.fromEntries(Object.entries(ARCH_KEY).map(([name, key]) => [key, name]));
@@ -928,16 +977,56 @@ const DEATHMATCH_METRICS = [
   { id: 2018882246, cuts: [8, 5, 3, 2], score: (d) => Math.min(d.Kills, ri4(1, 9)) }, // KillStreak
   { id: -695442701, cuts: [8, 5, 3, 1], score: () => ri4(0, 9) }, // Assists
 ];
+// Per-round figures on the scale of real exports: 5.6 to 7.3 kills a round, 3% of rounds without
+// a kill, a few rounds far above that, 330 to 350 damage per kill, 1.2 to 1.6 revives, no DBNOs, fame
+// only in tournaments before Season 3. Its own stream, so the match history drawn above stays put.
+const FAME_UNTIL = Date.parse('2024-06-13T00:00:00Z');
+function settleCombat(rounds) {
+  for (const r of rounds) {
+    const d = r.Data;
+    const drawn = d.Kills || 0;
+    const none = rf5() < 0.03;
+    const hot = rf5() < 0.04;
+    const kills = none ? 0 : Math.round(drawn * (hot ? 1.1 + rf5() * 0.9 : 0.5 + rf5() * 0.28));
+    // Each item keeps its share of the kills, and the main gun takes the remainder.
+    const entries = Object.entries(d.KillsPerItem).sort((a, b) => a[1] - b[1]);
+    const kpi = {};
+    let left = kills;
+    entries.forEach(([id, n], i) => {
+      const take = i === entries.length - 1 ? left : Math.min(left, Math.round((n * kills) / drawn));
+      if (take > 0) kpi[id] = take;
+      left -= take;
+    });
+    d.Kills = kills;
+    d.KillsPerItem = kpi;
+    d.Dbnos = 0;
+    d.RevivesDone = Math.round((d.RevivesDone || 0) * (hot ? 1 : 0.5));
+    d.DamageDone = kills * ri5(255, 355) + ri5(1, kills ? 450 : 1100);
+    if (!d.TournamentID || Date.parse(d.StartTime) >= FAME_UNTIL) d.FameAmount = 0;
+  }
+}
+
+// How much a damaging item chips in on a round it scores no kill, against a kill's worth.
+const CHIP = {
+  1042541498: 1.1, '-455578974': 0.8, 1082327915: 0.8, '-351094439': 0.8, 1647891907: 0.9, 81925953: 0.6, 207168914: 0.6, '-21077747': 0.6,
+  432758549: 0.4, '-578452692': 0.15, 1886362451: 0.7, 520836765: 0.9, '-1790216799': 0.05,
+}; // RPG-7, C4, Frag, Explosive Mine, Pyro Mine, Pyro Grenade, Gas Grenade, Gas Mine, Breach Charge, Thermal Bore, Guardian Turret, Charge 'n' Slam, Winch Claw
+
 function decorateRounds(rounds) {
   for (const r of rounds) {
     const d = r.Data;
     const arch = ARCH_OF[d.CharacterArchetype];
     const roll = rf2();
-    const build = BUILDS[arch][roll < 0.55 ? 0 : roll < 0.85 ? 1 : 2];
+    // A gadget or specialization that scored a kill was equipped: take the build that carries it.
+    const drawnBuild = BUILDS[arch][roll < 0.55 ? 0 : roll < 0.85 ? 1 : 2];
+    const carries = (b, id) => String(b.spec) === id || b.gadgets.some((g) => String(g) === id);
+    const tool = Object.keys(d.KillsPerItem).find((id) => !PRIMARY[arch].includes(id) && id !== '0');
+    const build = tool && !carries(drawnBuild, tool) ? (BUILDS[arch].find((b) => carries(b, tool)) ?? drawnBuild) : drawnBuild;
     // One snapshot per round: about a third of the time the gun that got the kills
     // had been swapped in from reserve and is not in it, as on real exports.
     const topGun = Object.entries(d.KillsPerItem).filter(([id]) => PRIMARY[arch].includes(id)).sort((a, b) => b[1] - a[1])[0]?.[0];
-    const weapon = topGun && chance2(0.68) ? topGun : pick2(PRIMARY[arch]);
+    const drawnGun = drawnGuns.get(r);
+    const weapon = drawnGun && chance2(0.68) ? (topGun ?? drawnGun) : pick2(PRIMARY[arch]);
     d.LoadoutItemAssetIDs = [build.spec, Number(weapon), ...build.gadgets];
 
     d.Abandoned = d.Disconnected && !d.RoundWon && chance2(0.8);
@@ -968,9 +1057,11 @@ function decorateRounds(rounds) {
     const total = d.DamageDone || 0;
     if (total > 0) {
       const parts = Object.entries(d.KillsPerItem).map(([id, k]) => [id, k + 0.5]);
-      if (chance3(0.45)) {
-        const g = build.gadgets.find((id) => !d.KillsPerItem[id]);
-        if (g != null) parts.push([String(g), 0.12 + rf3() * 0.25]);
+      if (chance3(0.45) && build.gadgets.some((id) => !d.KillsPerItem[id])) {
+        const u = rf3();
+        const hurts = [...build.gadgets, build.spec].filter((id) => Object.hasOwn(CHIP, id) && !d.KillsPerItem[id]);
+        const chip = hurts[Math.floor(u * hurts.length)];
+        if (chip != null) parts.push([String(chip), (0.12 + u * 0.25) * CHIP[chip]]);
       }
       if (chance3(0.08)) parts.push(['0', 0.03]);
       if (!parts.length) parts.push([String(weapon), 1]);
@@ -1043,7 +1134,7 @@ const SAVED_BUILDS = [
   { title: 'Light 2', arch: 'Light', build: 1, weapon: '1599997630', reserve: ['199277493', '-657541680', '1612446258', -1360814459] },
   { title: 'Medium 1', arch: 'Medium', build: 0, weapon: '-566338044', reserve: ['473278792', '-240495033', '107797000', -862944950], selected: true },
   { title: 'Heavy 1', arch: 'Heavy', build: 0, weapon: '-676727577', reserve: ['-212966229', '1743942098', '1096645849', 1647891907] },
-  { title: 'Heavy 2', arch: 'Heavy', build: 1, weapon: '1096645849', reserve: ['-160507163', '1480845770', '-676727577', 534956297] },
+  { title: 'Heavy 2', arch: 'Heavy', build: 1, weapon: '1096645849', reserve: ['-160507163', '1480845770', '-676727577', 1166704846] },
 ];
 
 function buildInventoryItems() {
@@ -1209,15 +1300,42 @@ function buildConsoleClaims() {
   return { XboxTokenClaims3: claims, ThirdPartyLicenseAssociationUpdated: licences };
 }
 
+// 20 base-32 characters, like Embark's RoundIDs, led by the index so none repeat.
+const sampleRoundId = (i) => {
+  let h = Math.imul(i + 1, 0x9e3779b1) >>> 0;
+  let s = i.toString(32).padStart(4, '0');
+  while (s.length < 20) {
+    s += '0123456789abcdefghijklmnopqrstuv'[h & 31];
+    h = Math.imul(h ^ (h >>> 13), 0x5bd1e995) >>> 0;
+  }
+  return s;
+};
+
+// Battle-pass tracks (ids from BATTLE_PASS_TRACKS in gameMeta.js). Rank is levels unlocked
+// plus one and XP stops at the season's total: Season 1 part done, Season 4 one level short,
+// Season 7 short of its bonus pages, Season 11 still running, one event pass part done.
+const BATTLE_PASS_ROWS = [
+  ['-1015630235', 65, 579100], ['-852579741', 107, 1184000], ['-1998502183', 107, 1520000], ['1676196360', 106, 1861250],
+  ['-1248342082', 107, 1854000], ['14840406', 107, 1729000], ['-1765989502', 97, 1125480], ['-522336115', 107, 1729000],
+  ['-1547834953', 107, 1729000], ['-132703550', 107, 1729000], ['1027926733', 72, 711200],
+  ['216970600', 17, 340000], ['-918913416', 12, 70500],
+].map(([BucketID, Rank, XP]) => ({ BucketID, XP, Rank }));
+
+// The Season 1 sticker an Embark staff tool set to 1 (see buildAudit).
+const STAFF_GRANT_ID = -2113460886;
+
 // --- identity / linked accounts / restriction ----------------------------
 function buildPersistence() {
   // Generate the match history ONCE and derive the lifetime summary from it, so
   // the RoundStatSummary buckets (career headline + the ranked/casual/other note)
   // stay consistent with the actual rounds the dashboard shows.
   const rounds = buildRounds();
+  settleCombat(rounds);
   decorateRounds(rounds);
+  rounds.forEach((r, i) => (r.RoundID = sampleRoundId(i)));
   previewRounds = pickPreviewRounds(rounds);
   const live = rounds.filter((r) => !previewRounds.includes(r));
+  surveyRound = live.filter((r) => !r.Data.TournamentID && r.Data.StartTime < '2026-08-01').at(-1) ?? null;
   const sponsors = buildSponsorRecords(live);
   const byType = {
     // A single Embark account
@@ -1257,7 +1375,7 @@ function buildPersistence() {
     RoundStat: rounds,
     UserLogin: buildUserLogins(rounds),
     // The BucketID'd row is the 2026-09+ shape: that id is the "Career rank" track in Embark's key file.
-    RankBucket: [{ XP: 184500, Rank: 'Diamond' }, { XP: 92000, Rank: 'Platinum' }, { BucketID: '393268067', XP: 4125000, Rank: 62 }, ...buildMastery(rounds)],
+    RankBucket: [{ XP: 184500, Rank: 'Diamond' }, { XP: 92000, Rank: 'Platinum' }, { BucketID: '393268067', XP: 4125000, Rank: 62 }, ...buildMastery(rounds), ...BATTLE_PASS_ROWS],
     TransactionLog: buildTransactions(),
     HardCurrencyLog: buildLedger(),
     SteamDLC: buildSteamDlc(),
@@ -1272,6 +1390,9 @@ function buildPersistence() {
     Properties: { Sanction: { Type: 'tournament_abandon', Tier: 1, TimeOfSanction: '2025-11-08T20:41:12Z', DurationSeconds: 600 } },
     CreatedAt: '2025-08-13T15:14:42Z', UpdatedAt: '2025-11-08T20:41:12Z',
   });
+  // Granted by hand through Embark's staff tool (see buildAudit).
+  byType.InventoryItem.push({ GameAssetID: STAFF_GRANT_ID, Name: 'S1 Diamond', InstanceID: '5a3c7100-0000-4000-8000-000000000002', Amount: 1, HasSeen: true, Type: 'WeaponSticker', CreatedAt: '2024-04-02T10:21:44.208Z', UpdatedAt: '2024-04-02T10:21:44.208Z' });
+  keyRows.items.push({ GameAssetID: STAFF_GRANT_ID, Kind: 'Item', Name: 'S1 Diamond', ItemType: 'WeaponSticker', Resolved: true });
   byType.ClanTimelineMessage.push(...CLUB_PARTY_UPS.map((at) => ({ ClanName: 'THE OG CLUB', ClanTag: 'OG', PayloadType: 'TYPE_PARTY_UP', CreatedAt: at })));
   // The player's own joins: a first stint, then the current membership (same instant as
   // ClanMembership.CreatedAt, as on real exports).
@@ -1526,11 +1647,23 @@ function buildAudit() {
   const chat = buildChatMessages();
   // One row per round played on a preview build, under that build's tenancy, logged
   // shortly before the round starts (as on real exports).
-  const previewRoundRows = previewRounds.map((r, i) => ({
+  const previewRoundRows = previewRounds.map((r) => ({
     logtime: iso(Date.parse(r.Data.StartTime) - 45_000), tenancy: 'discovery-s9-preview-event',
-    product_user_id: '0002sample0000000000000000000009', round_id: `samplepreview${i}`,
+    product_user_id: '0002sample0000000000000000000009', round_id: r.RoundID,
   }));
-  const byType = { ClientUserLoginDetails: login, AccountNameAudit2: names, PlayerReport: reports, ProfileUpdated3: profileUpdated, AwsSesEvent: ses, EmailStatus: legacy, ChatMessageSent: chat, ModerationDecisionPII: buildModeration(chat), EOSProductUserId: previewRoundRows, ...buildConsoleClaims() };
+  // Staff actions: a Season 1 sticker set by hand in Season 2, and the tool's two rows
+  // for the temporary restriction (the persistence Restriction's 2025-04-18 one).
+  const restrictionEnd = Date.parse('2025-04-21T19:30:00Z');
+  const staff = {
+    PlayerViewUpdateInventoryItem: [{ logtime: '2024-04-02T10:21:44.208Z', tenancy: '', game_asset_id: STAFF_GRANT_ID, old_amount: 0, new_amount: 1 }],
+    PlayerViewAddTenancyUserRestriction2: [{ logtime: '2025-04-18T19:30:00.412Z', tenancy: 'discovery-live', ends_at_ms: restrictionEnd, restriction_id: 1000000000000000000, reason: 'Exploiting', issue_steam_game_ban: false }],
+    TenancyUserRestrictionCreated3: [{ logtime: '2025-04-18T19:30:00.418Z', tenancy: 'discovery-live', source: 'PLAYER_VIEW', reason: 'Exploiting', ends_at_ms: restrictionEnd, restriction_id: 1000000000000000000 }],
+  };
+  // One in-game survey answer, logged half a minute after the round it followed.
+  const survey = surveyRound
+    ? [{ logtime: iso(Date.parse(surveyRound.Data.EndTime) + 31_000), tenancy: 'discovery-live', announcement_id: 700114256, template_id: -503318842, answer: 8, last_round_id: surveyRound.RoundID, free_text_answer: 'Fun matches lately, but Quick Cash takes ages to find a lobby in the evening.' }]
+    : [];
+  const byType = { ClientUserLoginDetails: login, AccountNameAudit2: names, PlayerReport: reports, ProfileUpdated3: profileUpdated, AwsSesEvent: ses, EmailStatus: legacy, ChatMessageSent: chat, ModerationDecisionPII: buildModeration(chat), EOSProductUserId: previewRoundRows, ...buildConsoleClaims(), ...staff, NpsSurveyFreeText: survey };
   const counts = Object.fromEntries(Object.entries(byType).map(([k, v]) => [k, v.length]));
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return { byType, counts, total, badLines: 0 };
@@ -1591,60 +1724,110 @@ function buildModeration(chat) {
   return out;
 }
 
-// Support tickets in the FINAL parsed shape (`raw.customerSupportParsed`), so
-// the sample never loads pdfjs — the Support page prefers pre-parsed data.
+// Support tickets in the parsed shape (`raw.customerSupportParsed`) of the CS pdf layout exports have used since
+// 2026-08 (`layout: 'export'`), so the sample never loads pdfjs. That layout keeps about a year of tickets.
 function buildSampleSupport() {
   const T = (s) => Date.parse(s);
+  const session = (browserVersion) => [
+    { label: 'DETECTED LANGUAGE', value: 'en' },
+    { label: 'DEVELOPER-SET LANGUAGE', value: 'en' },
+    { label: 'LANGUAGE', value: 'en' },
+    { label: 'DEVICE LANGUAGE', value: 'en-GB' },
+    { label: 'TIMEZONE', value: 'Europe/London' },
+    { label: 'OPERATING SYSTEM', value: 'Windows' },
+    { label: 'OS VERSION', value: '10' },
+    { label: 'BROWSER', value: 'Chrome' },
+    { label: 'BROWSER VERSION', value: browserVersion },
+    { label: 'PAGE URL', value: 'https://id.embark.games/the-finals/support' },
+    { label: 'PAGE TITLE', value: 'Embark ID: Technical Support and Help Center' },
+  ];
+  const msg = (who, text, name = null) => ({ who, name, text, dayOffset: null, approxMs: null, sentMs: null, readMs: null });
+  const you = (text) => msg('you', text);
+  const bot = (text) => msg('bot', text, 'Automation');
+  const attachment = () => ({ ...msg('system', 'Attachment sent'), attachment: true });
+  const ticket = (t) => {
+    const attachmentCount = t.messages.filter((m) => m.attachment).length;
+    return {
+      queue: null, tags: [], state: 'resolved', channel: 'webmessenger', csat: null, game: 'THE FINALS', userEmail: 'sample.player@example.com',
+      attachmentCount, attachments: [], attachmentsWithheld: attachmentCount > 0, extra: [], ...t, approxStartMs: t.createdAtMs,
+    };
+  };
+  const FORWARDED = 'Thank you for providing this information. We will now pass your ticket on to our support team, who will reply to you here.';
+  const QUEUED = 'Thank you for reaching out. Please note that it can take a few days before we reply, as tickets are answered in the order they arrive.';
+  const RATE = 'How would you rate your support experience?';
   return {
+    layout: 'export',
     chat: [],
-    creationDateMs: T('2026-06-18T00:00:00Z'),
+    creationDateMs: T('2026-08-16T09:12:47Z'),
     tickets: [
-      {
-        queue: 'General',
-        tags: ['tf_general', 'tf_tier1', 'tf_technical'],
-        intent: 'Technical Issues',
-        resolvedAtMs: T('2026-05-30T09:12:00Z'),
-        approxStartMs: T('2026-05-26T00:00:00Z'),
-        attachmentCount: 1,
-        attachments: ['crash_report.zip'],
+      ticket({
+        ticketId: '198653',
+        intent: 'Purchase Issue',
+        createdAtMs: T('2025-09-12T19:41:03Z'),
+        updatedAtMs: T('2025-09-16T04:27:51Z'),
+        resolvedAtMs: T('2025-09-16T04:27:51Z'),
+        session: session('140.0.0.0'),
         messages: [
-          { who: 'bot', name: 'Greeting Message', text: 'Hi! Thank you for reaching out. Please let us know how we can help you by choosing the category below.', dayOffset: 23, approxMs: T('2026-05-26T00:00:00Z'), sentMs: null },
-          { who: 'you', name: null, text: 'I am having another technical issue', dayOffset: 23, approxMs: T('2026-05-26T00:00:00Z'), sentMs: null },
-          { who: 'system', name: null, text: 'Issue Created', dayOffset: 23, approxMs: null, sentMs: null },
-          { who: 'bot', name: 'THE FINALS - Resolution Bot V10', text: 'We are really sorry to hear that technical issues prevented you from being able to play. Could you please tell us a little bit more about what happened?', dayOffset: 23, approxMs: T('2026-05-26T00:00:00Z'), sentMs: null },
-          { who: 'you', name: null, text: 'Please describe the issue\nThe game crashes on launch since the last patch. Verified files and reinstalled already.\n\nWhich platform do you play on?\nSteam', dayOffset: 23, approxMs: T('2026-05-26T00:00:00Z'), sentMs: null },
-          { who: 'system', name: null, text: 'Attachment sent · crash_report.zip', dayOffset: 23, approxMs: null, sentMs: null, attachment: true },
-          { who: 'agent', name: 'Blade', text: 'Hello,\n\nThank you for the crash report. This is a known issue with the latest driver version — please update your GPU driver and the crash should stop.\n\nKind regards,\nBlade', dayOffset: 19, approxMs: T('2026-05-30T00:00:00Z'), sentMs: null },
-          { who: 'system', name: null, text: 'Resolved', dayOffset: 19, approxMs: null, sentMs: null },
+          you('Purchase Issue'),
+          bot('Thank you for contacting us about your purchase issue. Please tell us which platform you bought on, what you bought and when, and what went wrong.'),
+          you('I bought the bundle with 6,250 Multibucks on Steam about twenty minutes ago. Steam took the payment and the Multibucks arrived, but none of the bundle items are in my locker. I already restarted the game once and they are still missing.'),
+          bot('Please attach the receipt of your purchase below, for example a screenshot of your Steam purchase history, so we can find the order quickly.'),
+          attachment(),
+          bot('Thank you for sending us this information. If there is anything else we should know, please write it below.'),
+          you('Only the cosmetics are missing, the Multibucks are fine.'),
+          bot(FORWARDED),
+          bot(QUEUED),
+          you('Update: everything showed up after I restarted my PC.'),
+          you('You can close this, sorry for the trouble!'),
+          msg('agent', 'Hi, thank you for reaching out and for letting us know. We have checked your account, and every item from the bundle was granted at the moment of purchase, so the game most likely needed a full restart before it could show them. We are glad to hear that everything is in your locker now. If anything from this purchase goes missing again, you are welcome to reply to this ticket and we will take another look. Kind regards, Maple', 'Maple'),
         ],
-      },
-      {
-        queue: 'Cheater Reports',
-        tags: ['tf_general', 'tf_tier1'],
+      }),
+      ticket({
+        ticketId: '798214',
         intent: 'Report a Cheater',
-        resolvedAtMs: T('2026-04-14T16:40:00Z'),
-        approxStartMs: T('2026-04-11T00:00:00Z'),
-        attachmentCount: 1,
-        attachments: ['clip.mp4'],
+        createdAtMs: T('2026-04-11T21:05:52Z'),
+        updatedAtMs: T('2026-04-15T11:19:30Z'),
+        resolvedAtMs: T('2026-04-14T16:38:12Z'),
+        csat: 2,
+        session: session('146.0.0.0'),
         messages: [
-          { who: 'you', name: null, text: 'Reporting a player who was clearly seeing us through walls all tournament. Video attached.', dayOffset: 68, approxMs: T('2026-04-11T00:00:00Z'), sentMs: null },
-          { who: 'system', name: null, text: 'Attachment sent · clip.mp4', dayOffset: 68, approxMs: null, sentMs: null, attachment: true },
-          { who: 'agent', name: null, text: 'Thank you for the report and the evidence. We can’t share the outcome of investigations, but our anti-cheat team will review this player.', dayOffset: 65, approxMs: T('2026-04-14T00:00:00Z'), sentMs: T('2026-04-14T16:38:12Z'), readMs: T('2026-04-15T09:02:44Z') },
-          { who: 'system', name: null, text: 'Resolved', dayOffset: 65, approxMs: null, sentMs: null },
+          you('Report a Cheater or Hacker'),
+          bot('Thank you for reaching out to us about a player you suspect of cheating. Please describe what happened, when the match took place and anything that could help us identify the player. Reports that include a clip or a screenshot are much easier for our team to review.'),
+          you('In a match tonight a player on another team knew where we were for the whole round. They followed us through walls, pre-fired every corner we were behind and hit almost every shot while jumping. I recorded the round and cut a clip of the worst part, and their name is on the scoreboard at the end of it.'),
+          bot('If you can, please attach a clip or a screenshot of what you saw below.'),
+          attachment(),
+          bot(FORWARDED),
+          bot(QUEUED),
+          msg('agent', 'Hello, thank you for taking the time to report this player and for including a clip. We have passed your report and the clip on to our anti-cheat team, who will review the match. For privacy reasons we are not able to share the outcome of an investigation or any action taken against another account, but every report is looked at. If you meet this player again, you can also report them in game from the scoreboard after the match. Sincerely, Rook', 'Rook'),
+          bot(RATE),
+          you('Disliked it'),
+          bot('Please let us know if you have any comments about the support you received.'),
+          you('I never find out if anything happened to the players I report.'),
+          bot('Would you like to contact us again regarding this issue?'),
+          you('No'),
+          bot('Thank you for your feedback! We appreciate the time you took to share it with us.'),
         ],
-      },
-      {
-        queue: 'General',
-        tags: ['tf_general'],
-        intent: null,
-        resolvedAtMs: T('2025-11-03T10:00:00Z'),
-        approxStartMs: null,
-        attachmentCount: 0,
-        attachments: [],
-        parseFallback: true,
-        rawText: 'This older transcript used a layout the parser doesn’t recognise, so it is shown raw.\n\nHi! Thanks for reaching out …\n(unstructured transcript text)',
-        messages: [],
-      },
+      }),
+      ticket({
+        ticketId: '896031',
+        intent: 'Technical Issues',
+        createdAtMs: T('2026-05-26T08:41:17Z'),
+        updatedAtMs: T('2026-06-02T09:12:40Z'),
+        resolvedAtMs: T('2026-05-30T09:12:40Z'),
+        session: session('148.0.0.0'),
+        messages: [
+          you('I am having another technical issue'),
+          bot('We are sorry to hear that technical issues are getting in the way of your game. To help us look into this, please describe the problem in as much detail as you can: what happens, when it started, and whether anything changed on your system around that time.'),
+          you('Since the last update the game crashes every time I launch it. The Embark logo shows up, then the window closes and the crash reporter opens. I have verified the game files on Steam, reinstalled the game and restarted my PC, but nothing changed. Other games run fine and I have not changed any settings since the update.'),
+          bot('Thank you for this information. If you can, please attach a crash report or a log file from your game folder, as it helps our team find the cause faster.'),
+          attachment(),
+          bot('We are aware of some reported issues that our team is already working on, and you can follow their status on our official channels while you wait.'),
+          bot(FORWARDED),
+          bot(QUEUED),
+          msg('agent', 'Hi, thank you for contacting us and for sending the crash report. The report shows the game stopping while it loads your graphics driver, which we have seen with older drivers since the latest update. Please install the newest driver from the website of your graphics card maker using a clean installation, then restart your PC and launch the game again. If it still crashes after that, reply to this ticket with a new crash report and we will take another look. Best regards, Blade', 'Blade'),
+          bot(RATE),
+        ],
+      }),
     ],
   };
 }

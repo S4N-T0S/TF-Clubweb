@@ -230,24 +230,35 @@ export const CareerPage = () => {
 
   const [hoveredMode, setHoveredMode] = useState(null);
   const tournWinRate = meta.tournamentsPlayed ? meta.tournamentsWon / meta.tournamentsPlayed : null;
-  // Counted matches only: preview-build and practice rounds live in match history alone.
+  // Counted matches only: preview-build and practice rounds live in match history alone, bot rounds under their own mode.
   const totalMatches = careerModes.reduce((s, m) => s + m.matches, 0);
   const unc = meta.uncounted;
   const uncountedRounds = unc.previewRounds + unc.practiceRounds;
   // Embark's totals: preview builds wrote their own summaries (left out when found), and
-  // practice-range rounds are subtracted from the live one.
+  // practice-range and bot rounds are subtracted from the live one.
   const plural = (n, one, many) => `${num(n)} ${n === 1 ? one : many}`;
   const previewOut = unc.previewRounds > 0 && unc.previewSummaries > 0;
   const practiceOut = unc.practiceRounds > 0;
+  const botsOut = unc.botRounds > 0;
   const summaries = plural(unc.previewSummaries, 'lifetime summary', 'lifetime summaries');
+  const outParts = [
+    previewOut && `${num(unc.previewRounds)} played on preview builds, whose ${summaries} ${unc.previewSummaries === 1 ? 'is' : 'are'} left out too`,
+    practiceOut && `${num(unc.practiceRounds)} on the practice range`,
+    botsOut && `${num(unc.botRounds)} in bot lobbies`,
+  ].filter(Boolean);
+  const outRounds = (previewOut ? unc.previewRounds : 0) + (practiceOut ? unc.practiceRounds : 0) + (botsOut ? unc.botRounds : 0);
   const leftOutLine =
-    previewOut && practiceOut
-      ? `The totals above leave out ${num(unc.previewRounds + unc.practiceRounds)} rounds: ${num(unc.previewRounds)} played on preview builds, whose ${summaries} ${unc.previewSummaries === 1 ? 'is' : 'are'} left out too, and ${num(unc.practiceRounds)} on the practice range.`
+    outParts.length > 1
+      ? `The totals above leave out ${num(outRounds)} rounds: ${
+          outParts.length > 2 || previewOut ? `${outParts.slice(0, -1).join(', ')}, and ${outParts.at(-1)}` : outParts.join(' and ')
+        }.`
       : previewOut
         ? `The totals above leave out the ${plural(unc.previewRounds, 'round', 'rounds')} you played on preview builds and the ${summaries} those builds wrote.`
         : practiceOut
           ? `The totals above leave out the ${plural(unc.practiceRounds, 'practice-range round', 'practice-range rounds')}.`
-          : null;
+          : botsOut
+            ? `The totals above leave out the ${plural(unc.botRounds, 'bot-lobby round', 'bot-lobby rounds')}.`
+            : null;
   const previewOnlyInLog = unc.previewRounds > 0 && unc.previewSummaries === 0;
   const segments = careerModes
     .map((m) => ({ key: m.key, label: m.label, value: m.matches, color: MODE_COLOR[m.key] || MODE_COLOR.Other }))
@@ -329,7 +340,7 @@ export const CareerPage = () => {
         <StatCard label="Total cash-out" value={`$${num(t.totalCashOut)}`} accent="text-yellow-400" />
         <StatCard label="Revives" value={num(t.revives)} />
         <StatCard label="Damage dealt" value={num(Math.round(t.damage))} />
-        <StatCard label="Matches" value={num(totalMatches)} sub={`${num(meta.roundCount - unc.previewRounds - unc.practiceRounds)} rounds logged`} />
+        <StatCard label="Matches" value={num(totalMatches)} sub={`${num(meta.roundCount - unc.previewRounds - unc.practiceRounds - unc.botRounds)} rounds logged`} />
       </div>
       {(leftOutLine || previewOnlyInLog) && (
         <Note>

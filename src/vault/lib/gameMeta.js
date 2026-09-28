@@ -355,6 +355,30 @@ const SPONSOR_LOGOS = {
 };
 export const sponsorLogo = (name) => (name != null && Object.hasOwn(SPONSOR_LOGOS, name) ? `/vault/sponsors/${SPONSOR_LOGOS[name]}` : null);
 
+// Battle-pass tracks, which the key file files under "Battle pass" without a name or season.
+// Solved from rounds per season, the preview builds' copies of the tracks and the XP each
+// track stops at. Seasons 3 and 5 are told apart only by those totals, matched to players'
+// reports of Season 3's bonus-level costs. `xp`: the XP a finished track holds. The last two
+// event passes are Safehouse Standard (10.9.0) and Right to Strike (11.9.0), dated by the
+// pass items one export holds, but nothing says which id is which (`either`).
+export const BATTLE_PASS_TRACKS = {
+  '-1015630235': { season: 1, levels: 96, xp: 864000 },
+  '-852579741': { season: 2, levels: 106, xp: 1184000 },
+  '-1998502183': { season: 3, levels: 106, xp: 1520000, inferred: true },
+  1676196360: { season: 4, levels: 106, xp: 1912000 },
+  '-1248342082': { season: 5, levels: 106, xp: 1854000, inferred: true },
+  14840406: { season: 6, levels: 106, xp: 1729000 },
+  '-1765989502': { season: 7, levels: 106, xp: 1729000 },
+  '-522336115': { season: 8, levels: 106, xp: 1729000 },
+  '-1547834953': { season: 9, levels: 106, xp: 1729000 },
+  '-132703550': { season: 10, levels: 106, xp: 1729000 },
+  1027926733: { season: 11, levels: 106, xp: 1729000 },
+  216970600: { event: 'TGM25 Pass', levels: 16, xp: 340000 },
+  '-918913416': { event: 'HEARTBREAKER ’26 Pass', levels: 16, xp: 104000 },
+  '-1686627677': { event: 'Safehouse Standard or Right to Strike', either: true, levels: 16, xp: 104000 },
+  '-758604553': { event: 'Safehouse Standard or Right to Strike', either: true, levels: 16, xp: 104000 },
+};
+
 // Seasons 6 to 8 only (thefinals.wiki/wiki/Quickplay). Gold 1 is the top.
 export const QUICKPLAY_BADGES = [
   { ...WORLD_TOUR_BADGES[0], steps: [50, 100, 150, 200] },
@@ -448,6 +472,8 @@ export const SCENARIO_MODES = {
   '787538704': { label: 'Ranked Cashout', category: 'Ranked', teams: 4 },
   '377270267': { label: 'Tournament', category: 'Casual', teams: 4 },
   '106717113': { label: 'Snowball Blitz', category: 'LTM', teams: 2 }, // confirmed — winter event, Monaco + Snowball weapon
+  // Cashout (Bots), fingerprinted (no key file names it): likely the Team Up With Players queue, human teammates in the bot lobby.
+  '814785178': { label: 'Cashout vs bots', category: 'Other', teams: null, bots: true },
   // A few S3–S5 World Tour ids (the rest live in WORLD_TOUR_SCENARIOS below).
   '211390302': { label: 'World Tour', category: 'World Tour', teams: 4 },
   '970363916': { label: 'World Tour', category: 'World Tour', teams: 4 },
@@ -485,8 +511,8 @@ const EMBARK_SCENARIOS = {
   WorldTournament: { label: 'World Tour', category: 'World Tour', teams: 4 },
   PushVillage: { label: 'Point Break', category: 'Casual', teams: 2 },
   HeavyHitters: { label: 'Heavy Hitters', category: 'LTM', teams: 2 },
-  Dragonfall: { label: 'Dragonfall', category: 'LTM', teams: null },
-  // New-player onboarding lobbies against bots (FTUE = first-time user experience).
+  Dragonfall: { label: "Dragon's Claim", category: 'LTM', teams: 2 },
+  // Cashout (Bots), open to every player since Season 11: solo, as a party or matchmade. FTUE = first-time user experience.
   CashoutBotsSolo: { label: 'Cashout vs bots', category: 'Other', teams: null, bots: true },
   CashoutBotsSoloFTUE: { label: 'Cashout vs bots', category: 'Other', teams: null, bots: true },
   Tournament: { label: 'Tournament', category: 'Casual', teams: 4 },

@@ -1,7 +1,7 @@
 // Build the view-models the pages consume from raw parsed records.
 // Runs ONCE after parsing; results are memoised in the provider.
 import { resolveWeapon } from './weapons';
-import { ARCHETYPES, archetypeLabel, classifyMode, careerModeGroup, CAREER_MODE_GROUPS, parseMapVariant, parseCondition, roundsRemaining, stageLabel, stageTeams, tournamentPlacement, worldTourBadge, worldTourTier, quickplayBadge, worldTourEvent, worldTourStop, WT_STOP_IDS, sponsorName, sponsorLogo, SEASON_SPONSORS, sponsorAddedLevels, sponsorLevelFans } from './gameMeta';
+import { ARCHETYPES, archetypeLabel, classifyMode, careerModeGroup, CAREER_MODE_GROUPS, parseMapVariant, parseCondition, roundsRemaining, stageLabel, stageTeams, tournamentPlacement, worldTourBadge, worldTourTier, quickplayBadge, worldTourEvent, worldTourStop, WT_STOP_IDS, sponsorName, sponsorLogo, SEASON_SPONSORS, sponsorAddedLevels, sponsorLevelFans, BATTLE_PASS_TRACKS } from './gameMeta';
 import { resolveMap, resolveLtmBackground, conditionType } from './maps';
 import { resolveDlc, steamAppUrl, STEAM_BASE_GAME_ID, localAmount, resolveMsProduct } from './economy';
 import { buildRealms, REALM, classifyRoundStat, ROUND_KIND, tenancyLabel, previewRounds } from './realms';
@@ -191,6 +191,92 @@ function buildBans(byType, auditByType) {
     cancelledCount: all.filter((b) => b.cancelled).length, // how many were lifted
     blockedSignIns,
   };
+}
+
+// Audit rows written through `PlayerView`, a staff tool, plus any row whose `source` names
+// it. Unknown types keep their fields, so a kind no export has shown yet still lists.
+const ADMIN_SKIP = new Set(['logtime', 'tenancy', 'backend_id', 'counter', 'trace_id', 'frame', 'source']);
+// Acronyms keep their capitals ("Reset MMR", "Update EOS account").
+const sentenceCase = (s) =>
+  s
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .split(' ')
+    .map((w, i) => (/^[A-Z0-9]{2,}$/.test(w) ? w : i ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()))
+    .join(' ');
+const adminAction = (type) => sentenceCase(type.replace(/^PlayerView/, '').replace(/\d+$/, ''));
+function buildAdminActions(auditByType, keys, ban) {
+  const A = auditByType || {};
+  const events = [];
+  for (const type of Object.keys(A)) {
+    const tool = /^PlayerView/.test(type);
+    for (const r of A[type] || []) {
+      if (!r || typeof r !== 'object' || (!tool && r.source !== 'PLAYER_VIEW')) continue;
+      const ms = toMs(r.logtime);
+      if (ms == null) continue;
+      const fields = Object.entries(r).filter(([k]) => !ADMIN_SKIP.has(k));
+      const changes = [];
+      const paired = new Set();
+      for (const [k, before] of fields) {
+        const m = /^old_(.+)$/.exec(k);
+        if (!m) continue;
+        const afterKey = [`new_${m[1]}`, `updated_${m[1]}`].find((a) => Object.hasOwn(r, a));
+        if (!afterKey) continue;
+        paired.add(k).add(afterKey);
+        changes.push({ field: m[1], label: sentenceCase(m[1].replace(/_/g, ' ')), before: before ?? null, after: r[afterKey] ?? null, changed: before !== r[afterKey] });
+      }
+      let item = null;
+      const extra = [];
+      for (const [k, v] of fields) {
+        if (paired.has(k) || v == null || v === '') continue;
+        if (typeof v === 'object') {
+          extra.push({ key: k, value: JSON.stringify(v) });
+          continue;
+        }
+        if (/(^|_)game_asset_id$/.test(k) && item == null) {
+          const key = keys.item(v);
+          const type = key?.itemType ?? null;
+          item = {
+            id: String(v),
+            name: key?.name ?? null,
+            type,
+            label: type ? (Object.hasOwn(ITEM_TYPE_LABELS, type) ? ITEM_TYPE_LABELS[type] : type.replace(/([a-z0-9])([A-Z])/g, '$1 $2')) : null,
+          };
+          continue;
+        }
+        // Ids past 2^53 lost their last digits in JSON.parse.
+        if (typeof v === 'number' && !Number.isSafeInteger(v) && /_id$/.test(k)) continue;
+        extra.push({ key: k, value: v });
+      }
+      const restriction = /Restriction/.test(type) && !/(Remove|Delete|Cancel|Lift|Revoke)/.test(type)
+        ? { reason: r.reason ?? null, permanent: r.ends_at_ms === 0 ? true : typeof r.ends_at_ms === 'number' ? false : null, endsMs: r.ends_at_ms > 0 ? r.ends_at_ms : null, steamGameBan: typeof r.issue_steam_game_ban === 'boolean' ? r.issue_steam_game_ban : null }
+        : null;
+      events.push({
+        ms,
+        type,
+        action: adminAction(type),
+        kind: /UpdateInventoryItem$/.test(type) ? 'inventory' : restriction ? 'restriction' : /UpdateProfile$/.test(type) ? 'profile' : 'other',
+        game: gameOfSignIn(r.tenancy),
+        tenancy: r.tenancy || null,
+        item,
+        changes,
+        restriction,
+        banIndex: null,
+        extra: restriction ? extra.filter((e) => !['reason', 'ends_at_ms', 'issue_steam_game_ban'].includes(e.key)) : extra,
+      });
+    }
+  }
+  // A restriction set in the tool writes two rows at the same instant: keep the tool's.
+  const out = events.filter(
+    (e) => e.kind !== 'restriction' || /^PlayerView/.test(e.type) || !events.some((o) => o !== e && /^PlayerView/.test(o.type) && o.restriction?.reason === e.restriction.reason && Math.abs(o.ms - e.ms) <= 60e3),
+  );
+  for (const e of out) {
+    if (e.kind !== 'restriction') continue;
+    const i = ban.all.findIndex((b) => b.reason === e.restriction.reason && Math.abs((toMs(b.createdAt ?? b.startsAt) ?? Infinity) - e.ms) <= 60e3);
+    if (i >= 0) e.banIndex = i;
+  }
+  out.sort((a, b) => b.ms - a.ms);
+  return { has: out.length > 0, count: out.length, events: out };
 }
 
 // Matchmaking cooldowns for leaving a tournament, separate from restrictions. Three shapes:
@@ -537,6 +623,7 @@ function buildNameChangeEvents(auditByType, accounts, embarkAccounts) {
     const pair = admin.find((a) => !usedAdmin.has(a) && Math.abs(a.ms - ev.ms) <= ADMIN_PAIR_MS);
     if (!pair) continue;
     usedAdmin.add(pair);
+    ev.byStaff = true;
     if (!ev.from && pair.from) ev.from = pair.from;
   }
   // A lone admin row is a rename nothing else recorded. Only usable when there's
@@ -549,7 +636,7 @@ function buildNameChangeEvents(auditByType, accounts, embarkAccounts) {
       // was the thing edited. Same rule as the exact-instant path above: no
       // visible change, no marker.
       if (a.from === a.to) continue;
-      out.push({ ms: a.ms, from: a.from, to: a.to, source: 'admin', accountKey: embarkAccounts[0].embarkUserId ?? embarkAccounts[0].createdMs ?? '_' });
+      out.push({ ms: a.ms, from: a.from, to: a.to, source: 'admin', byStaff: true, accountKey: embarkAccounts[0].embarkUserId ?? embarkAccounts[0].createdMs ?? '_' });
     }
     out.sort((x, y) => (x.ms ?? 0) - (y.ms ?? 0));
   }
@@ -590,8 +677,17 @@ function buildNameHistory(raw, accounts) {
   const auditByType = raw.audit?.byType;
   const embark = buildEmbarkNameHistory(auditByType, accounts);
   const platforms = buildPlatformNameHistory(raw);
+  const changes = buildNameChangeEvents(auditByType, accounts, embark.accounts);
+  // The span a staff rename opened.
+  for (const ev of changes) {
+    if (!ev.byStaff) continue;
+    const acct = embark.accounts.find((a) => (a.embarkUserId ?? a.createdMs ?? '_') === ev.accountKey) ?? embark.accounts[0];
+    const bare = (n) => String(n ?? '').replace(/#\d+$/, '');
+    const span = acct?.spans.find((s) => s.firstMs != null && s.firstMs >= ev.ms - ADMIN_PAIR_MS);
+    if (span && (span.name === ev.to || bare(span.name) === bare(ev.to))) span.byStaff = true;
+  }
   return {
-    embark: { ...embark, changes: buildNameChangeEvents(auditByType, accounts, embark.accounts) },
+    embark: { ...embark, changes },
     platforms,
     hasPlatform: platforms.length > 0,
     has: embark.has || platforms.length > 0,
@@ -799,8 +895,8 @@ function aggregateBucket(buckets) {
   return out;
 }
 
-// Embark's lifetime totals count practice-range rounds (one export's live summary equals its log
-// exactly with 9 of them in it), so their logged stats come back out of `total`.
+// Embark's lifetime totals count practice-range and bot rounds (live summaries equal their logs
+// exactly with 9 practice rounds in one, 10 bot rounds in another), so their logged stats come back out.
 function withoutRounds(b, rounds) {
   if (!rounds.length) return b;
   const out = { ...b, TimePlayedByArchetype: b.TimePlayedByArchetype ? Object.assign(Object.create(null), b.TimePlayedByArchetype) : null };
@@ -825,10 +921,10 @@ function withoutRounds(b, rounds) {
   return out;
 }
 
-function buildCareer(byType, keys, summaries, practiceRounds) {
+function buildCareer(byType, keys, summaries, leftOutRounds) {
   const pluck = (key) => aggregateBucket(summaries.map((s) => s.Data?.[key]).filter(Boolean));
-  const total = summaries.length ? withoutRounds(pluck('total'), practiceRounds) : pluck('total');
-  const casual = summaries.length ? withoutRounds(pluck('casual'), practiceRounds) : pluck('casual');
+  const total = summaries.length ? withoutRounds(pluck('total'), leftOutRounds) : pluck('total');
+  const casual = summaries.length ? withoutRounds(pluck('casual'), leftOutRounds) : pluck('casual');
   const ranked = pluck('ranked');
 
   const wrap = (b) => ({
@@ -1031,7 +1127,9 @@ function buildMatchesAndWeapons(byType, keys, preview) {
     // Preview-build and practice rounds stay in match history but count towards nothing else.
     const previewLabel = preview.labelOf(roundId, startMs);
     const uncounted = previewLabel ? 'preview' : mode.practice ? 'practice' : null;
-    if (!uncounted) countedRoundCount++;
+    // Bot rounds count only under their own mode, never in weapon or damage totals.
+    const counted = !uncounted && !mode.bots;
+    if (counted) countedRoundCount++;
     // Per-round weapon usage. KillsPerItem is kills-only (an item appears only
     // if it got a kill), so this is "what you killed with", not your loadout —
     // but the primary gun gets kills ~99% of rounds, so the top Weapon is a
@@ -1042,7 +1140,7 @@ function buildMatchesAndWeapons(byType, keys, preview) {
     const weaponKills = [];
     for (const id in kpi) {
       const k = kpi[id] || 0;
-      if (!uncounted) {
+      if (counted) {
         weaponTotals.set(id, (weaponTotals.get(id) || 0) + k);
         if (k > 0) killRounds.set(id, (killRounds.get(id) || 0) + 1);
         const bucket = weaponsByArch[archetype] || weaponsByArch.Unknown;
@@ -1064,7 +1162,7 @@ function buildMatchesAndWeapons(byType, keys, preview) {
         const dmg = Math.round(dpi[id] || 0);
         if (dmg <= 0) continue;
         any = true;
-        if (!uncounted) {
+        if (counted) {
           damageTotals.set(id, (damageTotals.get(id) || 0) + dpi[id]);
           damageRounds.set(id, (damageRounds.get(id) || 0) + 1);
         }
@@ -1073,7 +1171,7 @@ function buildMatchesAndWeapons(byType, keys, preview) {
         damageOnly.push({ id, damage: dmg, name: w.name, slug: w.slug, icon: w.icon, type: w.type });
       }
       damageOnly.sort((a, b) => b.damage - a.damage);
-      if (any && !uncounted) {
+      if (any && counted) {
         damageRoundCount++;
         if (startMs != null && (damageFirstMs == null || startMs < damageFirstMs)) damageFirstMs = startMs;
       }
@@ -1375,6 +1473,44 @@ function buildMastery(byType, keys, weapons) {
   };
 }
 
+// --- battle passes (2026-09+ `RankBucket` rows the key file files under "Battle pass") ---
+// `Rank` is the levels unlocked plus one. Each preview build adds a copy of every track
+// (Rank 1 but for the season it previewed), so the highest row per track wins.
+function buildBattlePass(byType, keys, asOfSeason) {
+  const best = new Map();
+  for (const rb of byType.RankBucket || []) {
+    if (rb.BucketID == null || !Number.isInteger(rb.Rank)) continue;
+    const id = String(rb.BucketID);
+    const track = Object.hasOwn(BATTLE_PASS_TRACKS, id) ? BATTLE_PASS_TRACKS[id] : null;
+    if (!track && keys.mastery(id)?.category !== 'Battle pass') continue;
+    const xp = typeof rb.XP === 'number' ? rb.XP : null;
+    const prev = best.get(id);
+    if (prev && (prev.rank > rb.Rank || (prev.rank === rb.Rank && (prev.xp ?? 0) >= (xp ?? 0)))) continue;
+    best.set(id, { id, rank: rb.Rank, xp, track });
+  }
+  const seasons = [];
+  const events = [];
+  const unknown = [];
+  for (const { id, rank, xp, track } of best.values()) {
+    const unlocked = Math.max(0, rank - 1);
+    const row = { id, level: track ? Math.min(unlocked, track.levels) : unlocked, levels: track?.levels ?? null, xp, xpTotal: track?.xp ?? null };
+    row.complete = row.levels != null && row.level >= row.levels;
+    if (track?.season) seasons.push({ ...row, season: track.season, inferred: !!track.inferred, ongoing: track.season === asOfSeason });
+    else if (track && 'event' in track) events.push({ ...row, name: track.event, either: !!track.either });
+    else unknown.push(row);
+  }
+  seasons.sort((a, b) => a.season - b.season);
+  events.sort((a, b) => b.level - a.level || (a.name ?? '~').localeCompare(b.name ?? '~'));
+  return {
+    has: seasons.length + events.length + unknown.length > 0,
+    seasons,
+    events,
+    unknown,
+    played: seasons.filter((s) => s.level > 0).length,
+    completed: seasons.filter((s) => s.complete).length,
+  };
+}
+
 // --- per-round scorecards (2026-09+ `Data.Scorecards`) ---------------------
 const SCORECARD_ORDER = ['Damage', 'Eliminations', 'KDR', 'Support', 'Objective', 'Revives', 'KillStreak', 'Assists'];
 const scorecardRank = (name) => {
@@ -1523,6 +1659,12 @@ function buildBreakdowns(rounds) {
   const byArchetype = new Map();
 
   for (const r of rounds) {
+    const modeKey = r.mode?.label || 'Unknown';
+    if (!byMode.has(modeKey)) byMode.set(modeKey, emptyStat(modeKey, modeKey, { category: r.mode?.category || 'Other' }));
+    accStat(byMode.get(modeKey), r);
+    // Bot rounds count only in their own row under Modes.
+    if (r.mode?.bots) continue;
+
     // Prefer the precise name from maps.js (Fangwai City, Fortune Stadium, …);
     // fall back to the generic gameMeta codename only for unmapped variants.
     const mapKey = r.mapName || r.map?.display;
@@ -1530,10 +1672,6 @@ function buildBreakdowns(rounds) {
       if (!byMap.has(mapKey)) byMap.set(mapKey, emptyStat(mapKey, mapKey));
       accStat(byMap.get(mapKey), r);
     }
-    const modeKey = r.mode?.label || 'Unknown';
-    if (!byMode.has(modeKey)) byMode.set(modeKey, emptyStat(modeKey, modeKey, { category: r.mode?.category || 'Other' }));
-    accStat(byMode.get(modeKey), r);
-
     const archKey = r.archetype && r.archetype !== '—' ? r.archetype : 'Unknown';
     if (!byArchetype.has(archKey)) byArchetype.set(archKey, emptyStat(archKey, archKey));
     accStat(byArchetype.get(archKey), r);
@@ -1644,7 +1782,7 @@ function bestStreaks(rounds) {
 }
 
 function buildRecords(allRounds, allMatches) {
-  // Bot lobbies (new-player onboarding) would set records nobody earned against players.
+  // Cashout (Bots) rounds would set records nobody earned against players.
   const rounds = allRounds.filter((r) => !r.mode?.bots);
   const matches = allMatches.filter((m) => !m.mode?.bots);
   // Most cash in one MATCH = the tournament (multi-round match) with the highest
@@ -2404,7 +2542,9 @@ function buildAntiCheat(raw) {
     firstMs: Number.isFinite(loginFirst) ? loginFirst : null,
     lastMs: Number.isFinite(loginLast) ? loginLast : null,
     grantTypes: [...grantTally.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count),
-    byGame: [...gameTally.entries()].map(([game, count]) => ({ game, count })).sort((a, b) => b.count - a.count), // 2026-09+
+    // `Game` is the sign-in client (the game, "Embark account", a preview build's tenancy), 2026-09+.
+    byGame: [...gameTally.entries()].map(([game, count]) => ({ game, count })).sort((a, b) => b.count - a.count),
+    noClient: gameTally.size ? loginRows.length - [...gameTally.values()].reduce((a, n) => a + n, 0) : 0,
     distinctIps: loginIpSet.size,
   };
   if (logins.count > 0) {
@@ -2738,10 +2878,25 @@ function buildSupport(raw, keys) {
     .sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0));
   const inbox = { has: messages.length > 0 || notices.length > 0, messages, notices };
   const moderation = buildModeration(raw.audit?.byType?.ModerationDecisionPII, chat);
+  // Survey answers given in game (audit `NpsSurveyFreeText`, 2026-09+). `match` is joined in buildModel.
+  const surveys = (raw.audit?.byType?.NpsSurveyFreeText || [])
+    .map((s) => ({
+      ms: toMs(s.logtime),
+      game: gameOfSignIn(s.tenancy),
+      score: typeof s.answer === 'number' ? s.answer : null,
+      text: typeof s.free_text_answer === 'string' ? s.free_text_answer.trim() : '',
+      roundId: s.last_round_id ? String(s.last_round_id) : null,
+      match: null,
+      announcementId: s.announcement_id ?? null,
+      templateId: s.template_id ?? null,
+    }))
+    .filter((s) => s.ms != null)
+    .sort((a, b) => b.ms - a.ms);
   return {
     inbox,
     moderation,
-    hasAny: chat.length > 0 || !!pdf || !!preParsed || inbox.has,
+    surveys,
+    hasAny: chat.length > 0 || !!pdf || !!preParsed || inbox.has || surveys.length > 0,
     chat,
     pdf,
     preParsed,
@@ -3260,6 +3415,10 @@ export function buildModel(raw) {
   // Everything but the match list counts only these.
   const countedRounds = rounds.filter((r) => !r.uncounted);
   const countedMatches = matches.filter((m) => !m.uncounted);
+  // Bot rounds count only under their own mode: the Modes breakdown and match history.
+  const botRounds = countedRounds.filter((r) => r.mode?.bots);
+  const pvpRounds = countedRounds.filter((r) => !r.mode?.bots);
+  const pvpMatches = countedMatches.filter((m) => !m.mode?.bots);
   const summaries = liveSummaries(byType.RoundStatSummary || [], rounds);
   const sponsorRecords = readSponsorRecords(byType);
   const mastery = buildMastery(byType, keys, weapons);
@@ -3283,12 +3442,21 @@ export function buildModel(raw) {
   // per won tournament). So derive both from the grouped matches.
   let tournamentsPlayed = 0;
   let tournamentsWon = 0;
-  for (const m of countedMatches) {
+  for (const m of pvpMatches) {
     if (m.isTournament) tournamentsPlayed++;
     if (m.tournamentWon) tournamentsWon++;
   }
   const support = buildSupport(raw, keys);
   linkRankNotices(ratings.adjustments, support.inbox);
+  if (support.surveys.length) {
+    const want = new Set(support.surveys.map((s) => s.roundId).filter(Boolean));
+    for (const m of matches) {
+      for (const r of m.rounds) {
+        if (!r.roundId || !want.has(r.roundId)) continue;
+        for (const s of support.surveys) if (s.roundId === r.roundId) s.match = m;
+      }
+    }
+  }
 
   // "Data as of" date, so users don't mistake a snapshot for live data. The SAR
   // README filename carries the request date (parsed in ingest.js); the data
@@ -3311,32 +3479,35 @@ export function buildModel(raw) {
   };
 
   const accounts = buildAccounts(byType);
+  const ban = buildBans(byType, raw.audit?.byType);
 
   return {
     identity: buildIdentity(byType, raw.audit?.byType),
     accounts,
     multiAccount: accounts.length > 1,
     emails: collectEmails(byType, raw.audit?.byType),
-    ban: buildBans(byType, raw.audit?.byType),
+    ban,
+    adminActions: buildAdminActions(raw.audit?.byType, keys, ban),
     sanctions: buildSanctions(byType, rounds),
     linkedAccounts: buildLinkedAccounts(byType),
     nameHistory: buildNameHistory(raw, accounts),
     inventory: buildInventory(byType, keys),
     social: buildSocial(byType),
-    career: buildCareer(byType, keys, summaries.live, rounds.filter((r) => r.uncounted === 'practice')),
+    career: buildCareer(byType, keys, summaries.live, [...rounds.filter((r) => r.uncounted === 'practice'), ...botRounds]),
     ratings,
     matches,
     rounds, // chronological normalized rounds, preview and practice ones included (`uncounted`)
     modeBreakdown: buildModeBreakdown(matches),
-    careerModes: buildCareerModes(countedMatches),
+    careerModes: buildCareerModes(pvpMatches),
     breakdowns: buildBreakdowns(countedRounds),
-    loadouts: buildLoadouts(countedRounds),
-    scorecards: buildScorecards(countedRounds),
+    loadouts: buildLoadouts(pvpRounds),
+    scorecards: buildScorecards(pvpRounds),
     records: buildRecords(countedRounds, countedMatches),
     weapons,
     weaponsByArchetype,
     damage,
     mastery,
+    battlePass: buildBattlePass(byType, keys, seasonResolver(keys)(null, snapshot.asOfMs)),
     worldTour: buildWorldTour(summaries.live, keys, countedMatches, sponsorRecords.journey, seasonResolver(keys)),
     quickplay: buildQuickplay(summaries.live, keys),
     sponsors: buildSponsors(sponsorRecords, keys, seasonResolver(keys)(null, snapshot.asOfMs)),
@@ -3353,10 +3524,12 @@ export function buildModel(raw) {
       otherGameRounds,
       unknownRounds,
       // In match history only: rounds played on a preview build or the practice range, and
-      // the preview builds' own summaries (left out of Career totals).
+      // the preview builds' own summaries (left out of Career totals). Bot rounds also keep
+      // their row under Modes.
       uncounted: {
         previewRounds: rounds.filter((r) => r.uncounted === 'preview').length,
         practiceRounds: rounds.filter((r) => r.uncounted === 'practice').length,
+        botRounds: botRounds.length,
         previewSummaries: summaries.preview,
       },
       tournamentsPlayed,

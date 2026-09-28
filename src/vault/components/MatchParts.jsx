@@ -323,7 +323,7 @@ export const RoundRow = ({ r, cardSlot = false }) => (
       <div className="w-12 sm:w-16">
         <p className="text-[10px] uppercase text-gray-400">Place</p>
         <p className={`text-sm font-semibold ${r.roundWon ? 'text-emerald-300' : 'text-gray-100'}`}>
-          {r.position != null ? `${ordinal(r.position)} / ${r.stageTeams}` : '—'}
+          {r.position == null ? '—' : r.stageTeams != null ? `${ordinal(r.position)} / ${r.stageTeams}` : ordinal(r.position)}
         </p>
       </div>
       <div className="w-16 sm:w-20">

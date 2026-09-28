@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ShieldAlert, ShieldCheck, Ban, CheckCircle, Link2, Cpu, Monitor, ExternalLink, Flag, BadgeCheck, AlertTriangle, Fingerprint, History } from 'lucide-react';
+import { useState, Fragment } from 'react';
+import { ShieldAlert, ShieldCheck, Ban, CheckCircle, Link2, Cpu, Monitor, ExternalLink, Flag, BadgeCheck, AlertTriangle, Fingerprint, History, Package, UserPen, Wrench } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, Badge, StatCard, Note, EmptyState, Tooltip, TogglePill } from '../components/ui';
 import { ListSearch } from '../components/ListSearch';
@@ -46,12 +46,25 @@ const EmailVerifiedMark = ({ at, align }) =>
 // Renders one name's history: a dated timeline when it changed, else a single
 // "since <date>" line. `span` = { spans[], changed, current, firstMs? }.
 const NAMES_PER_PAGE = 12;
+const StaffTag = () => (
+  <a
+    href="#staff-actions"
+    aria-label="Set by Embark staff, see Embark staff actions"
+    className="shrink-0 text-[10px] uppercase tracking-wider text-sky-400 hover:text-sky-300 underline decoration-dotted decoration-sky-400/50 underline-offset-2"
+  >
+    staff
+  </a>
+);
+
 const NameTimeline = ({ span }) => {
   const [page, setPage] = useState(1);
   if (!span.changed) {
     return (
       <div className="flex items-baseline justify-between gap-3 text-sm">
-        <span className="text-white font-medium truncate">{span.current?.name ?? '—'}</span>
+        <span className="flex items-baseline gap-2 min-w-0">
+          <span className="text-white font-medium truncate">{span.current?.name ?? '—'}</span>
+          {span.current?.byStaff && <StaffTag />}
+        </span>
         <span className="text-xs text-gray-500 whitespace-nowrap">since {date(span.firstMs ?? span.current?.firstMs)}</span>
       </div>
     );
@@ -68,9 +81,12 @@ const NameTimeline = ({ span }) => {
           const idx = start + i;
           return (
             <li key={idx} className="flex items-baseline justify-between gap-3 text-sm">
-              <span className={`truncate ${idx === 0 ? 'text-white font-medium' : 'text-gray-400'}`}>
-                {s.name}
-                {idx === 0 && <span className="ml-2 text-[10px] uppercase tracking-wider text-emerald-400">current</span>}
+              <span className="flex items-baseline gap-2 min-w-0">
+                <span className={`truncate ${idx === 0 ? 'text-white font-medium' : 'text-gray-400'}`}>
+                  {s.name}
+                  {idx === 0 && <span className="ml-2 text-[10px] uppercase tracking-wider text-emerald-400">current</span>}
+                </span>
+                {s.byStaff && <StaffTag />}
               </span>
               <span className="text-xs text-gray-500 whitespace-nowrap">
                 {date(s.firstMs)}
@@ -293,6 +309,170 @@ const banSummary = (ban) => {
   return `${noun}, none currently active, newest first.`;
 };
 
+const ADMIN_ICON = { inventory: Package, restriction: Ban, profile: UserPen, other: Wrench };
+const ADMIN_NOUN = { inventory: 'inventory update', restriction: 'restriction', profile: 'profile update', other: 'other action' };
+const STAFF_SHOWN = 10;
+const adminValue = (v, field) =>
+  v == null || v === '' ? '—' : typeof v === 'object' ? JSON.stringify(v) : typeof v === 'number' && !/_id$/.test(field) ? num(v) : String(v);
+
+const foldAdminRuns = (events) => {
+  const rows = [];
+  let i = 0;
+  while (i < events.length) {
+    const e = events[i];
+    let j = i + 1;
+    while (e.kind !== 'restriction' && j < events.length && events[j].type === e.type && (events[j].item?.id ?? null) === (e.item?.id ?? null)) j++;
+    if (j - i >= 3) {
+      rows.push({ e, run: events.slice(i, j) });
+      i = j;
+    } else {
+      rows.push({ e, run: null });
+      i += 1;
+    }
+  }
+  return rows;
+};
+
+const StaffChanges = ({ e }) => (
+  <>
+    {e.changes.map((c) => (
+      <p key={c.field} className={`text-xs wrap-break-word ${c.changed ? 'text-gray-300' : 'text-gray-500'}`}>
+        {c.changed ? `${c.label}: ${adminValue(c.before, c.field)} to ${adminValue(c.after, c.field)}` : `${c.label} unchanged: ${adminValue(c.before, c.field)}`}
+      </p>
+    ))}
+    {e.extra.length > 0 && (
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 pt-0.5 font-mono text-[11px]">
+        {e.extra.map((x) => (
+          <Fragment key={x.key}>
+            <dt className="text-gray-500">{x.key}</dt>
+            <dd className="text-gray-300 min-w-0 wrap-break-word">{String(x.value)}</dd>
+          </Fragment>
+        ))}
+      </dl>
+    )}
+  </>
+);
+
+const StaffActionRow = ({ e, run }) => {
+  const [open, setOpen] = useState(false);
+  const Icon = Object.hasOwn(ADMIN_ICON, e.kind) ? ADMIN_ICON[e.kind] : Wrench;
+  const r = e.restriction;
+  const itemType = e.item?.label ?? e.item?.type;
+  return (
+    <li className="flex items-start gap-2 bg-gray-900/50 rounded-lg px-3 py-2">
+      <Icon className="w-4 h-4 text-gray-500 shrink-0 mt-0.5" aria-hidden="true" />
+      <div className="flex-1 min-w-0 space-y-0.5">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-gray-500 tabular-nums">
+          <span>{run ? (date(run.at(-1).ms) === date(e.ms) ? date(e.ms) : `${date(run.at(-1).ms)} to ${date(e.ms)}`) : dateTime(e.ms)}</span>
+          {e.game === 'ARC Raiders' && <Badge tone="purple">ARC Raiders</Badge>}
+          {e.tenancy && !/^(discovery|pioneer)-live$/.test(e.tenancy) && <Badge tone="gray">{e.tenancy}</Badge>}
+        </div>
+        <p className="text-sm font-medium text-gray-100">
+          <Tooltip label={<code className="break-all">{e.type}</code>} align="start">
+            <span className="underline decoration-dotted decoration-gray-600 underline-offset-2 cursor-help">{e.action || e.type}</span>
+          </Tooltip>
+          {run && <span className="font-normal text-gray-400"> ({num(run.length)})</span>}
+        </p>
+        {e.item && (
+          <p className="text-xs text-gray-300 wrap-break-word">
+            {e.item.name ?? `Item ${e.item.id}`}
+            {itemType && <span className="text-gray-500"> · {itemType}</span>}
+          </p>
+        )}
+        {r && (
+          <p className="text-xs text-gray-300">
+            {[
+              r.reason ?? 'No reason recorded',
+              r.permanent ? 'permanent' : r.endsMs ? `ends ${dateTime(r.endsMs)}` : null,
+              r.steamGameBan == null ? null : r.steamGameBan ? 'Steam game ban issued' : 'Steam game ban not issued',
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+        )}
+        {run ? (
+          <>
+            {open && (
+              <ul className="mt-1 space-y-1 border-l border-gray-700/60 pl-3">
+                {run.map((x, k) => (
+                  <li key={k} className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="text-[11px] text-gray-500 tabular-nums">{dateTime(x.ms)}</span>
+                    <div className="min-w-0">
+                      <StaffChanges e={x} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="pt-1">
+              <TogglePill on={open} onChange={setOpen}>
+                {open ? 'Hide rows' : `Show ${num(run.length)} rows`}
+              </TogglePill>
+            </div>
+          </>
+        ) : (
+          <StaffChanges e={e} />
+        )}
+        {e.banIndex != null && (
+          <a href={`#restriction-${e.banIndex}`} className="inline-block text-xs text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+            Same restriction as the card above
+          </a>
+        )}
+        {!run && e.changes.some((c) => c.field === 'display_name' && c.changed) && (
+          <a href="#name-history" className="inline-block text-xs text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+            View in Name history
+          </a>
+        )}
+      </div>
+    </li>
+  );
+};
+
+const StaffActionsPanel = ({ actions }) => {
+  const [showAll, setShowAll] = useState(false);
+  const rows = foldAdminRuns(actions.events);
+  const shown = showAll ? rows : rows.slice(0, STAFF_SHOWN);
+  const counts = ['inventory', 'restriction', 'profile', 'other']
+    .map((k) => [k, actions.events.filter((e) => e.kind === k).length])
+    .filter(([, n]) => n > 0);
+  const folded = rows.some((row) => row.run);
+  const auditEmail = actions.events.some((e) => e.extra.some((x) => x.key === 'audit_user_email'));
+  const unnamed = actions.events.some((e) => e.item && !e.item.name);
+  return (
+    <div id="staff-actions">
+      <Panel title={`Embark staff actions (${num(actions.count)})`}>
+        <p className="text-xs text-gray-400 -mt-1 mb-3">
+          {counts.map(([k, n]) => `${num(n)} ${k === 'other' && counts.length === 1 ? 'action' : ADMIN_NOUN[k]}${n === 1 ? '' : 's'}`).join(', ')}
+          {actions.count > 1 ? ', newest first.' : '.'}
+        </p>
+        <ul className="space-y-2">
+          {shown.map((row, i) => (
+            <StaffActionRow key={i} e={row.e} run={row.run} />
+          ))}
+        </ul>
+        {rows.length > STAFF_SHOWN && (
+          <div className="mt-3">
+            <TogglePill on={showAll} onChange={setShowAll}>
+              {showAll ? 'Show fewer' : `Show all ${num(rows.length)}`}
+            </TogglePill>
+          </div>
+        )}
+        <Note>
+          Rows come from audit records whose type starts with <code>PlayerView</code> or whose <code>source</code> is <code>PLAYER_VIEW</code>.
+          Calling them Embark staff actions is an inference from that name.
+          {folded && ' Three or more consecutive records with the same action and item share one row.'}
+          {auditEmail && (
+            <>
+              {' '}The export does not say whether <code>audit_user_email</code> is the staff member’s address or yours.
+            </>
+          )}
+          {unnamed && ' An item shown by number is not named in any key file the vault has.'}
+        </Note>
+      </Panel>
+    </div>
+  );
+};
+
 const REPORTS_PER_PAGE = 10;
 // `PlayerReport.reason` is Embark's enum value.
 const REPORT_REASONS = {
@@ -481,11 +661,15 @@ export const AccountPage = () => {
             </div>
           )}
           {ban.all.map((r, i) => (
-            <RestrictionCard key={i} r={r} lastActivity={meta.lastActivity} />
+            <div id={`restriction-${i}`} key={i}>
+              <RestrictionCard r={r} lastActivity={meta.lastActivity} />
+            </div>
           ))}
           {ban.blockedSignIns.length > 0 && <BlockedSignIns rows={ban.blockedSignIns} />}
         </div>
       )}
+
+      {model.adminActions?.has && <StaffActionsPanel actions={model.adminActions} />}
 
       {model.sanctions?.has && <SanctionsPanel sanctions={model.sanctions} />}
 
@@ -632,48 +816,50 @@ export const AccountPage = () => {
       )}
 
       {/* Name history — Embark in-game name (audit ProfileUpdated*) + per-account platform names (AccountNameAudit2) */}
-      <Panel title="Name history">
-        {!nameHistory.has ? (
-          <EmptyState icon={History} title="No name history in this export">
-            {meta.hasAudit
-              ? 'No name records were found in your audit log.'
-              : 'Name history comes from the audit file, which wasn’t included in this import.'}
-          </EmptyState>
-        ) : (
-          <div className="space-y-5">
-            {nameHistory.embark.has && (
-              <div>
-                <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-2">
-                  In-game name (Embark){nameHistory.embark.multi ? ` (${nameHistory.embark.accounts.length} accounts)` : ''}
-                </p>
-                <div className="space-y-3">
-                  {nameHistory.embark.accounts.map((acc, i) => (
-                    <div key={acc.embarkUserId ?? i} className={nameHistory.embark.multi ? 'border-l-2 border-gray-700/70 pl-3' : ''}>
-                      {nameHistory.embark.multi && (
-                        <p className="text-[11px] text-gray-500 mb-1">Account <span className="font-mono text-gray-400">{acc.embarkUserId}</span></p>
-                      )}
-                      <NameTimeline span={acc} />
-                    </div>
-                  ))}
+      <div id="name-history">
+        <Panel title="Name history">
+          {!nameHistory.has ? (
+            <EmptyState icon={History} title="No name history in this export">
+              {meta.hasAudit
+                ? 'No name records were found in your audit log.'
+                : 'Name history comes from the audit file, which wasn’t included in this import.'}
+            </EmptyState>
+          ) : (
+            <div className="space-y-5">
+              {nameHistory.embark.has && (
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-2">
+                    In-game name (Embark){nameHistory.embark.multi ? ` (${nameHistory.embark.accounts.length} accounts)` : ''}
+                  </p>
+                  <div className="space-y-3">
+                    {nameHistory.embark.accounts.map((acc, i) => (
+                      <div key={acc.embarkUserId ?? i} className={nameHistory.embark.multi ? 'border-l-2 border-gray-700/70 pl-3' : ''}>
+                        {nameHistory.embark.multi && (
+                          <p className="text-[11px] text-gray-500 mb-1">Account <span className="font-mono text-gray-400">{acc.embarkUserId}</span></p>
+                        )}
+                        <NameTimeline span={acc} />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-            {nameHistory.hasPlatform && (
-              <div>
-                <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-2">Linked platform names</p>
-                <ul className="space-y-3">
-                  {nameHistory.platforms.map((p) => (
-                    <li key={p.uid} className="flex items-start gap-3">
-                      <Badge tone="blue">{providerLabel(p.provider)}</Badge>
-                      <div className="min-w-0 flex-1"><NameTimeline span={p} /></div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-      </Panel>
+              )}
+              {nameHistory.hasPlatform && (
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-2">Linked platform names</p>
+                  <ul className="space-y-3">
+                    {nameHistory.platforms.map((p) => (
+                      <li key={p.uid} className="flex items-start gap-3">
+                        <Badge tone="blue">{providerLabel(p.provider)}</Badge>
+                        <div className="min-w-0 flex-1"><NameTimeline span={p} /></div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </Panel>
+      </div>
 
       {/* Hardware / session signals */}
       <Panel title="Device & session signals">
@@ -682,8 +868,8 @@ export const AccountPage = () => {
           <StatCard label="Screen resolutions" value={num(antiCheat.resolutions.length)} />
           <StatCard
             label="Machines (est.)"
-            value={num(antiCheat.machineEstimate)}
-            sub={antiCheat.fingerprintMethods.length ? `${num(antiCheat.fingerprintMethods.length)} fingerprint method${antiCheat.fingerprintMethods.length === 1 ? '' : 's'}` : undefined}
+            value={antiCheat.fingerprintMethods.length ? num(antiCheat.machineEstimate) : '—'}
+            sub={antiCheat.fingerprintMethods.length ? `${num(antiCheat.fingerprintMethods.length)} fingerprint method${antiCheat.fingerprintMethods.length === 1 ? '' : 's'}` : meta.hasAudit ? 'not in this export' : 'audit file not imported'}
           />
           <StatCard label="Anybrain sessions" value={num(antiCheat.anybrainSessionCount)} />
         </div>

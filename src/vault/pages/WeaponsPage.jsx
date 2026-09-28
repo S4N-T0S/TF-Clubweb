@@ -215,7 +215,7 @@ export const WeaponsPage = () => {
     const k = { rounds: 0, first: null, last: null };
     const d = { rounds: 0, first: null, last: null, total: 0 };
     for (const r of all) {
-      if (r.uncounted) continue;
+      if (r.uncounted || r.mode?.bots) continue;
       const hit = r.weaponKills?.length ? r.weaponKills.find((x) => x.id === expanded) : null;
       const dmgHit = hit && hit.damage != null ? hit : r.damageOnly ? r.damageOnly.find((x) => x.id === expanded) : null;
       const dmg = dmgHit ? dmgHit.damage || 0 : 0;

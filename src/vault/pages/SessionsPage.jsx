@@ -212,7 +212,11 @@ export const SessionsPage = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard label="Total sessions" value={num(sessions.length)} />
         <StatCard label="Unique IPs" value={num(ips.length)} accent={ips.length ? 'text-emerald-400' : 'text-white'} />
-        <StatCard label="Machines (est.)" value={num(antiCheat.machineEstimate)} />
+        <StatCard
+          label="Machines (est.)"
+          value={antiCheat.fingerprintMethods.length ? num(antiCheat.machineEstimate) : '—'}
+          sub={antiCheat.fingerprintMethods.length ? undefined : model.meta.hasAudit ? 'not in this export' : 'audit file not imported'}
+        />
         <StatCard label="Countries" value={countriesValue} sub={countryCount > 1 ? 'multiple locations' : undefined} accent={countriesAccent} />
       </div>
 
@@ -349,13 +353,19 @@ export const SessionsPage = () => {
           </div>
           {antiCheat.logins.byGame?.length > 0 && (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 pt-3 border-t border-gray-700 text-xs text-gray-300">
-              <span className="text-[10px] uppercase tracking-wider text-gray-500">By game</span>
+              <span className="text-[10px] uppercase tracking-wider text-gray-500">By client</span>
               {antiCheat.logins.byGame.map((g) => (
                 <span key={g.game} className="inline-flex items-center gap-1.5">
                   <Badge tone="gray">{num(g.count)}</Badge>
                   {g.game}
                 </span>
               ))}
+              {antiCheat.logins.noClient > 0 && (
+                <span className="inline-flex items-center gap-1.5 text-gray-500">
+                  <Badge tone="gray">{num(antiCheat.logins.noClient)}</Badge>
+                  no client recorded
+                </span>
+              )}
             </div>
           )}
           <Note>

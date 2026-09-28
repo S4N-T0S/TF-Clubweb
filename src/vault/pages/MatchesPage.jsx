@@ -518,6 +518,7 @@ export const MatchesPage = () => {
         “heuristic” was inferred from the shape of the match, not from a confirmed ScenarioID.
         {uncountedRounds > 0 &&
           ` The ${num(uncountedRounds)} round${uncountedRounds === 1 ? '' : 's'} badged with a preview build or “Not counted” (the practice range) ${uncountedRounds === 1 ? 'is' : 'are'} listed here but left out of records, win rates, weapon totals and trends.`}
+        {model.meta.uncounted.botRounds > 0 && ' Cashout vs bots rounds are listed here too, but count only in their own row on the Breakdown page.'}
         {wtLabelled && ' The stop and week names shown on World Tour matches come from thefinals.wiki, checked against Embark’s patch notes and videos.'}
         {wtExportWeek && ' A week that neither thefinals.wiki nor Embark’s patch notes name shows the internal name from the export.'}
         {wtShared && ' From Update 9.8.0 (5 Feb 2026) nearly every World Tour tournament shares one scenario id, so those matches show no stop or week.'}
