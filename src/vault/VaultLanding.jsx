@@ -209,7 +209,8 @@ export const VaultLanding = () => {
             <button
               key={label}
               onClick={() => preview(sub)}
-              className="group text-left bg-gray-800/60 hover:bg-gray-800 border border-gray-700 hover:border-emerald-600/50 rounded-xl p-4 transition-colors"
+              disabled={isLoading}
+              className="group text-left bg-gray-800/60 hover:bg-gray-800 border border-gray-700 hover:border-emerald-600/50 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:pointer-events-none"
             >
               <Icon className="w-6 h-6 text-emerald-400 mb-2" />
               <p className="text-sm font-semibold text-white flex items-center gap-1">

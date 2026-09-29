@@ -16,14 +16,17 @@ const GRAINS = [
   { key: 'season', label: 'Season', lowSample: 50 },
 ];
 
-const bucketOf = (ms, grain, seasons) => {
+const bucketOf = (ms, grain, seasons, seasonN) => {
   if (grain === 'week') {
     const k = Math.floor(ms / WEEK_MS);
     return { key: k, start: k * WEEK_MS };
   }
   if (grain === 'season') {
-    let s = seasons[0];
-    for (const x of seasons) if (x.startMs <= ms) s = x;
+    let s = seasons.find((x) => x.n === seasonN);
+    if (!s) {
+      s = seasons[0];
+      for (const x of seasons) if (x.startMs <= ms) s = x;
+    }
     return { key: s.n, start: s.startMs, label: s.label };
   }
   const d = new Date(ms);
@@ -181,7 +184,7 @@ export const TrendsPage = () => {
       if (mode !== 'All modes' && careerModeGroup(r.mode) !== mode) continue;
       const t = r.start ?? r.end;
       if (!t) continue;
-      const b = bucketOf(t, grain.key, seasons);
+      const b = bucketOf(t, grain.key, seasons, r.seasonN);
       let e = map.get(b.key);
       if (!e) {
         e = { ...ZERO, key: b.key, start: b.start, label: b.label };

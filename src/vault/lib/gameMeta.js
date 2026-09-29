@@ -242,6 +242,11 @@ const WT_IDS = {
   796922784: wtWeek(9, 1, 2),
   232142677: wtWeek(11, 1, 1),
 };
+// Ids Embark ran again for a later week of the same season. Only the date tells the two uses apart.
+const WT_REUSED = {
+  852907964: { fromMs: Date.parse('2025-12-04T00:00:00Z'), season: 8, stop: 5, from: 1, to: 1, theme: null, weekName: 'SPONSOR SHOWDOWN' },
+};
+const WT_MAX_WEEKS = 12;
 const WT_NAME_FORMS = [
   [/^WT_S(\d+)_S(\d+)E(\d+)(?:-(\d+))?_(.+)$/, (m) => ({ season: +m[1], stop: +m[2], from: +m[3], to: +(m[4] ?? m[3]), theme: m[5] })],
   [/^WorldTour_S(\d+)_Stop(\d+)Event(\d+)_/, (m) => ({ season: +m[1], stop: +m[2], from: +m[3], to: +m[3], theme: null })],
@@ -255,15 +260,17 @@ const parseWtName = (name) => {
   }
   return null;
 };
-const humanTheme = (t) => t.split('_').map((p) => p.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z]{2,})/g, '$1 $2')).join(', ');
+const humanTheme = (t) => t.slice(0, 80).split('_').map((p) => p.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z]{2,})/g, '$1 $2')).join(', ');
 const weeksLabel = (w) => (w.length > 1 ? `Weeks ${w[0]} to ${w[w.length - 1]}` : `Week ${w[0]}`);
 
 // A reused id only counts for the season its name, or a curated entry, gives.
-export const worldTourEvent = (scenarioId, season, keys = STATIC_KEYS) => {
+export const worldTourEvent = (scenarioId, season, keys = STATIC_KEYS, atMs = null) => {
   if (season == null) return null;
   const id = String(scenarioId);
   const internal = keys.scenario(id)?.internalName ?? null;
-  let p = parseWtName(internal);
+  const again = own(WT_REUSED, id);
+  const later = again && again.season === season && atMs != null && atMs >= again.fromMs ? again : null;
+  let p = later ?? parseWtName(internal);
   if (!p || p.season !== season) {
     const c = own(WT_IDS, `${id}:${season}`) ?? own(WT_IDS, id);
     p = c && c.season === season ? c : null;
@@ -273,13 +280,13 @@ export const worldTourEvent = (scenarioId, season, keys = STATIC_KEYS) => {
     const ev = worldTourStop(season, p.event);
     return { season, stop: null, event: p.event, weeks: [], stopName: ev?.name ?? null, sponsors: ev?.sponsors ?? [], weekName: null, weekNameSource: null, internal, label: [`Event ${p.event}`, ev?.name].filter(Boolean).join(' · ') };
   }
-  let weeks = own(WT_WEEK_SPANS, internal);
+  let weeks = later ? null : own(WT_WEEK_SPANS, internal);
   if (!weeks) {
     weeks = [];
-    for (let w = p.from; w <= p.to; w++) weeks.push(w);
+    for (let w = p.from; w <= Math.min(p.to, p.from + WT_MAX_WEEKS); w++) weeks.push(w);
   }
   const stop = worldTourStop(season, p.stop);
-  const curated = own(WT_WEEKS, internal) ?? own(WT_WEEKS, id) ?? null;
+  const curated = later?.weekName ?? own(WT_WEEKS, internal) ?? own(WT_WEEKS, id) ?? null;
   const weekName = curated ?? (p.theme ? humanTheme(p.theme) : null);
   return {
     season,
@@ -441,19 +448,19 @@ export const SCENARIO_MODES = {
   '211556165': { label: 'Point Break', category: 'Casual', teams: 2 }, // Point Break — Arena Debut LTM (Starlight Hollow), S10
   '686266668': { label: 'Terminal Attack', category: 'Casual', teams: 2 }, // attack/defend, S2 era
   // S3's ranked playlist was Terminal Attack, and this is its id (NOT 531991356).
-  // Across 8 exports: 2 teams, 0 revives over 1,182 rounds (Dbnos is 0 in EVERY
-  // mode in every export, so it discriminates nothing — don't cite it), MatchIDs only
-  // {0-0, 1-0} so it never draws a third round and cannot be an 8-team bracket,
-  // and it exists only 2024-06-13..2024-09-25. Decisive: the S3 ranked rating's
-  // lastTournamentPlayed points at one of ITS tournaments in 6 of 6 exports that
-  // have one, and completedMatches (which counts TOURNAMENTS, not rounds —
-  // calibrated on 498553443) tracks its count, never 531991356's.
+  // 2 teams and no revives (Dbnos is 0 in EVERY mode in every export, so it
+  // discriminates nothing — don't cite it), MatchIDs only {0-0, 1-0} so it never
+  // draws a third round and cannot be an 8-team bracket, and it exists only
+  // 2024-06-13..2024-09-25. Decisive: the S3 ranked rating's lastTournamentPlayed
+  // points at one of ITS tournaments wherever an export has one, and
+  // completedMatches (which counts TOURNAMENTS, not rounds — calibrated on
+  // 498553443) tracks its count, never 531991356's.
   '296178816': { label: 'Ranked Terminal Attack', category: 'Ranked', teams: 2 },
   // Post-S3 casual Terminal Attack: same 2-team / 0-revive / single-"0-0" shape as
   // 686266668, which ends 2024-06-12 the day before this starts (S3 launch). Runs
-  // to 2025-08-28, long past S3. Proof it is not ranked: one export played two of
-  // its tournaments inside the S3 window while its S3 ranked rating stayed at
-  // completedMatches 0 with an empty lastTournamentPlayed.
+  // to 2025-08-28, long past S3. Proof it is not ranked: tournaments played on it
+  // inside the S3 window leave the S3 ranked rating at completedMatches 0 with an
+  // empty lastTournamentPlayed.
   '531991356': { label: 'Terminal Attack', category: 'Casual', teams: 2 },
   // Limited-time modes.
   '639859186': { label: 'Blast Off!', category: 'LTM', teams: 2 }, // Bernal "Fog"

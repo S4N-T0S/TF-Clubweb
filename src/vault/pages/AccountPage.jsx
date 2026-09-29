@@ -321,7 +321,8 @@ const foldAdminRuns = (events) => {
   while (i < events.length) {
     const e = events[i];
     let j = i + 1;
-    while (e.kind !== 'restriction' && j < events.length && events[j].type === e.type && (events[j].item?.id ?? null) === (e.item?.id ?? null)) j++;
+    const same = (o) => o.type === e.type && o.item?.id === e.item.id && (o.tenancy ?? null) === (e.tenancy ?? null);
+    while (e.kind !== 'restriction' && e.item?.id != null && j < events.length && same(events[j])) j++;
     if (j - i >= 3) {
       rows.push({ e, run: events.slice(i, j) });
       i = j;
@@ -418,7 +419,7 @@ const StaffActionRow = ({ e, run }) => {
             Same restriction as the card above
           </a>
         )}
-        {!run && e.changes.some((c) => c.field === 'display_name' && c.changed) && (
+        {(run ?? [e]).some((x) => x.changes.some((c) => c.field === 'display_name' && c.changed)) && (
           <a href="#name-history" className="inline-block text-xs text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
             View in Name history
           </a>
@@ -453,7 +454,7 @@ const StaffActionsPanel = ({ actions }) => {
         {rows.length > STAFF_SHOWN && (
           <div className="mt-3">
             <TogglePill on={showAll} onChange={setShowAll}>
-              {showAll ? 'Show fewer' : `Show all ${num(rows.length)}`}
+              {showAll ? 'Show fewer' : `Show all ${num(rows.length)} rows`}
             </TogglePill>
           </div>
         )}
@@ -570,9 +571,18 @@ const ReportsPanel = ({ data }) => {
 };
 
 // Friends, blocks and club. The export never says who, so this is counts and dates.
+// A date with no time of day is stored as midnight UTC, so it is shown in UTC too.
+const dayOnly = (v) => {
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+};
+const dateSpan = (a, b) => (b == null || date(a) === date(b) ? date(a) : `${date(a)} to ${date(b)}`);
+
 const SocialPanel = ({ social }) => {
-  const { friends, blocked, club, clubEvents, clubInvites } = social;
+  const { friends, blocked, club, clubEvents, clubInvites, clubHistory = [] } = social;
   const joins = clubEvents?.joinsMs ?? [];
+  const currentSpell = clubHistory.find((h) => h.current);
+  const counted = clubHistory.some((h) => h.quests > 0);
   const invites = clubInvites
     ? [clubInvites.sent > 0 && `${num(clubInvites.sent)} sent`, clubInvites.received > 0 && `${num(clubInvites.received)} received`].filter(Boolean)
     : [];
@@ -608,7 +618,14 @@ const SocialPanel = ({ social }) => {
             )}
           </>
         )}
-        {social.questsCompleted != null && <Row label="Club quests completed" value={num(social.questsCompleted)} />}
+        {social.questsCompleted != null && (
+          <Row
+            label="Club quests completed"
+            value={num(social.questsCompleted)}
+            hint={social.questCounters > 1 ? <>Added up from {num(social.questCounters)} <code>ClanStats</code> counters, one for each spell in a club.</> : undefined}
+          />
+        )}
+        {club && currentSpell && clubHistory.length > 1 && counted && <Row label="Quests in this club" value={num(currentSpell.quests)} />}
         {clubEvents && (
           <Row
             label="Club events"
@@ -619,10 +636,38 @@ const SocialPanel = ({ social }) => {
         {invites.length > 0 && <Row label="Club invites" value={invites.join(', ')} hint={<>From <code>ClanInvite</code> records, each a direction and a date.</>} />}
       </div>
 
+      {clubHistory.length > 1 && (
+        <div className="mt-4">
+          <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-1.5">Club history</p>
+          <ul className="space-y-1.5">
+            {clubHistory.map((h, i) => (
+              <li key={i} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 bg-gray-900/50 rounded-lg px-3 py-2 text-sm">
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className={`truncate ${h.name ? 'text-white font-medium' : 'text-gray-400 italic'}`}>
+                    {h.name ? (h.tag ? `${h.name} [${h.tag}]` : h.name) : 'Club not named'}
+                  </span>
+                  {h.current && <Badge tone="emerald">Current</Badge>}
+                </span>
+                <span className="text-xs text-gray-400 tabular-nums">
+                  {[
+                    h.joinedMs != null && `joined ${date(h.joinedMs)}`,
+                    h.quests > 0 ? `${num(h.quests)} quest${h.quests === 1 ? '' : 's'}, ${dateSpan(h.firstQuestMs, h.lastQuestMs)}` : 'no quests recorded',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <Note>
         The export names nobody you are friends with or blocked, so this is counts and dates only. Those are other
         players’ data, and Embark redacts them.
         {!friends.directionKnown && friends.total > 0 && ' This export does not say how many requests you sent and how many you received.'}
+        {friends.paired && ' Each friendship is stored as two rows, one per direction, so friends are counted in pairs and the earlier row of a pair is read as the request.'}
+        {counted && clubHistory.length > 1 && ' Quest counters carry no club name, so each is listed under the last club joined before it started.'}
         {clubEvents && ' Club events carry no text, author or target.'}
       </Note>
     </Panel>
@@ -642,12 +687,17 @@ export const AccountPage = () => {
 
       {/* Ban status — an account can accumulate several restrictions over time. */}
       {ban.count === 0 ? (
-        <Panel className="border border-emerald-500/20 bg-emerald-500/5!">
-          <div className="flex items-center gap-3">
-            <CheckCircle className="w-6 h-6 text-emerald-400" />
-            <p className="text-emerald-300 font-semibold">No restriction on record. Account in good standing.</p>
-          </div>
-        </Panel>
+        <div className="space-y-3">
+          <Panel className="border border-emerald-500/20 bg-emerald-500/5!">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-6 h-6 text-emerald-400" />
+              <p className="text-emerald-300 font-semibold">
+                {ban.blockedSignIns.length > 0 ? 'No restriction on record.' : 'No restriction on record. Account in good standing.'}
+              </p>
+            </div>
+          </Panel>
+          {ban.blockedSignIns.length > 0 && <BlockedSignIns rows={ban.blockedSignIns} />}
+        </div>
       ) : (
         <div className="space-y-3">
           {ban.count > 1 && (
@@ -755,7 +805,7 @@ export const AccountPage = () => {
             </span>
           </div>
           <Row label="Country" value={identity.countryCode} />
-          <Row label="Date of birth" value={identity.dateOfBirth ? date(identity.dateOfBirth) : '—'} />
+          <Row label="Date of birth" value={identity.dateOfBirth ? dayOnly(identity.dateOfBirth) : '—'} />
           <Row label="Account created" value={date(identity.accountCreatedAt)} />
           <Row label="Playtester" value={identity.isPlaytester == null ? '—' : identity.isPlaytester ? 'Yes' : 'No'} />
         </Panel>

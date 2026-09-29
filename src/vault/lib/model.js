@@ -21,6 +21,8 @@ const toMs = (v) => {
   return null;
 };
 const div = (a, b) => (b ? a / b : 0);
+// A value the pages print: an export can hold anything, and an object reaching React throws.
+const text = (v) => (typeof v === 'string' ? v : typeof v === 'number' || typeof v === 'boolean' ? String(v) : null);
 
 // Season number of a record: Embark's SeasonID where it has one (2026-09+ rounds), else the date.
 const seasonResolver = (keys) => {
@@ -178,7 +180,7 @@ function buildBans(byType, auditByType) {
 
   // Sign-ins refused because of a restriction (2026-09+).
   const blockedSignIns = (byType.RestrictedLogin || [])
-    .map((l) => ({ ms: toMs(l.CreatedAt), game: l.Game ?? null, provider: l.ThirdPartyProvider ?? null, ip: l.IPAddress ?? null, grantType: l.GrantType ?? null }))
+    .map((l) => ({ ms: toMs(l.CreatedAt), game: text(l.Game), provider: text(l.ThirdPartyProvider), ip: text(l.IPAddress), grantType: text(l.GrantType) }))
     .sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0));
 
   const active = all.find((b) => b.active) || null;
@@ -199,12 +201,13 @@ const ADMIN_SKIP = new Set(['logtime', 'tenancy', 'backend_id', 'counter', 'trac
 // Acronyms keep their capitals ("Reset MMR", "Update EOS account").
 const sentenceCase = (s) =>
   s
+    .slice(0, 80)
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
     .split(' ')
     .map((w, i) => (/^[A-Z0-9]{2,}$/.test(w) ? w : i ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()))
     .join(' ');
-const adminAction = (type) => sentenceCase(type.replace(/^PlayerView/, '').replace(/\d+$/, ''));
+const adminAction = (type) => sentenceCase(type.slice(0, 90).replace(/^PlayerView/, '').replace(/\d+$/, ''));
 function buildAdminActions(auditByType, keys, ban) {
   const A = auditByType || {};
   const events = [];
@@ -255,9 +258,9 @@ function buildAdminActions(auditByType, keys, ban) {
         ms,
         type,
         action: adminAction(type),
-        kind: /UpdateInventoryItem$/.test(type) ? 'inventory' : restriction ? 'restriction' : /UpdateProfile$/.test(type) ? 'profile' : 'other',
+        kind: /UpdateInventoryItem\d*$/.test(type) ? 'inventory' : restriction ? 'restriction' : /UpdateProfile\d*$/.test(type) ? 'profile' : 'other',
         game: gameOfSignIn(r.tenancy),
-        tenancy: r.tenancy || null,
+        tenancy: text(r.tenancy) || null,
         item,
         changes,
         restriction,
@@ -334,21 +337,23 @@ function buildSanctions(byType, rounds) {
 //   epic    -> fortnitetracker.com/profile/all/<name>
 //   nexon   -> exists; representation unknown (email or username) 
 function linkInfo(provider, name, id) {
-  const n = name || '';
+  const n = typeof name === 'string' ? name : '';
+  // Names come from the export, so they go into a link encoded.
+  const enc = encodeURIComponent;
   switch (provider) {
     case 'steam':
-      return { handle: n, url: id ? `https://steamcommunity.com/profiles/${id}` : null };
+      return { handle: n, url: /^\d{1,20}$/.test(String(id)) ? `https://steamcommunity.com/profiles/${id}` : null };
     case 'twitch': {
       const handle = n.includes('#') ? n.split('#').pop() : n;
-      return { handle, url: handle ? `https://twitch.tv/${handle}` : null };
+      return { handle, url: handle ? `https://twitch.tv/${enc(handle)}` : null };
     }
     case 'xbox':
-      return { handle: n, url: n ? `https://xboxgamertag.com/search/${n.replace(/#/g, '')}` : null };
+      return { handle: n, url: n ? `https://xboxgamertag.com/search/${enc(n.replace(/#/g, ''))}` : null };
     case 'psn':
-      return { handle: n, url: n ? `https://psnprofiles.com/?psnId=${n}` : null };
+      return { handle: n, url: n ? `https://psnprofiles.com/?psnId=${enc(n)}` : null };
     case 'epic':
     case 'epicgames':
-      return { handle: n, url: n ? `https://fortnitetracker.com/profile/all/${n}` : null };
+      return { handle: n, url: n ? `https://fortnitetracker.com/profile/all/${enc(n)}` : null };
     case 'discord':
       return { handle: /#0$/.test(n) ? n.replace(/#0$/, '') : n, url: null };
     default:
@@ -358,9 +363,9 @@ function linkInfo(provider, name, id) {
 
 function buildLinkedAccounts(byType) {
   return (byType.ThirdPartyUser || []).map((t) => {
-    const provider = t.ThirdPartyProviderID ?? 'unknown';
-    const name = t.LastSeenAccountName ?? null;
-    const id = t.ThirdPartyUserID ?? null;
+    const provider = text(t.ThirdPartyProviderID) ?? 'unknown';
+    const name = text(t.LastSeenAccountName);
+    const id = text(t.ThirdPartyUserID);
     return { provider, name, id, ...linkInfo(provider, name, id), enabled: t.Enabled ?? null, createdAt: t.CreatedAt ?? null };
   });
 }
@@ -524,9 +529,9 @@ const nameInEffectAt = (spans, ms) => {
   return name;
 };
 
-// Tolerance for tying an admin rename row to the exact instant it describes.
-// The one real sample pairs them 13ms apart; 2s is slack for clock skew between
-// the two writers without reaching across to a genuinely separate rename.
+// Tolerance for tying an admin rename row to the exact instant it describes:
+// slack for clock skew between the two writers without reaching across to a
+// genuinely separate rename.
 const ADMIN_PAIR_MS = 2000;
 
 // Renames as dated EVENTS, for marking on a time axis. `spans[].firstMs` can't
@@ -534,7 +539,7 @@ const ADMIN_PAIR_MS = 2000;
 // name, and ProfileUpdated rows are sparse enough that it lands days late. Two
 // records date a rename exactly:
 //   * ProfileUpdated2/3 `display_name_updated_msts` — the instant itself. Rows
-//     repeat it (one sample's 21 rows carry 7 distinct values), so these dedupe
+//     repeat it, so these dedupe
 //     on the TIMESTAMP, never on the name: the field means "at T the name became
 //     this", and the same name can be adopted twice.
 //   * PlayerViewUpdateProfile — an admin-initiated rename, and the only record
@@ -550,7 +555,8 @@ function buildNameChangeEvents(auditByType, accounts, embarkAccounts) {
     for (const r of A[type] || []) {
       const ms = toMs(r.display_name_updated_msts);
       const name = r.display_name;
-      if (ms == null || name == null || name === '') continue;
+      // 0 means the name was never changed.
+      if (ms == null || ms <= 0 || name == null || name === '') continue;
       const logMs = toMs(r.logtime);
       const prev = exact.get(ms);
       if (prev && (prev.logMs ?? Infinity) <= (logMs ?? Infinity)) continue; // keep the earliest witness
@@ -566,7 +572,7 @@ function buildNameChangeEvents(auditByType, accounts, embarkAccounts) {
   }
 
   const admin = [];
-  for (const r of A.PlayerViewUpdateProfile || []) {
+  for (const r of Object.keys(A).filter((t) => /^PlayerViewUpdateProfile\d*$/.test(t)).flatMap((t) => A[t] || [])) {
     const ms = toMs(r.logtime);
     if (ms == null || !r.updated_display_name) continue;
     admin.push({ ms, from: r.old_display_name || null, to: r.updated_display_name });
@@ -603,8 +609,8 @@ function buildNameChangeEvents(auditByType, accounts, embarkAccounts) {
 
   // An instant with no span boundary either caught a rename the sightings missed
   // or is a re-stamp of a name that didn't change: one sample advances the field
-  // twice while display_name AND the discriminator stay identical (Xorog#3439 ->
-  // Xorog#3439). Keep only the first kind — a marker for the second points at
+  // twice while display_name AND the discriminator stay identical (Name#0000 ->
+  // Name#0000). Keep only the first kind — a marker for the second points at
   // nothing.
   for (const e of unclaimed) {
     const acct = embarkAccounts.find((a) => (a.embarkUserId ?? a.createdMs ?? '_') === e.accountKey) ?? embarkAccounts[0];
@@ -730,9 +736,69 @@ const humanizeType = (t) => (Object.hasOwn(INVENTORY_LABELS, t) ? INVENTORY_LABE
 const INTERNAL_NAME_RE = /[{}_]|^(Default|Premium)$/;
 const PACK_SLOT_LABELS = { IntroPose: 'Intro pose', VictoryPose: 'Victory pose', OutfitPack: 'Outfit', ObjectiveSticker: 'Objective sticker', PlayerCard: 'Player card' };
 
-function buildInventory(byType, keys) {
+const DAY_MS = 86400e3;
+const EARLIEST_STAMP_MS = Date.UTC(2020, 0, 1);
+
+const MIN_COPY_RUN = 30;
+
+// A preview build keeps its own copy of the inventory and the export lists every copy,
+// one block after another. A copy's rows were all last written on preview days.
+function liveInventory(all, realms) {
+  const whole = { rows: all, copies: 0, copyRows: 0 };
+  if (all.length < 2) return whole;
+  const previewDays = new Set();
+  for (const w of [...(realms?.windows || []), ...(realms?.sessions || [])]) {
+    if (w?.realm !== REALM.PLAYTEST || w.startMs == null) continue;
+    const from = Math.floor(w.startMs / DAY_MS);
+    const to = Math.min(Math.floor((w.endMs ?? w.startMs) / DAY_MS), from + 30);
+    for (let d = from; d <= to; d++) previewDays.add(d);
+  }
+  const dayOf = (it) => {
+    const ms = toMs(it.UpdatedAt) ?? toMs(it.CreatedAt);
+    return ms != null && ms > EARLIEST_STAMP_MS ? Math.floor(ms / DAY_MS) : null;
+  };
+
+  // 2026-09+ rows carry an InstanceID, which starts over at each block.
+  if (all.every((it) => typeof it.InstanceID === 'string')) {
+    const blocks = [[all[0]]];
+    for (let i = 1; i < all.length; i++) {
+      if (all[i].InstanceID < all[i - 1].InstanceID) blocks.push([]);
+      blocks.at(-1).push(all[i]);
+    }
+    if (blocks.length === 1) return whole;
+    const dated = blocks.map((rows) => ({ rows, days: new Set(rows.map(dayOf).filter((d) => d != null)) }));
+    const main = dated.reduce((best, b) => (b.days.size > best.days.size || (b.days.size === best.days.size && b.rows.length > best.rows.length) ? b : best));
+    const near = (d) => previewDays.has(d) || previewDays.has(d - 1) || previewDays.has(d + 1);
+    const isCopy = (b) => b !== main && b.days.size > 0 && (previewDays.size ? [...b.days].every(near) : b.days.size <= 3);
+    const copies = dated.filter(isCopy);
+    return { rows: dated.filter((b) => !isCopy(b)).flatMap((b) => b.rows), copies: copies.length, copyRows: copies.reduce((s, b) => s + b.rows.length, 0) };
+  }
+
+  // Older rows have no id, but the blocks are there all the same: a long unbroken run of
+  // rows written on preview days that holds a `Loadout` row (every copy has one).
+  if (!previewDays.size) return whole;
+  const onPreviewDay = all.map((it) => previewDays.has(dayOf(it)));
+  const rows = [];
+  let copies = 0;
+  let copyRows = 0;
+  for (let i = 0; i < all.length; ) {
+    let j = i;
+    while (j < all.length && onPreviewDay[j] === onPreviewDay[i]) j++;
+    const run = all.slice(i, j);
+    const loadouts = onPreviewDay[i] && run.length >= MIN_COPY_RUN ? run.filter((it) => it.Type === 'Loadout').length : 0;
+    if (loadouts > 0) {
+      copies += loadouts;
+      copyRows += run.length;
+    } else rows.push(...run);
+    i = j;
+  }
+  return { rows, copies, copyRows };
+}
+
+function buildInventory(byType, keys, realms) {
+  const live = liveInventory((byType.InventoryItem || []).filter((it) => it && typeof it === 'object'), realms);
   // A sanction is not an owned item (Account shows it), and its CreatedAt is not when it happened.
-  const rows = (byType.InventoryItem || []).filter((it) => it && it.Type !== 'Sanction');
+  const rows = live.rows.filter((it) => it.Type !== 'Sanction');
   const map = new Map();
   // 2026-09+ rows are named; older ones carry a type and nothing else.
   const items = [];
@@ -747,9 +813,12 @@ function buildInventory(byType, keys) {
     const name = cleanName(it.Name);
     if (it.InstanceID != null) byInstance.set(it.InstanceID, it);
     if (!name) continue;
-    const ms = toMs(it.CreatedAt);
+    // A migration re-stamped CreatedAt on older rows, which leaves UpdatedAt as the earlier of the two.
+    const created = toMs(it.CreatedAt);
+    const stamps = [created, toMs(it.UpdatedAt)].filter((t) => t != null && t > EARLIEST_STAMP_MS);
+    const ms = stamps.length ? Math.min(...stamps) : null;
     if (ms != null && (firstMs == null || ms < firstMs)) firstMs = ms;
-    items.push({ name, type, label: rec.label, amount: typeof it.Amount === 'number' ? it.Amount : 1, ms, internal: INTERNAL_NAME_RE.test(name) });
+    items.push({ name, type, label: rec.label, amount: typeof it.Amount === 'number' ? it.Amount : 1, ms, before: ms != null && created != null && ms < created, internal: INTERNAL_NAME_RE.test(name) });
   }
   items.sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0) || a.name.localeCompare(b.name));
 
@@ -778,8 +847,8 @@ function buildInventory(byType, keys) {
       reserve: gear(p.ReservedItemIDs),
       // PlayerCard and OutfitPack point at container rows with no name of their own.
       slots: (Array.isArray(p.Slots) ? p.Slots : [])
-        .filter((s) => s?.SlotName !== 'PlayerCard' && s?.SlotName !== 'OutfitPack')
-        .map((s) => ({ label: Object.hasOwn(PACK_SLOT_LABELS, s.SlotName) ? PACK_SLOT_LABELS[s.SlotName] : String(s.SlotName), names: (s.ItemIDs || []).map(nameOf) })),
+        .filter((s) => s && typeof s === 'object' && s.SlotName !== 'PlayerCard' && s.SlotName !== 'OutfitPack')
+        .map((s) => ({ label: Object.hasOwn(PACK_SLOT_LABELS, s.SlotName) ? PACK_SLOT_LABELS[s.SlotName] : String(s.SlotName), names: (Array.isArray(s.ItemIDs) ? s.ItemIDs : []).map(nameOf) })),
       spray: p.SprayItemID ? [nameOf(p.SprayItemID)] : [],
       emotes: (Array.isArray(p.EmoteWheelItemIDs) ? p.EmoteWheelItemIDs : []).map(nameOf),
     });
@@ -797,10 +866,15 @@ function buildInventory(byType, keys) {
     items,
     firstMs,
     packs,
+    copies: { blocks: live.copies, rows: live.copyRows },
   };
 }
 
 // --- friends, blocks and club (counts and dates: the export never names anyone) ---
+// Older exports write the club event type as the enum's number.
+const CLUB_EVENT_TYPES = { 1: 'TYPE_PARTY_UP', 2: 'TYPE_MEMBER_JOINED' };
+const JOIN_MATCH_MS = 2000;
+
 function buildSocial(byType) {
   const range = (rows) => {
     let first = null;
@@ -816,11 +890,37 @@ function buildSocial(byType) {
   const friends = byType.Friend || [];
   const blocked = byType.BlockedPlayer || [];
   const membership = (byType.ClanMembership || [])[0] || null;
-  const stats = [...(byType.ClanStats || [])].sort((a, b) => (toMs(b.UpdatedAt) ?? 0) - (toMs(a.UpdatedAt) ?? 0))[0] || null;
+  // One counter per spell in a club, with windows that never overlap and no club name.
+  const counters = (byType.ClanStats || [])
+    .map((r) => ({ fromMs: toMs(r.CreatedAt), untilMs: toMs(r.UpdatedAt), quests: typeof r.QuestsCompleted === 'number' ? r.QuestsCompleted : 0 }))
+    .sort((a, b) => (a.fromMs ?? 0) - (b.fromMs ?? 0));
   const timeline = byType.ClanTimelineMessage || [];
   const invites = byType.ClanInvite || [];
-  const sent = friends.filter((f) => f.Direction === 'sent').length;
-  const received = friends.filter((f) => f.Direction === 'received').length;
+  const directed = friends
+    .filter((f) => f.Direction === 'sent' || f.Direction === 'received')
+    .map((f) => ({ dir: f.Direction, ms: toMs(f.CreatedAt) ?? 0 }))
+    .sort((a, b) => a.ms - b.ms);
+  const sentRows = directed.filter((f) => f.dir === 'sent').length;
+  const receivedRows = directed.length - sentRows;
+  // A friendship is written twice, once per direction, so equal counts mean pairs,
+  // and the earlier row of a pair is the request.
+  const paired = sentRows > 0 && sentRows === receivedRows;
+  let sent = sentRows;
+  let received = receivedRows;
+  if (paired) {
+    sent = 0;
+    received = 0;
+    const open = { sent: 0, received: 0 };
+    for (const f of directed) {
+      const other = f.dir === 'sent' ? 'received' : 'sent';
+      if (open[other] === 0) open[f.dir]++;
+      else {
+        open[other]--;
+        if (other === 'sent') sent++;
+        else received++;
+      }
+    }
+  }
   const tl = range(timeline);
   // The current membership's start: it equals the latest TYPE_MEMBER_JOINED event to the
   // microsecond on both exports that have one. Earlier joins mean the player left and rejoined.
@@ -828,28 +928,70 @@ function buildSocial(byType) {
   // A club log row is a type, a time and the club; no author, target or text.
   const eventTypes = new Map();
   const joinsMs = [];
+  const joins = [];
   for (const t of timeline) {
-    const type = typeof t.PayloadType === 'string' && t.PayloadType ? t.PayloadType : 'TYPE_UNSPECIFIED';
+    const numbered = String(t.PayloadType);
+    const type = Object.hasOwn(CLUB_EVENT_TYPES, numbered) ? CLUB_EVENT_TYPES[numbered] : typeof t.PayloadType === 'string' && t.PayloadType ? t.PayloadType : 'TYPE_UNSPECIFIED';
     eventTypes.set(type, (eventTypes.get(type) || 0) + 1);
     const ms = toMs(t.CreatedAt);
     // A join of some other club is not a rejoin of this one (both name and tag differ).
     const otherClub = membership != null && t.ClanName != null && t.ClanName !== membership.ClanName && t.ClanTag !== membership.ClanTag;
-    if (type === 'TYPE_MEMBER_JOINED' && ms != null && !otherClub) joinsMs.push(ms);
+    if (type === 'TYPE_MEMBER_JOINED' && ms != null) {
+      joins.push({ ms, name: typeof t.ClanName === 'string' ? t.ClanName : null, tag: typeof t.ClanTag === 'string' ? t.ClanTag : null });
+      if (!otherClub) joinsMs.push(ms);
+    }
   }
   joinsMs.sort((a, b) => a - b);
+  // The current membership opens a spell even when its join event is not in the file.
+  if (memberSinceMs != null && !joins.some((j) => Math.abs(j.ms - memberSinceMs) < JOIN_MATCH_MS)) {
+    joins.push({ ms: memberSinceMs, name: typeof membership.ClanName === 'string' ? membership.ClanName : null, tag: typeof membership.ClanTag === 'string' ? membership.ClanTag : null });
+  }
+  joins.sort((a, b) => a.ms - b.ms);
+  const clubHistory = joins.map((j) => ({
+    name: j.name,
+    tag: j.tag,
+    joinedMs: j.ms,
+    quests: 0,
+    firstQuestMs: null,
+    lastQuestMs: null,
+    current: memberSinceMs != null && Math.abs(j.ms - memberSinceMs) < JOIN_MATCH_MS,
+  }));
+  // A counter opens with its first quest, so it sits under the last club joined before that.
+  for (const c of counters) {
+    let spell = null;
+    for (const h of clubHistory) if (h.joinedMs != null && c.fromMs != null && h.joinedMs <= c.fromMs + 60000) spell = h;
+    if (!spell) {
+      spell = { name: null, tag: null, joinedMs: null, quests: 0, firstQuestMs: null, lastQuestMs: null, current: false };
+      clubHistory.push(spell);
+    }
+    spell.quests += c.quests;
+    if (c.fromMs != null && (spell.firstQuestMs == null || c.fromMs < spell.firstQuestMs)) spell.firstQuestMs = c.fromMs;
+    if (c.untilMs != null && (spell.lastQuestMs == null || c.untilMs > spell.lastQuestMs)) spell.lastQuestMs = c.untilMs;
+  }
+  clubHistory.sort((a, b) => (a.joinedMs ?? a.firstQuestMs ?? 0) - (b.joinedMs ?? b.firstQuestMs ?? 0));
   const eventLabel = (type) => {
     const s = type.replace(/^TYPE_/, '').toLowerCase().replace(/_/g, ' ');
     return s.charAt(0).toUpperCase() + s.slice(1);
   };
   return {
-    has: friends.length > 0 || blocked.length > 0 || !!membership || !!stats || timeline.length > 0 || invites.length > 0,
+    has: friends.length > 0 || blocked.length > 0 || !!membership || counters.length > 0 || timeline.length > 0 || invites.length > 0,
     // Some older rows have no Direction, so the split is only shown when it adds up.
-    friends: { total: friends.length, sent, received, directionKnown: friends.length > 0 && sent + received === friends.length, ...range(friends) },
+    friends: {
+      total: paired ? sentRows + (friends.length - directed.length) : friends.length,
+      rows: friends.length,
+      paired,
+      sent,
+      received,
+      directionKnown: friends.length > 0 && directed.length === friends.length,
+      ...range(friends),
+    },
     blocked: { total: blocked.length, ...range(blocked) },
     club: membership
-      ? { name: membership.ClanName ?? null, tag: membership.ClanTag ?? null, role: membership.Role ?? null, memberSinceMs, lastLoginMs: toMs(membership.LastLoggedInAt) }
+      ? { name: text(membership.ClanName), tag: text(membership.ClanTag), role: text(membership.Role), memberSinceMs, lastLoginMs: toMs(membership.LastLoggedInAt) }
       : null,
-    questsCompleted: stats && typeof stats.QuestsCompleted === 'number' ? stats.QuestsCompleted : null,
+    questsCompleted: counters.length ? counters.reduce((s, c) => s + c.quests, 0) : null,
+    questCounters: counters.length,
+    clubHistory,
     clubEvents: timeline.length
       ? { total: timeline.length, byType: [...eventTypes.entries()].map(([type, count]) => ({ type, label: eventLabel(type), count })).sort((a, b) => b.count - a.count), joinsMs, ...tl }
       : null,
@@ -895,8 +1037,8 @@ function aggregateBucket(buckets) {
   return out;
 }
 
-// Embark's lifetime totals count practice-range and bot rounds (live summaries equal their logs
-// exactly with 9 practice rounds in one, 10 bot rounds in another), so their logged stats come back out.
+// Embark's lifetime totals count practice-range and bot rounds (live summaries equal
+// their logs exactly with those rounds inside), so their logged stats come back out.
 function withoutRounds(b, rounds) {
   if (!rounds.length) return b;
   const out = { ...b, TimePlayedByArchetype: b.TimePlayedByArchetype ? Object.assign(Object.create(null), b.TimePlayedByArchetype) : null };
@@ -920,6 +1062,8 @@ function withoutRounds(b, rounds) {
   out.TournamentWinRate = out.TournamentsPlayed ? out.TournamentsWon / out.TournamentsPlayed : null;
   return out;
 }
+
+const CAREER_RANK_TRACK = '393268067';
 
 function buildCareer(byType, keys, summaries, leftOutRounds) {
   const pluck = (key) => aggregateBucket(summaries.map((s) => s.Data?.[key]).filter(Boolean));
@@ -952,11 +1096,17 @@ function buildCareer(byType, keys, summaries, leftOutRounds) {
   const ranks = (byType.RankBucket || []).filter((rb) => rb.BucketID == null || !keys.mastery(rb.BucketID)).map((rb) => ({ xp: rb.XP ?? null, rank: rb.Rank ?? null }));
   // 2026-09+ rows name their track (`BucketID`); the key file's "Career rank" one is
   // the account level. Older rows have no BucketID, so theirs stays unknown.
+  // There are two such tracks: the one in use, and the one Update 8.0.0 retired at its cap.
   let level = null;
+  let retired = null;
   for (const rb of byType.RankBucket || []) {
-    if (rb.BucketID == null || keys.mastery(rb.BucketID)?.category !== 'Career rank') continue;
-    if (typeof rb.Rank === 'number' && (!level || rb.Rank > level.rank)) level = { rank: rb.Rank, xp: rb.XP ?? null };
+    if (rb.BucketID == null || typeof rb.Rank !== 'number' || keys.mastery(rb.BucketID)?.category !== 'Career rank') continue;
+    const row = { rank: rb.Rank, xp: rb.XP ?? null };
+    if (String(rb.BucketID) === CAREER_RANK_TRACK) {
+      if (!level || row.rank > level.rank) level = row;
+    } else if (!retired || row.rank > retired.rank) retired = row;
   }
+  level ??= retired;
 
   // Newest snapshot timestamp, purely for the "as of" display.
   const updatedAt = summaries.reduce(
@@ -1053,6 +1203,47 @@ function addRound(m, r) {
   if (r.abandoned) m.abandoned = true;
 }
 
+// A preview build writes its own summary as its last round ends. When the audit file
+// cannot name the build's rounds, that summary still does: its counters equal the sum
+// of the rounds that end with it. Builds from before launch are left alone.
+const PREVIEW_SUMMARY_TOL_MS = 10e3;
+const PREVIEW_MAX_SPAN_MS = 4 * 86400e3;
+function previewBySummary(rawRounds, summaries, launchMs) {
+  const flagged = new Set();
+  if (summaries.length < 2) return flagged;
+  const played = (s) => (Number.isInteger(s?.Data?.total?.RoundsPlayed) ? s.Data.total.RoundsPlayed : 0);
+  const main = summaries.reduce((a, b) => (played(b) > played(a) ? b : a));
+  const byEnd = rawRounds
+    .map((r) => ({ r, start: toMs(r.Data.StartTime), end: toMs(r.Data.EndTime) }))
+    .filter((x) => x.end != null)
+    .sort((a, b) => a.end - b.end);
+  for (const s of summaries) {
+    const n = played(s);
+    const at = toMs(s.UpdatedAt);
+    if (s === main || n < 1 || n > 200 || at == null || at < launchMs) continue;
+    let last = -1;
+    for (let i = byEnd.length - 1; i >= 0 && byEnd[i].end >= at - PREVIEW_SUMMARY_TOL_MS; i--) {
+      if (Math.abs(byEnd[i].end - at) <= PREVIEW_SUMMARY_TOL_MS) {
+        last = i;
+        break;
+      }
+    }
+    if (last < n - 1) continue;
+    const run = byEnd.slice(last - n + 1, last + 1);
+    if (run.at(-1).end - (run[0].start ?? run[0].end) > PREVIEW_MAX_SPAN_MS) continue;
+    const sum = (f) => run.reduce((a, x) => a + (Number(x.r.Data[f]) || 0), 0);
+    if (sum('Kills') !== s.Data.total.Kills || sum('Deaths') !== s.Data.total.Deaths) continue;
+    for (const x of run) flagged.add(x.r);
+  }
+  return flagged;
+}
+
+// Everything played before launch was on a test build: the closed betas, then the open
+// beta of 26 October to 5 November 2023. Those rounds are treated like a preview build's.
+const GAME_LAUNCH_MS = Date.UTC(2023, 11, 7);
+const OPEN_BETA_FROM_MS = Date.UTC(2023, 9, 26);
+const betaLabelAt = (ms) => (ms == null || ms >= GAME_LAUNCH_MS ? null : ms >= OPEN_BETA_FROM_MS ? 'Open beta' : 'Closed beta');
+
 function buildMatchesAndWeapons(byType, keys, preview) {
   // parse.js already buckets ARC Raiders' identically-named records separately,
   // but re-check here: `byType` is also built by hand (sampleData, harnesses),
@@ -1062,11 +1253,19 @@ function buildMatchesAndWeapons(byType, keys, preview) {
   // In the export but not read yet. Counted so an ARC view needn't re-derive the split.
   let otherGameRounds = (byType.ArcRoundStat || []).length;
   let unknownRounds = (byType.UnknownRoundStat || []).length;
+  // The export now and then writes one round twice, seconds apart.
+  const seenRounds = new Set();
   for (const r of all) {
     const kind = classifyRoundStat(r);
-    if (kind === ROUND_KIND.FINALS) rawRounds.push(r);
-    else if (kind === ROUND_KIND.ARC) otherGameRounds++;
-    else unknownRounds++;
+    if (kind === ROUND_KIND.ARC) otherGameRounds++;
+    else if (kind !== ROUND_KIND.FINALS) unknownRounds++;
+    else {
+      const d = r.Data;
+      const key = r.RoundID != null ? `id:${r.RoundID}` : d.StartTime != null && d.EndTime != null ? `${d.TournamentID}|${d.MatchID}|${d.StartTime}|${d.EndTime}|${d.Kills}|${d.Deaths}|${d.DamageDone}` : null;
+      if (key != null && seenRounds.has(key)) continue;
+      if (key != null) seenRounds.add(key);
+      rawRounds.push(r);
+    }
   }
 
   const weaponTotals = new Map(); // id -> kills
@@ -1090,10 +1289,13 @@ function buildMatchesAndWeapons(byType, keys, preview) {
   const weaponsByArch = { Light: new Map(), Medium: new Map(), Heavy: new Map(), Unknown: new Map() };
   const seasonAt = seasonResolver(keys);
   const launchMs = new Map(keys.seasons().map((k) => [k.n, k.startMs]));
+  const summaryPreview = previewBySummary(rawRounds, byType.RoundStatSummary || [], launchMs.get(1) ?? Date.UTC(2023, 11, 8));
   const wtEvents = new Map();
-  const wtEventOf = (scenarioId, season) => {
-    const k = `${scenarioId}:${season}`;
-    if (!wtEvents.has(k)) wtEvents.set(k, worldTourEvent(scenarioId, season, keys));
+  const wtEventOf = (scenarioId, season, atMs) => {
+    const first = worldTourEvent(scenarioId, season, keys);
+    const ev = worldTourEvent(scenarioId, season, keys, atMs);
+    const k = `${scenarioId}:${season}:${ev?.stop === first?.stop}`;
+    if (!wtEvents.has(k)) wtEvents.set(k, ev);
     return wtEvents.get(k);
   };
 
@@ -1117,15 +1319,20 @@ function buildMatchesAndWeapons(byType, keys, preview) {
     const dpi = d.DamagePerItem && typeof d.DamagePerItem === 'object' ? d.DamagePerItem : null;
     const startMs = toMs(d.StartTime);
     const mode = classifyMode(d, keys);
+    // Dated seasons start at midnight and launches come hours later, so a launch-morning
+    // round that names no season is the old season's.
+    let seasonN = seasonAt(rawRounds[i].SeasonID, startMs);
+    if (rawRounds[i].SeasonID == null && seasonN > 1 && startMs != null && startMs < (launchMs.get(seasonN) ?? -Infinity)) seasonN -= 1;
     let wtEvent = null;
     if (mode.category === 'World Tour') {
       const n = seasonAt(rawRounds[i].SeasonID, startMs);
-      wtEvent = wtEventOf(d.ScenarioID, n);
+      wtEvent = wtEventOf(d.ScenarioID, n, startMs);
       // Dated seasons start at midnight, launches hours later: a launch-morning round is the old season's.
-      if (!wtEvent && rawRounds[i].SeasonID == null && n != null && startMs < (launchMs.get(n) ?? -Infinity)) wtEvent = wtEventOf(d.ScenarioID, n - 1);
+      if (!wtEvent && rawRounds[i].SeasonID == null && n != null && startMs < (launchMs.get(n) ?? -Infinity)) wtEvent = wtEventOf(d.ScenarioID, n - 1, startMs);
     }
     // Preview-build and practice rounds stay in match history but count towards nothing else.
-    const previewLabel = preview.labelOf(roundId, startMs);
+    const betaLabel = betaLabelAt(startMs);
+    const previewLabel = betaLabel ?? preview.labelOf(roundId, startMs) ?? (summaryPreview.has(rawRounds[i]) ? 'Preview build' : null);
     const uncounted = previewLabel ? 'preview' : mode.practice ? 'practice' : null;
     // Bot rounds count only under their own mode, never in weapon or damage totals.
     const counted = !uncounted && !mode.bots;
@@ -1212,7 +1419,8 @@ function buildMatchesAndWeapons(byType, keys, preview) {
       createdAt: rawRounds[i].CreatedAt,
       roundId,
       seasonId: rawRounds[i].SeasonID != null ? String(rawRounds[i].SeasonID) : null, // 2026-09+
-      preview: previewLabel ? { label: previewLabel } : null,
+      seasonN,
+      preview: previewLabel ? { label: previewLabel, beta: betaLabel != null } : null,
       uncounted, // 'preview' | 'practice' | null
       finalsStage: d.IsWorldTourFinals === true, // Season 3's World Tour Finals stage (2026-09+ exports)
       start: startMs,
@@ -1423,10 +1631,12 @@ function buildMatchesAndWeapons(byType, keys, preview) {
 const SUMMARY_END_TOL_MS = 10e3;
 function liveSummaries(summaries, rounds) {
   const ends = rounds.filter((r) => r.uncounted === 'preview' && r.end != null).map((r) => r.end);
-  if (!ends.length) return { live: summaries, preview: 0 };
   const live = summaries.filter((s) => {
     const t = toMs(s.UpdatedAt);
-    return t == null || !ends.some((e) => Math.abs(e - t) <= SUMMARY_END_TOL_MS);
+    if (t == null) return true;
+    // Last written before launch, so it can only hold beta play.
+    if (t < GAME_LAUNCH_MS) return false;
+    return !ends.some((e) => Math.abs(e - t) <= SUMMARY_END_TOL_MS);
   });
   return { live, preview: summaries.length - live.length };
 }
@@ -1933,7 +2143,7 @@ function buildEconomy(byType, auditByType, keys) {
   for (const [rows, arcRaiders] of [[byType.MicrosoftOrderAttributes, false], [byType.ArcRaidersMicrosoftOrderAttributes, true]]) {
     for (const a of rows || []) {
       const at = a?.MicrosoftAcquiredDate;
-      if (!a?.MicrosoftProductID || typeof at !== 'string' || at.startsWith('0001-')) continue;
+      if (typeof a?.MicrosoftProductID !== 'string' || !a.MicrosoftProductID || typeof at !== 'string' || at.startsWith('0001-')) continue;
       const e = msOrders.get(at) || { ids: new Set(), arcRaiders };
       e.ids.add(a.MicrosoftProductID);
       msOrders.set(at, e);
@@ -1950,10 +2160,10 @@ function buildEconomy(byType, auditByType, keys) {
     .map((t) => ({
       msProduct: msProductAt(t),
       items: transactionItems(t.Items, keys),
-      type: t.TransactionType ?? 'unknown',
-      state: t.State ?? 'unknown',
-      source: t.Source ?? 'unknown',
-      store: t.GameStore ?? null,
+      type: text(t.TransactionType) ?? 'unknown',
+      state: text(t.State) ?? 'unknown',
+      source: text(t.Source) ?? 'unknown',
+      store: text(t.GameStore),
       ms: toMs(t.GameStorePurchasedAt ?? t.CreatedAt),
       createdMs: toMs(t.CreatedAt),
       purchasedAt: t.GameStorePurchasedAt ?? t.CreatedAt ?? null,
@@ -2078,8 +2288,8 @@ function buildEconomy(byType, auditByType, keys) {
   }
 
   // Real-money (fiat) spend. IMPORTANT: PricePoint is Valve's *base* price tier
-  // (≈ USD/EUR list price), NOT the amount actually charged. For a PLN wallet,
-  // PricePoint 4.99 was billed PLN 20.95 — and most rows have no LocalizedPrice.
+  // (≈ USD/EUR list price), NOT the amount actually charged: a wallet in another
+  // currency is billed its own local amount, and most rows have no LocalizedPrice.
   // So the only true local amount is LocalizedPrice (when present); the summed
   // PricePoint total is an approximate USD-list estimate, never the real local
   // spend. CurrencyCode is the wallet currency and does NOT scale PricePoint.
@@ -2131,7 +2341,7 @@ function buildEconomy(byType, auditByType, keys) {
   const chargedBy = new Map();
   let unchargedBaseTotal = 0;
   for (const t of fiatGranted) {
-    const amount = t.currency ? localAmount(t.localizedPrice) : null;
+    const amount = t.currency ? localAmount(t.localizedPrice, t.currency) : null;
     if (amount == null) {
       unchargedBaseTotal += t.pricePoint;
       continue;
@@ -2289,6 +2499,7 @@ function buildEconomy(byType, auditByType, keys) {
     hasItems: itemRows > 0,
     itemRows,
     mbSpendsNamed: mbSpends.length,
+    mbSpendsNamedFromMs: mbSpends.reduce((first, s) => (s.ms != null && (first == null || s.ms < first) ? s.ms : first), null),
     topMbSpends,
     ledger,
     ledgerAll,
@@ -2854,11 +3065,11 @@ function buildSupport(raw, keys) {
         : null;
       return {
         ms: toMs(m.CreatedAt),
-        game: m.Game || null,
+        game: text(m.Game) || null,
         finals: isFinals(m.Game),
-        title: m.Title || null,
-        body: m.Body || null,
-        buttonLabel: m.ButtonLabel || null,
+        title: text(m.Title) || null,
+        body: text(m.Body) || null,
+        buttonLabel: text(m.ButtonLabel) || null,
         messageName: m.MessageName || null,
         kind: Object.hasOwn(INBOX_KINDS, m.MessageName) ? INBOX_KINDS[m.MessageName] : m.Title ? 'text' : 'other',
         rsChange: Number.isFinite(rs) ? rs : null,
@@ -2874,7 +3085,7 @@ function buildSupport(raw, keys) {
     })
     .sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0));
   const notices = (P.InboxGlobalMessage || [])
-    .map((m) => ({ ms: toMs(m.PublishedAt ?? m.CreatedAt), expiresMs: toMs(m.ExpiredAt), game: m.Game || null, finals: isFinals(m.Game), messageName: m.MessageName || null, seen: m.Seen !== false, deleted: m.Deleted === true }))
+    .map((m) => ({ ms: toMs(m.PublishedAt ?? m.CreatedAt), expiresMs: toMs(m.ExpiredAt), game: text(m.Game) || null, finals: isFinals(m.Game), messageName: text(m.MessageName) || null, seen: m.Seen !== false, deleted: m.Deleted === true }))
     .sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0));
   const inbox = { has: messages.length > 0 || notices.length > 0, messages, notices };
   const moderation = buildModeration(raw.audit?.byType?.ModerationDecisionPII, chat);
@@ -2887,8 +3098,8 @@ function buildSupport(raw, keys) {
       text: typeof s.free_text_answer === 'string' ? s.free_text_answer.trim() : '',
       roundId: s.last_round_id ? String(s.last_round_id) : null,
       match: null,
-      announcementId: s.announcement_id ?? null,
-      templateId: s.template_id ?? null,
+      announcementId: text(s.announcement_id),
+      templateId: text(s.template_id),
     }))
     .filter((s) => s.ms != null)
     .sort((a, b) => b.ms - a.ms);
@@ -3093,8 +3304,8 @@ const WT_SYSTEM = (n) => (n == null || n < 3 ? null : n === 3 ? 's3' : n <= 8 ? 
 function buildWorldTour(summaries, keys, matches, journey, seasonAt) {
   const seasons = new Map();
   const s3Unlabelled = new Set();
+  const streaks = new Map();
   let totalEvents = null;
-  let streak = null;
   let hasSummary = false;
   const seasonEntry = (seasonId, n, create = true) => {
     const key = n != null ? `n:${n}` : seasonId;
@@ -3134,16 +3345,25 @@ function buildWorldTour(summaries, keys, matches, journey, seasonAt) {
       if (typeof v.BadgeScore === 'number') e.badgeScore = Math.max(e.badgeScore ?? 0, v.BadgeScore);
       if (typeof v.FinalsWon === 'number') e.finalsWon = Math.max(e.finalsWon ?? 0, v.FinalsWon);
     }
-    const streaks = s.Data?.total?.WinStreakPerMatchmakingScenario;
-    if (streaks && typeof streaks === 'object') {
-      for (const id in streaks) {
-        const v = streaks[id];
+    const perScenario = s.Data?.total?.WinStreakPerMatchmakingScenario;
+    if (perScenario && typeof perScenario === 'object') {
+      for (const id in perScenario) {
+        const v = perScenario[id];
         if (!v || typeof v !== 'object' || classifyMode({ ScenarioID: id }, keys).category !== 'World Tour') continue;
         const ms = toMs(v.LastWin);
-        if (!streak || (ms ?? 0) > (streak.lastWinMs ?? 0)) streak = { streak: typeof v.Streak === 'number' ? v.Streak : 0, lastWinMs: ms };
+        const had = streaks.get(String(id));
+        if (!had || (ms ?? 0) > (had.lastWinMs ?? 0)) streaks.set(String(id), { streak: typeof v.Streak === 'number' ? v.Streak : 0, lastWinMs: ms });
       }
     }
   }
+  // Embark keeps one streak per scenario, counted in rounds, and drops it when it breaks.
+  // Retired weekly scenarios keep theirs for good, so only the scenario of the latest
+  // World Tour round can hold the current one.
+  let latest = null;
+  for (const m of matches) {
+    if (m.mode?.category === 'World Tour' && (!latest || (m.end ?? m.start ?? 0) > (latest.end ?? latest.start ?? 0))) latest = m;
+  }
+  const streak = (latest && streaks.get(String(latest.rounds.at(-1)?.scenarioId))) || null;
   // World Tour first (it creates a season's row), then Ranked, which only adds counts.
   for (const category of ['World Tour', 'Ranked']) {
     for (const m of matches) {
@@ -3340,7 +3560,10 @@ function buildSponsors({ career, journey }, keys, asOfSeason) {
   const signed = isSponsor(journey?.signedSponsor) ? named(journey.signedSponsor) : null;
   if (signed && tracks.has(signed.id)) tracks.get(signed.id).signed = true;
   // Track lengths and level costs as of the export's season.
-  const ratesSeason = Math.max(asOfSeason ?? 0, ...seasons.keys(), ...[...tracks.values()].flatMap((t) => t.seasons.map((s) => s.n ?? 0))) || null;
+  let ratesSeason = asOfSeason ?? 0;
+  for (const n of seasons.keys()) if (n > ratesSeason) ratesSeason = n;
+  for (const t of tracks.values()) for (const s of t.seasons) if ((s.n ?? 0) > ratesSeason) ratesSeason = s.n;
+  ratesSeason = ratesSeason || null;
   for (const t of tracks.values()) {
     const trackSeasons = t.name ? Object.keys(SEASON_SPONSORS).map(Number).filter((n) => n <= ratesSeason && sponsorAddedLevels(n, t.name)) : [];
     t.length = t.name ? trackSeasons.length * 20 : null;
@@ -3406,6 +3629,26 @@ function linkRankNotices(adjustments, inbox) {
   }
 }
 
+const STAMP_FIELDS = ['CreatedAt', 'UpdatedAt', 'logtime'];
+function newestRecord(...sources) {
+  const ceiling = Date.now() + DAY_MS;
+  let newest = null;
+  for (const byType of sources) {
+    if (!byType) continue;
+    for (const type in byType) {
+      if (!Array.isArray(byType[type])) continue;
+      for (const r of byType[type]) {
+        if (!r || typeof r !== 'object') continue;
+        for (const f of STAMP_FIELDS) {
+          const ms = toMs(r[f]);
+          if (ms != null && ms <= ceiling && (newest == null || ms > newest)) newest = ms;
+        }
+      }
+    }
+  }
+  return newest;
+}
+
 export function buildModel(raw) {
   const byType = raw.persistence.byType;
   const keys = createKeys(raw.keys?.byType);
@@ -3437,9 +3680,9 @@ export function buildModel(raw) {
 
   // True tournament counts = DISTINCT tournaments (grouped by TournamentID), not
   // the RoundStatSummary's `TournamentsPlayed`, which actually counts tournament
-  // *rounds* (verified on redacted: summary 5216 ≈ 5261 tournament rounds, but only
-  // 2665 distinct tournaments). Wins match either way (one TournamentWon round
-  // per won tournament). So derive both from the grouped matches.
+  // *rounds* (it tracks the tournament round count, about twice the distinct
+  // tournaments). Wins match either way (one TournamentWon round per won
+  // tournament). So derive both from the grouped matches.
   let tournamentsPlayed = 0;
   let tournamentsWon = 0;
   for (const m of pvpMatches) {
@@ -3461,11 +3704,13 @@ export function buildModel(raw) {
   // "Data as of" date, so users don't mistake a snapshot for live data. The SAR
   // README filename carries the request date (parsed in ingest.js); the data
   // itself can run slightly past it, so the displayed date is whichever is later
-  // — the request date or the player's last recorded activity.
+  // — the request date or the player's last recorded activity. Newer exports have
+  // no date in the file name, so the newest record anywhere stands in for it.
   const requestedAtMs = toMs(raw.readme?.requestedAtMs ?? null);
-  let asOfMs = requestedAtMs;
-  let asOfSource = requestedAtMs != null ? 'request' : null;
-  if (lastActivity != null && (requestedAtMs == null || lastActivity > requestedAtMs)) {
+  const newestRecordMs = requestedAtMs == null ? newestRecord(byType, raw.audit?.byType) : null;
+  let asOfMs = requestedAtMs ?? newestRecordMs;
+  let asOfSource = requestedAtMs != null ? 'request' : newestRecordMs != null ? 'records' : null;
+  if (lastActivity != null && (asOfMs == null || lastActivity > asOfMs)) {
     asOfMs = lastActivity;
     asOfSource = 'activity';
   }
@@ -3475,11 +3720,14 @@ export function buildModel(raw) {
     requestLabel: raw.readme?.label ?? null,
     lastActivityMs: lastActivity,
     asOfMs: asOfMs ?? null,
-    asOfSource, // 'request' | 'activity' | null
+    asOfSource, // 'request' | 'records' | 'activity' | null
   };
+  // An export's own key file says which season was running when it was made.
+  const asOfSeason = keys.currentSeason() ?? seasonResolver(keys)(null, snapshot.asOfMs);
 
   const accounts = buildAccounts(byType);
   const ban = buildBans(byType, raw.audit?.byType);
+  const economy = buildEconomy(byType, raw.audit?.byType, keys);
 
   return {
     identity: buildIdentity(byType, raw.audit?.byType),
@@ -3491,7 +3739,7 @@ export function buildModel(raw) {
     sanctions: buildSanctions(byType, rounds),
     linkedAccounts: buildLinkedAccounts(byType),
     nameHistory: buildNameHistory(raw, accounts),
-    inventory: buildInventory(byType, keys),
+    inventory: buildInventory(byType, keys, economy.realms),
     social: buildSocial(byType),
     career: buildCareer(byType, keys, summaries.live, [...rounds.filter((r) => r.uncounted === 'practice'), ...botRounds]),
     ratings,
@@ -3507,11 +3755,11 @@ export function buildModel(raw) {
     weaponsByArchetype,
     damage,
     mastery,
-    battlePass: buildBattlePass(byType, keys, seasonResolver(keys)(null, snapshot.asOfMs)),
+    battlePass: buildBattlePass(byType, keys, asOfSeason),
     worldTour: buildWorldTour(summaries.live, keys, countedMatches, sponsorRecords.journey, seasonResolver(keys)),
     quickplay: buildQuickplay(summaries.live, keys),
-    sponsors: buildSponsors(sponsorRecords, keys, seasonResolver(keys)(null, snapshot.asOfMs)),
-    economy: buildEconomy(byType, raw.audit?.byType, keys),
+    sponsors: buildSponsors(sponsorRecords, keys, asOfSeason),
+    economy,
     antiCheat: buildAntiCheat(raw),
     reports: buildReports(raw),
     support,
@@ -3528,6 +3776,8 @@ export function buildModel(raw) {
       // their row under Modes.
       uncounted: {
         previewRounds: rounds.filter((r) => r.uncounted === 'preview').length,
+        // Counted among the preview rounds above.
+        betaRounds: rounds.filter((r) => r.preview?.beta).length,
         practiceRounds: rounds.filter((r) => r.uncounted === 'practice').length,
         botRounds: botRounds.length,
         previewSummaries: summaries.preview,

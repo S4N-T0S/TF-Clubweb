@@ -70,12 +70,16 @@ const ri4 = (lo, hi) => lo + Math.floor(rng4() * (hi - lo + 1));
 let rng5 = mulberry32(SEED ^ 0x2026_0926);
 const rf5 = () => rng5();
 const ri5 = (lo, hi) => lo + Math.floor(rng5() * (hi - lo + 1));
+// Later draws get a stream of their own, made where it is used.
+const localRng = (salt) => mulberry32((SEED ^ salt) >>> 0);
 // Key-file rows the generated records refer to (see buildSampleRaw).
 let keyRows = { items: [], mastery: [] };
 // The rounds played on a preview build (see pickPreviewRounds), shared with buildAudit.
 let previewRounds = [];
 // The round the in-game survey followed (see buildPersistence), shared with buildAudit.
 let surveyRound = null;
+// Every round, for the chat rooms buildAudit names after them.
+let playedRounds = [];
 
 const resetGenerator = () => {
   rng = mulberry32(SEED);
@@ -86,6 +90,7 @@ const resetGenerator = () => {
   keyRows = { items: [], mastery: [] };
   previewRounds = [];
   surveyRound = null;
+  playedRounds = [];
   usedTids.clear();
 };
 
@@ -104,6 +109,7 @@ const nextRun = (ms) => {
 const ACCOUNT_CREATED = Date.parse('2023-09-25T14:30:00Z'); // closed-beta era veteran
 const SPAN_START = Date.parse('2024-01-20T18:00:00Z');
 const SPAN_END = Date.parse('2026-08-14T22:00:00Z');
+const EXPORTED_AT = Date.parse('2026-08-16T00:00:00Z');
 const ANYBRAIN_GOLIVE = Date.parse('2025-07-24T00:00:00Z');
 
 // Two London-block IPs (the classic GeoIP example range)
@@ -237,12 +243,12 @@ function tournament(rounds, scenarioId, startT, skill = 0.5) {
   let t = startT;
   const advR1 = reach !== 'R1';
   const posR1 = advR1 ? ri(1, 2) : ri(3, 4);
-  rounds.push(roundRecord({ arch, map, scenarioId, t, dur: ri(7, 11) * 60_000, combat: combat(2, 16, 2, 10, 12000, 52000), tournamentId: tid, tier: 2, matchId: `2-${ri(0, 1)}`, position: posR1, roundWon: posR1 === 1, backfill: chance(0.05) }));
+  rounds.push(roundRecord({ arch, map, scenarioId, t, dur: ri(7, 11) * 60_000, combat: combat(2, 16, 2, 10, 12000, 52000), tournamentId: tid, tier: 2, matchId: `2-${ri(0, 1)}`, position: posR1, roundWon: advR1, backfill: chance(0.05) }));
   t += ri(13, 22) * 60_000;
   if (advR1) {
     const advR2 = reach === 'FINAL';
     const posR2 = advR2 ? ri(1, 2) : ri(3, 4);
-    rounds.push(roundRecord({ arch, map, scenarioId, t, dur: ri(7, 11) * 60_000, combat: combat(3, 17, 2, 9, 20000, 60000), tournamentId: tid, tier: 1, matchId: '1-0', position: posR2, roundWon: posR2 === 1 }));
+    rounds.push(roundRecord({ arch, map, scenarioId, t, dur: ri(7, 11) * 60_000, combat: combat(3, 17, 2, 9, 20000, 60000), tournamentId: tid, tier: 1, matchId: '1-0', position: posR2, roundWon: advR2 }));
     t += ri(13, 22) * 60_000;
     if (advR2) {
       const posF = won ? 1 : 2;
@@ -307,8 +313,7 @@ function buildRounds() {
     const skill = (d + 0.5) / DAYS; // improves over the account's lifetime
     let t = dayMs + ri(0, 3) * HOUR;
     // Activity rides a slow wave rather than sitting flat: real exports swing
-    // hard between seasons (one player has 32 ranked matches in one season and
-    // 549 in another), and a flat rate makes every season's curve the same
+    // hard between seasons, and a flat rate makes every season's curve the same
     // length, which is the one thing they never are.
     const busy = 0.5 + 0.5 * Math.sin((d / DAYS) * Math.PI * 4.5);
     const matches = ri(1, 3) + Math.round(busy * 4);
@@ -358,10 +363,9 @@ const RANKED_LOG_SEASONS = [
   { seasonId: 349883189, from: Date.parse('2026-07-09T00:00:00Z'), to: Infinity, startMu: 2599, endMu: 2963, ladder: true, bonus: true },
 ];
 // Typical payout for the 8 finishing places, in mu. The real ladder slides with
-// the lobby, so only the shape is fixed. These are the per-slot medians measured
-// off a real Platinum export, which is the closest rank to this demo player;
-// the ladder scales hard with rank, so a Ruby export pays a quarter as much for
-// a win (23.6 mu against 101.5) and the shape must match the rank being shown.
+// the lobby, so only the shape is fixed. These suit a Platinum player, the
+// closest rank to this demo player: the ladder scales hard with rank, so the
+// shape must match the rank being shown.
 const LADDER_SHAPE = [101, 71, 28, -3, -46, -46, -76, -76];
 
 // Seasons that predate the log still need a window, so their snapshot match
@@ -371,33 +375,21 @@ const PRE_LOG_SEASON_WINDOWS = [
   { seasonId: 751146294, from: Date.parse('2024-06-13T00:00:00Z'), to: Date.parse('2024-09-26T00:00:00Z') },
 ];
 
-function rankedTournamentCounts(rounds) {
-  const windows = [...PRE_LOG_SEASON_WINDOWS, ...RANKED_LOG_SEASONS];
-  const bySeason = new Map();
-  for (const { Data: d } of rounds) {
-    if (d.ScenarioID !== RANKED_ID || !d.TournamentID) continue;
-    const t = Date.parse(d.StartTime);
-    const w = windows.find((x) => t >= x.from && t < x.to);
-    if (!w) continue;
-    let set = bySeason.get(w.seasonId);
-    if (!set) bySeason.set(w.seasonId, (set = new Set()));
-    set.add(d.TournamentID);
-  }
-  return new Map([...bySeason].map(([k, v]) => [k, v.size]));
-}
-
 function buildRankUpdates(rounds) {
   const byTid = new Map();
   for (const { Data: d } of rounds) {
     if (d.ScenarioID !== RANKED_ID || !d.TournamentID) continue;
     const start = Date.parse(d.StartTime);
+    const end = Date.parse(d.EndTime);
     const t = byTid.get(d.TournamentID);
     if (t) {
       t.rounds.push(d);
       if (start < t.start) t.start = start;
-    } else byTid.set(d.TournamentID, { id: d.TournamentID, start, rounds: [d] });
+      if (end > t.end) t.end = end;
+    } else byTid.set(d.TournamentID, { id: d.TournamentID, start, end, rounds: [d] });
   }
   const all = [...byTid.values()].sort((a, b) => a.start - b.start);
+  const runLag = localRng(0x5f27);
 
   const out = [];
   for (const s of RANKED_LOG_SEASONS) {
@@ -405,7 +397,7 @@ function buildRankUpdates(rounds) {
     if (!list.length) continue;
 
     // Finish position, 0-based (0 = won it), from the deepest round reached.
-    const events = [];
+    const drawn = [];
     for (const t of list) {
       const deepest = t.rounds.reduce((m, d) => Math.min(m, d.Tier), 9);
       const last = t.rounds.find((d) => d.Tier === deepest);
@@ -414,20 +406,23 @@ function buildRankUpdates(rounds) {
       // kept apart so PositionUpdates still shows the placement alone. Negative
       // = leaver penalty; the S11 grant adds a positive one below.
       const extra = chance(0.02) ? -ri(80, 150) : 0;
-      events.push({ t, place, type: extra ? 'PENALTY' : 'NORMAL', at: t.start + ri(20, 40) * 60_000, extra, raw: LADDER_SHAPE[place] + extra + (rf() - 0.5) * 8 });
+      // A played row is written as the tournament's last round ends.
+      drawn.push({ t, place, type: extra ? 'PENALTY' : 'NORMAL', at: t.end + 100 + (ri(20, 40) - 20) * 20, extra, raw: LADDER_SHAPE[place] + extra + (rf() - 0.5) * 8 });
       // Real exports log a revert as a second row on the same tournament, written by
       // a 09:00 UTC run one to eight days later. Its amount is recomputed, not the
       // result mirrored: it lowers a win and raises every other place, and it can
       // itself be undone.
       if (chance(0.08)) {
-        const at = nextRun(t.start + ri(20, 160) * HOUR);
+        const run = nextRun(t.start + ri(20, 160) * HOUR);
         const raw = place === 0 ? -LADDER_SHAPE[0] * 0.3 : Math.abs(LADDER_SHAPE[place]) * 0.5 + 12;
-        events.push({ t, place, type: 'REVERT', at, extra: 0, raw });
-        if (chance(0.2)) events.push({ t, place, type: 'UNDO_REVERT', at: nextRun(at + ri(1, 3) * DAY), extra: 0, raw: -raw * 0.97 });
+        drawn.push({ t, place, type: 'REVERT', at: run + Math.floor(runLag() * 40_000), extra: 0, raw });
+        if (chance(0.2)) drawn.push({ t, place, type: 'UNDO_REVERT', at: nextRun(run + ri(1, 3) * DAY) + Math.floor(runLag() * 40_000), extra: 0, raw: -raw * 0.97 });
       }
     }
     // Chain in timestamp order: a rollback lands on its own stamp, so curves step.
-    events.sort((a, b) => a.at - b.at);
+    drawn.sort((a, b) => a.at - b.at);
+    // A run due after the export was requested has not happened yet.
+    const events = drawn.filter((e) => e.at < EXPORTED_AT);
     const spread = () => (s.endMu - s.startMu - events.reduce((a, e) => a + e.raw, 0)) / events.length;
     // The grant only pays below the Diamond line, so eligibility depends on the
     // running score: dry-run the season, then fold the grants into the totals.
@@ -448,7 +443,11 @@ function buildRankUpdates(rounds) {
     const fix = (s.endMu - s.startMu - events.reduce((a, e) => a + e.raw, 0)) / events.filter(isPlayed).length;
 
     let mu = s.startMu;
-    for (const e of events) {
+    for (const e of drawn) {
+      // The draws below are made for a run that has not happened too, so the stream stays where it was.
+      const team = ri(0, 7);
+      const lead = isPlayed(e) ? 0 : ri(20, 40) * 1000;
+      if (e.at >= EXPORTED_AT) continue;
       const delta = e.raw + (isPlayed(e) ? fix : 0);
       const before = mu;
       mu += delta;
@@ -465,13 +464,13 @@ function buildRankUpdates(rounds) {
         UpdateType: e.type,
         MuBefore: before,
         MuAfter: mu,
-        TeamIndex: ri(0, 7),
+        TeamIndex: team,
         IsCompleteMatch: e.type === 'NORMAL' || e.type === 'PENALTY',
         // PositionUpdates is what the placement alone was worth, so anything
         // paid on top of it (or docked from it) comes back out first.
         ...(ladder ? { PositionIndex: e.place, PositionUpdates: ladder } : {}),
         CreatedAt: iso(e.at),
-        ...(e.type === 'REVERT' || e.type === 'UNDO_REVERT' ? { AdjustedAt: iso(e.at - ri(20, 40) * 1000) } : {}),
+        ...(isPlayed(e) ? {} : { AdjustedAt: iso(e.at - lead) }),
       });
     }
   }
@@ -640,7 +639,6 @@ function buildSummary(rounds, sponsors) {
   const oldWt = new Set(rounds.filter((r) => SAMPLE_WT_IDS.has(r.Data.ScenarioID) && OLD_WT.includes(seasonIdAt(Date.parse(r.Data.StartTime)))));
   const casual = rounds.filter((r) => r.Data.ScenarioID !== RANKED_ID && !oldWt.has(r));
   // World Tour: per-season badge score and finals won, scored by era as real exports store them.
-  const wt = rounds.filter((r) => SAMPLE_WT_IDS.has(r.Data.ScenarioID)).sort((a, b) => Date.parse(a.Data.StartTime) - Date.parse(b.Data.StartTime));
   const WT2_SEASONS = new Set([825209376, 965777394, 349883189]);
   const seasonal = {};
   const entry = (s) => (seasonal[s] ||= { BadgeScore: 0, FinalsWon: 0 });
@@ -692,11 +690,14 @@ function buildSummary(rounds, sponsors) {
     const pts = d.ScenarioID === QUICK_CASH_ID ? ([10, 6, 5][(d.PlacedAt ?? 9) - 1] ?? 0) : d.RoundWon ? 10 : 5;
     quickplay[s] = (quickplay[s] || 0) + pts;
   }
-  let streak = 0;
-  for (let i = wt.length - 1; i >= 0 && wt[i].Data.RoundWon; i--) streak++;
-  const lastWin = [...wt].reverse().find((r) => r.Data.RoundWon);
+  // One entry per scenario whose last round was won: the run of won rounds it ended on.
+  const streaks = {};
+  for (const { Data: d } of [...rounds].sort((a, b) => Date.parse(a.Data.StartTime) - Date.parse(b.Data.StartTime))) {
+    if (d.RoundWon) streaks[d.ScenarioID] = { Streak: (streaks[d.ScenarioID]?.Streak ?? 0) + 1, LastWin: d.EndTime };
+    else delete streaks[d.ScenarioID];
+  }
   const total = aggregateRoundStats(rounds);
-  if (lastWin) total.WinStreakPerMatchmakingScenario = { [String(lastWin.Data.ScenarioID)]: { Streak: streak, LastWin: lastWin.Data.EndTime } };
+  total.WinStreakPerMatchmakingScenario = streaks;
   return [
     {
       UpdatedAt: iso(SPAN_END),
@@ -735,9 +736,9 @@ const PURCHASES = [
   { iso: '2024-02-10T20:14:00Z', price: 9.99, mb: 1150, localized: '£8.39' },
   { iso: '2024-06-20T18:42:00Z', price: 19.99, mb: 2400, dlc: 3025990 },
   { iso: '2024-12-15T13:05:00Z', price: 4.99, mb: 500 },
-  { iso: '2025-03-22T21:30:00Z', price: 9.99, mb: 1150, dlc: 4124770, localized: '£8.39' },
-  { iso: '2025-09-12T19:18:00Z', price: 49.99, mb: 6250, dlc: 3519910, localized: '£42.99' },
-  { iso: '2026-04-02T17:55:00Z', price: 8.99, mb: 1000, dlc: 4167870 },
+  { iso: '2025-03-22T21:30:00Z', price: 9.99, mb: 1150, dlc: 3519920, localized: '£8.39' },
+  { iso: '2025-09-12T19:18:00Z', price: 49.99, mb: 6250, dlc: 3964970, localized: '£42.99' },
+  { iso: '2026-04-02T17:55:00Z', price: 8.99, mb: 1000, dlc: 4403960 },
 ];
 
 function buildTransactions() {
@@ -840,15 +841,6 @@ function buildSteamDlc() {
   return rows;
 }
 
-function buildOffers() {
-  const out = [];
-  for (let i = 0; i < 6; i++) {
-    const t = lerp(SPAN_START, SPAN_END, (i + 0.5) / 6);
-    out.push({ StartedTime: iso(t), DurationInSeconds: pick([86400, 172800, 259200]), IsCompleted: chance(0.3) });
-  }
-  return out;
-}
-
 // Owned items (persistence `InventoryItem`): a believable cosmetic-heavy spread.
 // buildInventoryItems names them, as exports have since 2026-09.
 const INVENTORY_SPREAD = [
@@ -857,15 +849,43 @@ const INVENTORY_SPREAD = [
   ['GameItem', 9], ['BattlePass', 6], ['ClansCustomization', 4], ['Currency', 3],
 ];
 
-// Hidden matchmaking / skill ratings (persistence `BucketObject`). A believable
-// long-time-Diamond veteran: OpenSkill-era ranked in S2, the IVK ladder from S3
-// on with one Ruby-peak season, plus the casual/World-Tour hidden MMR and the raw
-// OpenSkill model. Carries the migration seeds and both parallel shadow ratings a
-// real export has, so the preview exercises de-duplication AND the S2/S3 engine
-// handover. Uses the real season ids/dates so season mapping resolves as it would
-// on a real export.
-function buildRatingBuckets(rankedCounts) {
+// Hidden matchmaking / skill ratings (persistence `BucketObject`): OpenSkill-era
+// ranked in S2, the IVK ladder from S3 on, plus the casual/World-Tour hidden MMR and
+// the raw OpenSkill model. Carries the migration seeds and both parallel shadow
+// ratings a real export has, so the preview exercises de-duplication AND the S2/S3
+// engine handover. Match counts, dates and peaks come from the generated history.
+const TOURNAMENT_FAMILY = { 814189767: '', 483101830: '2', 279111264: '2', 607580158: '2', 607608768: '2', 825209376: '3', 965777394: '4', 349883189: '5' };
+function buildRatingBuckets(rounds, rankUpdates) {
   const rb = (ObjectKey, value, CreatedAt, UpdatedAt) => ({ ObjectKey, Value: JSON.stringify(value), CreatedAt, UpdatedAt });
+  const leagueIdx = (mu) => Math.min(Math.floor(mu / 250) + 1, 20);
+  // A rating row is created some hours before its first match and updated as its last one ends.
+  const lead = localRng(0xb7f5);
+  const played = (keep, from = ACCOUNT_CREATED) => {
+    const spans = new Map();
+    for (const { Data: d } of rounds) {
+      const t = Date.parse(d.StartTime);
+      if (!keep(d, t)) continue;
+      const id = d.TournamentID || d.StartTime;
+      const s = spans.get(id) ?? { start: t, end: 0 };
+      spans.set(id, { start: Math.min(s.start, t), end: Math.max(s.end, Date.parse(d.EndTime)) });
+    }
+    const list = [...spans.values()].sort((a, b) => a.start - b.start);
+    const earliest = from + (5 + lead() * 50) * 60_000;
+    const first = (list[0]?.start ?? SPAN_START) - 1.4 * 40 ** lead() * HOUR;
+    return { n: list.length, first: iso(Math.max(first, earliest)), last: iso((list.at(-1)?.end ?? SPAN_START) + 300) };
+  };
+  const windows = [...PRE_LOG_SEASON_WINDOWS, ...RANKED_LOG_SEASONS];
+  const season = (sid) => {
+    const w = windows.find((x) => x.seasonId === sid);
+    const p = played((d, t) => d.ScenarioID === RANKED_ID && d.TournamentID && t >= w.from && t < w.to, w.from);
+    const rows = rankUpdates.filter((r) => r.SeasonID === sid);
+    if (!rows.length) return p;
+    // One finished season in three is touched again when it closes.
+    const closing = [lead(), lead()];
+    const last = Date.parse(rows.map((r) => r.CreatedAt).sort().at(-1));
+    const later = Number.isFinite(w.to) && closing[0] < 1 / 3 ? Math.max(last, w.to) + (2 + closing[1] * 60) * HOUR : last;
+    return { ...p, last: iso(later), peak: rows.reduce((m, r) => Math.max(m, leagueIdx(r.MuBefore), leagueIdx(r.MuAfter)), 0) };
+  };
   const ranked = (ratingId, seasonId, mu, sigma, matches, lri, peak, rp) => ({
     ratingId, mu, sigma, seasonId: String(seasonId), completedMatches: matches,
     leagueRankIndex: lri, rankPoints: rp, highestLeagueRankIndex: peak, countSincePromotion: 0, lastTournamentPlayed: '',
@@ -876,49 +896,52 @@ function buildRatingBuckets(rankedCounts) {
   });
 
   const out = [];
-  // Per-season ranked: [objectKey base = ratingId, seasonId, created, updated, mu, sigma, matches, finalIndex, peakIndex, RankPoints]
-  const R = [
-    // S2 is the last OpenSkill season; its points run ~5,000 per division from zero.
-    ['OpenSkillRankedRating', 762104396, '2024-03-14T11:00:00Z', '2024-06-10T22:00:00Z', 32.4, 1.4, 120, 11, 12, 52000],
-    // S3 is the first IVK season, and its RankPoints is the real S3 RankScore
-    // (5,000 per division, Platinum 4 starting at 30,000).
-    ['IVKRankedRating', 751146294, '2024-06-13T11:00:00Z', '2024-09-20T22:00:00Z', 2600, 0, 185, 11, 12, 26000],
-    ['IVKRankedTournamentRating', 814189767, '2024-09-26T11:00:00Z', '2024-12-10T22:00:00Z', 2090, 0, 150, 9, 10, 20900],
-    ['IVKRankedTournamentRating2', 483101830, '2024-12-12T11:00:00Z', '2025-03-15T22:00:00Z', 2453, 0, 210, 10, 11, 24530],
-    ['IVKRankedTournamentRating2', 279111264, '2025-03-20T11:00:00Z', '2025-06-08T22:00:00Z', 2277, 0, 240, 10, 10, 22770],
-    ['IVKRankedTournamentRating2', 607580158, '2025-06-12T11:00:00Z', '2025-09-05T22:00:00Z', 2322, 0, 300, 10, 11, 23220],
-    ['IVKRankedTournamentRating2', 607608768, '2025-09-10T11:00:00Z', '2025-12-05T22:00:00Z', 2129, 0, 190, 9, 10, 21290],
-    ['IVKRankedTournamentRating3', 825209376, '2025-12-10T11:00:00Z', '2026-02-20T22:00:00Z', 2618, 0, 260, 11, 11, 26180],
-    ['IVKRankedTournamentRating4', 965777394, '2026-03-26T11:00:00Z', '2026-07-07T22:00:00Z', 3058, 0, 35, 13, 13, 30580],
-    // The season still running when the export was requested.
-    ['IVKRankedTournamentRating5', 349883189, '2026-07-09T11:00:00Z', '2026-08-13T22:00:00Z', 2963, 0, 20, 12, 13, 29630],
+  // S2 is the last OpenSkill season, its points run about 5,000 per division from zero.
+  // S3 is the first IVK season: [ratingId, seasonId, mu, sigma, finalIndex, peakIndex, RankPoints]
+  const EARLY = [
+    ['OpenSkillRankedRating', 762104396, 32.4, 1.4, 11, 12, 52000],
+    ['IVKRankedRating', 751146294, 2600, 0, 11, 12, 26000],
   ];
-  for (const [rid, sid, c, u, mu, sigma, m, lri, peak, rp] of R)
-    // Match count comes from the generated history so the table and curve agree.
-    out.push(rb(`${rid}_${sid}`, ranked(rid, sid, mu, sigma, rankedCounts?.get(sid) ?? m, lri, peak, rp), c, u));
+  for (const [rid, sid, mu, sigma, lri, peak, rp] of EARLY) {
+    const s = season(sid);
+    out.push(rb(`${rid}_${sid}`, ranked(rid, sid, mu, sigma, s.n, lri, peak, rp), s.first, s.last));
+  }
+  for (const w of RANKED_LOG_SEASONS) {
+    const s = season(w.seasonId);
+    const rid = `IVKRankedTournamentRating${TOURNAMENT_FAMILY[w.seasonId]}`;
+    out.push(rb(`${rid}_${w.seasonId}`, ranked(rid, w.seasonId, w.endMu, 0, s.n, leagueIdx(w.endMu), s.peak, w.endMu * 10), s.first, s.last));
+  }
 
   // Rows that must resolve away in favour of the real progression: a backfilled S9
   // migration seed (0 matches); the S2-era IVK shadow (a brief run alongside
   // OpenSkill at the end of S2, never assigned a league); and S3's OpenSkillRankedRating
-  // shadow, still on the S2 point scale and so reading a saturated Diamond 1.
-  out.push(rb('IVKRankedTournamentRating3_825209376', ranked('IVKRankedTournamentRating3', 825209376, 1250, 0, 0, 0, 0, 0), '2025-12-08T17:03:44Z', '2025-12-08T17:03:44Z'));
-  out.push(rb('IVKRankedRating_762104396', ranked('IVKRankedRating', 762104396, 1553, 0, 6, 0, 0, 0), '2024-06-01T13:20:07Z', '2024-06-01T14:12:32Z'));
-  out.push(rb('OpenSkillRankedRating_751146294', ranked('OpenSkillRankedRating', 751146294, 33.6, 2.8, 184, 20, 20, 83500), '2024-06-13T19:34:00Z', '2024-09-20T22:00:00Z'));
+  // shadow, still on the S2 point scale and so reading several divisions high.
+  const seededAt = '2025-12-09T08:26:51Z';
+  const s9 = RANKED_LOG_SEASONS.find((w) => w.seasonId === 825209376);
+  out.push(rb('IVKRankedTournamentRating3_825209376', ranked('IVKRankedTournamentRating3', 825209376, s9.startMu, 0, 0, 0, 0, 0), seededAt, seededAt));
+  const shadowFrom = Date.parse('2024-06-03T00:00:00Z');
+  const shadow = played((d, t) => d.ScenarioID === RANKED_ID && d.TournamentID && t >= shadowFrom && t < PRE_LOG_SEASON_WINDOWS[0].to, shadowFrom);
+  out.push(rb('IVKRankedRating_762104396', ranked('IVKRankedRating', 762104396, 1250 + shadow.n * 38, 0, shadow.n, 0, 0, 0), shadow.first, shadow.last));
+  const s3 = season(751146294);
+  out.push(rb('OpenSkillRankedRating_751146294', ranked('OpenSkillRankedRating', 751146294, 31.2, 3.1, s3.n - 3, 17, 18, 81250), s3.first, s3.last));
 
   // Hidden MMR for the non-ranked playlists (no league rank, just a skill number).
-  // Updated dates track the end of the match history: the page presents them as
-  // when the rating last changed, so they can't sit months behind the last game.
-  out.push(rb('IVKCasualRating', flat('IVKCasualRating', 905, 0, 3240), '2024-01-20T18:00:00Z', '2026-08-12T22:00:00Z'));
-  out.push(rb('IVKWorldTourRating', flat('IVKWorldTourRating', 842, 0, 2410), '2024-08-24T10:00:00Z', '2026-08-09T22:00:00Z'));
-  out.push(rb('IVKCasualAttackDefendRating', flat('IVKCasualAttackDefendRating', 511, 0, 22), '2024-06-01T13:00:00Z', '2024-10-24T21:00:00Z'));
-  out.push(rb('IVKCasualRating', flat('IVKCasualRating', 160, 0, 0), '2025-12-08T17:03:44Z', '2025-12-08T17:03:44Z'));
+  const casual = played((d) => !d.TournamentID);
+  const tour = played((d) => SAMPLE_WT_IDS.has(d.ScenarioID));
+  out.push(rb('IVKCasualRating', flat('IVKCasualRating', 1012, 0, casual.n), casual.first, casual.last));
+  out.push(rb('IVKWorldTourRating', flat('IVKWorldTourRating', 968, 0, tour.n), tour.first, tour.last));
+  out.push(rb('IVKCasualAttackDefendRating', flat('IVKCasualAttackDefendRating', 447, 0, 17), '2024-06-05T17:42:19Z', '2024-10-19T20:07:53Z'));
+  out.push(rb('IVKCasualRating', flat('IVKCasualRating', 205, 0, 0), seededAt, seededAt));
 
   // The raw OpenSkill model the IVK numbers are built from (mu = skill, sigma = uncertainty).
-  out.push(rb('OpenSkillRating', flat('OpenSkillRating', 28.1, 0.72, 88), '2023-10-01T12:00:00Z', '2024-05-25T16:00:00Z'));
-  out.push(rb('OpenSkillCasualRating', flat('OpenSkillCasualRating', 29.6, 0.55, 1410), '2023-12-09T12:00:00Z', '2025-02-08T06:00:00Z'));
-  out.push(rb('OpenSkillV2CasualRatings3', flat('OpenSkillV2CasualRating', 96.4, 2.6, 2520), '2024-06-14T15:00:00Z', '2025-02-10T06:00:00Z'));
-  out.push(rb('OpenSkillTournamentRating', flat('OpenSkillTournamentRating', 24.2, 1.15, 0), '2023-12-09T12:00:00Z', '2024-03-05T20:00:00Z'));
-  out.push(rb('OpenSkillCasualAttackDefendRating', flat('OpenSkillCasualAttackDefendRating', 30.1, 7.6, 12), '2024-06-01T13:00:00Z', '2024-10-24T21:00:00Z'));
+  const openSkillUntil = Date.parse('2025-02-09T00:00:00Z');
+  const osCasual = played((d, t) => !d.TournamentID && t < openSkillUntil);
+  const osV2 = played((d, t) => !d.TournamentID && t >= PRE_LOG_SEASON_WINDOWS[1].from && t < openSkillUntil);
+  out.push(rb('OpenSkillRating', flat('OpenSkillRating', 26.7, 0.81, 61), '2023-10-03T17:26:41Z', '2024-05-21T19:48:12Z'));
+  out.push(rb('OpenSkillCasualRating', flat('OpenSkillCasualRating', 27.9, 0.63, osCasual.n), osCasual.first, osCasual.last));
+  out.push(rb('OpenSkillV2CasualRatings3', flat('OpenSkillV2CasualRating', 91.3, 3.1, osV2.n), osV2.first, osV2.last));
+  out.push(rb('OpenSkillTournamentRating', flat('OpenSkillTournamentRating', 21.8, 1.71, 0), '2023-12-10T19:12:37Z', '2024-03-02T21:37:05Z'));
+  out.push(rb('OpenSkillCasualAttackDefendRating', flat('OpenSkillCasualAttackDefendRating', 27.6, 6.9, 17), '2024-06-05T17:42:19Z', '2024-10-19T20:07:53Z'));
 
   return out;
 }
@@ -959,7 +982,7 @@ const ARCH_OF = Object.fromEntries(Object.entries(ARCH_KEY).map(([name, key]) =>
 const SCORECARD_FROM = Date.parse('2026-03-05T00:00:00Z');
 const SCORES_FROM = Date.parse('2026-03-26T10:00:00Z');
 const SCORECARD_METRICS = [
-  { id: 2096050391, cuts: [3500, 2100, 1100, 250], score: (d) => d.DamageDone * (0.38 + rf2() * 0.22) }, // Damage
+  { id: 2096050391, cuts: [3500, 2100, 1100, 250], score: (d) => d.DamageDone * (1 - rf2() ** 4 * 0.06) }, // Damage
   { id: -293567368, cuts: [16, 9, 6, 2], score: (d) => d.Kills }, // Eliminations
   { id: -235639956, cuts: [4, 2.5, 1.5, 0.8], score: (d) => (d.Deaths ? d.Kills / d.Deaths : d.Kills) }, // KDR
   { id: -1113936816, cuts: [2500, 1200, 600, 150], score: (d) => d.RevivesDone * 220 + ri2(0, 1600) }, // Support
@@ -970,7 +993,7 @@ const QUICK_CASH_ID = 164312917;
 const TDM_ID = 418401773;
 // Deathmatch modes swap Objective and Revives for KillStreak and Assists (Embark's key file ids).
 const DEATHMATCH_METRICS = [
-  { id: 1818371758, cuts: [4200, 3000, 1800, 600], score: (d) => d.DamageDone * (0.8 + rng4() * 0.2) }, // Damage
+  { id: 1818371758, cuts: [4200, 3000, 1800, 600], score: (d) => d.DamageDone * (1 - rng4() ** 4 * 0.06) }, // Damage
   { id: -1177173016, cuts: [22, 15, 9, 4], score: (d) => d.Kills }, // Eliminations
   { id: 1857931620, cuts: [3, 2, 1.3, 0.8], score: (d) => (d.Deaths ? d.Kills / d.Deaths : d.Kills) }, // KDR
   { id: -7232501, cuts: [900, 500, 250, 80], score: () => ri4(0, 1100) }, // Support
@@ -1073,12 +1096,17 @@ function decorateRounds(rounds) {
 }
 
 // Item mastery: one RankBucket row per item the builds and kill tables refer to,
-// with a key-file row naming its track. Levels rise with the item's kills; support
-// items that never kill get their own spread, since that is what mastery is for.
-const MASTERY_STEPS = [10000, 18500, 56000, 108000, 300000];
+// with a key-file row naming its track. A gun earns XP by its kills, anything else by
+// the rounds it was carried in, and an item that was never equipped has next to none.
+const MASTERY_STEPS = [10000, 18000, 54000, 108000, 258000, 410000, 560000, 800000, 900000];
 function buildMastery(rounds) {
   const kills = {};
-  for (const r of rounds) for (const [id, k] of Object.entries(r.Data.KillsPerItem)) kills[id] = (kills[id] || 0) + k;
+  const carried = {};
+  for (const r of rounds) {
+    for (const [id, k] of Object.entries(r.Data.KillsPerItem)) kills[id] = (kills[id] || 0) + k;
+    for (const id of r.Data.LoadoutItemAssetIDs) carried[id] = (carried[id] || 0) + 1;
+  }
+  const guns = new Set(Object.values(PRIMARY).flat());
   const ids = new Set([
     ...Object.values(PRIMARY).flat(), ...Object.values(GADGET).flat(), ...GLOBAL_GADGET,
     ...Object.values(BUILDS).flat().flatMap((b) => [b.spec, ...b.gadgets]),
@@ -1087,8 +1115,10 @@ function buildMastery(rounds) {
   const rows = [];
   let i = 0;
   for (const id of ids) {
-    const k = kills[id] || 0;
-    const xp = k ? Math.round(k * 40 + rf3() * 6000) : Math.round(rf3() ** 2 * 200000);
+    const u = rf3();
+    const earned = guns.has(id) ? (kills[id] || 0) * (112 + u * 30) : carried[id] ? carried[id] * 100 * 12 ** u : u * 60;
+    // A finished track stops counting a little past its last rank.
+    const xp = Math.round(earned > MASTERY_STEPS.at(-1) ? MASTERY_STEPS.at(-1) + u * 50_000 : earned);
     const bucket = String(-(900_000_000 + i++ * 7919));
     rows.push({ BucketID: bucket, XP: xp, Rank: 1 + MASTERY_STEPS.filter((s) => xp >= s).length });
     keyRows.mastery.push({ BucketID: bucket, Category: 'Item mastery', Name: WEAPONS[id]?.name ?? `Item ${id}`, GameAssetID: Number(id), Resolved: true });
@@ -1156,7 +1186,11 @@ function buildInventoryItems() {
     }
   });
   for (let s = 6; s <= 11; s++) add('BattlePass', s - 6, 6, { GameAssetID: ri2(1, 2_000_000_000), Name: `Season ${s} Battle Pass` });
-  [['Multibucks', TARGET_BALANCE], ['VRs', 5000], ['Show Tokens', 12]].forEach(([name, amount], i) => add('Currency', i, 3, { GameAssetID: ri2(1, 2_000_000_000), Name: name, Amount: amount }));
+  // The Multibucks amount is set from the ledger once that exists (see buildPersistence).
+  [['Multibucks', 0], ['VRs', 5000], ['Show Tokens', 12]].forEach(([name, amount], i) => {
+    const id = ri2(1, 2_000_000_000);
+    add('Currency', i, 3, { GameAssetID: name === 'Multibucks' ? MULTIBUCKS_ID : id, Name: name, Amount: amount });
+  });
 
   // Every weapon, gadget and specialization the saved builds refer to.
   const gearRow = new Map();
@@ -1193,16 +1227,50 @@ function buildInventoryItems() {
   return rows;
 }
 
-// Friends, blocks and club: dates and directions only, as in a real export.
+// Clubs the player was in before the current one.
+const FORMER_CLUBS = [
+  { ClanName: 'PAPER LANTERNS', ClanTag: 'PLN', joined: '2024-06-20T18:05:11Z', days: 108, quests: 14, partyUps: 4 },
+  { ClanName: 'SECOND WIND', ClanTag: 'SWND', joined: '2024-11-16T20:31:47Z', days: 15, quests: 3, partyUps: 1 },
+];
+const CLUB = { ClanName: 'THE OG CLUB', ClanTag: 'OG' };
+
+// Friends, blocks and club: dates and directions only, as in a real export. A friendship is
+// two rows, the request and its answer, and a club stint is a join, its party-ups and one
+// ClanStats row running from its first quest to its last.
 function buildSocial() {
-  const spread = (n, from, make) => Array.from({ length: n }, (_, i) => make(iso(lerp(from, SPAN_END, (i + rf2()) / n)))).sort((a, b) => a.CreatedAt.localeCompare(b.CreatedAt));
+  const byCreated = (a, b) => a.CreatedAt.localeCompare(b.CreatedAt);
+  const spread = (n, from, make) => Array.from({ length: n }, (_, i) => make(iso(lerp(from, SPAN_END, (i + rf2()) / n)))).sort(byCreated);
   const clubJoined = Date.parse('2025-02-01T19:20:00Z');
+  const friends = [];
+  for (let i = 0; i < 32; i++) {
+    const at = lerp(ACCOUNT_CREATED + 30 * DAY, SPAN_END, (i + rf2()) / 32);
+    const asked = chance2(0.4);
+    const wait = 2000 * 10 ** (rf2() * 4.4) * (chance2(0.15) ? 30 : 1);
+    friends.push({ Direction: asked ? 'sent' : 'received', CreatedAt: iso(at) }, { Direction: asked ? 'received' : 'sent', CreatedAt: iso(Math.min(at + wait, SPAN_END)) });
+  }
+  const blocked = spread(7, SPAN_START, (at) => ({ CreatedAt: at }));
+  const partyUps = spread(6, clubJoined, (at) => ({ CreatedAt: at })).map((r) => r.CreatedAt);
+
+  const club = localRng(0xc1ab);
+  const stats = [];
+  const timeline = [];
+  const stint = ({ ClanName, ClanTag }, joined, quests, until, events) => {
+    stats.push({ QuestsCompleted: quests, CreatedAt: iso(joined + (6 + club() * 10) * HOUR), UpdatedAt: iso(until) });
+    timeline.push({ ClanName, ClanTag, PayloadType: 'TYPE_MEMBER_JOINED', CreatedAt: iso(joined) });
+    for (const at of events) timeline.push({ ClanName, ClanTag, PayloadType: 'TYPE_PARTY_UP', CreatedAt: at });
+  };
+  for (const c of FORMER_CLUBS) {
+    const joined = Date.parse(c.joined);
+    const until = joined + (c.days - club() * 3) * DAY;
+    stint(c, joined, c.quests, until, Array.from({ length: c.partyUps }, () => iso(lerp(joined + DAY, until, club()))));
+  }
+  stint(CLUB, clubJoined, 41, SPAN_END - 3 * DAY, [...partyUps, ...CLUB_PARTY_UPS]);
   return {
-    Friend: spread(64, ACCOUNT_CREATED + 30 * DAY, (at) => ({ Direction: chance2(0.55) ? 'sent' : 'received', CreatedAt: at })),
-    BlockedPlayer: spread(7, SPAN_START, (at) => ({ CreatedAt: at })),
-    ClanMembership: [{ ClanName: 'THE OG CLUB', ClanTag: 'OG', Role: 'member', LastLoggedInAt: iso(SPAN_END - 2 * HOUR), CreatedAt: iso(clubJoined) }],
-    ClanStats: [{ QuestsCompleted: 41, CreatedAt: iso(clubJoined), UpdatedAt: iso(SPAN_END - 3 * DAY) }],
-    ClanTimelineMessage: spread(6, clubJoined, (at) => ({ PayloadType: 'TYPE_PARTY_UP', CreatedAt: at })),
+    Friend: friends.sort(byCreated),
+    BlockedPlayer: blocked,
+    ClanMembership: [{ ...CLUB, Role: 'member', LastLoggedInAt: iso(SPAN_END - 2 * HOUR), CreatedAt: iso(clubJoined) }],
+    ClanStats: stats,
+    ClanTimelineMessage: timeline.sort(byCreated),
   };
 }
 
@@ -1213,7 +1281,7 @@ const INBOX = [
   ['Twitch Drops are back', 'Link your account and watch any participating stream to earn this month’s cosmetics.', null, null],
   ['Your club finished a quest', 'THE OG CLUB completed a weekly club quest. Rewards have been shared with every active member.', 'SAMPLECOMP0002', null],
   ['World Tour: new stop', 'A new sponsor has taken over World Tour for the next three weeks, with its own rules and rewards.', null, null],
-  ['Season 10 rewards', 'Thanks for playing Season 10. Your ranked rewards have been delivered to your inventory.', 'SAMPLECOMP0003', 10],
+  ['Season 10 rewards', 'Thanks for playing Season 10. Your ranked rewards have been delivered to your inventory.', 'SAMPLECOMP0003', 10, true],
   [null, null, null, null],
   ['Limited-time mode returns', 'Heavy Hitters is back for one week only. Knock your opponents out of the arena to score.', null, null],
   [null, null, null, null],
@@ -1223,7 +1291,11 @@ const INBOX = [
 ];
 function buildInbox() {
   const at = (i, n) => iso(lerp(Date.parse('2025-12-10T16:00:00Z'), SPAN_END, (n - i - 0.5) / n));
-  const finals = INBOX.map(([Title, Body, comp, season], i) => ({
+  // A season message goes out the day its season launches, or the day after it ends.
+  const seasonStart = (n) => SEASON_IDS[n - 1][0];
+  const seasonAt = (n, ended) => iso((ended ? seasonStart(n + 1) + DAY : seasonStart(n)) + 17 * HOUR + n * 431_000);
+  const launches = { SampleSeason11LaunchMessage: 11, SampleSeason10LaunchMessage: 10 };
+  const finals = INBOX.map(([Title, Body, comp, season, ended], i) => ({
     Game: 'THE FINALS',
     ...(Title ? { Title, Body } : {}),
     MessageID: ri2(1, 900_000_000),
@@ -1231,17 +1303,17 @@ function buildInbox() {
     Payload: { ...(comp ? { compensationId: comp } : {}), ...(season ? { season } : {}) },
     Seen: i > 1,
     Favorited: i === 5,
-    CreatedAt: at(i, INBOX.length),
+    CreatedAt: season ? seasonAt(season, ended) : at(i, INBOX.length),
   }));
   const arc = Array.from({ length: 4 }, (_, i) => ({ Game: 'ARC Raiders', Title: 'Expedition rewards ready', Body: 'Your rewards from the last expedition can be collected.', MessageID: ri2(1, 900_000_000), MessageName: 'SharedParameterizedMessageRef', Payload: {}, Seen: true, Favorited: false, CreatedAt: at(i, 4) }));
   const notices = ['SampleSeason11LaunchMessage', 'SamplePrivacyUpdateMessage', 'SampleEventPassMessage', 'SampleSeason10LaunchMessage', 'SampleCrossPromotionMessage'].map((MessageName, i) => {
-    const published = Date.parse(at(i, 5));
+    const published = launches[MessageName] ? seasonStart(launches[MessageName]) + 15 * HOUR + launches[MessageName] * 173_000 : Date.parse(at(i, 5));
     return { Game: i === 4 ? 'ARC Raiders' : 'THE FINALS', MessageID: ri2(1, 900_000_000), MessageName, PublishedAt: iso(published), ExpiredAt: iso(published + 21 * DAY), Seen: i !== 0, Deleted: i === 3, Favorited: false, CreatedAt: iso(published + HOUR) };
   });
   return { InboxMessage: [...finals, ...arc], InboxGlobalMessage: notices };
 }
 
-// Club log rows beyond the joins: "party up" events, a type and a time only.
+// Party-ups in the current club, beside the ones buildSocial spreads.
 const CLUB_PARTY_UPS = ['2025-02-14T20:11:03Z', '2025-03-02T19:40:51Z', '2025-05-18T21:05:12Z', '2025-08-09T18:22:40Z', '2025-11-22T20:48:09Z', '2026-02-07T19:15:33Z', '2026-05-30T21:32:26Z'];
 
 // From Season 9 a ranked revert is followed by a Wednesday inbox notice whose
@@ -1250,18 +1322,20 @@ function rankNotices(rankUpdates) {
   const from = Date.parse('2025-12-10T00:00:00Z');
   return rankUpdates
     .filter((r) => r.UpdateType === 'REVERT' && Date.parse(r.CreatedAt) >= from)
-    .sort((a, b) => a.CreatedAt.localeCompare(b.CreatedAt))
-    .slice(-5)
-    .map((r, i) => {
+    .map((r) => {
       const at = new Date(Date.parse(r.CreatedAt));
       at.setUTCDate(at.getUTCDate() + ((3 - at.getUTCDay() + 7) % 7));
-      at.setUTCHours(13, 10, 0, 0);
-      return {
-        Game: 'THE FINALS', MessageID: 7_100_000 + i, MessageName: 'DiscoveryRankUpdateMessage',
-        Payload: { reason: 'DISCOVERY_RANK_UPDATE_REASON_WEEKLY_SUMMARY', rsChange: String(Math.round((r.MuAfter - r.MuBefore) * 10)) },
-        Seen: true, Favorited: false, CreatedAt: at.toISOString(),
-      };
-    });
+      at.setUTCHours(13, 6, 11, 0);
+      return { r, at: at.getTime() };
+    })
+    .filter((n) => n.at < EXPORTED_AT)
+    .sort((a, b) => a.at - b.at || a.r.CreatedAt.localeCompare(b.r.CreatedAt))
+    .slice(-5)
+    .map(({ r, at }, i) => ({
+      Game: 'THE FINALS', MessageID: 7_100_000 + i, MessageName: 'DiscoveryRankUpdateMessage',
+      Payload: { reason: 'DISCOVERY_RANK_UPDATE_REASON_WEEKLY_SUMMARY', rsChange: String(Math.round((r.MuAfter - r.MuBefore) * 10)) },
+      Seen: true, Favorited: false, CreatedAt: iso(at + i * 69_000),
+    }));
 }
 
 // Inbox messages that carry no title: a gift, reported-player bans, friend requests
@@ -1276,20 +1350,20 @@ function untitledInbox() {
   keyRows.items.push(...gifts);
   const msg = (id, MessageName, CreatedAt, Payload = {}) => ({ Game: 'THE FINALS', MessageID: id, MessageName, Payload, Seen: true, Favorited: false, CreatedAt });
   return [
-    msg(7_200_001, 'DiscoveryGiftMessage', '2025-12-21T16:44:12Z', { receivedGameAssetIds: [...gifts.map((g) => String(g.GameAssetID)), String(MULTIBUCKS_ID)] }),
-    msg(7_200_002, 'ReportedUserBannedMessage', '2025-10-27T06:00:50Z'),
-    msg(7_200_003, 'ReportedUserBannedMessage', '2026-01-19T06:01:12Z'),
-    msg(7_200_004, 'ReportedUserBannedMessage', '2026-04-02T06:00:31Z'),
+    msg(7_200_001, 'DiscoveryGiftMessage', '2025-12-23T17:51:36Z', { receivedGameAssetIds: [...gifts.map((g) => String(g.GameAssetID)), String(MULTIBUCKS_ID)] }),
+    msg(7_200_002, 'ReportedUserBannedMessage', '2025-12-29T07:12:26Z'),
+    msg(7_200_003, 'ReportedUserBannedMessage', '2026-01-22T07:41:03Z'),
+    msg(7_200_004, 'ReportedUserBannedMessage', '2026-04-07T08:05:47Z'),
     msg(7_200_005, 'SharedFriendRequestMessage', '2026-02-11T18:40:05Z'),
     msg(7_200_006, 'SharedFriendRequestMessage', '2026-06-20T20:03:44Z'),
-    msg(7_200_007, 'DiscoveryRankWelcomeMessage', '2026-07-10T19:14:08Z', { season: 11 }),
+    msg(7_200_007, 'DiscoveryRankWelcomeMessage', '2026-07-10T19:26:41Z', { season: 11 }),
   ];
 }
 
 // Console token claims for the linked Xbox account ("Demo Gamer"), which this
 // otherwise-PC player signs in on now and then.
 function buildConsoleClaims() {
-  const privileges = [182, 183, 184, 185, 186, 187, 188, 190, 191, 192, 193, 194, 196, 198, 199, 200, 201, 203, 204, 205, 206, 207, 208, 211, 214, 215, 216, 217, 220, 224, 227, 228, 235, 238, 245, 247, 249, 252, 254, 255, 258].join(' ');
+  const privileges = [197, 198, 203, 205, 207, 208, 209, 211, 214, 219, 220, 224, 235, 245, 247, 249, 252, 254, 255].join(' ');
   const from = Date.parse('2025-10-04T18:00:00Z');
   const claims = Array.from({ length: 36 }, (_, i) => ({
     logtime: iso(lerp(from, SPAN_END, (i + rf2()) / 36)), tenancy: 'discovery-live', xbox_id: 'xuid_000',
@@ -1321,8 +1395,33 @@ const BATTLE_PASS_ROWS = [
   ['216970600', 17, 340000], ['-918913416', 12, 70500],
 ].map(([BucketID, Rank, XP]) => ({ BucketID, XP, Rank }));
 
-// The Season 1 sticker an Embark staff tool set to 1 (see buildAudit).
-const STAFF_GRANT_ID = -2113460886;
+// The sticker an Embark staff tool set to 1 (see buildAudit).
+const STAFF_GRANT = { GameAssetID: 1999000011, Name: 'Turbo Emblem', ItemType: 'WeaponSticker' };
+
+// The latest World Tour tournament trades its time slot with the last one the player won on the
+// same scenario, so the history ends on a run of won rounds.
+function endOnAWin(rounds) {
+  const tours = new Map();
+  for (const r of rounds) {
+    if (!SAMPLE_WT_IDS.has(r.Data.ScenarioID)) continue;
+    if (!tours.has(r.Data.TournamentID)) tours.set(r.Data.TournamentID, []);
+    tours.get(r.Data.TournamentID).push(r);
+  }
+  const list = [...tours.values()];
+  const last = list.at(-1);
+  const won = list.findLast((t) => t.at(-1).Data.TournamentWon && t[0].Data.ScenarioID === last[0].Data.ScenarioID);
+  if (!won || won === last) return;
+  const move = (t, by) => {
+    for (const r of t) {
+      r.CreatedAt = iso(Date.parse(r.Data.StartTime) + by);
+      Object.assign(r.Data, { StartTime: r.CreatedAt, EndTime: iso(Date.parse(r.Data.EndTime) + by) });
+    }
+  };
+  const by = Date.parse(last[0].Data.StartTime) - Date.parse(won[0].Data.StartTime);
+  move(won, by);
+  move(last, -by);
+  rounds.sort((a, b) => Date.parse(a.Data.StartTime) - Date.parse(b.Data.StartTime));
+}
 
 // --- identity / linked accounts / restriction ----------------------------
 function buildPersistence() {
@@ -1332,11 +1431,18 @@ function buildPersistence() {
   const rounds = buildRounds();
   settleCombat(rounds);
   decorateRounds(rounds);
+  endOnAWin(rounds);
   rounds.forEach((r, i) => (r.RoundID = sampleRoundId(i)));
   previewRounds = pickPreviewRounds(rounds);
+  playedRounds = rounds;
   const live = rounds.filter((r) => !previewRounds.includes(r));
   surveyRound = live.filter((r) => !r.Data.TournamentID && r.Data.StartTime < '2026-08-01').at(-1) ?? null;
+  // The World Tour round the player walked out of, which earned the matchmaking sanction.
+  const abandoned = live.find((r) => SAMPLE_WT_IDS.has(r.Data.ScenarioID) && r.Data.Tier === 2 && r.Data.LeaderboardPosition > 2 && r.Data.StartTime >= '2025-11-01');
+  Object.assign(abandoned.Data, { Disconnected: true, Abandoned: true, PlacedAt: 0 });
+  const sanctionedAt = iso(Date.parse(abandoned.Data.StartTime) + 247_000);
   const sponsors = buildSponsorRecords(live);
+  const rankUpdates = buildRankUpdates(rounds);
   const byType = {
     // A single Embark account
     EmbarkUser: [
@@ -1369,8 +1475,8 @@ function buildPersistence() {
       { ThirdPartyProviderID: 'discord', ThirdPartyUserID: 'disc_000', LastSeenAccountName: 'sampleplayer#0', Enabled: true, CreatedAt: iso(ACCOUNT_CREATED + 5 * DAY) },
     ],
     InventoryItem: buildInventoryItems(),
-    BucketObject: [...buildRatingBuckets(rankedTournamentCounts(rounds)), ...sponsors.rows],
-    RankUpdate: buildRankUpdates(rounds),
+    BucketObject: [...buildRatingBuckets(live, rankUpdates), ...sponsors.rows],
+    RankUpdate: rankUpdates,
     RoundStatSummary: [...buildSummary(live, sponsors), ...previewSummary(previewRounds)],
     RoundStat: rounds,
     UserLogin: buildUserLogins(rounds),
@@ -1379,28 +1485,23 @@ function buildPersistence() {
     TransactionLog: buildTransactions(),
     HardCurrencyLog: buildLedger(),
     SteamDLC: buildSteamDlc(),
-    OfferTransaction: buildOffers(),
     ...buildSocial(),
     ...buildInbox(),
   };
+  // Twelve values were drawn here for rows the sample no longer carries: drawn still, so the stream stays put.
+  for (let i = 0; i < 12; i++) rf();
   nameStorePurchases(byType.TransactionLog, byType.HardCurrencyLog);
+  const closing = byType.HardCurrencyLog.at(-1);
+  Object.assign(byType.InventoryItem.find((r) => r.GameAssetID === MULTIBUCKS_ID), { Amount: closing.NewUserTotalBalance, UpdatedAt: closing.CreatedAt });
   // Added after the literal so no random stream above moves.
   byType.InventoryItem.push({
     GameAssetID: 4334566052, Name: 'Sanction', InstanceID: '5a3c7100-0000-4000-8000-000000000001', Amount: 1, HasSeen: true, Type: 'Sanction',
-    Properties: { Sanction: { Type: 'tournament_abandon', Tier: 1, TimeOfSanction: '2025-11-08T20:41:12Z', DurationSeconds: 600 } },
-    CreatedAt: '2025-08-13T15:14:42Z', UpdatedAt: '2025-11-08T20:41:12Z',
+    Properties: { Sanction: { Type: 'tournament_abandon', Tier: 1, TimeOfSanction: sanctionedAt, DurationSeconds: 600 } },
+    CreatedAt: '2025-08-21T10:37:26Z', UpdatedAt: sanctionedAt,
   });
   // Granted by hand through Embark's staff tool (see buildAudit).
-  byType.InventoryItem.push({ GameAssetID: STAFF_GRANT_ID, Name: 'S1 Diamond', InstanceID: '5a3c7100-0000-4000-8000-000000000002', Amount: 1, HasSeen: true, Type: 'WeaponSticker', CreatedAt: '2024-04-02T10:21:44.208Z', UpdatedAt: '2024-04-02T10:21:44.208Z' });
-  keyRows.items.push({ GameAssetID: STAFF_GRANT_ID, Kind: 'Item', Name: 'S1 Diamond', ItemType: 'WeaponSticker', Resolved: true });
-  byType.ClanTimelineMessage.push(...CLUB_PARTY_UPS.map((at) => ({ ClanName: 'THE OG CLUB', ClanTag: 'OG', PayloadType: 'TYPE_PARTY_UP', CreatedAt: at })));
-  // The player's own joins: a first stint, then the current membership (same instant as
-  // ClanMembership.CreatedAt, as on real exports).
-  byType.ClanTimelineMessage.push(
-    { ClanName: 'THE OG CLUB', ClanTag: 'OG', PayloadType: 'TYPE_MEMBER_JOINED', CreatedAt: '2024-06-20T18:05:11Z' },
-    { ClanName: 'THE OG CLUB', ClanTag: 'OG', PayloadType: 'TYPE_MEMBER_JOINED', CreatedAt: byType.ClanMembership[0].CreatedAt },
-  );
-  byType.ClanTimelineMessage.sort((a, b) => a.CreatedAt.localeCompare(b.CreatedAt));
+  byType.InventoryItem.push({ GameAssetID: STAFF_GRANT.GameAssetID, Name: STAFF_GRANT.Name, InstanceID: '5a3c7100-0000-4000-8000-000000000002', Amount: 1, HasSeen: true, Type: STAFF_GRANT.ItemType, CreatedAt: '2024-04-02T10:21:44.208Z', UpdatedAt: '2024-04-02T10:21:44.208Z' });
+  keyRows.items.push({ GameAssetID: STAFF_GRANT.GameAssetID, Kind: 'Item', Name: STAFF_GRANT.Name, ItemType: STAFF_GRANT.ItemType, Resolved: true });
   byType.ClanInvite = [{ ClanName: 'THE OG CLUB', ClanTag: 'OG', Direction: 'sent', CreatedAt: '2025-06-14T19:02:00Z' }];
   byType.InboxMessage.push(...rankNotices(byType.RankUpdate), ...untitledInbox());
   const counts = Object.fromEntries(Object.entries(byType).map(([k, v]) => [k, v.length]));
@@ -1414,16 +1515,22 @@ function buildPersistence() {
 // re-auths cluster around play days. IPs stay in the London example block so the
 // offline GeoIP resolves everything to GB (the account country) and the
 // Countries stat stays green.
+const CLIENT_FROM = Date.parse('2025-02-07T00:00:00Z');
+const ARC_FROM = Date.parse('2025-10-30T00:00:00Z');
+// Sign-ins name their client from CLIENT_FROM on, and ARC Raiders from its launch.
+const client = (ms, game) => (ms < CLIENT_FROM ? {} : { Game: game === 'ARC Raiders' && ms < ARC_FROM ? 'THE FINALS' : game });
 function buildUserLogins(rounds) {
   const out = [];
   for (let t = ACCOUNT_CREATED; t <= SPAN_END; t += ri(11, 18) * DAY) {
-    out.push({ CreatedAt: iso(t + ri(0, 12) * 3_600_000), GrantType: 'authorization_code', IPAddress: IPS[ri(0, IPS.length - 1)], Game: chance2(0.3) ? 'Embark account' : 'THE FINALS' });
+    const ms = t + ri(0, 12) * 3_600_000;
+    out.push({ CreatedAt: iso(ms), GrantType: 'authorization_code', IPAddress: IPS[ri(0, IPS.length - 1)], ...client(ms, chance2(0.3) ? 'Embark account' : 'THE FINALS') });
   }
   rounds.forEach((r, i) => {
     if (i % 5 !== 0) return;
-    const ms = Date.parse(r.CreatedAt);
-    if (!Number.isFinite(ms)) return;
-    out.push({ CreatedAt: iso(ms - ri(5, 40) * 60_000), GrantType: 'client_credentials', IPAddress: IPS[ri(0, IPS.length - 1)], Game: chance2(0.05) ? 'ARC Raiders' : 'THE FINALS' });
+    const start = Date.parse(r.CreatedAt);
+    if (!Number.isFinite(start)) return;
+    const ms = start - ri(5, 40) * 60_000;
+    out.push({ CreatedAt: iso(ms), GrantType: 'client_credentials', IPAddress: IPS[ri(0, IPS.length - 1)], ...client(ms, chance2(0.05) ? 'ARC Raiders' : 'THE FINALS') });
   });
   return out.sort((a, b) => a.CreatedAt.localeCompare(b.CreatedAt));
 }
@@ -1651,11 +1758,11 @@ function buildAudit() {
     logtime: iso(Date.parse(r.Data.StartTime) - 45_000), tenancy: 'discovery-s9-preview-event',
     product_user_id: '0002sample0000000000000000000009', round_id: r.RoundID,
   }));
-  // Staff actions: a Season 1 sticker set by hand in Season 2, and the tool's two rows
+  // Staff actions: a sticker set by hand in Season 2, and the tool's two rows
   // for the temporary restriction (the persistence Restriction's 2025-04-18 one).
   const restrictionEnd = Date.parse('2025-04-21T19:30:00Z');
   const staff = {
-    PlayerViewUpdateInventoryItem: [{ logtime: '2024-04-02T10:21:44.208Z', tenancy: '', game_asset_id: STAFF_GRANT_ID, old_amount: 0, new_amount: 1 }],
+    PlayerViewUpdateInventoryItem: [{ logtime: '2024-04-02T10:21:44.208Z', tenancy: '', game_asset_id: STAFF_GRANT.GameAssetID, old_amount: 0, new_amount: 1 }],
     PlayerViewAddTenancyUserRestriction2: [{ logtime: '2025-04-18T19:30:00.412Z', tenancy: 'discovery-live', ends_at_ms: restrictionEnd, restriction_id: 1000000000000000000, reason: 'Exploiting', issue_steam_game_ban: false }],
     TenancyUserRestrictionCreated3: [{ logtime: '2025-04-18T19:30:00.418Z', tenancy: 'discovery-live', source: 'PLAYER_VIEW', reason: 'Exploiting', ends_at_ms: restrictionEnd, restriction_id: 1000000000000000000 }],
   };
@@ -1672,19 +1779,22 @@ function buildAudit() {
 // In-game chat (audit `ChatMessageSent`) — only the player's OWN sent messages,
 // and only from the last ~90 days before the export (matches the observed
 // retention). One row is profanity-filtered to demo the "filtered in game" badge.
+const CHAT_ROOMS = { party: '5ample-9a7e-4c3b-8d2f-000000000001-party', clan: '5ample-9a7e-4c3b-8d2f-000000000002-clan', pl: 'QX7D-pl' };
 function buildChatMessages() {
+  // A squad room is named after the round it belongs to.
+  const squadRoom = (isoTime) => `${playedRounds.findLast((r) => r.Data.StartTime <= isoTime)?.RoundID ?? sampleRoundId(0)}-squad`;
   const row = (isoTime, room_type, message, purified_message = message) => ({
     logtime: isoTime,
     tenancy: 'discovery-live',
     room_type,
-    room_id: room_type === 'party' ? '5ample-9a7e-4c3b-8d2f-000000000001-party' : 'MPTU-pl',
+    room_id: CHAT_ROOMS[room_type] ?? squadRoom(isoTime),
     purified: message !== purified_message,
     message,
     purified_message,
   });
   return [
     row('2026-05-28T19:02:11.204Z', 'party', 'ready when you are'),
-    row('2026-05-28T19:02:44.881Z', 'party', 'lets run ranked'),
+    row('2026-05-28T19:02:47.316Z', 'party', 'lets run ranked'),
     row('2026-05-28T19:41:03.550Z', 'party', 'that final was so close'),
     row('2026-06-02T20:15:37.118Z', 'pl', 'gg everyone'),
     row('2026-06-02T20:16:02.930Z', 'pl', 'nice winch play'),
@@ -1698,7 +1808,7 @@ function buildChatMessages() {
     row('2026-07-27T19:13:02.406Z', 'squad', 'nice'),
     row('2026-08-02T18:19:31.972Z', 'clan', 'club night thursday?'),
     row('2026-08-05T20:40:15.230Z', 'squad', 'crap i dropped the cashbox', '**** i dropped the cashbox'),
-    row('2026-08-05T20:41:50.611Z', 'squad', 'my bad'),
+    row('2026-08-05T20:41:50.611Z', 'squad', 'that one was on me'),
     row('2026-08-13T21:30:08.077Z', 'party', 'last one tonight'),
   ];
 }
@@ -1824,7 +1934,7 @@ function buildSampleSupport() {
           bot('We are aware of some reported issues that our team is already working on, and you can follow their status on our official channels while you wait.'),
           bot(FORWARDED),
           bot(QUEUED),
-          msg('agent', 'Hi, thank you for contacting us and for sending the crash report. The report shows the game stopping while it loads your graphics driver, which we have seen with older drivers since the latest update. Please install the newest driver from the website of your graphics card maker using a clean installation, then restart your PC and launch the game again. If it still crashes after that, reply to this ticket with a new crash report and we will take another look. Best regards, Blade', 'Blade'),
+          msg('agent', 'Hi, thank you for contacting us and for sending the crash report. The report shows the game stopping while it loads your graphics driver, which we have seen with older drivers since the latest update. Please install the newest driver from the website of your graphics card maker using a clean installation, then restart your PC and launch the game again. If it still crashes after that, reply to this ticket with a new crash report and we will take another look. Best regards, Sorrel', 'Sorrel'),
           bot(RATE),
         ],
       }),
@@ -1848,7 +1958,7 @@ export function buildSampleRaw() {
     denuvo: buildDenuvo(),
     // Request "worked on" a few days after the last session — demonstrates the
     // "data as of your request" freshness banner (request date > last activity).
-    readme: { requestedAtMs: Date.parse('2026-08-16T00:00:00Z'), requestId: '0000', label: '16 August 2026' },
+    readme: { requestedAtMs: EXPORTED_AT, requestId: '0000', label: '16 August 2026' },
     // Pre-parsed CS data (chat comes from the audit rows; tickets in the parsed
     // shape) — the sample must never need pdfjs.
     customerSupportParsed: buildSampleSupport(),

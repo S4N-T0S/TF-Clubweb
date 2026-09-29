@@ -158,19 +158,21 @@ export const WeaponsPage = () => {
       }),
     ];
     for (const w of base) seen.add(w.id);
-    return [...base, ...mastery.items.filter((m) => !seen.has(m.id)).map((m) => ({ ...m, mastery: { level: m.level, xp: m.xp } }))];
+    return [...base, ...mastery.items.filter((m) => !seen.has(m.id)).map((m) => ({ ...m, killRounds: 0, damageRounds: 0, mastery: { level: m.level, xp: m.xp } }))];
   }, [weapons, mastery.items]);
 
   const list = useMemo(() => (filter === 'All' ? fullList : fullList.filter((w) => w.archetype === filter)), [fullList, filter]);
   const { query, setQuery, filtered: shown } = useListSearch(list, (w) => [w.name, w.type, w.archetype, w.id], () => setExpanded(null));
 
   const S = SORTS[sort];
+  const shownIds = useMemo(() => new Set(shown.map((w) => w.id)), [shown]);
   // Rows without a value for the sorted metric sink to the end of their section in both
-  // directions; rank and bar are scoped to the section so a gadget is never "#41".
+  // directions; rank and bar are scoped to the section so a gadget is never "#41",
+  // and taken before the search so a searched row keeps its place.
   const sections = useMemo(
     () =>
       TYPE_SECTIONS.map(({ type, label }) => {
-        const items = shown
+        const all = list
           .filter((w) => (w.type || 'Unknown') === type)
           .sort((a, b) => {
             const ha = S.has(a);
@@ -180,18 +182,19 @@ export const WeaponsPage = () => {
           });
         const rank = new Map();
         let i = 0;
-        for (const w of items) if (S.has(w)) rank.set(w.id, i++);
+        for (const w of all) if (S.has(w)) rank.set(w.id, i++);
+        const items = all.filter((w) => shownIds.has(w.id));
         return {
           type,
           label,
           items,
           rank,
-          max: Math.max(1, ...items.map((w) => S.get(w))),
+          max: Math.max(1, ...all.map((w) => S.get(w))),
           kills: items.reduce((s, w) => s + w.kills, 0),
           damage: items.reduce((s, w) => s + w.damage, 0),
         };
       }).filter((s) => s.items.length > 0),
-    [shown, S, asc]
+    [list, shownIds, S, asc]
   );
 
   // Your rarest kill credits within the current class, the tail a sorted top never shows.

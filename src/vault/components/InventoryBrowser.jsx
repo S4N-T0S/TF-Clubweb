@@ -36,7 +36,7 @@ export const InventoryBrowser = ({ inventory }) => {
   const safePage = Math.min(page, totalPages);
   const start = (safePage - 1) * PER_PAGE;
   const slice = shown.slice(start, start + PER_PAGE);
-  const showAmount = useMemo(() => inType.some((it) => it.amount > 1), [inType]);
+  const showAmount = useMemo(() => inType.some((it) => it.amount !== 1), [inType]);
   const outfits = packs.filter((p) => p.slots.length || p.spray.length || p.emotes.length);
 
   return (
@@ -119,8 +119,8 @@ export const InventoryBrowser = ({ inventory }) => {
                 <tr key={start + i} className="border-b border-gray-700/40 last:border-0">
                   <td className={`py-2 px-3 ${it.internal ? 'font-mono text-xs text-gray-500' : 'text-gray-200'}`}>{it.name}</td>
                   <td className="py-2 px-3 text-gray-400 whitespace-nowrap">{it.label}</td>
-                  {showAmount && <td className="py-2 px-3 text-right tabular-nums text-gray-300">{it.amount > 1 ? num(it.amount) : ''}</td>}
-                  <td className="py-2 px-3 text-gray-400 whitespace-nowrap">{date(it.ms)}</td>
+                  {showAmount && <td className="py-2 px-3 text-right tabular-nums text-gray-300">{it.amount !== 1 ? num(it.amount) : ''}</td>}
+                  <td className="py-2 px-3 text-gray-400 whitespace-nowrap">{it.before ? `by ${date(it.ms)}` : date(it.ms)}</td>
                 </tr>
               ))}
             </tbody>
@@ -150,6 +150,9 @@ export const InventoryBrowser = ({ inventory }) => {
         <Note>
           Names and dates come from your <code>InventoryItem</code> records. Some are Embark’s internal labels rather than
           what the game shows, for example “Type {'{0}'}” or “HoverCar_01”, and those are set in grey monospace.
+          {items.some((it) => it.before) && ' A date marked “by” is the earliest time the row was written, because a later migration replaced its creation date.'}
+          {inventory.copies?.rows > 0 &&
+            ` Preview builds keep their own copy of the inventory, so ${num(inventory.copies.rows)} rows from ${num(inventory.copies.blocks)} preview ${inventory.copies.blocks === 1 ? 'copy' : 'copies'} are left out.`}
         </Note>
       </Panel>
     </>

@@ -322,8 +322,27 @@ function parseRankUpdates(byType, keys) {
         s.bonusMatches++;
       }
     }
+    // An undo answers the nearest earlier revert of its own kind (one that moved the
+    // score, or one that did not), and only an undo that moved the score undid anything.
+    const undone = new Set();
+    const openReverts = [];
+    adjustments.forEach((r, i) => {
+      if (r.updateType === 'REVERT') return void openReverts.push(i);
+      if (!openReverts.length) return;
+      const moved = r.before !== r.after;
+      let at = openReverts.length - 1;
+      for (let k = at; k >= 0; k--) {
+        const x = adjustments[openReverts[k]];
+        if ((x.before !== x.after) === moved) {
+          at = k;
+          break;
+        }
+      }
+      const [paired] = openReverts.splice(at, 1);
+      if (moved) undone.add(paired);
+    });
     // Each REVERT / UNDO_REVERT as its own event. Its amount is not the tournament's
-    // change reversed: 1 of 18 mirrors it on the export checked.
+    // change reversed.
     const events = adjustments.map((r, i) => ({
       tournamentId: tid,
       type: r.updateType,
@@ -336,7 +355,7 @@ function parseRankUpdates(byType, keys) {
       rs: Math.round((r.after - r.before) * RP_PER_MU),
       originalRs: playedRow ? delta : null,
       placement: playedRow && primary.positionIndex != null ? primary.positionIndex + 1 : null,
-      undone: r.updateType === 'REVERT' && adjustments.slice(i + 1).some((x) => x.updateType === 'UNDO_REVERT'),
+      undone: undone.has(i),
     }));
     adjustmentRows.push(...events);
     byTournament.set(tid, {
@@ -603,9 +622,9 @@ function buildRanked(records, rankUpdates, keys) {
   // could not place falls back to a timestamp, and only to decide whether it sits
   // after the numbered ones — otherwise it would sort to the end (seasonN ?? 99)
   // and masquerade as the current rank. Do NOT rank the numbered seasons by date:
-  // `updatedMs` is a last-WRITE time, bulk writes stamp up to 24 rows with one
-  // identical value in these exports, and one export wrote its S3 row 12 days
-  // after its S4 row already existed.
+  // `updatedMs` is a last-WRITE time, bulk writes stamp many rows with one
+  // identical value, and a season's row can be written after the next season's
+  // row already exists.
   const playedAt = (s) => s.updatedMs ?? s.createdMs ?? 0;
   let newest = null;
   for (const s of trusted) if (s.seasonN != null && (!newest || s.seasonN > newest.seasonN)) newest = s;

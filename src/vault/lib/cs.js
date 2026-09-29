@@ -14,12 +14,12 @@
 //
 // Layout 1 quirks this parser is built around (verified on a real export):
 // - A message's TEXT comes first; the sender line FOLLOWS it, usually with the
-//   day-stamp on the same line ("00#0000 15dago", "QuickSearch Bot 15dago").
+//   day-stamp on the same line ("Player#0000 12dago", "QuickSearch Bot 12dago").
 // - Agent replies often have NO sender line at all — they end with a bare
-//   stamp line ("113dago � 87dago" = sent/read) or an absolute
-//   "Sent September-29-2025 04:37:55 PM � Read …" line; the agent's name only
-//   appears in the sign-off text ("Kind regards, Blade").
-// - Timestamps are RELATIVE day offsets ("15dago"). The only absolute per-ticket
+//   stamp line ("40dago � 38dago" = sent/read) or an absolute
+//   "Sent March-03-2025 02:15:40 PM � Read …" line; the agent's name only
+//   appears in the sign-off text ("Kind regards, Maple").
+// - Timestamps are RELATIVE day offsets ("12dago"). The only absolute per-ticket
 //   time is the "Resolved / On <Month>-<D>-<YYYY> <time>" footer, so each ticket
 //   anchors its offsets on that (offsets drift several days vs the PDF's own
 //   CreationDate). Day granularity only — always presented as approximate.
@@ -35,7 +35,7 @@ const MONTHS = {
   july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
 };
 
-// 'June-25-2026 09:09 AM' / 'September-29-2025 04:37:55 PM' -> UTC ms (day-ish precision)
+// 'May-14-2025 10:30 AM' / 'March-03-2025 02:15:40 PM' -> UTC ms (day-ish precision)
 export const parseLongDate = (str) => {
   const m = /([A-Za-z]+)-(\d{1,2})-(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?)?/.exec(String(str || ''));
   if (!m) return null;
@@ -138,11 +138,11 @@ const SYSTEM_RES = [
 const isSystemText = (s) => SYSTEM_RES.some((re) => re.test(s)) || /^Attachment sent/i.test(s);
 
 // Neither layout ever names the agent in a header — the only place their handle
-// appears is the sign-off at the very end of the reply ("Kind regards, Blade").
+// appears is the sign-off at the very end of the reply ("Kind regards, Maple").
 // Take the LAST closing phrase (agents write "with regards to …" mid-reply too)
 // and accept the tail only if it still looks like a name.
 const CLOSING_G = /(?:kind|kindest|best|warm|warmest)?\s*(?:regards|sincerely|cheers)[,.!:]*[ \t\n]+/gi;
-// Handles run to non-ASCII capitals and underscores ("Émile", "Blade_TF").
+// Handles run to non-ASCII capitals and underscores ("Émile", "Maple_TF").
 const NAME_RE = /^\p{Lu}[\p{L}\p{N}'’._-]*(?:[ \t]+\p{Lu}[\p{L}\p{N}'’._-]*){0,2}$/u;
 // A lower-case handle ("xX_sniper_Xx") is only distinguishable from an ordinary
 // word ("Cheers, mate") by its punctuation, digits or inner caps.
@@ -151,7 +151,7 @@ const HANDLEISH_RE = /[_\d]|\p{Ll}\p{Lu}/u;
 // "Cheers, / The Support Team" signs off as a department, not a person.
 const TEAM_TAIL_RE = /\b(team|support|studios|staff|crew)\b/i;
 // Layout B reflows the line breaks away, so a signature block arrives as
-// "Best regards, Blade THE FINALS Support Team" on one line.
+// "Best regards, Maple THE FINALS Support Team" on one line.
 const FOOTER_TAIL_RE = /\s+(?:the\s+)?(?:THE FINALS\s+|Embark(?:\s+Studios)?\s+)?(?:customer\s+|player\s+)?(?:support|service)\s+team\.?$/i;
 const STOPWORD_RE = /^(the|a|an|our|your|my|we|us|i|all|thanks|thank|yours|sincerely|regards|cheers)$/i;
 // Stripping the footer off "THE FINALS Support Team" leaves the brand, which
@@ -279,7 +279,7 @@ function parseTicketBlock(lines, ctx) {
     if (!line || stripJunk(line).trim() === '') continue;
 
     // Bare "Resolved" line (its own stamp is the one just before it), then
-    // "On June-25-2026 09:09 AM" — the ticket's only absolute timestamp.
+    // "On May-14-2025 10:30 AM" — the ticket's only absolute timestamp.
     if (/^Resolved$/i.test(line)) {
       flush({});
       buf.push('Resolved');
@@ -346,7 +346,7 @@ function parseTicketBlock(lines, ctx) {
 // console, and nothing about the old parser applies:
 // - There is NO chat section at all. In-game chat now only reaches the vault
 //   through the audit log's ChatMessageSent rows.
-// - Tickets are numbered blocks ("Ticket #198987 · 1 of 6"), each opening with
+// - Tickets are numbered blocks ("Ticket #100234 · 1 of 3"), each opening with
 //   a key/value detail table that carries EXACT UTC created/updated/resolved
 //   stamps — so none of the day-offset anchoring is needed here.
 // - The sender line comes BEFORE its message (the old layout put it after) and
@@ -356,7 +356,7 @@ function parseTicketBlock(lines, ctx) {
 // - Every page ends with an "Embark Studios Page N" footer.
 
 const EXPORT_TITLE_RE = /^Customer Support Data Export$/i;
-// The header line and nothing else — "· 1 of 6" is absent on single-ticket exports.
+// The header line and nothing else — "· 1 of 3" is absent on single-ticket exports.
 const EXPORT_TICKET_RE = /^Ticket\s+#(\d+)(?:\s*[^\w\s]?\s*\d+\s+of\s+\d+)?\s*$/i;
 const EXPORT_FOOTER_RE = /^Embark Studios\s+Page\s+\d+$/i;
 const EXPORT_SECTIONS = /^(TICKET DETAILS|ADDITIONAL INFORMATION|SESSION AND DEVICE|CONVERSATION)$/;
@@ -380,7 +380,7 @@ export const isCsExportLayout = (lines) => {
     && trimmed.slice(i + 1, i + 5).filter((n) => n && !EXPORT_FOOTER_RE.test(n)).includes('TICKET DETAILS'));
 };
 
-// '2025-09-13 18:48:21 UTC' -> ms. Stamps are labelled UTC today, but honour an
+// '2025-03-03 14:15:40 UTC' -> ms. Stamps are labelled UTC today, but honour an
 // explicit offset if one ever appears rather than silently reading it as UTC.
 const parseUtcStamp = (str) => {
   const s = String(str || '');
@@ -445,7 +445,7 @@ function pushCapsRow(rows, line) {
 
 // The subject is the only player who can send here, so match their ID exactly.
 // Shape-matching would consume third-party IDs quoted in bodies (a cheater
-// report is a bare "Someone#2005" line); a consumed sender line is not rendered.
+// report is a bare "Someone#0000" line); a consumed sender line is not rendered.
 const exportSender = (line, ctx) => {
   const staff = EXPORT_STAFF_RE.exec(line);
   if (staff) {

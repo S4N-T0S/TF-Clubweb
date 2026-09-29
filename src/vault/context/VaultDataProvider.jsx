@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ingestFiles, summarizeFileset } from '../lib/ingest';
 import { parseFileset } from '../lib/parse';
 import { buildModel } from '../lib/model';
@@ -28,8 +28,14 @@ export const VaultDataProvider = ({ children }) => {
   const [isSample, setIsSample] = useState(false);
   // Which expected SAR components turned up in the last real import (null for the sample / before any load)
   const [importSummary, setImportSummary] = useState(null);
+  // An import that something else has replaced since it started must not land.
+  const run = useRef(0);
 
   const load = useCallback(async (fileList) => {
+    const mine = ++run.current;
+    const report = (msg) => {
+      if (mine === run.current) setProgress(msg);
+    };
     setStatus('loading');
     setError(null);
     setIsSample(false);
@@ -39,15 +45,20 @@ export const VaultDataProvider = ({ children }) => {
     // and weapon-filter picker are ready by the time the user gets there.
     preloadVaultImages();
     try {
-      const fileset = await ingestFiles(fileList, setProgress);
-      setImportSummary(summarizeFileset(fileset));
-      const raw = await parseFileset(fileset, setProgress);
+      const fileset = await ingestFiles(fileList, report);
+      if (mine !== run.current) return;
+      const summary = summarizeFileset(fileset);
+      const raw = await parseFileset(fileset, report);
+      if (mine !== run.current) return;
       setProgress('Building dashboards…');
       const built = buildModel(raw);
+      setImportSummary(summary);
+      setIsSample(false);
       setModel(built);
       setStatus('ready');
       setProgress('');
     } catch (e) {
+      if (mine !== run.current) return;
       console.error('[vault] load failed:', e);
       setError(e?.message || 'Failed to read this export.');
       setStatus('error');
@@ -58,6 +69,7 @@ export const VaultDataProvider = ({ children }) => {
   // before their own export arrives. Synthesised entirely in-browser through the
   // same buildModel() pipeline a real upload uses — see lib/sampleData.js.
   const loadSample = useCallback(() => {
+    run.current++;
     setError(null);
     setProgress('');
     setImportSummary(null);
@@ -74,6 +86,7 @@ export const VaultDataProvider = ({ children }) => {
   }, []);
 
   const reset = useCallback(() => {
+    run.current++;
     setModel(null);
     setError(null);
     setProgress('');

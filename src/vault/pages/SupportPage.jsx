@@ -139,7 +139,7 @@ const INBOX_PER_PAGE = 10;
 
 // Titles for messages that arrive without one (model.js INBOX_KINDS).
 const WEEKLY_RANK_REASON = 'DISCOVERY_RANK_UPDATE_REASON_WEEKLY_SUMMARY';
-const UNTITLED_LABEL = { gift: 'Gift received', reportedBan: 'Reported player banned', friendRequest: 'Friend request' };
+const UNTITLED_LABEL = { gift: 'Gift received', reportedBan: 'Reported player banned', friendRequest: 'Friend request', compensation: 'Compensation' };
 const untitledLabel = (m) => {
   if (Object.hasOwn(UNTITLED_LABEL, m.kind)) return UNTITLED_LABEL[m.kind];
   if (m.kind === 'rankUpdate') return m.reason === WEEKLY_RANK_REASON ? 'Weekly rank update' : 'Rank update';
@@ -154,6 +154,7 @@ const rsTone = (v) => (v > 0 ? 'text-emerald-300' : v < 0 ? 'text-red-300' : 'te
 const InboxPanel = ({ inbox }) => {
   const finals = inbox.messages.filter((m) => m.finals);
   const arcCount = inbox.messages.length - finals.length;
+  const arcNotices = inbox.notices.some((n) => !n.finals);
   const paired = finals.some((m) => m.adjustment);
   const reportedBans = finals.some((m) => m.kind === 'reportedBan');
   const [showArc, setShowArc] = useState(finals.length === 0 && arcCount > 0);
@@ -171,10 +172,10 @@ const InboxPanel = ({ inbox }) => {
       <p className="text-xs text-gray-400 -mt-1 mb-3">
         {num(finals.length)} message{finals.length === 1 ? '' : 's'} for THE FINALS, {num(rewarded)} with a reward attached.
       </p>
-      {arcCount > 0 && (
+      {(arcCount > 0 || arcNotices) && (
         <div className="mb-3">
           <TogglePill on={showArc} onChange={(v) => { setShowArc(v); setPage(1); setOpen(null); }} icon={Gamepad2} controls="inbox-list">
-            {showArc ? 'Hide' : 'Show'} {num(arcCount)} ARC Raiders message{arcCount === 1 ? '' : 's'}
+            {showArc ? 'Hide' : 'Show'} {arcCount > 0 ? `${num(arcCount)} ARC Raiders message${arcCount === 1 ? '' : 's'}` : 'ARC Raiders notices'}
           </TogglePill>
         </div>
       )}
@@ -414,19 +415,20 @@ const ModerationPanel = ({ moderation }) => {
 
 const SURVEYS_SHOWN = 8;
 const afterMatch = (ms) => (!(ms >= 0) ? null : ms < 60000 ? `${Math.round(ms / 1000)}s` : duration(ms));
+const surveyGap = (s) => (s.ms != null && s.match?.end != null ? afterMatch(s.ms - s.match.end) : null);
 
 const SurveyPanel = ({ surveys }) => {
   const [showAll, setShowAll] = useState(false);
   const [openMatch, setOpenMatch] = useState(null);
   const shown = showAll ? surveys : surveys.slice(0, SURVEYS_SHOWN);
-  const hasGap = surveys.some((s) => s.match && afterMatch(s.ms - s.match.end));
+  const hasGap = surveys.some((s) => surveyGap(s));
   const hasArc = surveys.some((s) => s.game === 'ARC Raiders');
   const hasIds = surveys.some((s) => s.announcementId != null || s.templateId != null);
   return (
     <Panel title={`Survey answers (${num(surveys.length)})`}>
       <ul className="space-y-2">
         {shown.map((s, i) => {
-          const gap = s.match ? afterMatch(s.ms - s.match.end) : null;
+          const gap = surveyGap(s);
           return (
             <li key={i} className="bg-gray-900/50 rounded-lg px-3 py-2.5 text-sm space-y-1.5">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

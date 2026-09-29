@@ -24,9 +24,28 @@ const canonicalType = (type) => {
   return type.length > 9 && type.startsWith('TheFinals') ? type.slice(9) : type;
 };
 
+// Before 2026-09 both games wrote bare type names into one file. These are the types
+// only ARC Raiders writes: newer exports have them under its prefix and never under
+// THE FINALS', so an older export's rows are filed the same way.
+const ARC_ONLY_TYPES = new Set([
+  'Achievement', 'BattlePassEntry', 'Crate', 'LatestRankLeaguePlacement', 'Level', 'MasteryObjective',
+  'MatchmakingRoundEvent', 'MatchmakingRoundSummary', 'OfferTransaction', 'PlayerStat', 'Project', 'ProjectGoal',
+  'Quest', 'QuestObjective', 'Raider', 'RankLeaguePlacement',
+]);
+// Both games write `InventoryItem`. THE FINALS' rows carry `HasSeen`, ARC's carry
+// `Durability` or `Slots` and never `HasSeen`.
+const isArcInventoryItem = (r) => !Object.hasOwn(r, 'HasSeen') && (Object.hasOwn(r, 'Durability') || Object.hasOwn(r, 'Slots'));
+const persistenceBucket = (written, type, rec) => {
+  if (type === 'RoundStat') return ROUND_STAT_BUCKETS[classifyRoundStat(rec)];
+  if (written === 'InventoryItem' && isArcInventoryItem(rec)) return 'ArcRaidersInventoryItem';
+  if (ARC_ONLY_TYPES.has(written)) return `ArcRaiders${written}`;
+  return type;
+};
+const plainBucket = (written, type, rec) => (type === 'RoundStat' ? ROUND_STAT_BUCKETS[classifyRoundStat(rec)] : type);
+
 // JSON Lines: each line is `{"<RecordType>": {...}}` (one top-level key).
 // Returns { byType: { RecordType: [...inner records] }, counts, total, badLines }.
-async function parseJsonl(text, onProgress = () => {}, label = 'records', rename = canonicalType) {
+async function parseJsonl(text, onProgress = () => {}, label = 'records', rename = canonicalType, bucketOf = plainBucket) {
   // Null prototype: the record type is whatever key the line carried, so a
   // "__proto__" / "constructor" line would otherwise hit an inherited member
   // (truthy, so `||=` keeps it) and `.push` on it throws.
@@ -47,6 +66,10 @@ async function parseJsonl(text, onProgress = () => {}, label = 'records', rename
       badLines++;
       continue;
     }
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+      badLines++;
+      continue;
+    }
     const keys = Object.keys(obj);
     if (!keys[0]) continue;
     const inner = obj[keys[0]];
@@ -59,7 +82,7 @@ async function parseJsonl(text, onProgress = () => {}, label = 'records', rename
     // (e.g. "SteamID") would be mistaken for the record type and its scalar value
     // pushed in place of the record.
     if (keys.length === 1 && inner && typeof inner === 'object' && !Array.isArray(inner)) {
-      (byType[type === 'RoundStat' ? ROUND_STAT_BUCKETS[classifyRoundStat(inner)] : type] ||= []).push(inner);
+      (byType[bucketOf(keys[0], type, inner)] ||= []).push(inner);
     } else {
       (byType['DLCID' in obj ? 'SteamDLC' : `Flat:${type}`] ||= []).push(obj);
     }
@@ -104,7 +127,7 @@ const safeJson = (text) => {
  */
 export async function parseFileset(fileset, onProgress = () => {}) {
   onProgress('Parsing persistence…');
-  const persistence = await parseJsonl(entryText(fileset.persistence), onProgress, 'persistence');
+  const persistence = await parseJsonl(entryText(fileset.persistence), onProgress, 'persistence', canonicalType, persistenceBucket);
 
   let audit = null;
   if (fileset.audit) {

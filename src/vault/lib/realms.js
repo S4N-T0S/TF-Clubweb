@@ -67,8 +67,8 @@ export function tenancyLabel(tenancy) {
 //
 // ARC's rows are per-raid stat counters (median 19 per raid, 25 EventID kinds
 // over 112 TargetIDs), not matches. Carrying no `Data`, they read as `RoundWon`
-// undefined (a loss) with no `TournamentID` (a standalone match), so one heavy
-// ARC player's 354 raids surfaced as 7,390 phantom losses.
+// undefined (a loss) with no `TournamentID` (a standalone match), so a heavy
+// ARC player's raids surfaced as thousands of phantom losses.
 //
 // Both kinds are matched positively. "Not ARC-shaped" would let a future ARC
 // schema that grows a `Data` field become match history again; "no Data" would
@@ -205,17 +205,17 @@ export function previewRounds(auditByType) {
 }
 
 // --- (B) balance-chain arithmetic ----------------------------------------
-// Lookahead for the reconnection. Real accounts already reach 47.4h between a preview
-// and the next live row, so this needs room.
+// Lookahead for the reconnection. Real accounts already reach about two days between
+// a preview and the next live row, so this needs room.
 const MAX_SESSION_MS = 7 * 24 * 3600e3;
 
 // A reconnection is one arithmetic equation, and +75 reward drops are everywhere, so
 // it will occasionally alias: an unlogged movement of +G "reconnects" as soon as later
 // live activity nets to -G, which would delete real rows. Two further conditions,
 // both far outside anything real, make that alias implausible:
-//   - a session is one sitting (longest real: 2.3h), not days of activity;
+//   - a session is one sitting of a few hours, not days of activity;
 //   - it opens on a seeded wallet, so the jump from the parked balance is large
-//     (smallest real: 9,025; injected aliases sit in the low hundreds).
+//     (thousands; injected aliases sit in the low hundreds).
 const MAX_SESSION_SPAN_MS = 24 * 3600e3;
 const MIN_OPENING_JUMP = 5000;
 
@@ -333,11 +333,11 @@ export function detectAltSessions(rows) {
 // Never removes a row (removal needs a reconnection to be sound); it only labels the
 // totals as an upper bound. That is why the bounds can sit close to real values.
 
-// Any non-`bought` movement. Largest real live inflow is 1,150 and largest real live
-// spend 3,000, so ~7x headroom, and it still catches the 10,000 seed.
+// Any non-`bought` movement. Several times the largest live inflow or spend seen,
+// and it still catches the 10,000 seed.
 export const IMPLAUSIBLE_GRANT = 8000;
-// Far backstop for a wallet inflated by many small grants. Largest real live balance
-// is 4,125; kept high because accumulation is what a legitimate big spender does.
+// Far backstop for a wallet inflated by many small grants. Kept high because
+// accumulation is what a legitimate big spender does.
 export const IMPLAUSIBLE_BALANCE = 100000;
 
 // A `bought` row is backed by a real charge, so it is checked against what the store
@@ -374,8 +374,8 @@ export function buildRealms(orderedLedger, auditByType) {
   const { sessions, realms } = detectAltSessions(rows);
 
   // A row inside a preview window is off-live regardless of the arithmetic: a seeded
-  // wallet needn't open with a jump. One account was seeded at ZERO and stepped up to
-  // 538,925, so MIN_OPENING_JUMP never fired on any of its 275 rows.
+  // wallet needn't open with a jump. A wallet seeded at ZERO steps up from there, so
+  // MIN_OPENING_JUMP never fires on any of its rows.
   //
   // ONLY preview windows. ARC Raiders cannot write Multibucks, and a daily ARC player has
   // hours of `pioneer-live` coverage every evening, so honouring it deletes real rewards.

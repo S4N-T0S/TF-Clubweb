@@ -61,6 +61,7 @@ export const WEAPONS = {
   '782876493': { name: 'Healing Beam', archetype: 'Medium', type: 'Spec', unlisted: true },
   '-1652494848': { name: 'Dematerializer', archetype: 'Medium', type: 'Spec', unlisted: true },
   '-177887536': { name: 'Shockwave', archetype: 'Medium', type: 'Spec', unlisted: true },
+  '-727454424': { name: 'Recon Senses', archetype: 'Medium', type: 'Spec', unlisted: true }, // removed in Season 2, the key file calls it "Placeholder Title"
   '1360184575': { name: 'APS Turret', archetype: 'Medium', type: 'Gadget', unlisted: true },
   '1086753401': { name: 'Data Reshaper', archetype: 'Medium', type: 'Gadget', unlisted: true },
   '-430504418': { name: 'Glitch Trap', archetype: 'Medium', type: 'Gadget', unlisted: true },
@@ -128,7 +129,7 @@ const ICON_SLUGS = new Set([
   // unlisted items (loadouts only)
   'barricade', 'cloaking-device', 'data-reshaper', 'dematerializer', 'dome-shield', 'evasive-dash', 'flashbang',
   'glitch-grenade', 'glitch-trap', 'goo-grenade', 'goo-gun', 'grappling-hook', 'gravity-vortex', 'healing-beam',
-  'healing-emitter', 'mesh-shield', 'nullifier', 'proximity-sensor', 'shockwave', 'smoke-grenade', 'sonar-grenade',
+  'healing-emitter', 'mesh-shield', 'nullifier', 'proximity-sensor', 'recon-senses', 'shockwave', 'smoke-grenade', 'sonar-grenade',
   'thermal-vision', 'vanishing-bomb', 'zipline',
 ]);
 

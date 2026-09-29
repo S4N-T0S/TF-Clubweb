@@ -11,6 +11,9 @@ function freshnessMessage(snap) {
   if (snap.asOfSource === 'request') {
     return `Snapshot, not live data. Accurate as of your data request (${snap.requestLabel || asOf}).`;
   }
+  if (snap.asOfSource === 'records') {
+    return `Snapshot, not live data. Accurate to the newest record in the export (${asOf}).`;
+  }
   // Last activity is the more recent bound.
   if (snap.requestLabel) {
     return `Snapshot, not live data. Accurate to your last activity (${asOf}), requested ${snap.requestLabel}.`;

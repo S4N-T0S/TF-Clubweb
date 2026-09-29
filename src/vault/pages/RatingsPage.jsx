@@ -562,6 +562,8 @@ const BattlePassPanel = ({ battlePass, asOfMs }) => {
 // REVERT / UNDO_REVERT rows (model.ratings.adjustments). Its own component so the
 // page's early return above can't split the hooks.
 const ADJ_PER_PAGE = 10;
+// A round 1 exit has no exact place: the two teams knocked out share 5th to 6th or 7th to 8th.
+const adjPlace = (p) => (p === 5 || p === 6 ? '5th to 6th' : p === 7 || p === 8 ? '7th to 8th' : ordinal(p));
 const lagText = (ms) => (ms < 48 * 3_600_000 ? `${decimal(ms / 3_600_000, 1)} hours` : `${decimal(ms / 86_400_000, 1)} days`);
 const RankAdjustments = ({ adj, matchesByTournament }) => {
   // The Support inbox links here with router state `adjustment` (a row's `key`). Read once, so a
@@ -630,7 +632,7 @@ const RankAdjustments = ({ adj, matchesByTournament }) => {
       <ul ref={listRef} className="space-y-1.5">
         {adj.rows.slice(start, start + ADJ_PER_PAGE).map((r, i) => {
           const match = matchesByTournament.get(r.tournamentId);
-          const result = [r.placement != null && `${ordinal(r.placement)} of 8`, r.originalRs != null && `${sign(r.originalRs)} RS`].filter(Boolean).join(', ');
+          const result = [r.placement != null && `${adjPlace(r.placement)} of 8`, r.originalRs != null && `${sign(r.originalRs)} RS`].filter(Boolean).join(', ');
           const parts = [
             r.matchMs != null ? `Played ${date(r.matchMs)}` : match ? `Played ${date(match.start)}` : 'Tournament not in this export',
             result,
@@ -958,7 +960,9 @@ export const RatingsPage = () => {
                 <div className="bg-gray-900/50 rounded-lg p-3">
                   <p className="text-[11px] uppercase tracking-wider text-gray-500">Current win streak</p>
                   <p className="text-xl font-bold text-white mt-1 tabular-nums">{num(wtRecord.streak.streak)}</p>
-                  {wtRecord.streak.lastWinMs && <p className="text-[11px] text-gray-500 mt-0.5">last win {date(wtRecord.streak.lastWinMs)}</p>}
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    {wtRecord.streak.streak === 1 ? 'round' : 'rounds'} won in a row{wtRecord.streak.lastWinMs ? `, last win ${date(wtRecord.streak.lastWinMs)}` : ''}
+                  </p>
                 </div>
               )}
             </div>

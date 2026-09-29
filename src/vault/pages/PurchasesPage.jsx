@@ -151,7 +151,7 @@ const rowInBaseCurrency = (t) => (t.currency ? isBaseCurrency(t.currency) : !t.l
 const PriceCell = ({ t }) => {
   // A known charge in a known non-USD/EUR currency leads, formatted from CurrencyCode
   // because the recorded string's bare "$" does not say which dollar.
-  const paid = t.currency && !isBaseCurrency(t.currency) ? localAmount(t.localizedPrice) : null;
+  const paid = t.currency && !isBaseCurrency(t.currency) ? localAmount(t.localizedPrice, t.currency) : null;
   return (
     <div className="leading-tight">
       <span className="text-white tabular-nums">{paid != null ? money(paid, t.currency) : baseMoney(t.pricePoint)}</span>
@@ -319,7 +319,7 @@ export const PurchasesPage = () => {
     fiat, fiatGrantedCount, fiatFailedCount, fiatUnpricedCount, spendBaseTotal, charged, walletCurrencies,
     ledger, ledgerAll, mb, currentBalance, balanceSeries, dlc, msBundles, msNamed, offers,
     realms, testTransactionCount, testLedgerCount, testFiatCount, mbTest,
-    duplicateChargeCount, duplicateChargeTotal, topMbSpends, mbSpendsNamed,
+    duplicateChargeCount, duplicateChargeTotal, topMbSpends, mbSpendsNamed, mbSpendsNamedFromMs,
   } = economy;
   const spentRows = useMemo(() => ledger.reduce((n, r) => n + (r.logType === 'spent' ? 1 : 0), 0), [ledger]);
 
@@ -858,7 +858,7 @@ export const PurchasesPage = () => {
               <Note>
                 {mbSpendsNamed >= spentRows
                   ? `Every one of your ${num(spentRows)} spends carries an item name in this export.`
-                  : `An item name is known for ${num(mbSpendsNamed)} of your ${num(spentRows)} spends, since battle pass and collection-event grants don’t carry one. A larger spend missing from this list is one the export attached no items to.`}
+                  : `An item name is known for ${num(mbSpendsNamed)} of your ${num(spentRows)} spends${mbSpendsNamedFromMs != null ? `, the earliest on ${date(mbSpendsNamedFromMs)}` : ''}. A larger spend missing from this list is one the export attached no items to.`}
               </Note>
             </Panel>
           )}
@@ -1131,6 +1131,8 @@ export const PurchasesPage = () => {
             Counts come from your <code>InventoryItem</code> records, which store each item’s <em>type</em> and quantity
             and no item IDs, so cosmetics can only be counted by category, never named. We need help filling out this
             category and making it more accurate.
+            {inventory.copies?.rows > 0 &&
+              ` Preview builds keep their own copy of the inventory, so ${num(inventory.copies.rows)} rows from ${num(inventory.copies.blocks)} preview ${inventory.copies.blocks === 1 ? 'copy' : 'copies'} are left out.`}
           </Note>
         </Panel>
       )}

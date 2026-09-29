@@ -11,6 +11,7 @@ import { Pagination } from '../../components/Pagination';
 import { num, pct, date, dateTime } from '../lib/format';
 
 const PER_PAGE = 12;
+const webLink = (v) => typeof v === 'string' && /^https?:\/\/[^\s/]/i.test(v);
 
 // Email categories — marketing blasts (incl. the ARC Raiders cross-promo) vs
 // transactional account/security mail. Drives the filter chips + the row badge.
@@ -129,7 +130,9 @@ const EmailTimeline = ({ e }) => {
             time={dateTime(c.ms)}
             last={i === e.clicks.length - 1}
           >
-            {c.link && <a href={c.link} target="_blank" rel="noreferrer" className="text-amber-300/90 hover:text-amber-200 underline underline-offset-2 break-all">{c.link}</a>}
+            {c.link && (webLink(c.link)
+              ? <a href={c.link} target="_blank" rel="noopener noreferrer" className="text-amber-300/90 hover:text-amber-200 underline underline-offset-2 break-all">{c.link}</a>
+              : <span className="text-gray-400 break-all">{String(c.link)}</span>)}
             {c.device && <span className="text-gray-500"> · {c.device}</span>}
           </TimelineItem>
         ))}

@@ -237,12 +237,13 @@ export const CareerPage = () => {
   // Embark's totals: preview builds wrote their own summaries (left out when found), and
   // practice-range and bot rounds are subtracted from the live one.
   const plural = (n, one, many) => `${num(n)} ${n === 1 ? one : many}`;
+  const builds = !unc.betaRounds ? 'preview builds' : unc.betaRounds === unc.previewRounds ? 'beta builds' : 'preview and beta builds';
   const previewOut = unc.previewRounds > 0 && unc.previewSummaries > 0;
   const practiceOut = unc.practiceRounds > 0;
   const botsOut = unc.botRounds > 0;
   const summaries = plural(unc.previewSummaries, 'lifetime summary', 'lifetime summaries');
   const outParts = [
-    previewOut && `${num(unc.previewRounds)} played on preview builds, whose ${summaries} ${unc.previewSummaries === 1 ? 'is' : 'are'} left out too`,
+    previewOut && `${num(unc.previewRounds)} played on ${builds}, whose ${summaries} ${unc.previewSummaries === 1 ? 'is' : 'are'} left out too`,
     practiceOut && `${num(unc.practiceRounds)} on the practice range`,
     botsOut && `${num(unc.botRounds)} in bot lobbies`,
   ].filter(Boolean);
@@ -253,7 +254,7 @@ export const CareerPage = () => {
           outParts.length > 2 || previewOut ? `${outParts.slice(0, -1).join(', ')}, and ${outParts.at(-1)}` : outParts.join(' and ')
         }.`
       : previewOut
-        ? `The totals above leave out the ${plural(unc.previewRounds, 'round', 'rounds')} you played on preview builds and the ${summaries} those builds wrote.`
+        ? `The totals above leave out the ${plural(unc.previewRounds, 'round', 'rounds')} you played on ${builds} and the ${summaries} those builds wrote.`
         : practiceOut
           ? `The totals above leave out the ${plural(unc.practiceRounds, 'practice-range round', 'practice-range rounds')}.`
           : botsOut
@@ -346,7 +347,7 @@ export const CareerPage = () => {
         <Note>
           {leftOutLine}
           {previewOnlyInLog &&
-            ` The Matches and Tournaments won totals above leave out the ${num(unc.previewRounds)} round${unc.previewRounds === 1 ? '' : 's'} you played on preview builds.`}
+            ` The Matches and Tournaments won totals above leave out the ${num(unc.previewRounds)} round${unc.previewRounds === 1 ? '' : 's'} you played on ${builds}.`}
         </Note>
       )}
 
@@ -358,7 +359,7 @@ export const CareerPage = () => {
             <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Personal records</h2>
             {(records.botsExcluded > 0 || uncountedRounds > 0) && (
               <span className="text-[11px] text-gray-500 ml-auto text-right">
-                {[records.botsExcluded > 0 && `${num(records.botsExcluded)} bot-lobby`, uncountedRounds > 0 && `${num(uncountedRounds)} preview or practice`]
+                {[records.botsExcluded > 0 && `${num(records.botsExcluded)} bot-lobby`, uncountedRounds > 0 && `${num(uncountedRounds)} ${unc.betaRounds > 0 ? 'preview, beta or practice' : 'preview or practice'}`]
                   .filter(Boolean)
                   .join(' · ')}{' '}
                 round{records.botsExcluded + uncountedRounds === 1 ? '' : 's'} left out

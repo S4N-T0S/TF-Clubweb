@@ -199,7 +199,9 @@ export const MatchFlags = ({ m }) => (
       <Badge tone="fuchsia">
         <span
           title={
-            m.uncounted === 'preview'
+            m.preview?.beta
+              ? 'Played on a beta build before the game launched. Left out of your records, win rates, career totals, weapon totals and trends.'
+              : m.uncounted === 'preview'
               ? 'Played on a preview build before the season launched. Left out of your records, win rates, weapon totals and trends.'
               : 'A practice-range round, left out of your records, win rates, career totals, weapon totals and trends.'
           }

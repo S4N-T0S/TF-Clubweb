@@ -198,7 +198,7 @@ const MatchCard = ({ m, expanded, onToggle, cardSlot }) => {
                   {m.finalPlacement != null && !m.abandoned && (
                     <span className="text-xs text-gray-300">
                       {ordinal(m.finalPlacement)}
-                      {m.teams ? ` of ${m.teams}` : ''}
+                      {m.teams && (m.isTournament || m.mode?.teams) ? ` of ${m.teams}` : ''}
                     </span>
                   )}
                   {m.isTournament ? (
@@ -517,7 +517,7 @@ export const MatchesPage = () => {
         Round 1 exit gives a tied range (5th–6th or 7th–8th) because the two lobbies run in parallel. A mode label marked
         “heuristic” was inferred from the shape of the match, not from a confirmed ScenarioID.
         {uncountedRounds > 0 &&
-          ` The ${num(uncountedRounds)} round${uncountedRounds === 1 ? '' : 's'} badged with a preview build or “Not counted” (the practice range) ${uncountedRounds === 1 ? 'is' : 'are'} listed here but left out of records, win rates, weapon totals and trends.`}
+          ` The ${num(uncountedRounds)} round${uncountedRounds === 1 ? '' : 's'} badged with a preview build${model.meta.uncounted.betaRounds > 0 ? ', a beta' : ''} or “Not counted” (the practice range) ${uncountedRounds === 1 ? 'is' : 'are'} listed here but left out of records, win rates, weapon totals and trends.`}
         {model.meta.uncounted.botRounds > 0 && ' Cashout vs bots rounds are listed here too, but count only in their own row on the Breakdown page.'}
         {wtLabelled && ' The stop and week names shown on World Tour matches come from thefinals.wiki, checked against Embark’s patch notes and videos.'}
         {wtExportWeek && ' A week that neither thefinals.wiki nor Embark’s patch notes name shows the internal name from the export.'}

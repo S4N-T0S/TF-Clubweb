@@ -86,7 +86,16 @@ export const SOURCE_GROUPS = [
 // a bare "$" is AUD on one export and USD on another, so the currency has to come from
 // CurrencyCode. Every sample uses "." decimals, but a lone "," is read as a decimal
 // unless three digits follow it, in case a store ever localises the separator.
-export const localAmount = (s) => {
+const threeDecimals = (currency) => {
+  try {
+    return new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits === 3;
+  } catch {
+    return false;
+  }
+};
+// `currency`: lets a lone "." before three digits be read as a thousands separator,
+// which it is in every currency that has fewer than three decimals.
+export const localAmount = (s, currency) => {
   let n = typeof s === 'string' ? s.replace(/[^\d.,]/g, '') : '';
   if (!n) return null;
   const dot = n.lastIndexOf('.');
@@ -94,6 +103,7 @@ export const localAmount = (s) => {
   if (dot >= 0 && comma >= 0) n = dot > comma ? n.replace(/,/g, '') : n.replace(/\./g, '').replace(',', '.');
   else if (comma >= 0) n = /,\d{3}$/.test(n) ? n.replace(/,/g, '') : n.replace(',', '.');
   else if (n.indexOf('.') !== dot) n = n.replace(/\./g, '');
+  else if (currency && /\.\d{3}$/.test(n) && !threeDecimals(currency)) n = n.replace('.', '');
   const v = Number(n);
   return Number.isFinite(v) && v > 0 ? v : null;
 };
@@ -168,7 +178,8 @@ export const DLC_NAMES = {
   // Not a THE FINALS DLC: owning Embark's other game logs a row here too.
   1808500: 'ARC Raiders',
 };
-export const steamAppUrl = (id) => `https://store.steampowered.com/app/${id}/`;
+// Ids come from the export, so only a well-formed one becomes a link.
+export const steamAppUrl = (id) => (/^\d{1,10}$/.test(String(id)) ? `https://store.steampowered.com/app/${id}/` : null);
 export const resolveDlc = (id) => {
   // `in` walks the prototype chain, so it would report DLC #constructor as known.
   const known = Object.hasOwn(DLC_NAMES, id);
@@ -229,7 +240,7 @@ export const MS_PRODUCT_NAMES = {
   // Not a THE FINALS product: buying Embark's other game on Xbox granted items here too.
   '9NDF1F263RZ4': 'ARC Raiders',
 };
-export const msStoreUrl = (id) => `https://www.xbox.com/games/store/_/${id}`;
+export const msStoreUrl = (id) => (typeof id === 'string' && /^[A-Z0-9]{12}$/.test(id) ? `https://www.xbox.com/games/store/_/${id}` : null);
 export const resolveMsProduct = (id) => {
   const known = Object.hasOwn(MS_PRODUCT_NAMES, id);
   return { id, name: known ? MS_PRODUCT_NAMES[id] : `Store product ${id}`, known, url: msStoreUrl(id) };

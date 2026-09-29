@@ -96,7 +96,7 @@ function classify(flat) {
       // Customer-Service export: in-game chat log + Helpshift support tickets.
       // Bytes are kept raw here; the Support page lazy-parses them (pdfjs).
       if (!fileset.customerSupport || entry.bytes.length > fileset.customerSupport.bytes.length) fileset.customerSupport = entry;
-    } else if (/keys\.(jsonl|json)$/.test(base)) {
+    } else if (/keys( \(\d+\))?\.(jsonl|json|txt)$/.test(base)) {
       // Ahead of the persistence rule: the key file ships inside <id>_persistence.zip,
       // and a name carrying both words must not compete to BE the persistence file.
       fileset.keys.push(entry);
