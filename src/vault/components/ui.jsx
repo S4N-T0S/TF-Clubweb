@@ -1,68 +1,127 @@
 // Shared presentational primitives for the vault pages.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+const TIP_MARGIN = 8;
+const TIP_GAP = 10;
+
 // Hover (or tap) a figure to see what is behind it. Rendered in a portal so a card's
-// overflow-hidden or a table container's overflow-x cannot clip it. `width` sizes the
-// card and its viewport clamp; `height` is the caller's estimate, used to pick a side
-// and keep the card on screen.
-export const HoverTip = ({ tip, width = 240, height = 240, className = '', children }) => {
+// overflow-hidden or a table container's overflow-x cannot clip it. The card is
+// measured once it is in the DOM and placed from its real size: above the trigger
+// when it fits there, else below, else on the side with more room, always inside
+// the viewport and scrolling when taller than it. `width` sizes the card; `label`
+// names the trigger for screen readers.
+export const HoverTip = ({ tip, width = 240, label, className = '', children }) => {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState(null);
   const ref = useRef(null);
-  const place = () => {
-    const r = ref.current?.getBoundingClientRect();
-    if (!r) return;
-    const half = width / 2 + 8;
-    const x = Math.min(Math.max(r.left + r.width / 2, half), Math.max(half, window.innerWidth - half));
-    const below = r.top < height;
-    const y = below ? Math.min(r.bottom + 10, Math.max(8, window.innerHeight - 8 - height)) : Math.max(r.top - 10, height + 8);
-    setPos({ x, y, below });
-  };
-  // Dismiss on scroll / resize / outside tap / Escape: the fixed card would otherwise
-  // float away on scroll, and a tap-opened one needs a way to close.
+  const card = useRef(null);
+  const hover = useRef(false);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return undefined;
+    }
+    const place = () => {
+      const r = ref.current?.getBoundingClientRect();
+      const c = card.current;
+      if (!r || !c) return;
+      const vw = document.documentElement.clientWidth;
+      const vh = window.innerHeight;
+      const w = c.offsetWidth;
+      const h = Math.min(c.offsetHeight, vh - 2 * TIP_MARGIN);
+      const roomAbove = r.top - TIP_GAP - TIP_MARGIN;
+      const roomBelow = vh - r.bottom - TIP_GAP - TIP_MARGIN;
+      const above = h <= roomAbove ? true : h <= roomBelow ? false : roomAbove >= roomBelow;
+      const y = above ? r.top - TIP_GAP - h : r.bottom + TIP_GAP;
+      setPos({
+        x: Math.min(Math.max(r.left + r.width / 2 - w / 2, TIP_MARGIN), Math.max(TIP_MARGIN, vw - TIP_MARGIN - w)),
+        y: Math.min(Math.max(y, TIP_MARGIN), Math.max(TIP_MARGIN, vh - TIP_MARGIN - h)),
+      });
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [open, width]);
+
+  // Dismiss on page scroll, outside tap or Escape: the fixed card would otherwise
+  // float away on scroll, and a tap-opened one needs a way to close. Scrolling the
+  // card itself keeps it open.
   useEffect(() => {
     if (!open) return undefined;
     const close = () => setOpen(false);
+    const onScroll = (e) => {
+      if (!card.current?.contains(e.target)) close();
+    };
     const onDown = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (!ref.current?.contains(e.target) && !card.current?.contains(e.target)) close();
     };
     const onKey = (e) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      close();
     };
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
+    window.addEventListener('scroll', onScroll, true);
     document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey, true);
     return () => {
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', onScroll, true);
       document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('keydown', onKey, true);
     };
   }, [open]);
+
+  // Hover opens for a mouse only. A tap or a keyboard activation toggles; a click
+  // while the mouse is already over the trigger keeps the card it opened.
+  const toggle = () => setOpen((o) => !o);
   return (
     <div
       ref={ref}
+      role="button"
+      tabIndex={0}
+      aria-expanded={open}
+      aria-label={label}
       className={`cursor-help ${className}`}
-      onMouseEnter={() => {
-        place();
+      onPointerEnter={(e) => {
+        if (e.pointerType !== 'mouse') return;
+        hover.current = true;
         setOpen(true);
       }}
-      onMouseLeave={() => setOpen(false)}
+      onPointerLeave={(e) => {
+        if (e.pointerType !== 'mouse') return;
+        hover.current = false;
+        setOpen(false);
+      }}
       onClick={(e) => {
         e.stopPropagation();
-        place();
-        setOpen((o) => !o);
+        if (hover.current) setOpen(true);
+        else toggle();
+      }}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        toggle();
       }}
     >
       {children}
       {open &&
-        pos &&
         createPortal(
           <div
-            style={{ position: 'fixed', left: pos.x, top: pos.y, width, transform: `translate(-50%, ${pos.below ? '0' : '-100%'})`, zIndex: 90 }}
-            className="pointer-events-none rounded-xl bg-gray-900/98 border border-gray-700 shadow-2xl p-3"
+            ref={card}
+            style={{
+              position: 'fixed',
+              left: pos?.x ?? 0,
+              top: pos?.y ?? 0,
+              width,
+              maxWidth: 'calc(100vw - 16px)',
+              maxHeight: 'calc(100dvh - 16px)',
+              visibility: pos ? 'visible' : 'hidden',
+              zIndex: 90,
+            }}
+            className="overflow-y-auto overscroll-contain rounded-xl bg-gray-900/98 border border-gray-700 shadow-2xl p-3"
+            onClick={(e) => e.stopPropagation()}
           >
             {tip}
           </div>,

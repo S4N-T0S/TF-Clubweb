@@ -117,7 +117,7 @@ export const KillsTooltip = ({ items, label, loadout, damageOnly, children }) =>
         {loadout && (
           <>
             <p className="text-[10px] uppercase tracking-wider text-gray-400 mt-3 mb-2">Loadout on record</p>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {loadout.map((it) => (
                 <ItemIcon key={it.id} it={it} />
               ))}

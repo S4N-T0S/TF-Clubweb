@@ -236,7 +236,7 @@ const GrantedItems = ({ items, lead = null, typed = false, title = 'What you got
     <HoverTip
       className={className}
       width={288}
-      height={60 + shown.length * 24}
+      label={`${num(grouped.length)} items: ${spoken}`}
       tip={
         <>
           <p className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">{title}</p>
@@ -251,14 +251,10 @@ const GrantedItems = ({ items, lead = null, typed = false, title = 'What you got
         </>
       }
     >
-      <button
-        type="button"
-        className="cursor-help text-left text-gray-400 hover:text-gray-200 underline decoration-dotted underline-offset-2"
-        aria-label={`${num(grouped.length)} items: ${spoken}`}
-      >
+      <span className="text-gray-400 hover:text-gray-200 underline decoration-dotted underline-offset-2">
         {lead}
         {num(grouped.length)} items
-      </button>
+      </span>
     </HoverTip>
   );
 };
