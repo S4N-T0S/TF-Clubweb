@@ -14,6 +14,9 @@
 import { PERFORMANCE_BONUS_MAX_SCORE } from './ratings';
 import { WEAPONS } from './weapons';
 import { worldTourEvent, sponsorName, sponsorTrackLength, sponsorLevelFans, sponsorAddedLevels } from './gameMeta';
+import { itemClass, itemSeason } from './itemImages';
+import { SEASONS } from './seasons';
+import { SAMPLE_ITEMS, SAMPLE_UNIFORMS } from './sampleItems';
 
 // --- deterministic RNG ----------------------------------------------------
 function mulberry32(seed) {
@@ -1144,8 +1147,8 @@ function battlePassItem() {
 }
 const multibucks = (amount) => ({ GameAssetID: MULTIBUCKS_ID, Name: 'Multibucks', Amount: amount });
 
-// Named inventory. Names are invented; a few are left as the internal labels real
-// exports carry, so the preview shows how those read.
+// Store purchases keep invented names. The owned cosmetics are real items (sampleItems.js),
+// so the Collection page finds their pictures.
 const NAME_ADJ = ['Neon', 'Velvet', 'Chrome', 'Arcade', 'Midnight', 'Solar', 'Static', 'Paper', 'Coral', 'Carbon', 'Retro', 'Glacier', 'Signal', 'Rogue', 'Pastel', 'Turbo'];
 const NAME_NOUN = {
   CustomizationItem: ['Jacket', 'Visor', 'Sneakers', 'Gloves', 'Backpack', 'Beanie', 'Trousers', 'Mask', 'Headphones', 'Scarf', 'Boots', 'Cap'],
@@ -1158,7 +1161,14 @@ const NAME_NOUN = {
   Emoticon: ['Wave', 'Laugh', 'Salute'],
   ClansCustomization: ['Banner', 'Crest'],
 };
-const INTERNAL_NAMES = ['Type {0}', 'HoverCar_01', 'Mechanical_01', 'Default'];
+const itemKeyRow = ([id, name, type, subType, asset, rarity, tags]) => ({
+  GameAssetID: id, Kind: 'Item', Name: name, AssetName: asset, ItemType: type, ...(subType && { ItemSubType: subType }), Rarity: rarity || 'Unknown', AssetTags: tags, Resolved: true,
+});
+const sampleItemClass = (c) => itemClass({ itemType: c[2], subType: c[3] || null, asset: c[4], tags: c[6] });
+// No item is owned before the season that added it.
+const releasedAt = (c) => (SEASONS.find((season) => season.n === itemSeason(c[6])) ?? SEASONS[0]).startMs;
+// What an account has from its first day: every body type and up to three launch pieces of each basic slot.
+const STARTER_SLOTS = new Set(['BodyType', 'Head', 'Hair', 'Eyes', 'BodyUpper', 'BodyLower', 'Shoes', 'Hands']);
 const SAVED_BUILDS = [
   { title: 'Light 1', arch: 'Light', build: 0, weapon: '199277493', reserve: ['1599997630', '-322594587', '-158222801', 780830895] },
   { title: 'Light 2', arch: 'Light', build: 1, weapon: '1599997630', reserve: ['199277493', '-657541680', '1612446258', -1360814459] },
@@ -1177,14 +1187,23 @@ function buildInventoryItems() {
     (byType[type] ||= []).push(row);
     return row;
   };
-  INVENTORY_SPREAD.forEach(([type, n], k) => {
-    const nouns = NAME_NOUN[type];
-    if (!nouns) return;
+  const starters = {};
+  const poses = [];
+  INVENTORY_SPREAD.forEach(([type, n]) => {
+    if (!NAME_NOUN[type]) return;
+    const real = SAMPLE_ITEMS.filter((c) => c[2] === type);
     for (let i = 0; i < n; i++) {
-      const name = i % 47 === 46 ? INTERNAL_NAMES[(i + k) % INTERNAL_NAMES.length] : `${NAME_ADJ[(i + k * 3) % NAME_ADJ.length]} ${nouns[Math.floor(i / NAME_ADJ.length) % nouns.length]}`;
-      add(type, i, n, { GameAssetID: ri2(-2_000_000_000, 2_000_000_000), Name: name });
+      const klass = sampleItemClass(real[i]);
+      const released = releasedAt(real[i]);
+      const starter = released === SEASONS[0].startMs && STARTER_SLOTS.has(klass) && (klass === 'BodyType' || (starters[klass] || 0) < 3);
+      if (starter) starters[klass] = (starters[klass] || 0) + 1;
+      const at = iso(starter ? released : Math.max(released, lerp(SPAN_START, SPAN_END, (i + 0.5) / n)));
+      ri2(-2_000_000_000, 2_000_000_000); // drawn still, so the stream stays put
+      const row = add(type, i, n, { GameAssetID: real[i][0], Name: real[i][1], CreatedAt: at, UpdatedAt: at });
+      if (klass === 'Emote' || klass === 'InGameEmote') poses.push(row);
     }
   });
+  keyRows.items.push(...SAMPLE_ITEMS.map(itemKeyRow), ...Object.values(SAMPLE_UNIFORMS).flat().map(itemKeyRow));
   for (let s = 6; s <= 11; s++) add('BattlePass', s - 6, 6, { GameAssetID: ri2(1, 2_000_000_000), Name: `Season ${s} Battle Pass` });
   // The Multibucks amount is set from the ledger once that exists (see buildPersistence).
   [['Multibucks', 0], ['VRs', 5000], ['Show Tokens', 12]].forEach(([name, amount], i) => {
@@ -1199,6 +1218,7 @@ function buildInventoryItems() {
   const archRow = Object.fromEntries(['Light', 'Medium', 'Heavy'].map((a, i) => [a, add('Archetype', i, 3, { GameAssetID: ri2(1, 2_000_000_000), Name: a })]));
 
   const some = (type) => pick2(byType[type]).InstanceID;
+  const pose = () => pick2(poses).InstanceID;
   let selected = null;
   SAVED_BUILDS.forEach((b, i) => {
     const build = BUILDS[b.arch][b.build];
@@ -1212,12 +1232,12 @@ function buildInventoryItems() {
           FirstHandItemIDs: [build.spec, b.weapon, ...build.gadgets].map((id) => gearRow.get(String(id)).InstanceID),
           ReservedItemIDs: b.reserve.map((id) => gearRow.get(String(id)).InstanceID),
           Slots: [
-            { SlotName: 'IntroPose', ItemIDs: [some('AnimationCustomization')] },
-            { SlotName: 'VictoryPose', ItemIDs: [some('AnimationCustomization')] },
+            { SlotName: 'IntroPose', ItemIDs: [pose()] },
+            { SlotName: 'VictoryPose', ItemIDs: [pose()] },
             ...(i % 2 === 0 ? [{ SlotName: 'ObjectiveSticker', ItemIDs: [some('WeaponSticker')] }] : []),
           ],
           SprayItemID: some('Spray'),
-          EmoteWheelItemIDs: [some('Emoticon'), some('Emoticon'), some('AnimationCustomization')],
+          EmoteWheelItemIDs: [some('Emoticon'), some('Emoticon'), pose()],
         },
       },
     });
@@ -1225,6 +1245,117 @@ function buildInventoryItems() {
   });
   add('Loadout', 0, 1, { GameAssetID: ri2(1, 2_000_000_000), Name: 'Loadout', Properties: { Loadout: { SelectedContestantPackItemID: selected.InstanceID, CosmeticNumber: 3 } } });
   return rows;
+}
+
+// --- cosmetics worn per round (`CustomizationItemAssetIDs`) ----------------
+// Shaped like real exports: an outfit stays for a run of rounds on its class and never
+// changes inside a tournament, a few saved outfits take most rounds, about half of what
+// is owned is never worn, and two event modes dress everyone in pieces the player does
+// not own.
+const WORN_ALWAYS = ['BodyUpper', 'Head', 'Shoes'];
+const WORN_ODDS = {
+  BodyLower: 0.96, Hands: 0.8, Hair: 0.75, Eyes: 0.6, Headwear: 0.55, Facewear: 0.45, Voice: 0.3, BodyPaint: 0.28, Wrists: 0.25, TorsoUpperLeft: 0.22,
+  Tattoos: 0.2, FacePaint: 0.2, Nails: 0.15, BackUpper: 0.08, FacialHair: 0.08, Earrings: 0.05, BackLowerRight: 0.04, Bandolier: 0.03, VisualEffects: 0.03,
+};
+const BODY_FEATURES = new Set(['Head', 'Hair', 'Eyes', 'Voice', 'BodyPaint', 'Tattoos', 'FacePaint', 'Nails', 'FacialHair']);
+const BODY_TYPE_FROM = Date.parse('2024-11-20T00:00:00Z');
+const VOICE_FROM = Date.parse('2025-07-25T00:00:00Z');
+const OUTFIT_CHANGE = 0.16;
+
+function dressRounds(rounds, inventory) {
+  const rand = localRng(0x2026_1001);
+  const def = new Map(SAMPLE_ITEMS.map((c) => [c[0], c]));
+  const bySlot = {};
+  for (const row of inventory) {
+    const c = def.get(row.GameAssetID);
+    if (!c || c[2] !== 'CustomizationItem') continue;
+    (bySlot[sampleItemClass(c)] ||= []).push({ id: row.GameAssetID, instance: row.InstanceID, at: Date.parse(row.CreatedAt), appeal: rand() < 0.62 ? 0 : 1 });
+  }
+  // A new piece is tried on more in its first weeks.
+  const pull = (it, at) => it.appeal * (1 + 6 * Math.exp((it.at - at) / (60 * DAY)));
+  const choose = (slot, at) => {
+    const have = (bySlot[slot] || []).filter((it) => it.at <= at);
+    let roll = rand() * have.reduce((sum, it) => sum + pull(it, at), 0);
+    return have.find((it) => (roll -= pull(it, at)) <= 0) ?? have[0] ?? null;
+  };
+  const wearable = (slot, at) => slot !== 'Voice' || at >= VOICE_FROM;
+  const fresh = (at) => {
+    const outfit = new Map();
+    for (const slot of WORN_ALWAYS) outfit.set(slot, choose(slot, at) ?? bySlot[slot][0]);
+    for (const [slot, odds] of Object.entries(WORN_ODDS)) {
+      const it = wearable(slot, at) && rand() < odds ? choose(slot, at) : null;
+      if (it) outfit.set(slot, it);
+    }
+    return outfit;
+  };
+  const tweak = (outfit, at) => {
+    const next = new Map(outfit);
+    const slots = [...WORN_ALWAYS, ...Object.keys(WORN_ODDS)];
+    const clothes = ['BodyUpper', 'BodyLower', 'Shoes', 'Hands', 'Headwear'];
+    for (let n = 2 + Math.floor(rand() * 3); n > 0; n--) {
+      // Clothes change far more often than a face or a tattoo.
+      const slot = rand() < 0.75 ? clothes[Math.floor(rand() * clothes.length)] : slots[Math.floor(rand() * slots.length)];
+      const optional = Object.hasOwn(WORN_ODDS, slot);
+      const it = wearable(slot, at) && (!optional || rand() < WORN_ODDS[slot]) ? choose(slot, at) : null;
+      if (it) next.set(slot, it);
+      else if (optional) next.delete(slot);
+    }
+    return next;
+  };
+
+  const bodyType = choose('BodyType', SPAN_START);
+  const current = {};
+  const saved = { Light: [], Medium: [], Heavy: [] };
+  const lastTournament = {};
+  for (const r of rounds) {
+    const d = r.Data;
+    const arch = ARCH_OF[d.CharacterArchetype];
+    if (!arch) continue;
+    const at = Date.parse(d.StartTime);
+    if (!current[arch]) saved[arch].push((current[arch] = fresh(at)));
+    else if (!(d.TournamentID && d.TournamentID === lastTournament[arch]) && rand() < OUTFIT_CHANGE) {
+      const roll = rand();
+      if (roll < 0.2 && saved[arch].length > 1) current[arch] = saved[arch][Math.floor(rand() * saved[arch].length)];
+      else {
+        current[arch] = roll < 0.6 ? tweak(current[arch], at) : fresh(at);
+        if (roll >= 0.6 || rand() < 0.3) {
+          if (saved[arch].length < 3) saved[arch].push(current[arch]);
+          else saved[arch][Math.floor(rand() * 3)] = current[arch];
+        }
+      }
+    }
+    // Now and then a piece is tried on for a single round.
+    let worn = current[arch];
+    if (!d.TournamentID && rand() < 0.08) {
+      const slot = WORN_ALWAYS.concat('BodyLower', 'Hands', 'Headwear')[Math.floor(rand() * 6)];
+      const have = (bySlot[slot] || []).filter((it) => it.at <= at);
+      if (have.length) worn = new Map(worn).set(slot, have[Math.floor(rand() * have.length)]);
+    }
+    lastTournament[arch] = d.TournamentID ?? null;
+    const uniform = /HeavyHitters/.test(d.MapVariant) ? SAMPLE_UNIFORMS.heavyHitters : /CashBall/.test(d.MapVariant) ? SAMPLE_UNIFORMS.cashball : null;
+    const dressed = uniform && new Set(uniform.map((c) => c[3]));
+    const ids = [...worn].filter(([slot]) => !uniform || BODY_FEATURES.has(slot) || (slot === 'Shoes' && !dressed.has('Shoes'))).map(([, it]) => it.id);
+    if (uniform) ids.push(...uniform.map((c) => c[0]));
+    if (at >= BODY_TYPE_FROM) ids.push(bodyType.id);
+    // The export lists them in no order.
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+    d.CustomizationItemAssetIDs = ids;
+  }
+
+  // Each saved pack holds one of its class's saved outfits and the pack's emote. The last
+  // pack lists the emote alone, as some real packs do, and one outfit includes a watch.
+  const emote = inventory.find((row) => def.get(row.GameAssetID)?.[4].startsWith('DA_Emote_'))?.InstanceID;
+  const watch = bySlot.Watch?.[0]?.instance;
+  const packs = inventory.filter((row) => row.Properties?.ContestantPack);
+  const used = { Light: 0, Medium: 0, Heavy: 0 };
+  packs.forEach((row, i) => {
+    const arch = row.Properties.ContestantPack.Title.split(' ')[0];
+    const outfit = i === packs.length - 1 ? null : saved[arch][used[arch]++ % saved[arch].length];
+    row.Properties.ContestantPack.CustomizationItemIDs = [...(outfit ? [...outfit.values()].map((it) => it.instance) : []), ...(outfit && i === 0 && watch ? [watch] : []), ...(emote ? [emote] : [])];
+  });
 }
 
 // Clubs the player was in before the current one.
@@ -1493,6 +1624,12 @@ function buildPersistence() {
   nameStorePurchases(byType.TransactionLog, byType.HardCurrencyLog);
   const closing = byType.HardCurrencyLog.at(-1);
   Object.assign(byType.InventoryItem.find((r) => r.GameAssetID === MULTIBUCKS_ID), { Amount: closing.NewUserTotalBalance, UpdatedAt: closing.CreatedAt });
+  dressRounds(rounds, byType.InventoryItem);
+  const sightDate = localRng(0x2026_1002);
+  SAMPLE_ITEMS.filter((c) => c[2] === 'WeaponAttachment').forEach((c, i) => {
+    const at = iso(Math.max(releasedAt(c), lerp(SPAN_START, SPAN_END, sightDate())));
+    byType.InventoryItem.push({ GameAssetID: c[0], Name: c[1], InstanceID: `5a3c7100-0000-4000-8000-0000000001${String(i).padStart(2, '0')}`, Amount: 1, HasSeen: false, Type: c[2], CreatedAt: at, UpdatedAt: at });
+  });
   // Added after the literal so no random stream above moves.
   byType.InventoryItem.push({
     GameAssetID: 4334566052, Name: 'Sanction', InstanceID: '5a3c7100-0000-4000-8000-000000000001', Amount: 1, HasSeen: true, Type: 'Sanction',

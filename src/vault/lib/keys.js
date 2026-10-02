@@ -29,7 +29,15 @@ export function createKeys(exportByType) {
       if (r.GameAssetID == null) continue;
       const name = str(cleanName(r.Name));
       if (!name && items.get(String(r.GameAssetID))?.name) continue;
-      items.set(String(r.GameAssetID), { name, kind: str(r.Kind), itemType: str(r.ItemType), subType: str(r.ItemSubType), asset: str(r.AssetName) });
+      items.set(String(r.GameAssetID), {
+        name,
+        kind: str(r.Kind),
+        itemType: str(r.ItemType),
+        subType: str(r.ItemSubType),
+        asset: str(r.AssetName),
+        rarity: str(r.Rarity),
+        tags: Array.isArray(r.AssetTags) ? r.AssetTags.filter((t) => typeof t === 'string') : [],
+      });
     }
     for (const r of rows('TheFinalsScenarioKey')) {
       if (r.ScenarioID != null && str(r.Name)) scenarios.set(String(r.ScenarioID), { name: r.Name, internalName: str(r.InternalName), gameMode: str(r.GameMode) });

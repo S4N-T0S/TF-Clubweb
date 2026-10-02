@@ -1,6 +1,6 @@
-import { NavLink, Link } from 'react-router-dom';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { User, Gauge, LineChart, Swords, Crosshair, Layers, BarChart3, Wallet, Radar, Mail, MessagesSquare, ShieldAlert, WifiOff, LogOut, RotateCcw, FlaskConical } from 'lucide-react';
+import { User, Gauge, LineChart, Swords, Crosshair, Layers, BarChart3, Wallet, Shirt, Radar, Mail, MessagesSquare, ShieldAlert, WifiOff, LogOut, RotateCcw, FlaskConical } from 'lucide-react';
 import { useVaultData } from './context/VaultDataContext';
 import { VAULT_BASE } from '../constants';
 import { ImportSummaryBanner } from './components/ImportSummaryBanner';
@@ -20,6 +20,7 @@ const NAV = [
   { to: `${VAULT_BASE}/breakdown`, icon: BarChart3, label: 'Breakdown' },
   { to: `${VAULT_BASE}/loadouts`, icon: Layers, label: 'Loadouts' },
   { to: `${VAULT_BASE}/purchases`, icon: Wallet, label: 'Purchases' },
+  { to: `${VAULT_BASE}/collection`, icon: Shirt, label: 'Collection' },
   { to: `${VAULT_BASE}/sessions`, icon: Radar, label: 'Sessions' },
   { to: `${VAULT_BASE}/emails`, icon: Mail, label: 'Emails' },
   { to: `${VAULT_BASE}/support`, icon: MessagesSquare, label: 'Support & Chat' },
@@ -34,6 +35,7 @@ const navClass = ({ isActive }) =>
 export const VaultLayout = ({ children }) => {
   const { model, isSample, reset } = useVaultData();
   const isMobile = useMobileDetect() || false;
+  const fetchesPictures = useLocation().pathname === `${VAULT_BASE}/collection`;
   const name = model?.identity?.fullName || model?.identity?.displayName || 'Player';
 
   return (
@@ -56,7 +58,11 @@ export const VaultLayout = ({ children }) => {
         /* Offline assurance banner — always visible inside the vault. */
         <div className="flex items-center justify-center gap-2 bg-emerald-950/60 border-b border-emerald-800/40 text-emerald-300 text-xs py-1.5 px-4">
           <WifiOff className="w-3.5 h-3.5" />
-          <span>Offline mode. Your data stays on this device and is never uploaded.</span>
+          <span>
+            {fetchesPictures
+              ? 'Your data stays on this device and is never uploaded. This page downloads item pictures and sounds from this site.'
+              : 'Offline mode. Your data stays on this device and is never uploaded.'}
+          </span>
         </div>
       )}
 

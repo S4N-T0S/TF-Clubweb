@@ -18,6 +18,7 @@ import { WeaponsPage } from './pages/WeaponsPage';
 import { BreakdownPage } from './pages/BreakdownPage';
 import { LoadoutsPage } from './pages/LoadoutsPage';
 import { PurchasesPage } from './pages/PurchasesPage';
+import { CollectionPage } from './pages/CollectionPage';
 import { SessionsPage } from './pages/SessionsPage';
 import { EmailsPage } from './pages/EmailsPage';
 import { SupportPage } from './pages/SupportPage';
@@ -44,6 +45,7 @@ const VaultInner = () => {
         <Route path="breakdown" element={<BreakdownPage />} />
         <Route path="loadouts" element={<LoadoutsPage />} />
         <Route path="purchases" element={<PurchasesPage />} />
+        <Route path="collection" element={<CollectionPage />} />
         <Route path="sessions" element={<SessionsPage />} />
         <Route path="emails" element={<EmailsPage />} />
         <Route path="support" element={<SupportPage />} />
@@ -54,7 +56,7 @@ const VaultInner = () => {
   );
 };
 
-// Self-contained: renders NONE of the leaderboard app, makes NO network calls
+// Self-contained: renders NONE of the leaderboard app, makes no network calls except the Collection page's item pictures
 // Per-page SEO/robots is set deeper: the landing page (VaultLanding) is indexable with full meta; the data sub-pages (VaultLayout) are noindex
 const VaultRoot = () => {
   useEffect(() => {

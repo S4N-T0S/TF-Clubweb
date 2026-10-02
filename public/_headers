@@ -10,7 +10,7 @@
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
-# Offline GDPR vault art (maps/weapon icons) remember its immutable
+# GDPR vault art (maps, weapon icons, item pictures, sound bites) remember its immutable
 /vault/*
   Cache-Control: public, max-age=31536000, immutable
 

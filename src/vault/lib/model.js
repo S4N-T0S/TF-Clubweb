@@ -8,6 +8,7 @@ import { buildRealms, REALM, classifyRoundStat, ROUND_KIND, tenancyLabel, previe
 import { buildRatings } from './ratings';
 import { createKeys, cleanName } from './keys';
 import { withKeySeasons } from './seasons';
+import { itemKind, itemSeason, itemSponsor, itemEquipment, RARITIES, ITEM_CLASSES } from './itemImages';
 
 // timestamp helpers (export mixes ISO-8601 strings and epoch-ms)
 const toMs = (v) => {
@@ -736,6 +737,13 @@ const humanizeType = (t) => (Object.hasOwn(INVENTORY_LABELS, t) ? INVENTORY_LABE
 const INTERNAL_NAME_RE = /[{}_]|^(Default|Premium)$/;
 const PACK_SLOT_LABELS = { IntroPose: 'Intro pose', VictoryPose: 'Victory pose', OutfitPack: 'Outfit', ObjectiveSticker: 'Objective sticker', PlayerCard: 'Player card' };
 
+// Every hair is named "Hair" and every body type "Type {0}": the asset name tells them apart.
+const assetDetail = (klass, asset) => {
+  const rest = klass === 'Hair' ? /^DA_Hairs_(.+)$/.exec(asset || '')?.[1] : klass === 'BodyType' ? /^DA_BodyType_(.+)$/.exec(asset || '')?.[1] : null;
+  if (!rest) return null;
+  return rest.split('_').filter((part) => !/^\d+$/.test(part)).map((part) => part.replace(/([a-z0-9])([A-Z])/g, '$1 $2')).join(', ');
+};
+
 const DAY_MS = 86400e3;
 const EARLIEST_STAMP_MS = Date.UTC(2020, 0, 1);
 
@@ -818,7 +826,30 @@ function buildInventory(byType, keys, realms) {
     const stamps = [created, toMs(it.UpdatedAt)].filter((t) => t != null && t > EARLIEST_STAMP_MS);
     const ms = stamps.length ? Math.min(...stamps) : null;
     if (ms != null && (firstMs == null || ms < firstMs)) firstMs = ms;
-    items.push({ name, type, label: rec.label, amount: typeof it.Amount === 'number' ? it.Amount : 1, ms, before: ms != null && created != null && ms < created, internal: INTERNAL_NAME_RE.test(name) });
+    const k = it.GameAssetID != null ? keys.item(it.GameAssetID) : null;
+    const kind = itemKind(k);
+    items.push({
+      name,
+      type,
+      label: rec.label,
+      amount: typeof it.Amount === 'number' ? it.Amount : 1,
+      ms,
+      before: ms != null && created != null && ms < created,
+      internal: INTERNAL_NAME_RE.test(name),
+      id: it.GameAssetID != null ? String(it.GameAssetID) : null,
+      // Cosmetics only: the slot or kind, and what the picture match needs.
+      ...(kind && {
+        klass: kind.klass,
+        slot: kind.label,
+        group: kind.group,
+        rarity: RARITIES.includes(k.rarity) ? k.rarity : null,
+        season: itemSeason(k.tags),
+        sponsor: itemSponsor(k.tags),
+        equipment: itemEquipment(k.asset),
+        detail: itemEquipment(k.asset) ?? assetDetail(kind.klass, k.asset),
+        asset: k.asset,
+      }),
+    });
   }
   items.sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0) || a.name.localeCompare(b.name));
 
@@ -832,6 +863,8 @@ function buildInventory(byType, keys, realms) {
       const w = resolveWeapon(row.GameAssetID, keys);
       return { id: String(id), name: w.unknown ? cleanName(row.Name) : w.name, icon: w.icon, type: w.type };
     });
+  const itemOf = new Map();
+  for (const it of items) if (it.id != null && !itemOf.has(it.id)) itemOf.set(it.id, it);
   const packs = [];
   // The `Loadout` row names the pack that was selected when the export was made.
   const activePackId = rows.find((it) => it.Properties?.Loadout?.SelectedContestantPackItemID)?.Properties.Loadout.SelectedContestantPackItemID ?? null;
@@ -850,6 +883,10 @@ function buildInventory(byType, keys, realms) {
         .filter((s) => s && typeof s === 'object' && s.SlotName !== 'PlayerCard' && s.SlotName !== 'OutfitPack')
         .map((s) => ({ label: Object.hasOwn(PACK_SLOT_LABELS, s.SlotName) ? PACK_SLOT_LABELS[s.SlotName] : String(s.SlotName), names: (Array.isArray(s.ItemIDs) ? s.ItemIDs : []).map(nameOf) })),
       spray: p.SprayItemID ? [nameOf(p.SprayItemID)] : [],
+      // The clothes of the saved outfit. Some exports list only the pack's emote here.
+      clothes: (Array.isArray(p.CustomizationItemIDs) ? p.CustomizationItemIDs : [])
+        .map((id) => itemOf.get(String(byInstance.get(id)?.GameAssetID)))
+        .filter((c) => c && (c.group === 'Outfit' || c.group === 'Body')),
       emotes: (Array.isArray(p.EmoteWheelItemIDs) ? p.EmoteWheelItemIDs : []).map(nameOf),
     });
   }
@@ -1468,6 +1505,7 @@ function buildMatchesAndWeapons(byType, keys, preview) {
       weaponKills, // all items that got a kill this round, desc — for the "also killed with" line
       damageOnly, // items that did damage but got no kill this round (2026-09+), or null
       loadout, // [spec, weapon, gadgets…] on record for the round, or null
+      worn: Array.isArray(d.CustomizationItemAssetIDs) && d.CustomizationItemAssetIDs.length ? d.CustomizationItemAssetIDs.map(String) : null, // 2026-09+
       scorecard, // [{ name, score (null = not recorded), tier }] (tier 1 = best) or null
     };
   }
@@ -1834,6 +1872,118 @@ function buildLoadouts(rounds) {
     };
   }
   return { has: count > 0, rounds: count, totalRounds: rounds.length, firstMs, coverage: kills ? killsInLoadout / kills : null, byClass };
+}
+
+// --- cosmetics worn per round (2026-09+ `CustomizationItemAssetIDs`) --------
+// An unordered set of body items, with an empty slot left out. Event modes that dress
+// every player put pieces in it that are not owned, so only owned items count. An outfit
+// is the clothes alone: body type and voice start being listed in late 2024 and mid 2025
+// and would split one. Watches are never listed and pets only in January 2024, though
+// saved outfits hold both.
+const UNRECORDED_SLOTS = ['Pet', 'Watch'];
+function buildWardrobe(rounds, inventory, keys) {
+  const owned = new Map();
+  for (const it of inventory.items) if (it.id != null && it.klass && !owned.has(it.id)) owned.set(it.id, it);
+  const slotOf = new Map();
+  const slot = (id) => {
+    if (!slotOf.has(id)) slotOf.set(id, owned.get(id)?.klass ?? itemKind(keys.item(id))?.klass ?? null);
+    return slotOf.get(id);
+  };
+  const earlier = (a, b) => (a == null ? b : b == null ? a : Math.min(a, b));
+  const later = (a, b) => (a == null ? b : b == null ? a : Math.max(a, b));
+  const worn = new Map();
+  const outfits = new Map();
+  const slotRounds = new Map();
+  const byClass = {};
+  const lastKey = {};
+  let count = 0;
+  let uniformRounds = 0;
+  let changes = 0;
+  let firstMs = null;
+  let lastMs = null;
+  for (const r of rounds) {
+    if (!r.worn) continue;
+    count++;
+    firstMs = earlier(firstMs, r.start);
+    lastMs = later(lastMs, r.start);
+    if (r.archetype) byClass[r.archetype] = (byClass[r.archetype] || 0) + 1;
+    const mine = [];
+    const slots = new Set();
+    let uniform = false;
+    for (const id of r.worn) {
+      const klass = slot(id);
+      if (UNRECORDED_SLOTS.includes(klass)) continue;
+      if (klass) slots.add(klass);
+      if (!owned.has(id)) {
+        uniform = true;
+        continue;
+      }
+      mine.push(id);
+      let e = worn.get(id);
+      if (!e) worn.set(id, (e = { rounds: 0, firstMs: null, lastMs: null, byClass: {} }));
+      e.rounds++;
+      e.firstMs = earlier(e.firstMs, r.start);
+      e.lastMs = later(e.lastMs, r.start);
+      if (r.archetype) e.byClass[r.archetype] = (e.byClass[r.archetype] || 0) + 1;
+    }
+    for (const klass of slots) slotRounds.set(klass, (slotRounds.get(klass) || 0) + 1);
+    if (uniform) {
+      uniformRounds++;
+      continue;
+    }
+    const clothes = mine.filter((id) => owned.get(id).group === 'Outfit').sort();
+    if (!clothes.length) continue;
+    const key = clothes.join('|');
+    if (lastKey[r.archetype] != null && lastKey[r.archetype] !== key) changes++;
+    lastKey[r.archetype] = key;
+    let o = outfits.get(key);
+    if (!o) outfits.set(key, (o = { key, ids: clothes, rounds: 0, firstMs: null, lastMs: null, byClass: {} }));
+    o.rounds++;
+    o.firstMs = earlier(o.firstMs, r.start);
+    o.lastMs = later(o.lastMs, r.start);
+    if (r.archetype) o.byClass[r.archetype] = (o.byClass[r.archetype] || 0) + 1;
+  }
+  for (const it of owned.values()) {
+    const e = worn.get(it.id);
+    if (e) it.worn = e;
+  }
+
+  const items = [...worn.entries()].map(([id, e]) => ({ item: owned.get(id), ...e })).sort((a, b) => b.rounds - a.rounds || a.item.name.localeCompare(b.item.name));
+  // `rounds` counts every round that lists the slot, a uniform's piece included. `top` is
+  // null when none of the player's own items was in it.
+  const slots = [...slotRounds.entries()]
+    .map(([klass, n]) => {
+      const inSlot = items.filter((e) => e.item.klass === klass);
+      const mine = [...owned.values()].filter((it) => it.klass === klass);
+      const kind = Object.hasOwn(ITEM_CLASSES, klass) ? ITEM_CLASSES[klass] : null;
+      return { klass, label: mine[0]?.slot ?? kind?.label ?? klass, group: mine[0]?.group ?? kind?.group ?? 'Outfit', rounds: n, worn: inSlot.length, owned: mine.length, top: inSlot[0] ?? null };
+    })
+    .filter((sl) => sl.owned > 0)
+    .sort((a, b) => b.rounds - a.rounds || a.label.localeCompare(b.label));
+  const ownedWearable = slots.reduce((sum, sl) => sum + sl.owned, 0);
+  return {
+    has: count > 0,
+    rounds: count,
+    totalRounds: rounds.length,
+    firstMs,
+    lastMs,
+    items,
+    slots,
+    unrecorded: UNRECORDED_SLOTS,
+    // Owned items in the slots this export's rounds list.
+    ownedWearable,
+    neverWorn: ownedWearable - items.length,
+    uniformRounds,
+    byClass,
+    // Times the outfit differed from the one last worn on the same class.
+    changes,
+    distinctOutfits: outfits.size,
+    outfits: [...outfits.values()]
+      .filter((o) => o.rounds > 1)
+      .sort((a, b) => b.rounds - a.rounds || a.key.localeCompare(b.key))
+      .slice(0, 6)
+      .map(({ ids, ...o }) => ({ ...o, items: ids.map((id) => owned.get(id)).sort((a, b) => a.slot.localeCompare(b.slot)) })),
+  };
 }
 
 // --- per-map / per-mode / per-class stat breakdowns -----------------------
@@ -3728,6 +3878,7 @@ export function buildModel(raw) {
   const accounts = buildAccounts(byType);
   const ban = buildBans(byType, raw.audit?.byType);
   const economy = buildEconomy(byType, raw.audit?.byType, keys);
+  const inventory = buildInventory(byType, keys, economy.realms);
 
   return {
     identity: buildIdentity(byType, raw.audit?.byType),
@@ -3739,7 +3890,8 @@ export function buildModel(raw) {
     sanctions: buildSanctions(byType, rounds),
     linkedAccounts: buildLinkedAccounts(byType),
     nameHistory: buildNameHistory(raw, accounts),
-    inventory: buildInventory(byType, keys, economy.realms),
+    inventory,
+    wardrobe: buildWardrobe(pvpRounds, inventory, keys),
     social: buildSocial(byType),
     career: buildCareer(byType, keys, summaries.live, [...rounds.filter((r) => r.uncounted === 'practice'), ...botRounds]),
     ratings,

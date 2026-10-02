@@ -4,7 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import {
   ShieldCheck, Upload, FolderOpen, WifiOff, Lock, AlertTriangle, Loader2, ChevronLeft, ChevronDown,
   Mail, ExternalLink, Copy, Check, ArrowRight, HelpCircle, Info,
-  User, Gauge, LineChart, Swords, Crosshair, BarChart3, Layers, Wallet, Radar, MessagesSquare, ShieldAlert,
+  User, Gauge, LineChart, Swords, Crosshair, BarChart3, Layers, Wallet, Shirt, Radar, MessagesSquare, ShieldAlert,
 } from 'lucide-react';
 import { useVaultData } from './context/VaultDataContext';
 import { SITE_URL, VAULT_BASE } from '../constants';
@@ -23,7 +23,7 @@ async function collectFilesFromDir(dirHandle) {
 const SEO = {
   title: 'Your Data Vault · Offline GDPR Explorer | THE FINALS Tracker',
   description:
-    'Request your THE FINALS data from Embark (a free GDPR data request) and load it here as a private dashboard: full match history, hours, K/D, cash-outs, money spent, login sessions and account details. Fully offline, parsed in your browser, never uploaded. Or preview it with sample data.',
+    'Request your THE FINALS data from Embark (a free GDPR data request) and load it here as a private dashboard: full match history, hours, K/D, cash-outs, money spent, login sessions and account details. Parsed in your browser, never uploaded. Or preview it with sample data.',
   keywords:
     'the finals gdpr, the finals data request, sar export, embark data export, the finals match history, the finals data vault, offline, privacy, the finals tracker',
   url: `${SITE_URL}${VAULT_BASE}`,
@@ -63,6 +63,7 @@ const SHOWCASE = [
   { icon: BarChart3, label: 'Breakdown', sub: `${VAULT_BASE}/breakdown`, desc: 'Real K/D and win rate per map, mode and class.' },
   { icon: Layers, label: 'Loadouts', sub: `${VAULT_BASE}/loadouts`, desc: 'How much you played each class and your top weapons.' },
   { icon: Wallet, label: 'Purchases', sub: `${VAULT_BASE}/purchases`, desc: 'Real money spent, Multibucks ledger and owned DLC.' },
+  { icon: Shirt, label: 'Collection', sub: `${VAULT_BASE}/collection`, desc: 'Your cosmetics, saved outfits and what you wore.' },
   { icon: Radar, label: 'Sessions', sub: `${VAULT_BASE}/sessions`, desc: 'Every login, IP and country on an offline world map.' },
   { icon: Mail, label: 'Email tracking', sub: `${VAULT_BASE}/emails`, desc: 'Which emails Embark sent, opened and click-tracked.' },
   { icon: MessagesSquare, label: 'Support & chat', sub: `${VAULT_BASE}/support`, desc: 'Your in-game chat log and Embark support-ticket threads.' },
@@ -412,7 +413,8 @@ export const VaultLanding = () => {
           Data lives in memory only. Close or refresh the tab and it’s gone.
         </Assurance>
         <Assurance icon={ShieldCheck} title="Works offline">
-          You can disconnect from the internet before loading files. Everything still works.
+          You can disconnect from the internet before loading files. Everything works except the item pictures and
+          sound bites on the Collection page, which need a connection.
         </Assurance>
       </div>
     </div>
