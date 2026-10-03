@@ -803,6 +803,69 @@ function liveInventory(all, realms) {
   return { rows, copies, copyRows };
 }
 
+const LOOK_PARTS = { WeaponSkin: 'skin', WeaponCharm: 'charm', WeaponSticker: 'sticker', Sight: 'sight', Screen: 'screen' };
+
+// Keyed by pack InstanceID, and the weapon and skin ids inside are GameAssetIDs.
+// `itemToRandomizeSkin` lists the weapons with Deep Shuffle on.
+function readSkinMarks(byType, skinAt) {
+  const marks = new Map();
+  for (const row of byType.BucketObject || []) {
+    if (row?.ObjectKey !== 'UI.Persistence.Customization.ItemSkinRandomizers') continue;
+    let v = row.Value;
+    if (typeof v === 'string') {
+      try {
+        v = JSON.parse(v);
+      } catch {
+        continue;
+      }
+    }
+    const byPack = v?.packIdsWithRandomizers;
+    if (!byPack || typeof byPack !== 'object') continue;
+    for (const [packId, p] of Object.entries(byPack)) {
+      if (!p || typeof p !== 'object') continue;
+      const mark = marks.get(packId) ?? { shuffle: new Set(), favourites: new Map() };
+      for (const assetId of Array.isArray(p.itemToRandomizeSkin) ? p.itemToRandomizeSkin : []) {
+        const id = text(assetId);
+        if (id != null) mark.shuffle.add(id);
+      }
+      for (const [assetId, o] of Object.entries(p.itemToFavoriteSkins && typeof p.itemToFavoriteSkins === 'object' ? p.itemToFavoriteSkins : {})) {
+        let skins = mark.favourites.get(assetId);
+        if (!skins) mark.favourites.set(assetId, (skins = new Set()));
+        for (const skin of Array.isArray(o?.favoriteSkins) ? o.favoriteSkins : []) {
+          const item = skinAt(text(skin));
+          if (item) skins.add(item);
+        }
+      }
+      marks.set(packId, mark);
+    }
+  }
+  for (const mark of marks.values()) for (const [assetId, skins] of mark.favourites) mark.favourites.set(assetId, [...skins]);
+  return marks;
+}
+
+// The `PlayerCard` row holds one card. Since Season 11 each contestant points at a card of its
+// own, whose contents the export leaves out.
+const CARD_SLOTS = ['Background', 'Border', 'BadgeOne', 'BadgeTwo', 'BadgeThree'];
+function readPlayerCard(rows, itemAt) {
+  const card = rows
+    .filter((it) => it.Type === 'PlayerCard' && Array.isArray(it.Properties?.PlayerCard?.Slots))
+    .sort((a, b) => (toMs(b.UpdatedAt) ?? 0) - (toMs(a.UpdatedAt) ?? 0))[0];
+  if (!card) return null;
+  const idOf = (slot) => card.Properties.PlayerCard.Slots.find((s) => s?.SlotName === slot)?.ItemID || null;
+  const [background, border, ...badges] = CARD_SLOTS.map((slot) => itemAt(idOf(slot)));
+  const unresolved = CARD_SLOTS.filter((slot) => idOf(slot) && !itemAt(idOf(slot))).length;
+  if (!background && !border && !badges.some(Boolean) && !unresolved) return null;
+  const own = new Set(rows.filter((it) => it.Type === 'PersistentEntity' && it.Name === 'PlayerCard').map((it) => it.InstanceID));
+  const pointed = new Set(
+    rows
+      .flatMap((it) => (Array.isArray(it.Properties?.ContestantPack?.Slots) ? it.Properties.ContestantPack.Slots : []))
+      .filter((s) => s?.SlotName === 'PlayerCard')
+      .flatMap((s) => (Array.isArray(s.ItemIDs) ? s.ItemIDs : []))
+      .filter((id) => own.has(id))
+  );
+  return { savedMs: toMs(card.UpdatedAt), background, border, badges, unresolved, contestantCards: own.size, linkedCards: pointed.size, current: own.size === 0 };
+}
+
 function buildInventory(byType, keys, realms) {
   const live = liveInventory((byType.InventoryItem || []).filter((it) => it && typeof it === 'object'), realms);
   // A sanction is not an owned item (Account shows it), and its CreatedAt is not when it happened.
@@ -848,6 +911,7 @@ function buildInventory(byType, keys, realms) {
         equipment: itemEquipment(k.asset),
         detail: itemEquipment(k.asset) ?? assetDetail(kind.klass, k.asset),
         asset: k.asset,
+        ...(kind.klass === 'CardBadge' && Number.isSafeInteger(it.Properties?.PlayerCardCustomization?.Level) && it.Properties.PlayerCardCustomization.Level > 0 && { level: it.Properties.PlayerCardCustomization.Level }),
       }),
     });
   }
@@ -856,42 +920,100 @@ function buildInventory(byType, keys, realms) {
   // Saved contestant packs reference other inventory rows by InstanceID. An id this
   // export does not cover resolves to null and is shown as such, never dropped.
   const nameOf = (id) => cleanName(byInstance.get(id)?.Name) || null;
-  const gear = (ids) =>
-    (Array.isArray(ids) ? ids : []).map((id) => {
-      const row = byInstance.get(id);
-      if (!row || row.GameAssetID == null) return { id: String(id), name: null, icon: null, type: null };
-      const w = resolveWeapon(row.GameAssetID, keys);
-      return { id: String(id), name: w.unknown ? cleanName(row.Name) : w.name, icon: w.icon, type: w.type };
-    });
   const itemOf = new Map();
   for (const it of items) if (it.id != null && !itemOf.has(it.id)) itemOf.set(it.id, it);
+  const itemAt = (id) => {
+    const asset = text(byInstance.get(id)?.GameAssetID);
+    return asset == null ? null : (itemOf.get(asset) ?? null);
+  };
+  const skinAt = (id) => (itemOf.get(id)?.klass === 'WeaponSkin' ? itemOf.get(id) : null);
+  const marks = items.length ? readSkinMarks(byType, skinAt) : new Map();
+  const lookOf = (attached, mark, assetId) => {
+    const shuffle = !!mark?.shuffle.has(assetId);
+    if (!(Array.isArray(attached) && attached.length) && !shuffle) return null;
+    // Favourites are for skin randomisation, so a weapon lists them only where Deep Shuffle is on.
+    const favourites = (shuffle && mark.favourites.get(assetId)) || [];
+    const look = { skin: null, charm: null, sticker: null, sight: null, screen: null, animations: [], more: [], shuffle, favourites, unresolved: 0 };
+    for (const id of Array.isArray(attached) ? attached : []) {
+      const it = itemAt(id);
+      const part = it && Object.hasOwn(LOOK_PARTS, it.klass) ? LOOK_PARTS[it.klass] : null;
+      if (!it) look.unresolved++;
+      else if (part && !look[part]) look[part] = it;
+      else (String(it.klass).startsWith('Anim') ? look.animations : look.more).push(it);
+    }
+    return look;
+  };
+  const gear = (ids, attachments, mark) => {
+    const done = new Map();
+    return (Array.isArray(ids) ? ids : []).map((id) => {
+      if (done.has(id)) return done.get(id);
+      const row = byInstance.get(id);
+      const asset = text(row?.GameAssetID);
+      const w = asset == null ? null : resolveWeapon(asset, keys);
+      const e = w
+        ? { id: text(id) ?? '?', name: w.unknown ? cleanName(row.Name) : w.name, icon: w.icon, type: w.type, look: lookOf(attachments.get(id), mark, asset) }
+        : { id: text(id) ?? '?', name: null, icon: null, type: null, look: lookOf(attachments.get(id), null, null) };
+      done.set(id, e);
+      return e;
+    });
+  };
+  const gearAt = new Map();
+  for (const it of rows) {
+    const asset = it.Type === 'GameItem' ? text(it.GameAssetID) : null;
+    if (asset != null && text(it.InstanceID) != null && !gearAt.has(asset)) gearAt.set(asset, it.InstanceID);
+  }
+  const gearRank = (t) => { const i = ['Weapon', 'Gadget', 'Spec'].indexOf(t); return i < 0 ? 3 : i; };
   const packs = [];
+  const packIds = new Set();
   // The `Loadout` row names the pack that was selected when the export was made.
   const activePackId = rows.find((it) => it.Properties?.Loadout?.SelectedContestantPackItemID)?.Properties.Loadout.SelectedContestantPackItemID ?? null;
   for (const it of rows) {
     const p = it.Properties?.ContestantPack;
     if (!p || typeof p !== 'object') continue;
+    const packId = text(it.InstanceID);
+    if (packId != null && packIds.has(packId)) continue;
+    if (packId != null) packIds.add(packId);
+    const attachments = new Map((Array.isArray(p.ItemAttachments) ? p.ItemAttachments : []).filter((a) => a && typeof a === 'object' && text(a.ItemID) != null).map((a) => [a.ItemID, a.AttachedItemIDs]));
+    const mark = (packId != null && marks.get(packId)) || null;
+    const carried = new Set([...(Array.isArray(p.FirstHandItemIDs) ? p.FirstHandItemIDs : []), ...(Array.isArray(p.ReservedItemIDs) ? p.ReservedItemIDs : [])]);
+    const marked = mark ? [...mark.shuffle].map((assetId) => gearAt.get(assetId)).filter(Boolean) : [];
     packs.push({
-      id: String(it.InstanceID ?? packs.length),
+      id: packId ?? `#${packs.length}`,
       active: activePackId != null && it.InstanceID === activePackId,
-      title: cleanName(p.Title) || 'Untitled build',
+      title: cleanName(p.Title) || 'Untitled contestant',
       archetype: nameOf(p.ArchetypeItemID),
-      equipped: gear(p.FirstHandItemIDs),
-      reserve: gear(p.ReservedItemIDs),
+      equipped: gear(p.FirstHandItemIDs, attachments, mark),
+      reserve: gear(p.ReservedItemIDs, attachments, mark),
+      also: gear([...new Set([...attachments.keys(), ...marked])].filter((id) => !carried.has(id)), attachments, mark)
+        .filter((e) => e.look)
+        .sort((x, y) => gearRank(x.type) - gearRank(y.type) || (x.name ?? '').localeCompare(y.name ?? '', undefined, { numeric: true })),
       // PlayerCard and OutfitPack point at container rows with no name of their own.
       slots: (Array.isArray(p.Slots) ? p.Slots : [])
         .filter((s) => s && typeof s === 'object' && s.SlotName !== 'PlayerCard' && s.SlotName !== 'OutfitPack')
         .map((s) => ({ label: Object.hasOwn(PACK_SLOT_LABELS, s.SlotName) ? PACK_SLOT_LABELS[s.SlotName] : String(s.SlotName), names: (Array.isArray(s.ItemIDs) ? s.ItemIDs : []).map(nameOf) })),
       spray: p.SprayItemID ? [nameOf(p.SprayItemID)] : [],
-      // The clothes of the saved outfit. Some exports list only the pack's emote here.
+      // Some exports list only the pack's emote here.
       clothes: (Array.isArray(p.CustomizationItemIDs) ? p.CustomizationItemIDs : [])
-        .map((id) => itemOf.get(String(byInstance.get(id)?.GameAssetID)))
+        .map(itemAt)
         .filter((c) => c && (c.group === 'Outfit' || c.group === 'Body')),
       emotes: (Array.isArray(p.EmoteWheelItemIDs) ? p.EmoteWheelItemIDs : []).map(nameOf),
     });
   }
   const classRank = (a) => { const i = ['Light', 'Medium', 'Heavy'].indexOf(a); return i < 0 ? 3 : i; };
   packs.sort((a, b) => classRank(a.archetype) - classRank(b.archetype) || a.title.localeCompare(b.title, undefined, { numeric: true }));
+
+  // Read from every copy of the inventory, so a preview build's packs do not count as deleted.
+  const everyPack = new Set((byType.InventoryItem || []).filter((it) => it?.Properties?.ContestantPack).map((it) => text(it.InstanceID)));
+  for (const pack of packs) {
+    const starred = new Set([...(marks.get(pack.id)?.favourites.values() ?? [])].flat());
+    for (const item of starred) (item.favourite ??= { packs: [] }).packs.push(pack.title);
+  }
+  const goneSkins = new Set();
+  for (const [packId, mark] of marks) {
+    if (everyPack.has(packId)) continue;
+    for (const skins of mark.favourites.values()) for (const item of skins) if (!item.favourite) goneSkins.add(item);
+  }
+  const favourites = { skins: items.reduce((n, item) => n + (item.favourite ? 1 : 0), 0), gone: { skins: goneSkins.size } };
 
   const categories = [...map.values()].sort((a, b) => b.count - a.count);
   return {
@@ -903,6 +1025,10 @@ function buildInventory(byType, keys, realms) {
     items,
     firstMs,
     packs,
+    favourites,
+    playerCard: readPlayerCard(rows, itemAt),
+    savedOutfits: rows.filter((it) => it.Type === 'PersistentEntity' && it.Name === 'CustomizationAppearancePack').length,
+    wishlistPacks: rows.filter((it) => it.Type === 'PersistentEntity' && it.Name === 'WishlistCustomizationAppearancePack').length,
     copies: { blocks: live.copies, rows: live.copyRows },
   };
 }
@@ -1879,7 +2005,7 @@ function buildLoadouts(rounds) {
 // every player put pieces in it that are not owned, so only owned items count. An outfit
 // is the clothes alone: body type and voice start being listed in late 2024 and mid 2025
 // and would split one. Watches are never listed and pets only in January 2024, though
-// saved outfits hold both.
+// a saved contestant's `CustomizationItemIDs` hold both.
 const UNRECORDED_SLOTS = ['Pet', 'Watch'];
 function buildWardrobe(rounds, inventory, keys) {
   const owned = new Map();

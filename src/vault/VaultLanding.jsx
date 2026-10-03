@@ -63,7 +63,7 @@ const SHOWCASE = [
   { icon: BarChart3, label: 'Breakdown', sub: `${VAULT_BASE}/breakdown`, desc: 'Real K/D and win rate per map, mode and class.' },
   { icon: Layers, label: 'Loadouts', sub: `${VAULT_BASE}/loadouts`, desc: 'How much you played each class and your top weapons.' },
   { icon: Wallet, label: 'Purchases', sub: `${VAULT_BASE}/purchases`, desc: 'Real money spent, Multibucks ledger and owned DLC.' },
-  { icon: Shirt, label: 'Collection', sub: `${VAULT_BASE}/collection`, desc: 'Your cosmetics, saved outfits and what you wore.' },
+  { icon: Shirt, label: 'Collection', sub: `${VAULT_BASE}/collection`, desc: 'Your cosmetics, saved contestants and what you wore.' },
   { icon: Radar, label: 'Sessions', sub: `${VAULT_BASE}/sessions`, desc: 'Every login, IP and country on an offline world map.' },
   { icon: Mail, label: 'Email tracking', sub: `${VAULT_BASE}/emails`, desc: 'Which emails Embark sent, opened and click-tracked.' },
   { icon: MessagesSquare, label: 'Support & chat', sub: `${VAULT_BASE}/support`, desc: 'Your in-game chat log and Embark support-ticket threads.' },

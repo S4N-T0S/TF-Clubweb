@@ -10,7 +10,7 @@ import { VAULT_BASE } from '../../constants';
 const PER_PAGE = 15;
 
 // Named inventory (2026-09+ exports) on Purchases: the counts, and the rows that are not cosmetics.
-// Cosmetics and saved outfits are on the Collection page. Older exports keep the count grid in PurchasesPage.
+// Cosmetics and saved contestants are on the Collection page. Older exports keep the count grid in PurchasesPage.
 export const InventoryBrowser = ({ inventory }) => {
   const { items: all, categories } = inventory;
   const items = useMemo(() => all.filter((it) => !it.klass), [all]);
@@ -47,7 +47,7 @@ export const InventoryBrowser = ({ inventory }) => {
       </div>
 
       {items.length === 0 ? (
-        <Note>Every named item in this export is a cosmetic. They are on the {collection}, with your saved outfits.</Note>
+        <Note>Every named item in this export is a cosmetic. They are on the {collection}, with your saved contestants.</Note>
       ) : (
         <Panel
           title={`Other items you own (${num(items.length)})`}
@@ -112,7 +112,7 @@ export const InventoryBrowser = ({ inventory }) => {
             {items.some((it) => it.before) && ' A date marked “by” is the earliest time the row was written, because a later migration replaced its creation date.'}
             {inventory.copies?.rows > 0 &&
               ` Preview builds keep their own copy of the inventory, so ${num(inventory.copies.rows)} rows from ${num(inventory.copies.blocks)} preview ${inventory.copies.blocks === 1 ? 'copy' : 'copies'} are left out.`}
-            {' '}Your cosmetics and your saved outfits are on the {collection}.
+            {' '}Your cosmetics and your saved contestants are on the {collection}.
           </Note>
         </Panel>
       )}

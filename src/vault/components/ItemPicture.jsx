@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Shirt, Crosshair, Smile, User, IdCard, Users, Volume2, Mic, Hand, Clapperboard, Scan, ImageOff, Play, Square } from 'lucide-react';
+import { Shirt, Crosshair, Smile, User, IdCard, Users, Volume2, Mic, Hand, Clapperboard, Scan, ImageOff, Play, Square, Star } from 'lucide-react';
 import { HoverTip } from './ui';
 import { ITEM_CLASSES, classHasPictures } from '../lib/itemImages';
 import { rarityOf, sponsorOf, when } from '../lib/itemStyle';
@@ -167,10 +167,12 @@ export const ItemCard = ({ item: it }) => {
         {it.rarity}
       </span>
     )],
+    ['Level', it.level],
     ['Added in', it.season != null ? `Season ${it.season}` : null],
     ['Sponsor', sponsorOf(it)],
     ['Acquired', when(it)],
     ['Amount', it.amount !== 1 ? num(it.amount) : null],
+    ['Favourite in', it.favourite?.packs.join(', ')],
     ['Worn', w ? `${num(w.rounds)} ${w.rounds === 1 ? 'round' : 'rounds'}${w.firstMs != null && w.lastMs != null ? `, ${range(w.firstMs, w.lastMs)}` : ''}` : null],
     ['Embark type', it.label],
   ].filter(([, v]) => v);
@@ -195,11 +197,17 @@ export const ItemCard = ({ item: it }) => {
 export const ItemTile = ({ item: it, sub }) => (
   <HoverTip
     width={264}
-    label={`${it.name}, ${it.detail ? `${it.detail}, ` : ''}${it.slot}${it.rarity ? `, ${it.rarity}` : ''}${sub ? `, ${sub}` : ''}`}
+    label={`${it.name}, ${it.detail ? `${it.detail}, ` : ''}${it.slot}${it.rarity ? `, ${it.rarity}` : ''}${it.level != null ? `, Level ${it.level}` : ''}${it.favourite ? ', favourite' : ''}${sub ? `, ${sub}` : ''}`}
     tip={<ItemCard item={it} />}
-    className="block h-full overflow-hidden rounded-lg bg-gray-900/50 transition-colors hover:bg-gray-900/80 focus-visible:outline-2 focus-visible:outline-emerald-500"
+    className="relative block h-full overflow-hidden rounded-lg bg-gray-900/50 transition-colors hover:bg-gray-900/80 focus-visible:outline-2 focus-visible:outline-emerald-500"
   >
     <ItemPicture item={it} />
+    {it.level != null && <span className="absolute top-1 left-1 rounded bg-gray-900/85 px-1.5 py-0.5 text-[10px] leading-none font-semibold tabular-nums text-gray-100">Level {it.level}</span>}
+    {it.favourite && (
+      <span aria-hidden="true" className="absolute top-1 left-1 grid h-5 w-5 place-items-center rounded-full bg-gray-900/80 text-yellow-300 ring-1 ring-black/25">
+        <Star className="h-3 w-3" fill="currentColor" />
+      </span>
+    )}
     <div className="px-1.5 pt-1 pb-1.5 text-left">
       <p className={`line-clamp-2 min-h-8 text-[11px] leading-4 ${it.internal ? 'break-all font-mono text-gray-500' : 'wrap-break-word font-medium text-gray-100'}`}>{it.name}</p>
       <p className="truncate text-[10px] leading-4 text-gray-400">{it.detail ? `${it.detail} · ${it.slot}` : it.slot}</p>

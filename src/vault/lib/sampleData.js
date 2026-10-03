@@ -14,7 +14,7 @@
 import { PERFORMANCE_BONUS_MAX_SCORE } from './ratings';
 import { WEAPONS } from './weapons';
 import { worldTourEvent, sponsorName, sponsorTrackLength, sponsorLevelFans, sponsorAddedLevels } from './gameMeta';
-import { itemClass, itemSeason } from './itemImages';
+import { itemClass, itemSeason, itemEquipment, normName } from './itemImages';
 import { SEASONS } from './seasons';
 import { SAMPLE_ITEMS, SAMPLE_UNIFORMS } from './sampleItems';
 
@@ -950,7 +950,7 @@ function buildRatingBuckets(rounds, rankUpdates) {
 }
 
 // --- fields Embark added to the export in 2026-09 -------------------------
-// Loadouts, scorecards, placements, named inventory, saved builds, social, inbox and
+// Loadouts, scorecards, placements, named inventory, saved contestants, social, inbox and
 // console records. They draw from their own stream (rng2), so adding one never
 // reshuffles the numbers the rest of the sample already produces.
 const pseudoUuid = () => {
@@ -1211,7 +1211,7 @@ function buildInventoryItems() {
     add('Currency', i, 3, { GameAssetID: name === 'Multibucks' ? MULTIBUCKS_ID : id, Name: name, Amount: amount });
   });
 
-  // Every weapon, gadget and specialization the saved builds refer to.
+  // Every weapon, gadget and specialization the saved contestants refer to.
   const gearRow = new Map();
   const gearIds = [...new Set(SAVED_BUILDS.flatMap((b) => [BUILDS[b.arch][b.build].spec, b.weapon, ...BUILDS[b.arch][b.build].gadgets, ...b.reserve]).map(String))];
   gearIds.forEach((id, i) => gearRow.set(id, add('GameItem', i, gearIds.length, { GameAssetID: Number(id), Name: WEAPONS[id]?.name ?? `Item ${id}` })));
@@ -1355,6 +1355,129 @@ function dressRounds(rounds, inventory) {
     const arch = row.Properties.ContestantPack.Title.split(' ')[0];
     const outfit = i === packs.length - 1 ? null : saved[arch][used[arch]++ % saved[arch].length];
     row.Properties.ContestantPack.CustomizationItemIDs = [...(outfit ? [...outfit.values()].map((it) => it.instance) : []), ...(outfit && i === 0 && watch ? [watch] : []), ...(emote ? [emote] : [])];
+  });
+}
+
+// --- weapon cosmetics per contestant, favourite skins, the player card ------
+const FIRST_SEASON = {
+  '93R': 2, 'KS-23': 2, FAMAS: 2, Dematerializer: 2, Gateway: 2, 'Data Reshaper': 2, 'Anti-Gravity Cube': 2,
+  'Recurve Bow': 3, Spear: 3, 'Thermal Bore': 3, 'Dual Blades': 3, 'Winch Claw': 3,
+  'Proximity Sensor': 4, 'M26 Matter': 4, 'PIKE-556': 4, '.50 Akimbo': 4,
+  'Cerberus 12GA': 5, 'Gravity Vortex': 5, 'SHAK-50': 5, Lockbolt: 5,
+  'ARN-220': 6, Nullifier: 6, 'CB-01 Repeater': 6, 'M134 Minigun': 6,
+  'Breach Drill': 7, 'H+ Infuser': 7, 'Healing Emitter': 7, 'BFR Titan': 8, P90: 8, 'Chimera-XB': 10, Shockwave: 10,
+};
+const SEASON_11 = SEASONS.find((season) => season.n === 11)?.startMs ?? SPAN_START;
+const CARD_SAVED = Date.parse('2026-05-02T19:14:00Z');
+const CARD_PICKS = { Background: 'Dugout Design', Border: 'Crime Scene', BadgeOne: 'Heavy Duty', BadgeTwo: 'Cash Flow Manager' };
+const BADGE_LEVELS = [1, 1, 1, 2, 2, 3, 4, 5, 7, 10, 16, 19];
+function dressWeapons(inventory, buckets) {
+  const rand = localRng(0x2026_1003);
+  const pick = (arr) => arr[Math.floor(rand() * arr.length)];
+  const def = new Map(SAMPLE_ITEMS.map((c) => [c[0], c]));
+  const fresh = (block, i) => `5a3c7100-0000-4000-8000-000000000${block}${String(i).padStart(2, '0')}`;
+
+  const have = new Set(inventory.filter((row) => row.Type === 'GameItem').map((row) => String(row.GameAssetID)));
+  Object.entries(WEAPONS)
+    .filter(([id, w]) => ['Weapon', 'Gadget', 'Spec'].includes(w.type) && w.archetype !== 'Event' && !have.has(id))
+    .forEach(([id, w], i) => {
+      const from = Math.max(SPAN_START, SEASONS.find((season) => season.n === (FIRST_SEASON[w.name] ?? 1)).startMs);
+      const at = iso(lerp(from, Math.min(from + 240 * DAY, SPAN_END), rand()));
+      inventory.push({ GameAssetID: Number(id), Name: w.name, InstanceID: fresh(2, i), Amount: 1, HasSeen: true, Type: 'GameItem', CreatedAt: at, UpdatedAt: at });
+    });
+
+  const by = { WeaponSkin: new Map(), Sight: new Map(), Anim: new Map(), WeaponCharm: [], WeaponSticker: [] };
+  const cards = { CardBackground: [], CardBorder: [], CardBadge: [] };
+  for (const row of inventory) {
+    const c = def.get(row.GameAssetID);
+    if (!c) continue;
+    const klass = sampleItemClass(c);
+    const group = klass.startsWith('Anim') ? 'Anim' : klass;
+    if (Object.hasOwn(cards, klass)) cards[klass].push(row);
+    else if (Array.isArray(by[group])) by[group].push(row);
+    else if (by[group]) {
+      const weapon = normName(itemEquipment(c[4]));
+      if (weapon) by[group].set(weapon, [...(by[group].get(weapon) ?? []), row]);
+    }
+  }
+  const usual = { WeaponCharm: pick(by.WeaponCharm), WeaponSticker: pick(by.WeaponSticker) };
+  const maybe = (type, p) => (rand() < p && by[type].length ? [(rand() < 0.7 ? usual[type] : pick(by[type])).InstanceID] : []);
+
+  const packs = inventory.filter((row) => row.Properties?.ContestantPack);
+  const selected = packs.find((row) => row.Properties.ContestantPack.Title === 'Medium 1');
+  const gear = inventory.filter((row) => row.Type === 'GameItem' && Object.hasOwn(WEAPONS, row.GameAssetID));
+  const marks = {};
+  packs.forEach((row, n) => {
+    const pack = row.Properties.ContestantPack;
+    const arch = pack.Title.split(' ')[0];
+    const carried = new Set([...pack.FirstHandItemIDs, ...pack.ReservedItemIDs]);
+    const marking = n === 0 || row === selected;
+    const mark = { itemToRandomizeSkin: [], itemToFavoriteSkins: {} };
+    pack.ItemAttachments = [];
+    for (const item of gear) {
+      const w = WEAPONS[item.GameAssetID];
+      if (w.archetype !== arch && w.archetype !== 'Global') continue;
+      const weapon = normName(w.name);
+      const all = by.WeaponSkin.get(weapon) ?? [];
+      const skins = all.filter((skin) => skin.Name !== 'Standard Issue');
+      const on = carried.has(item.InstanceID);
+      if (!skins.length || rand() > (w.type === 'Spec' ? 0.3 : on ? 0.95 : 0.8)) continue;
+      const favourite = marking && w.type === 'Weapon' && skins.length >= 2 && rand() < (on ? 0.9 : 0.12) ? skins.filter(() => rand() < 0.6).slice(0, 6) : [];
+      if (favourite.length >= 2) mark.itemToFavoriteSkins[item.GameAssetID] = { favoriteSkins: favourite.map((skin) => skin.GameAssetID) };
+      const skin = favourite.length >= 2 ? pick(favourite) : rand() < 0.02 ? (all.find((s) => s.Name === 'Standard Issue') ?? pick(skins)) : pick(skins);
+      pack.ItemAttachments.push({
+        ItemID: item.InstanceID,
+        AttachedItemIDs: [
+          skin.InstanceID,
+          ...maybe('WeaponCharm', w.type === 'Weapon' ? 0.3 : 0.08),
+          ...maybe('WeaponSticker', 0.35),
+          ...(by.Sight.get(weapon)?.length && rand() < 0.7 ? [pick(by.Sight.get(weapon)).InstanceID] : []),
+          ...(by.Anim.get(weapon) ?? []).filter(() => rand() < 0.75).map((anim) => anim.InstanceID),
+        ],
+      });
+    }
+    if (marking) marks[row.InstanceID] = mark;
+  });
+  const main = selected && gear.find((item) => item.InstanceID === selected.Properties.ContestantPack.FirstHandItemIDs[1]);
+  if (main && marks[selected.InstanceID].itemToFavoriteSkins[main.GameAssetID]) marks[selected.InstanceID].itemToRandomizeSkin.push(main.GameAssetID);
+  // The bucket still holds the lists of two deleted contestants.
+  [['SHAK50', fresh(4, 1)], ['ARN220', fresh(4, 2)]].forEach(([weapon, id]) => {
+    const item = gear.find((g) => normName(WEAPONS[g.GameAssetID].name) === weapon);
+    if (!item || !by.WeaponSkin.get(weapon)) return;
+    marks[id] = { itemToRandomizeSkin: [item.GameAssetID], itemToFavoriteSkins: { [item.GameAssetID]: { favoriteSkins: by.WeaponSkin.get(weapon).filter((skin) => skin.Name !== 'Standard Issue').slice(-3).map((skin) => skin.GameAssetID) } } };
+  });
+  buckets.push({ ObjectKey: 'UI.Persistence.Customization.ItemSkinRandomizers', Value: JSON.stringify({ version: 1, packIdsWithRandomizers: marks }), CreatedAt: '2025-07-02T18:20:00.000Z', UpdatedAt: iso(SPAN_END - 9 * DAY) });
+
+  for (const row of [...cards.CardBackground, ...cards.CardBorder]) row.Properties = { PlayerCardCustomization: { Level: 0, Progress: 0 } };
+  for (const row of cards.CardBadge) row.Properties = { PlayerCardCustomization: { Level: rand() < 0.12 ? 0 : pick(BADGE_LEVELS), Progress: 0 } };
+  const slot = (name, rows, taken = []) => {
+    const pool = rows.filter((row) => Date.parse(row.CreatedAt) < CARD_SAVED && !taken.includes(row));
+    return pool.find((row) => row.Name === CARD_PICKS[name]) ?? pool[0] ?? null;
+  };
+  const badgeOne = slot('BadgeOne', cards.CardBadge);
+  const badgeTwo = slot('BadgeTwo', cards.CardBadge, [badgeOne]);
+  for (const [row, level] of [[badgeOne, 3], [badgeTwo, 5], [cards.CardBadge.findLast((row) => row !== badgeOne && row !== badgeTwo), 0]]) if (row) row.Properties.PlayerCardCustomization.Level = level;
+  const placed = { Background: slot('Background', cards.CardBackground), Border: slot('Border', cards.CardBorder), BadgeOne: badgeOne, BadgeTwo: badgeTwo, BadgeThree: null };
+  inventory.push({
+    GameAssetID: 4334566053, Name: 'Player card', InstanceID: fresh(3, 0), Amount: 1, HasSeen: true, Type: 'PlayerCard',
+    Properties: { PlayerCard: { Slots: Object.entries(placed).map(([SlotName, row]) => ({ SlotName, ItemID: row?.InstanceID ?? '' })) } },
+    CreatedAt: iso(SEASONS[0].startMs), UpdatedAt: iso(CARD_SAVED),
+  });
+  packs.forEach((row, i) => {
+    const at = iso(SEASON_11 + (1 + i * 6) * DAY + i * 37 * 60_000);
+    inventory.push({ GameAssetID: 1292032845, Name: 'PlayerCard', InstanceID: fresh(3, i + 1), Amount: 1, HasSeen: true, Type: 'PersistentEntity', Properties: { PersistentEntity: { Version: 0 } }, CreatedAt: at, UpdatedAt: at });
+    row.Properties.ContestantPack.Slots.push({ SlotName: 'PlayerCard', ItemIDs: [fresh(3, i + 1)] });
+  });
+  // A migration re-stamped CreatedAt on the older wardrobe outfits.
+  const restamp = Date.parse('2025-08-19T18:05:00Z');
+  for (let i = 0; i < Math.max(7, packs.length); i++) {
+    const made = lerp(SEASONS.find((season) => season.n === 6).startMs, SPAN_END, rand());
+    inventory.push({ GameAssetID: 762419378, Name: 'CustomizationAppearancePack', InstanceID: fresh(5, i), Amount: 1, HasSeen: true, Type: 'PersistentEntity', Properties: { PersistentEntity: { Version: 0 } }, CreatedAt: iso(Math.max(made, restamp)), UpdatedAt: iso(made) });
+  }
+  packs.forEach((row, i) => {
+    row.Properties.ContestantPack.Slots.push({ SlotName: 'OutfitPack', ItemIDs: [fresh(5, i)] });
+    const targets = [fresh(3, i + 1), fresh(5, i)].map((id) => Date.parse(inventory.find((r) => r.InstanceID === id).CreatedAt));
+    row.UpdatedAt = iso(Math.max(Date.parse(row.UpdatedAt), ...targets));
   });
 }
 
@@ -1630,6 +1753,7 @@ function buildPersistence() {
     const at = iso(Math.max(releasedAt(c), lerp(SPAN_START, SPAN_END, sightDate())));
     byType.InventoryItem.push({ GameAssetID: c[0], Name: c[1], InstanceID: `5a3c7100-0000-4000-8000-0000000001${String(i).padStart(2, '0')}`, Amount: 1, HasSeen: false, Type: c[2], CreatedAt: at, UpdatedAt: at });
   });
+  dressWeapons(byType.InventoryItem, byType.BucketObject);
   // Added after the literal so no random stream above moves.
   byType.InventoryItem.push({
     GameAssetID: 4334566052, Name: 'Sanction', InstanceID: '5a3c7100-0000-4000-8000-000000000001', Amount: 1, HasSeen: true, Type: 'Sanction',

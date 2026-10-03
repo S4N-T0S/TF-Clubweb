@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Layers } from 'lucide-react';
 import { useVaultData } from '../context/VaultDataContext';
 import { PageHeader, Panel, Badge, Note } from '../components/ui';
 import { ItemIcon } from '../components/MatchParts';
 import { archetypeLabel } from '../lib/gameMeta';
 import { num, hours, decimal, date } from '../lib/format';
+import { VAULT_BASE } from '../../constants';
 
 const archTone = { Light: 'blue', Medium: 'emerald', Heavy: 'red' };
 
@@ -139,7 +141,7 @@ export const LoadoutsPage = () => {
   const { model } = useVaultData();
   const usage = useClassUsage(model);
   const { loadouts } = model;
-  const builds = model.inventory.packs.filter((p) => p.equipped.length || p.reserve.length);
+  const contestants = model.inventory.packs.filter((p) => p.equipped.length || p.reserve.length);
 
   return (
     <div className="animate-fade-in-up space-y-5">
@@ -162,10 +164,10 @@ export const LoadoutsPage = () => {
         </div>
       </Panel>
 
-      {builds.length > 0 && (
-        <Panel title={`Saved builds (${num(builds.length)})`}>
+      {contestants.length > 0 && (
+        <Panel title={`Saved contestants (${num(contestants.length)})`}>
           <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {builds.map((p) => (
+            {contestants.map((p) => (
               <div key={p.id} className="bg-gray-900/50 rounded-lg p-3 space-y-3 min-w-0">
                 <p className="text-sm font-semibold text-white flex items-center gap-2">
                   <span className="truncate">{p.title}</span>
@@ -177,7 +179,14 @@ export const LoadoutsPage = () => {
               </div>
             ))}
           </div>
-          <p className="text-xs text-gray-500 mt-3">The builds saved on your account the day the export was made.</p>
+          <p className="text-xs text-gray-500 mt-3">
+            The contestants saved on your account the day the export was made.
+            {contestants.some((p) => [...p.equipped, ...p.reserve, ...p.also].some((e) => e.look)) && (
+              <>
+                {' '}The cosmetics saved with each are on the <Link to={`${VAULT_BASE}/collection`} className="text-emerald-400 hover:underline">Collection page</Link>, under Saved contestants.
+              </>
+            )}
+          </p>
         </Panel>
       )}
 
