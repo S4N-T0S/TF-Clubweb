@@ -220,7 +220,7 @@ export const CosmeticsTab = ({ cosmetics, inventory, wardrobe, hidden }) => {
               <SlidersHorizontal className="h-4 w-4" /> Filters
               {active > 0 && <Badge tone="emerald">{active}</Badge>}
             </button>
-            <div className={`${open ? 'grid' : 'hidden'} order-last w-full grid-cols-2 gap-2 @xl:order-none @xl:flex @xl:w-auto @xl:flex-wrap`}>
+            <div className={`${open ? 'grid' : 'hidden'} order-last w-full grid-cols-2 gap-2 @xl:order-0 @xl:flex @xl:w-auto @xl:flex-wrap`}>
               <select aria-label="Rarity" value={f.rarity} onChange={(e) => set({ rarity: e.target.value })} className={SELECT}>
                 <option value="any">Any rarity</option>
                 {options.rarities.map((r) => <option key={r} value={r}>{r}</option>)}

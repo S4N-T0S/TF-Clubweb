@@ -18,9 +18,9 @@
 /geo/*
   Cache-Control: public, max-age=2592000
 
-# Pre-compressed historical season data; no-transform keeps Cloudflare from re-encoding it
-/data/*.br
+# Historical season data, brotli-11 at build time (tools/vite-historical-data.js)
+/data/*.bin
   Content-Encoding: br
   Content-Type: application/json
   Vary: Accept-Encoding
-  Cache-Control: public, max-age=60, no-transform
+  Cache-Control: public, max-age=31536000, immutable, no-transform

@@ -2,35 +2,54 @@ import { getLeagueInfo } from '../utils/leagueUtils';
 import { aggregateClubs } from '../utils/dataProcessing';
 import { parseSearchQuery, matchesParsedPlayer } from '../utils/searchUtils';
 import { fetchIdentity, searchIdentities } from './id-api';
-import OBData from '../data/Betas/OB-crossplay.json';
-import S1Data from '../data/S1/S1-merged.json';
-import S2Data from '../data/S2/S2-merged.json';
-import S3Data from '../data/S3/S3-crossplay.json';
-import S4Data from '../data/S4/S4-crossplay.json';
-import S5Data from '../data/S5/S5-crossplay.json';
-import S6Data from '../data/S6/S6-crossplay.json';
-import S7Data from '../data/S7/S7-crossplay.json';
-import S8Data from '../data/S8/S8-official-merged.json';
-import S9Data from '../data/S9/S9-official-merged.json';
-import S10Data from '../data/S10/S10-official-merged.json';
+import historicalDataUrl from 'virtual:historical-data-url';
+import { decodeSeason } from './historicalDataBlob';
 
 export const SEASONS = {
   ALL: { label: 'All Seasons', isAggregate: true },
-  OB: { id: 0, data: OBData, label: 'Open Beta', hasRuby: false, hasRankScore: true, isGraphable: false },
-  S1: { id: 1, data: S1Data, label: 'Season 1', hasRuby: false, hasRankScore: true, isGraphable: false },
-  S2: { id: 2, data: S2Data, label: 'Season 2', hasRuby: false, hasRankScore: false, isGraphable: false },
-  S3: { id: 3, data: S3Data, label: 'Season 3', hasRuby: true, hasRankScore: true, isGraphable: false, rubyCutoff: 63929 },
-  S4: { id: 4, data: S4Data, label: 'Season 4', hasRuby: true, hasRankScore: true, isGraphable: false, rubyCutoff: 46543 },
-  S5: { id: 5, data: S5Data, label: 'Season 5', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1735429827, endTimestamp: 1742498648, rubyCutoff: 49750, hasClubs: true, hasEvents: true }, // Our service began tracking 2 weeks into the season. Season Started 2024-12-12
-  S6: { id: 6, data: S6Data, label: 'Season 6', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1742502488, endTimestamp: 1749721922, rubyCutoff: 50347, hasClubs: true, hasEvents: true },
-  S7: { id: 7, data: S7Data, label: 'Season 7', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1749734705, endTimestamp: 1757514600, rubyCutoff: 51701, hasClubs: true, hasEvents: true },
-  S8: { id: 8, data: S8Data, label: 'Season 8', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1757516400, endTimestamp: 1765375200, rubyCutoff: 52044, hasClubs: true, hasEvents: true },
-  S9: { id: 9, data: S9Data, label: 'Season 9', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1765382400, endTimestamp: 1774535400, rubyCutoff: 54132, hasClubs: true, hasEvents: true },
-  S10: { id: 10, data: S10Data, label: 'Season 10', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1774535400, endTimestamp: 1783679640, rubyCutoff: 55992, hasClubs: true, hasEvents: true },
+  OB: { id: 0, label: 'Open Beta', hasRuby: false, hasRankScore: true, isGraphable: false },
+  S1: { id: 1, label: 'Season 1', hasRuby: false, hasRankScore: true, isGraphable: false },
+  S2: { id: 2, label: 'Season 2', hasRuby: false, hasRankScore: false, isGraphable: false },
+  S3: { id: 3, label: 'Season 3', hasRuby: true, hasRankScore: true, isGraphable: false, rubyCutoff: 63929 },
+  S4: { id: 4, label: 'Season 4', hasRuby: true, hasRankScore: true, isGraphable: false, rubyCutoff: 46543 },
+  S5: { id: 5, label: 'Season 5', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1735429827, endTimestamp: 1742498648, rubyCutoff: 49750, hasClubs: true, hasEvents: true }, // Our service began tracking 2 weeks into the season. Season Started 2024-12-12
+  S6: { id: 6, label: 'Season 6', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1742502488, endTimestamp: 1749721922, rubyCutoff: 50347, hasClubs: true, hasEvents: true },
+  S7: { id: 7, label: 'Season 7', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1749734705, endTimestamp: 1757514600, rubyCutoff: 51701, hasClubs: true, hasEvents: true },
+  S8: { id: 8, label: 'Season 8', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1757516400, endTimestamp: 1765375200, rubyCutoff: 52044, hasClubs: true, hasEvents: true },
+  S9: { id: 9, label: 'Season 9', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1765382400, endTimestamp: 1774535400, rubyCutoff: 54132, hasClubs: true, hasEvents: true },
+  S10: { id: 10, label: 'Season 10', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1774535400, endTimestamp: 1783679640, rubyCutoff: 55992, hasClubs: true, hasEvents: true },
   S11: { id: 11, data: null, label: 'Season 11', hasRuby: true, hasRankScore: true, isGraphable: true, startTimestamp: 1783684500, endTimestamp: null, rubyCutoff: null, hasClubs: true, hasEvents: true, isCurrent: true }
 };
 
 export const currentSeasonKey = Object.keys(SEASONS).find(key => SEASONS[key].isCurrent); // Reminder: update CF worker when season changes
+
+let _historicalLoad = null;
+let _historicalLoaded = false;
+
+// Closed seasons arrive as one build-time blob (tools/vite-historical-data.js) that fills
+// SEASONS[key].data; the leaderboard app route waits for it (routes.jsx).
+export const loadHistoricalData = () => {
+  _historicalLoad ??= (async () => {
+    const response = await fetch(historicalDataUrl);
+    if (!response.ok) throw new Error(`Historical season data failed to load (HTTP ${response.status})`);
+    const blob = await response.json();
+    if (!blob || typeof blob !== 'object') throw new Error('Historical season data is malformed');
+    for (const [key, season] of Object.entries(SEASONS)) {
+      if (season.isAggregate || season.isCurrent) continue;
+      if (!Object.hasOwn(blob, key)) throw new Error(`Historical season data is missing ${key}`);
+      season.data = decodeSeason(blob[key], key);
+    }
+    _historicalRows = null;
+    _autofillIndex = null;
+    _historicalLoaded = true;
+  })().catch((error) => {
+    _historicalLoad = null;
+    throw error;
+  });
+  return _historicalLoad;
+};
+
+export const isHistoricalDataLoaded = () => _historicalLoaded;
 
 // Known outages of Embark's ranked leaderboard servers. (end of outage timestamp)
 export const SERVER_DOWNTIMES = [
@@ -152,7 +171,7 @@ const getSeasonData = (season, currentSeasonData) => {
     // This prevents using stale data from a mutated global SEASONS object.
     return currentSeasonData || [];
   }
-  // For historical seasons, use the statically imported JSON data.
+  // For historical seasons, use the fetched final snapshot.
   return season.data?.data || [];
 };
 

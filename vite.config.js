@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { mapTunerPlugin } from './tools/vite-map-tuner.js';
+import { historicalDataPlugin } from './tools/vite-historical-data.js';
 
 export default defineConfig({
   // mmdb-lib (offline GeoIP, lazy-loaded in the vault) imports Node's `net` for IP validation; pointed at a tiny browser shim.
@@ -26,6 +27,7 @@ export default defineConfig({
     },
     react(),
     mapTunerPlugin(),
+    historicalDataPlugin({ skipPreloadOn: ['/gdpr-vault', '/overlay'] }),
     {
       name: 'strip-private-fixtures',
       apply: 'build',
@@ -51,20 +53,4 @@ export default defineConfig({
       }
     }
   ],
-  build: {
-    rolldownOptions: {
-      output: {
-        manualChunks(id) {
-          // Recoil data is route-specific; make separate chunk.
-          if (id.includes('src/data/recoil/')) {
-            return;
-          }
-          // Manually compress all frontend historical json data into 1 large file for better caching + compression.
-          if (id.includes('src/data/')) {
-            return 'historical-data';
-          }
-        },
-      },
-    },
-  },
 });

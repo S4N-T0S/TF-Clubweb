@@ -2,9 +2,7 @@
 // chart.js import, so the config stays plain data and can't drag the library in.
 //
 // Mirrors the shape of src/hooks/useChartConfig.js, but must never import from
-// it: that file pulls in historicalDataService, which statically imports eleven
-// season leaderboard JSON blobs (a ~15MB chunk) that would then land in the
-// vault chunk too.
+// it, so the vault chunk stays free of the leaderboard hook and its dependencies.
 import { RANKED_POINTS_PER_DIVISION, leagueInfo, scoreToLeagueIdx } from './ratings';
 import { num } from './format';
 

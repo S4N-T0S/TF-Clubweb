@@ -2,10 +2,10 @@ import { Component, useEffect } from 'react';
 import { useRouteError, isRouteErrorResponse } from 'react-router-dom';
 import { ErrorDisplay } from './ErrorDisplay';
 
-const CrashScreen = ({ error }) => (
+export const CrashScreen = ({ error, title = 'Something went wrong' }) => (
   <div className="min-h-screen bg-gray-900">
     <ErrorDisplay
-      title="Something went wrong"
+      title={title}
       error={error}
       onRetry={() => window.location.reload()}
       onGoHome={() => window.location.assign('/')}
