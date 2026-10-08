@@ -17,3 +17,10 @@
 # Offline GeoIP data (DB-IP mmdb + world geometry)
 /geo/*
   Cache-Control: public, max-age=2592000
+
+# Pre-compressed historical season data; no-transform keeps Cloudflare from re-encoding it
+/data/*.br
+  Content-Encoding: br
+  Content-Type: application/json
+  Vary: Accept-Encoding
+  Cache-Control: public, max-age=60, no-transform

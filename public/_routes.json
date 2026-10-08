@@ -3,6 +3,7 @@
   "include": ["/*"],
   "exclude": [
     "/assets/*",
+    "/data/*",
     "/videos/*",
     "/geo/*",
     "/vault/*",
