@@ -1,10 +1,9 @@
-// Dep-free geo asset helpers
-export const geoAsset = (p) => `${import.meta.env.BASE_URL || '/'}geo/${p}`;
+import worldGeoUrl from '../assets/world.geo.json?url';
 
 let geoJsonPromise = null;
 export function loadWorldGeo() {
   if (!geoJsonPromise) {
-    geoJsonPromise = fetch(geoAsset('world.geo.json'))
+    geoJsonPromise = fetch(worldGeoUrl)
       .then((r) => r.json())
       .catch((e) => {
         geoJsonPromise = null; // allow a retry on a later mount

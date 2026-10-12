@@ -4,7 +4,7 @@
 // + buffer stay out of the main vault chunk.
 // Licensing: DB-IP Lite is CC-BY — "IP Geolocation by DB-IP" attribution is rendered under the map
 import { Buffer } from 'buffer';
-import { geoAsset } from './worldgeo';
+import mmdbUrl from '../assets/dbip-country-lite.mmdb.gz?url';
 
 // mmdb-lib references a global `Buffer`. Sets it BEFORE importing mmdb-lib (done dynamically inside the loader, after this line has run).
 if (typeof globalThis.Buffer === 'undefined') globalThis.Buffer = Buffer;
@@ -15,7 +15,7 @@ export function loadGeoReader() {
   if (!readerPromise) {
     readerPromise = (async () => {
       const { Reader } = await import('mmdb-lib');
-      const res = await fetch(geoAsset('dbip-country-lite.mmdb.gz'));
+      const res = await fetch(mmdbUrl);
       if (!res.ok) throw new Error(`geo db ${res.status}`);
       let bytes = await res.arrayBuffer();
       // Magic-byte check: skip inflation if a proxy/server already content-decoded it.

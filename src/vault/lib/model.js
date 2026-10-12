@@ -3050,7 +3050,7 @@ function buildAntiCheat(raw) {
   // is a Windows device-instance ID like `HID\VID_046D&PID_C08B&MI_01&COL02`.
   // One physical device yields several rows (one per USB interface / HID
   // collection), so group by vendor:product id. Vendor/product NAMES are not
-  // resolved here — the Sessions page lazy-loads /vault/usb-ids.json.gz for that
+  // resolved here — the Sessions page lazy-loads usb-ids.json.gz for that
   const periMap = new Map(); // 'VID:PID' -> device
   for (const r of raw.anybrain.peripherals || []) {
     const m = /^(?:HID|USB)\\VID_([0-9A-F]{4})&PID_([0-9A-F]{4})/i.exec(r.peripheral || '');

@@ -16,7 +16,7 @@ export const WorldMap = ({ countries }) => {
   const [geo, setGeo] = useState(null);
   useEffect(() => {
     let alive = true;
-    loadWorldGeo().then((g) => alive && setGeo(g)).catch(() => {});
+    loadWorldGeo().then((g) => alive && setGeo(g)).catch(() => alive && setGeo(false));
     return () => { alive = false; };
   }, []);
 
@@ -25,7 +25,7 @@ export const WorldMap = ({ countries }) => {
     return { detected: d, maxSessions: Math.max(1, ...countries.map((c) => c.sessions || 0)) };
   }, [countries]);
 
-  if (!geo) return <div className="h-44 flex items-center justify-center text-gray-500 text-sm">Loading map…</div>;
+  if (!geo) return <div className="h-44 flex items-center justify-center text-gray-500 text-sm">{geo === false ? 'Couldn’t load the map' : 'Loading map…'}</div>;
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full rounded-lg bg-gray-900 border border-gray-700">

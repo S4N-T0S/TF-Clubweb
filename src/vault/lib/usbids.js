@@ -1,15 +1,17 @@
 // Offline USB vendor/product name lookup via the bundled usb.ids snapshot
-// (public/vault/usb-ids.json.gz — regenerate with tools/generate-usb-ids.mjs).
+// (src/vault/assets/usb-ids.json.gz — regenerate with tools/generate-usb-ids.mjs).
 //
 // This module is ONLY ever dynamically imported (see SessionsPage), mirroring
 // geoip.js: the asset ships pre-gzipped (Cloudflare does not compress it) and
 // is fetched + inflated once, only when an export actually has peripherals.
 
+import usbIdsUrl from '../assets/usb-ids.json.gz?url';
+
 let dbPromise = null;
 export function loadUsbDb() {
   if (!dbPromise) {
     dbPromise = (async () => {
-      const res = await fetch('/vault/usb-ids.json.gz');
+      const res = await fetch(usbIdsUrl);
       if (!res.ok) throw new Error(`usb db ${res.status}`);
       let bytes = await res.arrayBuffer();
       // Magic-byte check: skip inflation if a proxy/server already content-decoded it.

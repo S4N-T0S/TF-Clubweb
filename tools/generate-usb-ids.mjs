@@ -1,4 +1,4 @@
-// Regenerates public/vault/usb-ids.json.gz from the public usb.ids database
+// Regenerates src/vault/assets/usb-ids.json.gz from the public usb.ids database
 // (http://www.linux-usb.org/usb.ids) for the vault's Peripherals panel.
 // Shipped pre-gzipped like the geo mmdb (Cloudflare Pages does not compress
 // these assets itself); src/vault/lib/usbids.js inflates it in the browser.
@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
 const SOURCE_URL = 'http://www.linux-usb.org/usb.ids';
-const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'vault', 'usb-ids.json.gz');
+const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'vault', 'assets', 'usb-ids.json.gz');
 
 // Vendors verifiably in real-world use but missing from upstream usb.ids.
 const VENDOR_OVERRIDES = {

@@ -5,7 +5,6 @@
     "/assets/*",
     "/data/*",
     "/videos/*",
-    "/geo/*",
     "/vault/*",
     "/version.json",
     "/robots.txt",

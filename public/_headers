@@ -10,13 +10,10 @@
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
-# GDPR vault art (maps, weapon icons, item pictures, sound bites) remember its immutable
+# Vault art, immutable for a year: a changed file needs a new name, a deleted name is never reused.
+# Regenerated data (usb ids, GeoIP, world geometry) lives in src/vault/assets with ?url imports, so Vite hashes it.
 /vault/*
   Cache-Control: public, max-age=31536000, immutable
-
-# Offline GeoIP data (DB-IP mmdb + world geometry)
-/geo/*
-  Cache-Control: public, max-age=2592000
 
 # Historical season data, brotli-11 at build time (tools/vite-historical-data.js)
 /data/*.bin
