@@ -3,7 +3,7 @@ import worldGeoUrl from '../assets/world.geo.json?url';
 let geoJsonPromise = null;
 export function loadWorldGeo() {
   if (!geoJsonPromise) {
-    geoJsonPromise = fetch(worldGeoUrl)
+    geoJsonPromise = fetch(worldGeoUrl, { priority: 'low' })
       .then((r) => r.json())
       .catch((e) => {
         geoJsonPromise = null; // allow a retry on a later mount

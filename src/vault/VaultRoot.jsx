@@ -23,7 +23,7 @@ import { SessionsPage } from './pages/SessionsPage';
 import { EmailsPage } from './pages/EmailsPage';
 import { SupportPage } from './pages/SupportPage';
 import { AccountPage } from './pages/AccountPage';
-import { preloadVaultImages } from './lib/preload';
+import { preloadVaultImages, preloadVaultData } from './lib/preload';
 import { VAULT_BASE, VAULT_OG_IMAGE, VAULT_OG_IMAGE_ALT } from '../constants';
 
 // Gate: until an export is parsed, every vault path shows the upload landing
@@ -61,6 +61,7 @@ const VaultInner = () => {
 const VaultRoot = () => {
   useEffect(() => {
     preloadVaultImages();
+    preloadVaultData();
   }, []);
 
   return (

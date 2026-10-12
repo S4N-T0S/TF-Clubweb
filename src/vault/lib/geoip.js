@@ -1,7 +1,7 @@
 // Offline IP geolocation via the bundled DB-IP Country Lite database.
 //
-// This module is ONLY ever dynamically imported (see SessionsPage) so mmdb-lib
-// + buffer stay out of the main vault chunk.
+// This module is ONLY ever dynamically imported (see SessionsPage and preload.js)
+// so mmdb-lib stays out of the main vault chunk.
 // Licensing: DB-IP Lite is CC-BY — "IP Geolocation by DB-IP" attribution is rendered under the map
 import { Buffer } from 'buffer';
 import mmdbUrl from '../assets/dbip-country-lite.mmdb.gz?url';
@@ -15,7 +15,7 @@ export function loadGeoReader() {
   if (!readerPromise) {
     readerPromise = (async () => {
       const { Reader } = await import('mmdb-lib');
-      const res = await fetch(mmdbUrl);
+      const res = await fetch(mmdbUrl, { priority: 'low' });
       if (!res.ok) throw new Error(`geo db ${res.status}`);
       let bytes = await res.arrayBuffer();
       // Magic-byte check: skip inflation if a proxy/server already content-decoded it.
