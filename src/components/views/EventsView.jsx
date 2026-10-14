@@ -99,14 +99,14 @@ const EventInfoPopup = ({ onClose }) => {
             <div>
               <strong className="text-gray-200 flex items-center gap-2"><SlidersHorizontal className="w-4 h-4" /> Filter Status:</strong>
               <p className="text-gray-400 ml-8">
-                This button shows if filters are currently active. When gray, filters are in their default state, showing all events. It turns green to signal that you have activated a filter, which is now modifying the list of events shown.
+                This button shows whether filters are hiding any events. Gray means every event is shown. Green means a filter is active, which is the case by default because club events start hidden.
               </p>
               <div className="flex items-center gap-4 ml-8 mt-2">
                 <div className="flex flex-col items-center">
                   <div className="p-2 rounded-lg flex items-center bg-gray-700 text-gray-300">
                     <SlidersHorizontal className="w-5 h-5" />
                   </div>
-                  <span className="text-xs text-gray-400 mt-1">Default</span>
+                  <span className="text-xs text-gray-400 mt-1">All events</span>
                 </div>
                 <div className="flex flex-col items-center">
                   <div className="p-2 rounded-lg flex items-center bg-green-600 text-white">
@@ -211,7 +211,7 @@ export const EventsView = ({ isMobile, onPlayerSearch, onClubClick, onGraphOpen,
     showNameChange: true,
     showSuspectedBan: true,
     showRsAdjustment: true,
-    showClubChange: true,
+    showClubChange: false,
     ...initialSettings.filters,
   });
 

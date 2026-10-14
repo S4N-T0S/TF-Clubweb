@@ -124,7 +124,7 @@ const defaultEventSettings = {
     showNameChange: true,
     showSuspectedBan: true,
     showRsAdjustment: true,
-    showClubChange: true,
+    showClubChange: false,
   }
 };
 export const getStoredEventsSettings = () => getStoredJsonItem(EVENTS_MODAL_SETTINGS_KEY, defaultEventSettings, areValidEventSettings);
