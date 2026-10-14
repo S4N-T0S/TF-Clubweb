@@ -1,5 +1,6 @@
 import { FlaskConical } from 'lucide-react';
 import { DISCORD_URL } from '../../constants';
+import { DiscordLink } from '../../components/DiscordGate';
 
 export const BetaBanner = () => {
   const cls =
@@ -15,14 +16,9 @@ export const BetaBanner = () => {
   );
 
   return DISCORD_URL ? (
-    <a
-      href={DISCORD_URL}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`${cls} hover:bg-orange-900/80 transition-colors`}
-    >
+    <DiscordLink className={`${cls} hover:bg-orange-900/80 transition-colors`}>
       {body}
-    </a>
+    </DiscordLink>
   ) : (
     <div className={cls}>{body}</div>
   );

@@ -1,6 +1,7 @@
 import { Heart } from 'lucide-react';
 import { SiDiscord, SiGithub } from 'react-icons/si';
-import { DISCORD_URL, GITHUB_URL, AUTHOR_NAME } from '../constants';
+import { GITHUB_URL, AUTHOR_NAME } from '../constants';
+import { DiscordLink } from './DiscordGate';
 
 // Site-wide footer
 export const Footer = ({ isMobile }) => {
@@ -26,15 +27,10 @@ export const Footer = ({ isMobile }) => {
           </a>
         </p>
 
-        <a
-          href={DISCORD_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 font-medium text-indigo-300 hover:bg-indigo-500/20 hover:text-indigo-200 transition-colors"
-        >
+        <DiscordLink className="inline-flex items-center gap-2 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 font-medium text-indigo-300 hover:bg-indigo-500/20 hover:text-indigo-200 transition-colors">
           <SiDiscord className="w-4 h-4" />
           Join our Discord
-        </a>
+        </DiscordLink>
       </div>
     </footer>
   );

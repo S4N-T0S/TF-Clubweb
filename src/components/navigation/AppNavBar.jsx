@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Crown, House, Globe, Trophy, Zap, Crosshair, UserSearch, Users, ShieldCheck, Info, Ellipsis } from 'lucide-react';
 import { SiDiscord } from 'react-icons/si';
 import { ThemeSwitcher } from '../ThemeSwitcher';
-import { DISCORD_URL } from '../../constants';
+import { DiscordLink } from '../DiscordGate';
 
 const GHOST_ICON_CLASS =
   'flex items-center justify-center rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-800 hover:text-white';
@@ -142,18 +142,15 @@ const OverflowMenu = ({ onOpenMembers, onOpenInfo }) => {
             <Info className="w-4 h-4" />
             About this site
           </Link>
-          <a
-            href={DISCORD_URL}
+          <DiscordLink
             ref={(el) => (itemRefs.current[3] = el)}
             role="menuitem"
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => close()}
+            onClick={() => close(true)}
             className={MENU_ITEM_CLASS}
           >
             <SiDiscord className="w-4 h-4" />
             Discord
-          </a>
+          </DiscordLink>
         </div>
       )}
     </div>

@@ -4,7 +4,7 @@ import { Crosshair, ShieldCheck, Users, Info, Palette } from 'lucide-react';
 import { SiDiscord } from 'react-icons/si';
 import { useTheme } from '../../context/ThemeProvider';
 import { ThemeSwatch } from '../ThemeSwitcher';
-import { DISCORD_URL } from '../../constants';
+import { DiscordLink } from '../DiscordGate';
 
 const TILE_CLASS =
   'flex items-center gap-2.5 rounded-xl bg-gray-700 px-3 py-3 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-600';
@@ -119,16 +119,10 @@ export const MoreSheet = ({ open, onClose, onOpenMembers, onOpenInfo }) => {
           </span>
         </div>
 
-        <a
-          href={DISCORD_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={onClose}
-          className={`${ROW_CLASS} transition-colors hover:bg-gray-600`}
-        >
+        <DiscordLink onClick={onClose} className={`${ROW_CLASS} transition-colors hover:bg-gray-600`}>
           <SiDiscord className="w-4 h-4" />
           Join our Discord
-        </a>
+        </DiscordLink>
       </div>
     </>
   );
