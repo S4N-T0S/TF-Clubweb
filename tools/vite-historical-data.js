@@ -1,6 +1,6 @@
 // Vite plugin: packs the closed-season leaderboard snapshots into one columnar, brotli-11
 // compressed blob at build time (and in `vite dev`), served from /data/ and fetched by
-// historicalDataService.js before the leaderboard app mounts. The eleven JSON files stay the source of
+// historicalDataService.js before the leaderboard app mounts. The season JSON files stay the source of
 // truth. The file name hashes the uncompressed columnar JSON, so only a data change renames it.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,6 +22,7 @@ const SEASON_FILES = {
   S8: 'S8/S8-official-merged.json',
   S9: 'S9/S9-official-merged.json',
   S10: 'S10/S10-official-merged.json',
+  S11: 'S11/S11-crossplay.json',
 };
 
 const DATA_DIR = fileURLToPath(new URL('../src/data/', import.meta.url));

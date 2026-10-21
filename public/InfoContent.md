@@ -102,7 +102,7 @@ https://API.ogclub.s4nt0s.eu
 
 #### Core Concepts
 
-*   **Seasons:** The API's data is partitioned by "seasons". Each season has a unique `id` and `name`. The frontend will need to allow users to select a season, especially for viewing player graphs. The current season is `11`. (as this is written)
+*   **Seasons:** The API's data is partitioned by "seasons". Each season has a unique `id` and `name`. The frontend will need to allow users to select a season, especially for viewing player graphs. The current season is `12`. (as this is written)
 *   **Player Identity:** A player is identified by an "Embark ID" (e.g., `Username#1234`). Players can change their Embark ID. The backend tracks these changes using a permanent, internal ID. API responses will always provide the player's *current* Embark ID, along with their name change history where relevant.
 *   **Public Authentication:** The `/graph` endpoint is a POST request and requires a public auth token to be sent in the request body. (This endpoint still has token in case of floods in future)
 

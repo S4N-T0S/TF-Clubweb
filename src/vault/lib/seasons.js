@@ -18,6 +18,7 @@ export const SEASONS = [
   { n: 9, label: 'S9', startMs: day('2025-12-10') },
   { n: 10, label: 'S10', startMs: day('2026-03-26') },
   { n: 11, label: 'S11', startMs: day('2026-07-09') },
+  { n: 12, label: 'S12', startMs: day('2026-10-20') },
 ];
 
 // SEASONS plus any later season Embark's key file dates. Known seasons keep the

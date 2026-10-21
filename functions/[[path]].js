@@ -13,7 +13,7 @@ const BASE_URL = 'https://ogclub.s4nt0s.eu';
 const OG_IMAGE_BASE = 'https://api.ogclub.s4nt0s.eu';
 
 // Current/latest season
-const CURRENT_SEASON_NUM = 11;
+const CURRENT_SEASON_NUM = 12;
 const CURRENT_SEASON_KEY = `S${CURRENT_SEASON_NUM}`;
 
 // Slug -> display name for spray-pattern weapon pages.
